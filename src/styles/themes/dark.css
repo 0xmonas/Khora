@@ -1,0 +1,8 @@
+[data-theme='dark'] {
+  --color-primary: #ffffff;
+  --color-secondary: #a3a3a3;
+  --color-background: #121212;
+  --color-surface: #1e1e1e;
+  --color-border: #2e2e2e;
+  --color-text: #ffffff;
+}

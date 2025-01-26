@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+ :root {
+   /* Modern, minimal light theme */
+   --background: 0 0% 100%;      /* Pure white */
+   --foreground: 240 10% 10%;    /* Near black */
+   
+   /* Cards and containers */
+   --card: 0 0% 100%;
+   --card-foreground: 240 10% 10%;
+   
+   /* Primary colors */
+   --primary: 240 5% 25%;        /* Dark gray */
+   --primary-foreground: 0 0% 100%;
+   
+   /* Secondary & Accent */
+   --secondary: 240 5% 96%;      /* Light gray */
+   --secondary-foreground: 240 10% 10%;
+   --accent: 240 5% 96%;
+   --accent-foreground: 240 10% 10%;
+   
+   /* UI Elements */
+   --muted: 240 5% 96%;
+   --muted-foreground: 240 4% 46%;
+   --border: 240 5% 84%;
+   --input: 240 5% 84%;
+   --ring: 240 5% 65%;
+   
+   /* System states */
+   --destructive: 0 84% 60%;
+   --destructive-foreground: 0 0% 100%;
+   
+   /* Chart colors */
+   --chart-1: 220 70% 50%;
+   --chart-2: 160 60% 45%;
+   --chart-3: 30 80% 55%;
+   --chart-4: 280 65% 60%;
+   --chart-5: 340 75% 55%;
+
+   --radius: 0.5rem;
+ }
+
+ .dark {
+   /* Modern, minimal dark theme */
+   --background: 0 0% 10%;
+   --foreground: 0 0% 100%;      /* White text */
+   
+   /* Cards and containers */
+   --card: 0 0% 11%;
+   --card-foreground: 0 0% 100%;
+   
+   /* Primary colors */
+   --primary: 0 0% 100%;
+   --primary-foreground: 240 10% 10%;
+   
+   /* Secondary & Accent */
+   --secondary: 240 5% 26%;
+   --secondary-foreground: 0 0% 100%;
+   --accent: 240 5% 26%;
+   --accent-foreground: 0 0% 100%;
+   
+   /* UI Elements */
+   --muted: 240 5% 26%;
+   --muted-foreground: 240 5% 65%;
+   --border: 240 5% 26%;
+   --input: 240 5% 26%;
+   --ring: 240 5% 65%;
+   
+   /* System states */
+   --destructive: 0 63% 31%;
+   --destructive-foreground: 0 0% 100%;
+   
+   /* Chart colors - Adjusted for dark theme */
+   --chart-1: 220 70% 60%;
+   --chart-2: 160 60% 55%;
+   --chart-3: 30 80% 65%;
+   --chart-4: 280 65% 70%;
+   --chart-5: 340 75% 65%;
+ }
+}
+
+* {
+ @apply border-border box-border m-0 p-0;
+}
+
+body {
+ @apply bg-background text-foreground min-h-screen max-w-full overflow-x-hidden;
+ font-family: var(--font-departure-mono);
+ font-size: 11px;
+ line-height: 1.5;
+ letter-spacing: -0.02em;
+}
+
+a {
+ @apply no-underline text-inherit;
+}
