@@ -2,17 +2,52 @@
 const ELIZA_PROVIDERS = ["openai", "eternalai", "anthropic", "grok", "groq", "llama_cloud", "together", "llama_local", "google", "claude_vertex"];
 const VOICE_MODELS = ["en_US-ryan-medium", "en_US-amy-medium", "en_GB-jenny_dioco-medium"];
 const ZEREPY_LLM_OPTIONS = [
- {
-   name: "openai",
-   model: "gpt-3.5-turbo"
- },
- {
-   name: "anthropic",
-   model: "claude-3-5-sonnet-20241022"
- }
+{
+ name: "openai",
+ model: "gpt-3.5-turbo"
+},
+{
+ name: "anthropic",
+ model: "claude-3-5-sonnet-20241022"
+}
 ];
 
+const FLEEK_PROVIDERS = ["openai"] as const;
+const FLEEK_CLIENTS = ["discord", "twitter", "telegram", "farcaster", "lens", "auto", "slack", "github"] as const;
+
 // Types
+export type FleekTemplate = {
+ type: 'fleek';
+ name: string;
+ plugins: string[];
+ clients: typeof FLEEK_CLIENTS[number][];
+ modelProvider: string;
+ settings: {
+   secrets: {
+     TWITTER_USERNAME: string;
+     TWITTER_PASSWORD: string;
+     TWITTER_EMAIL: string;
+     OPENAI_API_KEY: string;
+   };
+   voice: { model: string; }
+ };
+ bio: string[];
+ lore: string[];
+ knowledge: string[];
+ messageExamples: Array<{
+   user: string;
+   content: { text: string; }
+ }>[];
+ postExamples: string[];
+ topics: string[];
+ style: {
+   all: string[];
+   chat: string[];
+   post: string[];
+ };
+ adjectives: string[];
+}
+
 export type ElizaTemplate = {
  type: 'eliza';
  name: string;
@@ -22,8 +57,8 @@ export type ElizaTemplate = {
  settings: {
    voice: { model: string; }
  };
- bio: string;
- lore: string;
+ bio: string[];
+ lore: string[];
  knowledge: string[];
  messageExamples: Array<{
    user: string;
@@ -62,15 +97,52 @@ export type ZerePyTemplate = {
  };
 }
 
-export type CharacterTemplate = ElizaTemplate | ZerePyTemplate;
+export type CharacterTemplate = ElizaTemplate | ZerePyTemplate | FleekTemplate;
 
-export const FRAMEWORKS = ['eliza', 'zerepy'] as const;
+export const FRAMEWORKS = ['eliza', 'zerepy', 'fleek'] as const;
 export type Framework = typeof FRAMEWORKS[number];
 
 export const CLIENTS_BY_FRAMEWORK: Record<Framework, string[]> = {
  eliza: ["discord", "direct", "twitter", "telegram", "farcaster", "lens", "auto", "slack"],
- zerepy: ["twitter", "farcaster"]
+ zerepy: ["twitter", "farcaster"],
+ fleek: [...FLEEK_CLIENTS]
 };
+
+// Mevcut template'ler aynı...
+
+export const createFleekTemplate = (name: string, clients: string[]): FleekTemplate => ({
+ type: 'fleek',
+ name,
+ plugins: [],
+ clients: clients.filter(client => FLEEK_CLIENTS.includes(client as any)) as typeof FLEEK_CLIENTS[number][],
+ modelProvider: FLEEK_PROVIDERS[Math.floor(Math.random() * FLEEK_PROVIDERS.length)],
+ settings: {
+   secrets: {
+     TWITTER_USERNAME: "john-doe-2",
+     TWITTER_PASSWORD: "doe-2",
+     TWITTER_EMAIL: "doejohn@mail.com",
+     OPENAI_API_KEY: "sk"
+   },
+   voice: {
+     model: VOICE_MODELS[Math.floor(Math.random() * VOICE_MODELS.length)]
+   }
+ },
+ bio: Array(3).fill(""),  // Minimum 3 karakter gereksinimi
+ lore: Array(10).fill(""),
+ knowledge: Array(5).fill(""),
+ messageExamples: Array(3).fill([
+   { user: "{{user1}}", content: { text: "" } },
+   { user: name, content: { text: "" } }
+ ]),
+ postExamples: Array(5).fill(""),
+ topics: Array(10).fill(""),
+ style: {
+   all: Array(5).fill(""),
+   chat: Array(5).fill(""),
+   post: Array(5).fill("")
+ },
+ adjectives: Array(5).fill("")
+});
 
 export const createElizaTemplate = (name: string, clients: string[]): ElizaTemplate => ({
  type: 'eliza',
@@ -83,8 +155,8 @@ export const createElizaTemplate = (name: string, clients: string[]): ElizaTempl
      model: VOICE_MODELS[Math.floor(Math.random() * VOICE_MODELS.length)]
    } 
  },
- bio: "",
- lore: "",
+ bio: Array(10).fill(""),
+ lore: Array(10).fill(""),
  knowledge: Array(5).fill(""),
  messageExamples: Array(3).fill([
    { user: "{{user1}}", content: { text: "" } },

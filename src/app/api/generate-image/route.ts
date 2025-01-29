@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     // 1. Create prediction
     const prediction = await replicate.predictions.create({
-      version: "a7ef5162f8ddc5832d4b2ecde760933031cdd46d30aacc381af0473fffd7cd49",
+      version: "7498c642f7eebd7be9dd2af5dff40f11e8a59c501625bcd5b157a65ff7b70b08",
       input: {
         prompt: prompt,
         model: "dev",

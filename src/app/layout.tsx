@@ -9,9 +9,12 @@ const departureMono = localFont({
 });
 
 export const metadata = {
-  title: 'Character Generator',
+  title: 'Khôra',
   description: 'AI-powered character generator',
   keywords: ['AI', 'character', 'generator', 'Claude', 'Replicate'],
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({

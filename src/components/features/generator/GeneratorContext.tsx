@@ -1,8 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+
+import { pixelateImage } from '@/utils/pixelator';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
-import { Framework, FRAMEWORKS, CLIENTS_BY_FRAMEWORK, ElizaTemplate, ZerePyTemplate, CharacterTemplate, createElizaTemplate, createZerePyTemplate } from '@/types/templates';
+import { Framework, FRAMEWORKS, CLIENTS_BY_FRAMEWORK, ElizaTemplate, ZerePyTemplate, CharacterTemplate, createElizaTemplate, createZerePyTemplate, createFleekTemplate } from '@/types/templates';
 
 export type Step = 'initial' | 'framework_selection' | 'client_selection' | 'generating' | 'complete';
 
@@ -26,6 +28,9 @@ type GeneratorContextType = {
  FRAMEWORKS: readonly Framework[];
  CLIENTS_BY_FRAMEWORK: Record<Framework, string[]>;
  resetGenerator: () => void;
+ pixelMode: boolean;
+  setPixelMode: (mode: boolean) => void;
+  pixelatedImage: string | null;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
@@ -39,8 +44,21 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
  const [imageLoading, setImageLoading] = useState(false);
  const [selectedClients, setSelectedClients] = useState<string[]>([]);
- const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
+ const [selectedFramework, _setSelectedFramework] = useState<Framework | null>(null);
  const [currentStep, setCurrentStep] = useState<Step>('initial');
+ const [pixelMode, setPixelMode] = useState(false);
+const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
+const [isProcessing, setIsProcessing] = useState(false);
+
+
+const setSelectedFramework = (framework: Framework | null) => {
+  if (framework === 'fleek' && characterName.length < 3) {
+    setError("name: Name is required, minimum of 3 characters");
+    return;
+  }
+  _setSelectedFramework(framework);
+  setError(null);
+};
 
  const resetGenerator = () => {
    setCharacter(null);
@@ -53,6 +71,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
    setSelectedClients([]);
    setSelectedFramework(null);
    setCurrentStep('initial');
+   setPixelMode(false);
+  setPixelatedImage(null);
  };
 
  const goToStep = (step: Step) => {
@@ -90,45 +110,91 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
    }
  };
 
- const downloadCharacter = async (format: 'json' | 'png') => {
-   if (!character || (format === 'png' && !generatedImage)) return;
+ useEffect(() => {
+  const processImage = async () => {
+    console.log('ProcessImage Triggered:', {
+      hasGeneratedImage: !!generatedImage,
+      pixelMode,
+      isProcessing
+    });
+
+    if (!generatedImage) return;
+
+    setIsProcessing(true);
+    try {
+      if (pixelMode) {
+        console.log('Starting pixel processing...');
+        const img = new Image();
+        img.src = generatedImage;
+        await new Promise<void>((resolve) => {  // Promise'a void type ekledik
+          img.onload = () => {
+            console.log('Image loaded successfully');
+            resolve();
+          };
+        });
+        
+        console.log('Starting pixelation...');
+        const processed = await pixelateImage(generatedImage);
+        console.log('Pixelation completed');
+        setPixelatedImage(processed);
+      } else {
+        console.log('Pixel mode off, using original image');
+        setPixelatedImage(generatedImage);
+      }
+    } catch (error) {
+      console.error('Detailed error in processImage:', error);
+      setPixelatedImage(generatedImage);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  processImage();
+}, [generatedImage, pixelMode]);
+
+const downloadCharacter = async (format: 'json' | 'png') => {
+  if (!character || (format === 'png' && !generatedImage)) return;
        
-   try {
-     if (format === 'json') {
-       const blob = new Blob([JSON.stringify(character, null, 2)], { type: 'application/json' });
-       const url = window.URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.style.display = 'none';
-       a.href = url;
-       a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.json`;
-       document.body.appendChild(a);
-       a.click();
-       window.URL.revokeObjectURL(url);
-       document.body.removeChild(a);
-     } else if (format === 'png' && generatedImage) {
-       const { embedJsonInPng } = await import('@/utils/helpers/pngEncoder');
-       const pngBlob = await embedJsonInPng(generatedImage, character);
-       const url = window.URL.createObjectURL(pngBlob);
-       const a = document.createElement('a');
-       a.style.display = 'none';
-       a.href = url;
-       a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.png`;
-       document.body.appendChild(a);
-       a.click();
-       window.URL.revokeObjectURL(url);
-       document.body.removeChild(a);
-     }
-   } catch (error) {
-     console.error('Download error:', error);
-     setError('Failed to download character');
-   }
- };
+  try {
+    if (format === 'json') {
+      const { type, ...characterWithoutType } = character;
+      const blob = new Blob([JSON.stringify(characterWithoutType, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } else if (format === 'png') {
+      const { embedJsonInPng } = await import('@/utils/helpers/pngEncoder');
+      const imageToUse = pixelMode ? pixelatedImage : generatedImage;
+      if (!imageToUse) return;
+      
+      const pngBlob = await embedJsonInPng(imageToUse, character);
+      const url = window.URL.createObjectURL(pngBlob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  } catch (error) {
+    console.error('Download error:', error);
+    setError('Failed to download character');
+  }
+};
  
  const generateCharacter = async () => {
-   if (!characterName.trim() || !selectedFramework || !selectedClients.length) {
-     setError("Please fill in all required fields");
-     return;
-   }
+  if (!characterName.trim() || !selectedFramework || !selectedClients.length) {
+    setError("Please fill in all required fields");
+    return;
+  }
  
    setLoading(true);
    setError(null);
@@ -146,29 +212,31 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
    }, 500);
 
    try {
-     let template: CharacterTemplate;
-     let prompt: string;
+    let template: CharacterTemplate;
+    let prompt: string;
 
-     if (selectedFramework === 'eliza') {
-       template = createElizaTemplate(characterName, selectedClients);
-       prompt = `Create an AI character named "${characterName}" for the Eliza framework. The character should have a strong, consistent personality across all their attributes.
+    if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
+      template = selectedFramework === 'eliza' ? 
+        createElizaTemplate(characterName, selectedClients) : 
+        createFleekTemplate(characterName, selectedClients);
+      prompt = `Create an AI character named "${characterName}" for the ${selectedFramework} framework. The character should have a strong, consistent personality across all their attributes.
 
 Return ONLY valid JSON matching this exact template:
 ${JSON.stringify(template, null, 2)}
 
 Requirements:
 1. Name: "${characterName}"
-2. Bio: At least 280 chars in third person about their personality
-3. Lore: At least 280 chars of their backstory and notable facts
+2. Bio: Array of at least 10 unique personality descriptions
+3. Lore: Array of at least 10 unique backstory elements and notable facts
 4. Knowledge: At least 5 areas of expertise
 5. Messages: Very brief, characteristic dialogue examples
 6. Posts: Social media content in their voice
 7. Topics: Their areas of interest
 8. Style: Consistent behavior patterns
 9. Adjectives: Key personality traits`;
-     } else {
-       template = createZerePyTemplate(characterName, selectedClients);
-       prompt = `Create an AI agent named "${characterName}" for the ZerePy framework. The agent should have a strong, consistent personality.
+    } else {
+      template = createZerePyTemplate(characterName, selectedClients);
+      prompt = `Create an AI agent named "${characterName}" for the ZerePy framework. The agent should have a strong, consistent personality.
 
 Return ONLY valid JSON matching this exact template:
 ${JSON.stringify(template, null, 2)}
@@ -180,7 +248,7 @@ Requirements:
 4. Examples: Sample social media posts
 5. Config: Required integration settings
 6. Tasks: Weighted task definitions`;
-     }
+    }
 
      const response = await fetch('/api/generate', {
        method: 'POST',
@@ -228,25 +296,25 @@ Requirements:
        console.error('JSON Parse Error:', e);
        throw new Error("Failed to parse generated character data");
      }
-
-     // Validate based on framework
-     if (selectedFramework === 'eliza') {
-       const elizaChar = generatedCharacter as ElizaTemplate;
-       if (!elizaChar.bio || elizaChar.bio.length < 280) {
-         throw new Error("Generated bio is too short (minimum 280 characters)");
-       }
-       if (!elizaChar.lore || elizaChar.lore.length < 280) {
-         throw new Error("Generated lore is too short (minimum 280 characters)");
-       }
-     } else {
-       const zerePyChar = generatedCharacter as ZerePyTemplate;
-       if (!zerePyChar.bio || zerePyChar.bio.length < 3) {
-         throw new Error("Bio must contain at least 3 descriptions");
-       }
-       if (!zerePyChar.traits || zerePyChar.traits.length < 4) {
-         throw new Error("At least 4 traits are required");
-       }
-     }
+     
+// Validate based on framework
+if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
+  const char = generatedCharacter as ElizaTemplate;
+  if (!Array.isArray(char.bio) || char.bio.length < (selectedFramework === 'fleek' ? 3 : 10)) {
+    throw new Error(`Bio must contain at least ${selectedFramework === 'fleek' ? 3 : 10} examples`);
+  }
+  if (!Array.isArray(char.lore) || char.lore.length < 10) {
+    throw new Error("Lore must contain at least 10 examples"); 
+  }
+} else {
+  const zerePyChar = generatedCharacter as ZerePyTemplate;
+  if (!zerePyChar.bio || zerePyChar.bio.length < 3) {
+    throw new Error("Bio must contain at least 3 descriptions");
+  }
+  if (!zerePyChar.traits || zerePyChar.traits.length < 4) {
+    throw new Error("At least 4 traits are required");
+  }
+}
 
      setCharacter(generatedCharacter);
      setProgress(100);
@@ -265,26 +333,29 @@ Requirements:
  };
 
  const value = {
-   character,
-   loading,
-   progress,
-   error,
-   characterName,
-   setCharacterName,
-   generateCharacter,
-   downloadCharacter,
-   generatedImage,
-   imageLoading,
-   selectedClients,
-   setSelectedClients,
-   selectedFramework,
-   setSelectedFramework,
-   currentStep,
-   goToStep,
-   FRAMEWORKS,
-   CLIENTS_BY_FRAMEWORK,
-   resetGenerator,
- };
+  character,
+  loading,
+  progress,
+  error,
+  characterName,
+  setCharacterName,
+  generateCharacter,
+  downloadCharacter,
+  generatedImage,
+  imageLoading,
+  selectedClients,
+  setSelectedClients,
+  selectedFramework,
+  setSelectedFramework,
+  currentStep,
+  goToStep,
+  FRAMEWORKS,
+  CLIENTS_BY_FRAMEWORK,
+  resetGenerator,
+  pixelMode,
+  setPixelMode,
+  pixelatedImage
+};
 
  return (
    <GeneratorContext.Provider value={value}>

@@ -13,7 +13,9 @@ export function InputForm() {
     goToStep,
     resetGenerator,
     selectedFramework,
-    selectedClients
+    selectedClients,
+    pixelMode,         // Context'ten alıyoruz
+    setPixelMode      // Context'ten alıyoruz
   } = useGenerator();
 
   const handleClick = () => {
@@ -53,6 +55,40 @@ export function InputForm() {
           >
             {selectedFramework ? `${selectedFramework} selected` : 'Select framework'}
           </button>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode</h3>
+          <div 
+            onClick={() => setPixelMode(!pixelMode)}
+            className="w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 cursor-pointer relative"
+          >
+            <div className="absolute inset-0 flex">
+              <div className="w-1/2 flex items-center justify-center">
+                <span className={`font-mono text-sm transition-opacity duration-200 ${
+                  !pixelMode 
+                  ? 'opacity-0' 
+                  : 'text-white dark:text-neutral-900'
+                }`}>OFF</span>
+              </div>
+              <div className="w-1/2 flex items-center justify-center">
+                <span className={`font-mono text-sm transition-opacity duration-200 ${
+                  pixelMode 
+                  ? 'opacity-0' 
+                  : 'text-white dark:text-neutral-900'
+                }`}>ON</span>
+              </div>
+            </div>
+            <div 
+              className={`w-1/2 h-6 transition-transform duration-200 ease-in-out bg-white dark:bg-neutral-900 flex items-center justify-center ${
+                pixelMode ? 'transform translate-x-full' : ''
+              }`}
+            >
+              <span className="font-mono text-sm text-neutral-900 dark:text-white">
+                {pixelMode ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div>

@@ -66,21 +66,22 @@ export async function POST(request: NextRequest) {
    }
 
    try {
-     const cleanedJson = cleanJsonString(data.content[0].text);
-     const parsedCharacter = JSON.parse(cleanedJson);
-     
-     if (parsedCharacter.type === 'eliza') {
-       if (!parsedCharacter.bio?.length || parsedCharacter.bio.length < 280) {
-         throw new Error('Bio is too short or missing (minimum 280 characters)');
-       }
-       if (!parsedCharacter.lore?.length || parsedCharacter.lore.length < 280) {
-         throw new Error('Lore is too short or missing (minimum 280 characters)');
-       }
-     } else if (parsedCharacter.type === 'zerepy') {
-       if (!parsedCharacter.bio?.length || parsedCharacter.bio.length < 3) {
-         throw new Error('Bio must contain at least 3 descriptions');
-       }
-     }
+    const cleanedJson = cleanJsonString(data.content[0].text);
+    const parsedCharacter = JSON.parse(cleanedJson);
+    
+    if (parsedCharacter.type === 'eliza') {
+      if (!Array.isArray(parsedCharacter.bio) || parsedCharacter.bio.length < 10) {
+        throw new Error('Bio must contain at least 10 examples');
+      }
+      if (!Array.isArray(parsedCharacter.lore) || parsedCharacter.lore.length < 10) {
+        throw new Error('Lore must contain at least 10 examples');
+      }
+    } else if (parsedCharacter.type === 'zerepy') {
+      if (!parsedCharacter.bio?.length || parsedCharacter.bio.length < 3) {
+        throw new Error('Bio must contain at least 3 descriptions');
+      }
+    }
+   
 
      return NextResponse.json({
        content: [{ text: cleanedJson }]
