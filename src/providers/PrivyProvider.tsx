@@ -5,13 +5,13 @@ import { PrivyProvider } from '@privy-io/react-auth';
 export default function Privy({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider
-      appId="cm6jmuwi5003zfqg5ky1em5ub"
+      appId="cm6jmdzof00hfz210mto8o31u"
       config={{
         appearance: {
-          accentColor: '#6A6FF5',
+          accentColor: '#3300ff',
           theme: '#222224',
           showWalletLoginFirst: false,
-          logo: 'https://auth.privy.io/logos/privy-logo-dark.png',
+          logo: 'https://pbs.twimg.com/profile_images/1883185244074921984/TwMIQacv_400x400.jpg',
           walletChainType: 'ethereum-only',
           walletList: ['detected_ethereum_wallets'],
         },
