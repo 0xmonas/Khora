@@ -1,6 +1,5 @@
 'use client';
 
-
 import { pixelateImage } from '@/utils/pixelator';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
@@ -184,6 +183,9 @@ const resetGenerator = () => {
             resolve();
           };
         });
+        
+        // Add delay to ensure image is fully processed
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         console.log('Starting pixelation...');
         const processed = await pixelateImage(generatedImage);
