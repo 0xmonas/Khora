@@ -2,7 +2,7 @@
 
 
 import { pixelateImage } from '@/utils/pixelator';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { Framework, FRAMEWORKS, CLIENTS_BY_FRAMEWORK, ElizaTemplate, ZerePyTemplate, CharacterTemplate, createElizaTemplate, createZerePyTemplate, createFleekTemplate } from '@/types/templates';
 
@@ -48,9 +48,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
  const [selectedFramework, _setSelectedFramework] = useState<Framework | null>(null);
  const [currentStep, setCurrentStep] = useState<Step>('initial');
  const [pixelMode, setPixelMode] = useState(false);
-const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
-const [isProcessing, setIsProcessing] = useState(false);
-const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
+ const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
+ const [isProcessing, setIsProcessing] = useState(false);
+ const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
+ const cacheImageRef = useRef<string | null>(null);
+ const cachePixelatedRef = useRef<string | null>(null);
+ const cacheTimestampRef = useRef<number>(0);
+
 
 
 const setSelectedFramework = (framework: Framework | null) => {
@@ -172,13 +176,22 @@ const resetGenerator = () => {
 
     if (!generatedImage) return;
 
+    if (
+      cacheImageRef.current === generatedImage &&
+      Date.now() - cacheTimestampRef.current < 5000
+    ) {
+      console.log('Using cached pixelated image (valid for 5s)');
+      setPixelatedImage(cachePixelatedRef.current);
+      return; 
+    }
+
     setIsProcessing(true);
     try {
       if (pixelMode) {
         console.log('Starting pixel processing...');
         const img = new Image();
         img.src = generatedImage;
-        await new Promise<void>((resolve) => {  // Promise'a void type ekledik
+        await new Promise<void>((resolve) => {
           img.onload = () => {
             console.log('Image loaded successfully');
             resolve();
@@ -189,9 +202,17 @@ const resetGenerator = () => {
         const processed = await pixelateImage(generatedImage);
         console.log('Pixelation completed');
         setPixelatedImage(processed);
+
+        cacheImageRef.current = generatedImage;
+        cachePixelatedRef.current = processed;
+        cacheTimestampRef.current = Date.now();
       } else {
         console.log('Pixel mode off, using original image');
         setPixelatedImage(generatedImage);
+
+        cacheImageRef.current = generatedImage;
+        cachePixelatedRef.current = generatedImage;
+        cacheTimestampRef.current = Date.now();
       }
     } catch (error) {
       console.error('Detailed error in processImage:', error);
@@ -203,6 +224,7 @@ const resetGenerator = () => {
 
   processImage();
 }, [generatedImage, pixelMode]);
+
 
 const downloadCharacter = async (format: 'json' | 'png') => {
   if (!character || (format === 'png' && !generatedImage)) return;
