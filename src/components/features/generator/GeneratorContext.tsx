@@ -52,6 +52,7 @@ const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
 const [pixelateCache, setPixelateCache] = useState<Record<string, string>>({});
+const [cacheTimestamp, setCacheTimestamp] = useState<Record<string, number>>({});
 
 
 
@@ -77,7 +78,8 @@ useEffect(() => {
         characterName: savedName,
         selectedFramework: savedFramework,
         selectedClients: savedClients,
-        pixelateCache: savedCache
+        pixelateCache: savedCache,
+        cacheTimestamp: savedTimestamp
       } = JSON.parse(savedData);
 
       if (savedCharacter) setCharacter(savedCharacter);
@@ -92,6 +94,8 @@ useEffect(() => {
       if (savedFramework) _setSelectedFramework(savedFramework);
       if (savedClients) setSelectedClients(savedClients);
       if (savedCache) setPixelateCache(savedCache);
+      if (savedTimestamp) setCacheTimestamp(savedTimestamp);
+
 
     } catch (error) {
       console.error('Error loading saved data:', error);
@@ -111,10 +115,11 @@ useEffect(() => {
       characterName,
       selectedFramework,
       selectedClients,
-      pixelateCache
+      pixelateCache,
+      cacheTimestamp
     }));
   }
-}, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients, pixelateCache]);
+}, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients, pixelateCache, cacheTimestamp]);
 
 const resetGenerator = () => {
   localStorage.removeItem('generatorData');
@@ -178,36 +183,47 @@ const resetGenerator = () => {
 
     if (!generatedImage) return;
 
+    const now = Date.now();
+    if (
+      pixelMode &&
+      pixelateCache[generatedImage] && 
+      cacheTimestamp[generatedImage] && 
+      (now - cacheTimestamp[generatedImage]) < 5000
+    ) {
+      console.log('Using cached pixelated image (valid for 5s)');
+      setPixelatedImage(pixelateCache[generatedImage]);
+      return;
+    }
+
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     setIsProcessing(true);
     try {
       if (pixelMode) {
-        if (pixelateCache[generatedImage]) {
-          console.log('Using cached pixelated image');
-          setPixelatedImage(pixelateCache[generatedImage]);
-        } else {
-          console.log('Starting pixel processing...');
-          const img = new Image();
-          img.src = generatedImage;
-          await new Promise<void>((resolve) => {
-            img.onload = () => {
-              console.log('Image loaded successfully');
-              resolve();
-            };
-          });
-          
-          console.log('Starting pixelation...');
-          const processed = await pixelateImage(generatedImage);
-          console.log('Pixelation completed');
-          
-          setPixelateCache(prev => ({
-            ...prev,
-            [generatedImage]: processed
-          }));
-          
-          setPixelatedImage(processed);
-        }
+        console.log('Starting pixel processing...');
+        const img = new Image();
+        img.src = generatedImage;
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            console.log('Image loaded successfully');
+            resolve();
+          };
+        });
+        
+        console.log('Starting pixelation...');
+        const processed = await pixelateImage(generatedImage);
+        console.log('Pixelation completed');
+        
+        setPixelateCache(prev => ({
+          ...prev,
+          [generatedImage]: processed
+        }));
+        setCacheTimestamp(prev => ({
+          ...prev,
+          [generatedImage]: now
+        }));
+        
+        setPixelatedImage(processed);
       } else {
         console.log('Pixel mode off, using original image');
         setPixelatedImage(generatedImage);
