@@ -27,7 +27,7 @@ export function HeroSection() {
                />
              </div>
              <p className="font-mono text-lg sm:text-xl text-muted-foreground max-w-2xl text-center mt-12">
-               We've reimagined how AI characters come to life—so you can shape yours effortlessly.
+               We&apos;ve reimagined how AI characters come to life—so you can shape yours effortlessly.
              </p>
              <button 
                onClick={() => router.replace('/generator')}

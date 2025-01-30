@@ -14,12 +14,12 @@ interface FleekWarningDialogProps {
           <h3 className="font-mono text-lg mb-4 dark:text-white">Deploy on Fleek.xyz</h3>
           <div className="font-mono text-sm mb-6 space-y-4 dark:text-white">
             <p>
-              Your Eliza agent is ready to be deployed on Fleek.xyz! Here's how to get started:
+              Your Eliza agent is ready to be deployed on Fleek.xyz! Here&apos;s how to get started:
             </p>
             <ul className="list-disc pl-4 space-y-2">
               <li>Create an account on Fleek.xyz</li>
               <li>Use the generated JSON to deploy your agent</li>
-              <li>Configure your agent's settings and permissions</li>
+              <li>Configure your agent&apos;s settings and permissions</li>
             </ul>
             <p className="text-xs text-neutral-600 dark:text-neutral-400">
               Note: Visit <a href="https://fleek.xyz/guides/eliza-guide/#upload-a-characterfile" target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-900 dark:hover:text-neutral-200">Fleek documentation</a> to learn how to deploy your agent.
