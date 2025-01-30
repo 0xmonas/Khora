@@ -184,7 +184,7 @@ const resetGenerator = () => {
           };
         });
         
-        // Add delay to ensure image is fully processed
+        // delay
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         console.log('Starting pixelation...');
