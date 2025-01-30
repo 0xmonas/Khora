@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@privy-io/react-auth": "^2.1.0",
     "@radix-ui/react-dialog": "^1.1.5",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-scroll-area": "^1.2.2",

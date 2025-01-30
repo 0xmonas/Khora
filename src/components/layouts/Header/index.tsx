@@ -15,12 +15,12 @@ export function Header() {
         <div className="hidden lg:block lg:col-span-1" />
         <div className="lg:col-span-10">
           <div className="flex items-center justify-between">
-            <div 
+            <div
               style={{ width: '48px', height: '48px', position: 'relative' }}
               onClick={() => router.replace('/')}
               className="cursor-pointer"
             >
-              <Image 
+              <Image
                 src="/logo.png"
                 alt="Logo"
                 fill
@@ -29,9 +29,8 @@ export function Header() {
                 className="object-contain bg-[#30f] dark:bg-background"
               />
             </div>
-            
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 className="h-10 sm:h-12 px-4 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
                 aria-label="Toggle theme"

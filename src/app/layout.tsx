@@ -5,7 +5,7 @@ import { Providers } from '@/components/providers';
 
 const departureMono = localFont({
   src: './fonts/DepartureMono-Regular.woff',
-  variable: '--font-departure-mono'
+  variable: '--font-departure-mono',
 });
 
 export const metadata = {
@@ -17,11 +17,7 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${departureMono.variable} font-mono min-h-screen flex flex-col`}>
