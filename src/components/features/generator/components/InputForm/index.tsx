@@ -74,7 +74,7 @@ return (
       </div>
 
       <div>
-        <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode</h3>
+        <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode BETA</h3>
         <div 
           onClick={() => {
             if (initialPixelMode === false && currentStep === 'complete') return;
