@@ -67,7 +67,7 @@ const setSelectedFramework = (framework: Framework | null) => {
 
 useEffect(() => {
   const savedData = localStorage.getItem('generatorData');
-  if (savedData && currentStep !== 'complete') {
+  if (!savedData) return; //
     try {
       const { 
         character: savedCharacter, 
@@ -82,27 +82,28 @@ useEffect(() => {
         cacheTimestamp: savedTimestamp
       } = JSON.parse(savedData);
 
-      if (savedCharacter) setCharacter(savedCharacter);
-      if (savedImage) setGeneratedImage(savedImage);
-      if (savedPixelated) setPixelatedImage(savedPixelated);
-      if (savedStep) setCurrentStep(savedStep as Step);
-      if (savedPixelMode !== null) {
-        setInitialPixelMode(savedPixelMode);
-        setPixelMode(savedPixelMode);
+      if (currentStep === 'initial') {
+        if (savedCharacter) setCharacter(savedCharacter);
+        if (savedImage) setGeneratedImage(savedImage);
+        if (savedPixelated) setPixelatedImage(savedPixelated);
+        if (savedStep) setCurrentStep(savedStep as Step);
+        if (savedPixelMode !== null) {
+          setInitialPixelMode(savedPixelMode);
+          setPixelMode(savedPixelMode);
+        }
+        if (savedName) setCharacterName(savedName);
+        if (savedFramework) _setSelectedFramework(savedFramework);
+        if (savedClients) setSelectedClients(savedClients);
+        if (savedCache) setPixelateCache(savedCache);
+        if (savedTimestamp) setCacheTimestamp(savedTimestamp);
       }
-      if (savedName) setCharacterName(savedName);
-      if (savedFramework) _setSelectedFramework(savedFramework);
-      if (savedClients) setSelectedClients(savedClients);
-      if (savedCache) setPixelateCache(savedCache);
-      if (savedTimestamp) setCacheTimestamp(savedTimestamp);
-
-
+  
     } catch (error) {
       console.error('Error loading saved data:', error);
       localStorage.removeItem('generatorData');
     }
-  }
-}, [currentStep]);
+  }, [currentStep]);
+  
 
 useEffect(() => {
   if (character || generatedImage) {
@@ -136,6 +137,8 @@ const resetGenerator = () => {
   setPixelMode(false);
   setPixelatedImage(null);
   setInitialPixelMode(null);
+  setPixelateCache({});
+  setCacheTimestamp({});
 };
 
  const goToStep = (step: Step) => {
