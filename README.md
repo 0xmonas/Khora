@@ -1,68 +1,31 @@
-# Character Generator
+# Khôra
 
-An AI-powered character generator that creates unique characters with personalities, backstories, and visual representations.
+AI character generator built for Eliza and ZerePy frameworks. Create complete characters with just a name.
+
+<div align="center">
+  <img src="public/demo.png" alt="Khôra Demo" />
+</div>
 
 ## Features
 
-- Character generation using Claude AI
-- Image generation using Replicate API
-- SVG representation of character data
-- Social media client integration
-- Authentication system
-- Character gallery
-- Dark/Light theme support
+- 🤖 AI character generation with Claude
+- 🎨 Portrait generation with Replicate
+- 🎮 Eliza & ZerePy framework support
+- 🖼️ Khôra Mode (pixel art style)
+- 🌓 Dark/Light theme
 
-## Tech Stack
+## Quick Start
 
-- Next.js 14
-- React 18
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- Claude AI
-- Replicate API
+```bash
+# Install dependencies
+npm install
 
-## Getting Started
+# Set up environment
+cp .env.example .env
 
-1. Clone the repository
-2. Install dependencies
-   ```bash
-   npm install
-   ```
-3. Create a `.env` file with your API keys
-   ```
-   ANTHROPIC_API_KEY=your_api_key
-   REPLICATE_API_TOKEN=your_api_token
-   ```
-4. Run the development server
-   ```bash
-   npm run dev
-   ```
-5. Open [http://localhost:3000](http://localhost:3000)
+# Add your API keys
+# ANTHROPIC_API_KEY=your_key
+# REPLICATE_API_TOKEN=your_token
 
-## Project Structure
-
-```
-src/
-├── app/                # Next.js app router pages
-├── components/         # React components
-│   ├── common/        # Reusable components
-│   ├── features/      # Feature-specific components
-│   ├── layouts/       # Layout components
-│   └── ui/            # UI components (shadcn)
-├── context/           # React context
-├── hooks/             # Custom React hooks
-├── lib/              # Third-party library configs
-├── services/         # API and service layer
-├── styles/           # Global styles and themes
-├── types/            # TypeScript types
-└── utils/            # Utilities and helpers
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a pull request
+# Run development server
+npm run dev

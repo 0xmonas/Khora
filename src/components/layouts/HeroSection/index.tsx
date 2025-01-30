@@ -60,7 +60,7 @@ export function HeroSection() {
              </a>
 
              {/* About Card */}
-             <a href="https://medium.com/khorafun" className="bg-neutral-50 dark:bg-card p-3 lg:p-5 rounded-none">
+             <a href="https://medium.com/@khorafun/meet-kh%C3%B4ra-7e6bf35b586e" className="bg-neutral-50 dark:bg-card p-3 lg:p-5 rounded-none">
                <h3 className="font-mono text-xs lg:text-sm text-foreground text-center">
                  About Khora
                </h3>
@@ -100,8 +100,8 @@ export function HeroSection() {
                      rel="noopener noreferrer"
                    >
                      <Image
-                       src="/pump_fun_logo.png"
-                       alt="Pump Fun"
+                       src="/moonshot.png"
+                       alt="Moonshot"
                        width={24}
                        height={24}
                        className="rounded-full cursor-pointer hover:opacity-80 transition-opacity"

@@ -31,6 +31,7 @@ type GeneratorContextType = {
  pixelMode: boolean;
   setPixelMode: (mode: boolean) => void;
   pixelatedImage: string | null;
+  initialPixelMode: boolean | null;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
@@ -49,6 +50,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
  const [pixelMode, setPixelMode] = useState(false);
 const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
+const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
 
 
 const setSelectedFramework = (framework: Framework | null) => {
@@ -60,20 +62,70 @@ const setSelectedFramework = (framework: Framework | null) => {
   setError(null);
 };
 
- const resetGenerator = () => {
-   setCharacter(null);
-   setLoading(false);
-   setProgress(0);
-   setError(null);
-   setCharacterName('');
-   setGeneratedImage(null);
-   setImageLoading(false);
-   setSelectedClients([]);
-   setSelectedFramework(null);
-   setCurrentStep('initial');
-   setPixelMode(false);
+useEffect(() => {
+  const savedData = localStorage.getItem('generatorData');
+  if (savedData && currentStep !== 'complete') {
+    try {
+      const { 
+        character: savedCharacter, 
+        generatedImage: savedImage,
+        pixelatedImage: savedPixelated,
+        currentStep: savedStep,
+        initialPixelMode: savedPixelMode,
+        characterName: savedName,
+        selectedFramework: savedFramework,
+        selectedClients: savedClients
+      } = JSON.parse(savedData);
+
+      if (savedCharacter) setCharacter(savedCharacter);
+      if (savedImage) setGeneratedImage(savedImage);
+      if (savedPixelated) setPixelatedImage(savedPixelated);
+      if (savedStep) setCurrentStep(savedStep as Step);
+      if (savedPixelMode !== null) {
+        setInitialPixelMode(savedPixelMode);
+        setPixelMode(savedPixelMode);
+      }
+      if (savedName) setCharacterName(savedName);
+      if (savedFramework) _setSelectedFramework(savedFramework);
+      if (savedClients) setSelectedClients(savedClients);
+    } catch (error) {
+      console.error('Error loading saved data:', error);
+      localStorage.removeItem('generatorData'); // Hatalı veriyi temizle
+    }
+  }
+}, [currentStep]);
+
+useEffect(() => {
+  if (character || generatedImage) {
+    localStorage.setItem('generatorData', JSON.stringify({
+      character,
+      generatedImage,
+      pixelatedImage,
+      currentStep,
+      initialPixelMode,
+      characterName,
+      selectedFramework,
+      selectedClients
+    }));
+  }
+}, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients]);
+
+const resetGenerator = () => {
+  localStorage.removeItem('generatorData');
+  setCharacter(null);
+  setLoading(false);
+  setProgress(0);
+  setError(null);
+  setCharacterName('');
+  setGeneratedImage(null);
+  setImageLoading(false);
+  setSelectedClients([]);
+  setSelectedFramework(null);
+  setCurrentStep('initial');
+  setPixelMode(false);
   setPixelatedImage(null);
- };
+  setInitialPixelMode(null);
+};
 
  const goToStep = (step: Step) => {
    setCurrentStep(step);
@@ -200,6 +252,7 @@ const downloadCharacter = async (format: 'json' | 'png') => {
    setError(null);
    setProgress(0);
    setCurrentStep('generating');
+   setInitialPixelMode(pixelMode);
      
    const progressInterval = setInterval(() => {
      setProgress(prev => {
@@ -354,7 +407,8 @@ if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
   resetGenerator,
   pixelMode,
   setPixelMode,
-  pixelatedImage
+  pixelatedImage,
+  initialPixelMode
 };
 
  return (

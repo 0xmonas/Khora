@@ -23,7 +23,7 @@ export async function createPortraitPrompt(character: CharacterTemplate): Promis
    const aiPrompt =
     `Analyze this character JSON and create a visual image generation prompt that captures their essence.
     The prompt MUST:
-    1. Start with exactly "style of nft PFP art, a portrait pfp like nft"
+    1. Start with exactly "style of nft pfp art without backgroud, a portrait of"
     2. Use the character's entity, traits, interests, and background to create a vivid visual description
     3. Focus only on visual elements
     4. color pallet is C64
@@ -48,14 +48,14 @@ Return ONLY the prompt, nothing else.`;
    const data = await response.json();
    let finalPrompt = data.prompt.trim();
    
-   if (!finalPrompt.toLowerCase().includes("style of nft pfp art, a portrait pfp like nft")) {
-     finalPrompt = "style of nft PFP art, a portrait pfp like nft, " + finalPrompt;
+   if (!finalPrompt.toLowerCase().includes("style of nft pfp art without backgroud, a portrait of")) {
+     finalPrompt = "style of nft pfp art without backgroud, a portrait of, " + finalPrompt;
    }
 
    return finalPrompt;
 
  } catch (error) {
    console.error('Error creating AI portrait prompt:', error);
-   return "style of nft PFP art, a portrait pfp like nft, mysterious figure in shadows";
+   return "style of nft pfp art without backgroud, a portrait of";
  }
 }

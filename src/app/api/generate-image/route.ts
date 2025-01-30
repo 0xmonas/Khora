@@ -12,6 +12,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!prompt || typeof prompt !== 'string') {
+      return NextResponse.json(
+        { error: 'Prompt is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
     const replicate = new Replicate({
       auth: process.env.REPLICATE_API_TOKEN,
     });
@@ -20,28 +27,37 @@ export async function POST(request: Request) {
     const prediction = await replicate.predictions.create({
       version: "7498c642f7eebd7be9dd2af5dff40f11e8a59c501625bcd5b157a65ff7b70b08",
       input: {
-        prompt: prompt,
         model: "dev",
+        prompt: prompt,
+        go_fast: false,
+        lora_scale: 1,
+        megapixels: "1",
         num_outputs: 1,
         aspect_ratio: "1:1",
         output_format: "png",
         guidance_scale: 3,
+        output_quality: 80,
         prompt_strength: 0.8,
-        num_inference_steps: 28,
-        output_quality: 80
+        extra_lora_scale: 1,
+        num_inference_steps: 28
       }
     });
 
     console.log('Prediction created:', prediction);
 
-    // 2. Wait for prediction result
+    // 2. Wait for prediction result with timeout
     let result = await replicate.predictions.get(prediction.id);
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds maximum
 
-    // Wait until result is ready
     while (result.status !== 'succeeded' && result.status !== 'failed') {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      if (attempts >= maxAttempts) {
+        throw new Error('Image generation timed out');
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
       result = await replicate.predictions.get(prediction.id);
       console.log('Prediction status:', result.status);
+      attempts++;
     }
 
     if (result.status === 'failed') {
