@@ -18,7 +18,7 @@ export function Footer() {
 
                 <div className="flex flex-row items-center gap-6">
                   <a 
-                    href="https://twitter.com" 
+                    href="https://x.com/khorafun" 
                     target="_blank"
                     rel="noreferrer"
                     className="text-sm text-neutral-500 hover:text-black dark:hover:text-white transition-colors"

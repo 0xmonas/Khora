@@ -95,7 +95,7 @@ export function HeroSection() {
                      />
                    </Link>
                    <Link 
-                     href="https://pump.fun/coin/x"
+                     href="https://dexscreener.com/solana/x"
                      target="_blank"
                      rel="noopener noreferrer"
                    >
