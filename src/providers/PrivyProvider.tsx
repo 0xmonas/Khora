@@ -15,7 +15,7 @@ export default function Privy({ children }: { children: React.ReactNode }) {
           walletChainType: 'ethereum-only',
           walletList: ['detected_ethereum_wallets'],
         },
-        loginMethods: ['google', 'email', 'twitter'],
+        loginMethods: ['email'],
         fundingMethodConfig: {
           moonpay: {
             useSandbox: true,
@@ -24,7 +24,7 @@ export default function Privy({ children }: { children: React.ReactNode }) {
         embeddedWallets: {
           createOnLogin: 'off',
           requireUserPasswordOnCreate: false,
-          showWalletUIs: true,
+          showWalletUIs: false,
         },
         mfa: {
           noPromptOnMfaRequired: false,
