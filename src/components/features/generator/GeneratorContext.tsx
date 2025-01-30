@@ -51,9 +51,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
-const [pixelateCache, setPixelateCache] = useState<Record<string, string>>({});
-const [cacheTimestamp, setCacheTimestamp] = useState<Record<string, number>>({});
-
 
 
 const setSelectedFramework = (framework: Framework | null) => {
@@ -67,7 +64,7 @@ const setSelectedFramework = (framework: Framework | null) => {
 
 useEffect(() => {
   const savedData = localStorage.getItem('generatorData');
-  if (!savedData) return; //
+  if (savedData && currentStep !== 'complete') {
     try {
       const { 
         character: savedCharacter, 
@@ -77,33 +74,26 @@ useEffect(() => {
         initialPixelMode: savedPixelMode,
         characterName: savedName,
         selectedFramework: savedFramework,
-        selectedClients: savedClients,
-        pixelateCache: savedCache,
-        cacheTimestamp: savedTimestamp
+        selectedClients: savedClients
       } = JSON.parse(savedData);
 
-      if (currentStep === 'initial') {
-        if (savedCharacter) setCharacter(savedCharacter);
-        if (savedImage) setGeneratedImage(savedImage);
-        if (savedPixelated) setPixelatedImage(savedPixelated);
-        if (savedStep) setCurrentStep(savedStep as Step);
-        if (savedPixelMode !== null) {
-          setInitialPixelMode(savedPixelMode);
-          setPixelMode(savedPixelMode);
-        }
-        if (savedName) setCharacterName(savedName);
-        if (savedFramework) _setSelectedFramework(savedFramework);
-        if (savedClients) setSelectedClients(savedClients);
-        if (savedCache) setPixelateCache(savedCache);
-        if (savedTimestamp) setCacheTimestamp(savedTimestamp);
+      if (savedCharacter) setCharacter(savedCharacter);
+      if (savedImage) setGeneratedImage(savedImage);
+      if (savedPixelated) setPixelatedImage(savedPixelated);
+      if (savedStep) setCurrentStep(savedStep as Step);
+      if (savedPixelMode !== null) {
+        setInitialPixelMode(savedPixelMode);
+        setPixelMode(savedPixelMode);
       }
-  
+      if (savedName) setCharacterName(savedName);
+      if (savedFramework) _setSelectedFramework(savedFramework);
+      if (savedClients) setSelectedClients(savedClients);
     } catch (error) {
       console.error('Error loading saved data:', error);
-      localStorage.removeItem('generatorData');
+      localStorage.removeItem('generatorData'); // Hatalı veriyi temizle
     }
-  }, [currentStep]);
-  
+  }
+}, [currentStep]);
 
 useEffect(() => {
   if (character || generatedImage) {
@@ -115,12 +105,10 @@ useEffect(() => {
       initialPixelMode,
       characterName,
       selectedFramework,
-      selectedClients,
-      pixelateCache,
-      cacheTimestamp
+      selectedClients
     }));
   }
-}, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients, pixelateCache, cacheTimestamp]);
+}, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients]);
 
 const resetGenerator = () => {
   localStorage.removeItem('generatorData');
@@ -137,8 +125,6 @@ const resetGenerator = () => {
   setPixelMode(false);
   setPixelatedImage(null);
   setInitialPixelMode(null);
-  setPixelateCache({});
-  setCacheTimestamp({});
 };
 
  const goToStep = (step: Step) => {
@@ -186,20 +172,6 @@ const resetGenerator = () => {
 
     if (!generatedImage) return;
 
-    const now = Date.now();
-    if (
-      pixelMode &&
-      pixelateCache[generatedImage] && 
-      cacheTimestamp[generatedImage] && 
-      (now - cacheTimestamp[generatedImage]) < 5000
-    ) {
-      console.log('Using cached pixelated image (valid for 5s)');
-      setPixelatedImage(pixelateCache[generatedImage]);
-      return;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
     setIsProcessing(true);
     try {
       if (pixelMode) {
@@ -216,16 +188,6 @@ const resetGenerator = () => {
         console.log('Starting pixelation...');
         const processed = await pixelateImage(generatedImage);
         console.log('Pixelation completed');
-        
-        setPixelateCache(prev => ({
-          ...prev,
-          [generatedImage]: processed
-        }));
-        setCacheTimestamp(prev => ({
-          ...prev,
-          [generatedImage]: now
-        }));
-        
         setPixelatedImage(processed);
       } else {
         console.log('Pixel mode off, using original image');
@@ -240,7 +202,7 @@ const resetGenerator = () => {
   };
 
   processImage();
-}, [generatedImage, pixelMode, pixelateCache]);
+}, [generatedImage, pixelMode]);
 
 const downloadCharacter = async (format: 'json' | 'png') => {
   if (!character || (format === 'png' && !generatedImage)) return;
