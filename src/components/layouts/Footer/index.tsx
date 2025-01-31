@@ -27,7 +27,7 @@ export function Footer() {
                     X
                   </a>
                   <a 
-                    href="https://github.com" 
+                    href="https://github.com/0xmonas/Khora" 
                     target="_blank"
                     rel="noreferrer"
                     className="text-sm text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
