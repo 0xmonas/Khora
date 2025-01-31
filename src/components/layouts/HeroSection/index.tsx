@@ -78,11 +78,11 @@ export function HeroSection() {
                </span>
                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
                  <div className="font-mono text-xs break-all text-muted-foreground">
-                   Monas was here
+                 4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
                  </div>
                  <div className="flex gap-2">
                    <Link 
-                     href="https://dexscreener.com/solana/x"
+                     href="https://dexscreener.com/solana/4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon"
                      target="_blank"
                      rel="noopener noreferrer"
                    >
@@ -95,7 +95,7 @@ export function HeroSection() {
                      />
                    </Link>
                    <Link 
-                     href="https://dexscreener.com/solana/x"
+                     href="https://dexscreener.com/solana/4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon"
                      target="_blank"
                      rel="noopener noreferrer"
                    >
