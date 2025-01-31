@@ -2,9 +2,8 @@
 
 AI character generator built for Eliza and ZerePy frameworks. Create complete characters with just a name.
 
-<div align="center">
-  <img src="public/demo.png" alt="Khôra Demo" />
-</div>
+![logo](https://github.com/user-attachments/assets/bb73db4c-1f64-4e64-8f32-bc0c6ad17ae6)
+
 
 ## Features
 
