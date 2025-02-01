@@ -15,7 +15,7 @@ type GeneratorContextType = {
  characterName: string;
  setCharacterName: (name: string) => void;
  generateCharacter: () => Promise<void>;
- downloadCharacter: (format: 'json' | 'png') => Promise<void>;
+ downloadCharacter: (format: 'json' | 'png' | 'svg') => Promise<void>;
  generatedImage: string | null;
  imageLoading: boolean;
  selectedClients: string[];
@@ -206,9 +206,9 @@ const resetGenerator = () => {
   processImage();
 }, [generatedImage, pixelMode]);
 
-const downloadCharacter = async (format: 'json' | 'png') => {
+const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
   if (!character || (format === 'png' && !generatedImage)) return;
-
+       
   try {
     if (format === 'json') {
       const { type, ...characterWithoutType } = character;
@@ -226,13 +226,28 @@ const downloadCharacter = async (format: 'json' | 'png') => {
       const { embedJsonInPng } = await import('@/utils/helpers/pngEncoder');
       const imageToUse = pixelMode ? pixelatedImage : generatedImage;
       if (!imageToUse) return;
-
+      
       const pngBlob = await embedJsonInPng(imageToUse, character);
       const url = window.URL.createObjectURL(pngBlob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } else if (format === 'svg') {
+      const { createSVGBlob } = await import('@/utils/helpers/svgConverter');
+      const imageToUse = pixelMode ? pixelatedImage : generatedImage;
+      if (!imageToUse) return;
+      
+      const svgBlob = await createSVGBlob(imageToUse);
+      const url = window.URL.createObjectURL(svgBlob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.svg`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
