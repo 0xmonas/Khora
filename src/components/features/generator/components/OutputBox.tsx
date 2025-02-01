@@ -6,7 +6,7 @@ import { CustomScrollArea } from "@/components/ui/custom-scroll-area";
 
 interface OutputBoxProps {
   title: string;
-  downloadType: 'json' | 'png' | 'png_svg' | 'none';
+  downloadType: 'json' | 'png' | 'none';
   onDownload: (type: 'json' | 'png' | 'svg') => void;
   isDownloadDisabled?: boolean;
   children: ReactNode;
