@@ -232,7 +232,7 @@ export function OutputSection() {
        <OutputBox
          title="agent_pfp"
          downloadType="png"
-         onDownload={() => downloadCharacter('png')}
+         onDownload={(format) => downloadCharacter(format)}
          isDownloadDisabled={!generatedImage || imageLoading}
          type="image"
          onClose={() => resetGenerator()}
