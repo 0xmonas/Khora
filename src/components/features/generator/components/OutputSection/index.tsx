@@ -231,7 +231,7 @@ export function OutputSection() {
 
         <OutputBox
   title="agent_pfp"
-  downloadType="png"
+  downloadType="png_svg"
   onDownload={(format) => downloadCharacter(format)}
   isDownloadDisabled={!generatedImage || imageLoading}
   type="image"
