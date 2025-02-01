@@ -30,7 +30,7 @@ export function OutputSection() {
   const [showFleekWarning, setShowFleekWarning] = useState(false);
   const [pendingFramework, setPendingFramework] = useState<Framework | null>(null);
 
-  
+
   const handleDownload = (type: 'json' | 'png' | 'svg') => {
     downloadCharacter(type);
   };
@@ -237,11 +237,11 @@ export function OutputSection() {
        <OutputBox
          title="agent_pfp"
          downloadType="png"
-         onDownload={handleDownload}
+         onDownload={(format) => downloadCharacter(format)}
          isDownloadDisabled={!generatedImage || imageLoading}
          type="image"
          onClose={() => resetGenerator()}
-       >
+>
          <div className="w-full h-full flex items-center justify-center">
          {loading ? (
     <div className="animate-pulse flex items-center justify-center">
