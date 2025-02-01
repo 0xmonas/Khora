@@ -29,12 +29,6 @@ export function OutputSection() {
 
   const [showFleekWarning, setShowFleekWarning] = useState(false);
   const [pendingFramework, setPendingFramework] = useState<Framework | null>(null);
-
-
-  const handleDownload = (type: 'json' | 'png' | 'svg') => {
-    downloadCharacter(type);
-  };
-
   const skeletonSize = "w-32 h-32";
 
   const handleFrameworkSelect = (framework: Framework) => {
