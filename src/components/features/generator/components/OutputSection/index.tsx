@@ -29,6 +29,7 @@ export function OutputSection() {
 
   const [showFleekWarning, setShowFleekWarning] = useState(false);
   const [pendingFramework, setPendingFramework] = useState<Framework | null>(null);
+
   const skeletonSize = "w-32 h-32";
 
   const handleFrameworkSelect = (framework: Framework) => {
@@ -66,7 +67,7 @@ export function OutputSection() {
 
   if (currentStep === 'framework_selection' || currentStep === 'client_selection') {
     const availableClients = selectedFramework ? CLIENTS_BY_FRAMEWORK[selectedFramework] : [];
-
+    
     return (
       <>
         <FleekWarningDialog 
@@ -231,11 +232,11 @@ export function OutputSection() {
        <OutputBox
          title="agent_pfp"
          downloadType="png"
-         onDownload={(format) => downloadCharacter(format)}
+         onDownload={() => downloadCharacter('png')}
          isDownloadDisabled={!generatedImage || imageLoading}
          type="image"
          onClose={() => resetGenerator()}
->
+       >
          <div className="w-full h-full flex items-center justify-center">
          {loading ? (
     <div className="animate-pulse flex items-center justify-center">
