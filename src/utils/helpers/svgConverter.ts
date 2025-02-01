@@ -67,7 +67,7 @@ function componentToHex(c: number): string {
       const color = getColor(r, g, b, a);
       if (!color) continue;
   
-      let paths: string[] = [];
+      const paths: string[] = [];
       let curPath: [number, number] | null = null;
       let w = 1;
   
