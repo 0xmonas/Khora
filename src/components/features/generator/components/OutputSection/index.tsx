@@ -52,8 +52,8 @@ export function OutputSection() {
 
   const handleFleekCancel = () => {
     setPendingFramework(null);
-    setSelectedFramework(null);
-    setSelectedClients([]);
+    setSelectedFramework(null); // Framework seçimini sıfırla
+    setSelectedClients([]); // Client seçimlerini sıfırla
     setShowFleekWarning(false);
   };
 
@@ -229,14 +229,14 @@ export function OutputSection() {
           )}
         </OutputBox>
 
-        <OutputBox
-  title="agent_pfp"
-  downloadType="png_svg"
-  onDownload={(format) => downloadCharacter(format)}
-  isDownloadDisabled={!generatedImage || imageLoading}
-  type="image"
-  onClose={() => resetGenerator()}
->
+       <OutputBox
+         title="agent_pfp"
+         downloadType="png"
+         onDownload={() => downloadCharacter('png')}
+         isDownloadDisabled={!generatedImage || imageLoading}
+         type="image"
+         onClose={() => resetGenerator()}
+       >
          <div className="w-full h-full flex items-center justify-center">
          {loading ? (
     <div className="animate-pulse flex items-center justify-center">
