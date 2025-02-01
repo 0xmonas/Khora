@@ -30,6 +30,11 @@ export function OutputSection() {
   const [showFleekWarning, setShowFleekWarning] = useState(false);
   const [pendingFramework, setPendingFramework] = useState<Framework | null>(null);
 
+  
+  const handleDownload = (type: 'json' | 'png' | 'svg') => {
+    downloadCharacter(type);
+  };
+
   const skeletonSize = "w-32 h-32";
 
   const handleFrameworkSelect = (framework: Framework) => {
@@ -232,7 +237,7 @@ export function OutputSection() {
        <OutputBox
          title="agent_pfp"
          downloadType="png"
-         onDownload={() => downloadCharacter('png')}
+         onDownload={handleDownload}
          isDownloadDisabled={!generatedImage || imageLoading}
          type="image"
          onClose={() => resetGenerator()}

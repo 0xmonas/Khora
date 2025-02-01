@@ -15,8 +15,7 @@ type GeneratorContextType = {
  characterName: string;
  setCharacterName: (name: string) => void;
  generateCharacter: () => Promise<void>;
- downloadCharacter: (format: 'json' | 'png') => Promise<void>;
- generatedImage: string | null;
+ downloadCharacter: (format: 'json' | 'png' | 'svg') => Promise<void>; generatedImage: string | null;
  imageLoading: boolean;
  selectedClients: string[];
  setSelectedClients: (clients: string[]) => void;
@@ -161,6 +160,73 @@ const resetGenerator = () => {
    }
  };
 
+ // SVG dönüşüm fonksiyonları - En üstte, diğer yardımcı fonksiyonlarla birlikte
+function componentToHex(c: number): string {
+  const hex = parseInt(c.toString()).toString(16);
+  return hex.length == 1 ? "0" + hex : hex;
+}
+
+function getColor(r: number, g: number, b: number, a: number): string | false {
+  if (a === 0) return false;
+  if (a === undefined || a === 255) return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+  return `rgba(${r},${g},${b},${a/255})`;
+}
+
+function makePathData(x: number, y: number, w: number): string {
+  return `M${x} ${y}h${w}`;
+}
+
+function makePath(color: string, data: string): string {
+  return `<path stroke="${color}" d="${data}" />\n`;
+}
+
+function getColors(img: ImageData) {
+  const colors: Record<string, [number, number][]> = {};
+  const data = img.data;
+  const w = img.width;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 0) {
+      const color = `${data[i]},${data[i + 1]},${data[i + 2]},${data[i + 3]}`;
+      colors[color] = colors[color] || [];
+      const x = (i / 4) % w;
+      const y = Math.floor((i / 4) / w);
+      colors[color].push([x, y]);
+    }
+  }
+  return colors;
+}
+
+function colorsToPaths(colors: Record<string, [number, number][]>): string {
+  let output = "";
+  for (const [colorKey, pixels] of Object.entries(colors)) {
+    const [r, g, b, a] = colorKey.split(',').map(Number);
+    const color = getColor(r, g, b, a);
+    if (!color) continue;
+
+    let paths: string[] = [];
+    let curPath: [number, number] | null = null;
+    let w = 1;
+
+    for (const pixel of pixels) {
+      if (curPath && pixel[1] === curPath[1] && pixel[0] === (curPath[0] + w)) {
+        w++;
+      } else {
+        if (curPath) {
+          paths.push(makePathData(curPath[0], curPath[1], w));
+          w = 1;
+        }
+        curPath = pixel;
+      }
+    }
+    if (curPath) {
+      paths.push(makePathData(curPath[0], curPath[1], w));
+    }
+    output += makePath(color, paths.join(''));
+  }
+  return output;
+}
+
  useEffect(() => {
   const processImage = async () => {
     console.log('ProcessImage Triggered:', {
@@ -206,9 +272,9 @@ const resetGenerator = () => {
   processImage();
 }, [generatedImage, pixelMode]);
 
-const downloadCharacter = async (format: 'json' | 'png') => {
+const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
   if (!character || (format === 'png' && !generatedImage)) return;
-
+       
   try {
     if (format === 'json') {
       const { type, ...characterWithoutType } = character;
@@ -226,13 +292,49 @@ const downloadCharacter = async (format: 'json' | 'png') => {
       const { embedJsonInPng } = await import('@/utils/helpers/pngEncoder');
       const imageToUse = pixelMode ? pixelatedImage : generatedImage;
       if (!imageToUse) return;
-
+      
       const pngBlob = await embedJsonInPng(imageToUse, character);
       const url = window.URL.createObjectURL(pngBlob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } else if (format === 'svg') {
+      // 64x64 canvas oluştur
+      const smallCanvas = document.createElement('canvas');
+      const smallCtx = smallCanvas.getContext('2d')!;
+      smallCanvas.width = 64;
+      smallCanvas.height = 64;
+      
+      // Mevcut görüntüyü 64x64'e dönüştür
+      const image = pixelMode ? pixelatedImage : generatedImage;
+      if (!image) return;
+      
+      const img = new Image();
+      img.src = image;
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+      });
+      
+      smallCtx.drawImage(img, 0, 0, 64, 64);
+      const imageData = smallCtx.getImageData(0, 0, 64, 64);
+      
+      // SVG'ye dönüştür
+      const colors = getColors(imageData);
+      const paths = colorsToPaths(colors);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">\n${paths}</svg>`;
+      
+      // SVG'yi indir
+      const blob = new Blob([svg], { type: 'image/svg+xml' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.svg`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
