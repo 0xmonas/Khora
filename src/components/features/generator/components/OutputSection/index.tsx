@@ -67,7 +67,7 @@ export function OutputSection() {
 
   if (currentStep === 'framework_selection' || currentStep === 'client_selection') {
     const availableClients = selectedFramework ? CLIENTS_BY_FRAMEWORK[selectedFramework] : [];
-    
+
     return (
       <>
         <FleekWarningDialog 
@@ -232,7 +232,7 @@ export function OutputSection() {
        <OutputBox
          title="agent_pfp"
          downloadType="png"
-         onDownload={(format) => downloadCharacter(format)}
+         onDownload={() => downloadCharacter('png')}
          isDownloadDisabled={!generatedImage || imageLoading}
          type="image"
          onClose={() => resetGenerator()}

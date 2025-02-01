@@ -15,7 +15,7 @@ type GeneratorContextType = {
  characterName: string;
  setCharacterName: (name: string) => void;
  generateCharacter: () => Promise<void>;
- downloadCharacter: (format: 'json' | 'png' | 'svg') => Promise<void>; // 'svg' eklendi
+ downloadCharacter: (format: 'json' | 'png') => Promise<void>;
  generatedImage: string | null;
  imageLoading: boolean;
  selectedClients: string[];
@@ -89,7 +89,7 @@ useEffect(() => {
       if (savedClients) setSelectedClients(savedClients);
     } catch (error) {
       console.error('Error loading saved data:', error);
-      localStorage.removeItem('generatorData');
+      localStorage.removeItem('generatorData'); // Hatalı veriyi temizle
     }
   }
 }, [currentStep]);
@@ -134,7 +134,7 @@ const resetGenerator = () => {
    try {
      setImageLoading(true);
      const prompt = await createPortraitPrompt(char);
-     
+
      const response = await fetch('/api/generate-image', {
        method: 'POST',
        headers: {
@@ -183,9 +183,10 @@ const resetGenerator = () => {
             resolve();
           };
         });
-        
+
+        // delay
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         console.log('Starting pixelation...');
         const processed = await pixelateImage(generatedImage);
         console.log('Pixelation completed');
@@ -205,75 +206,9 @@ const resetGenerator = () => {
   processImage();
 }, [generatedImage, pixelMode]);
 
-function componentToHex(c: number): string {
-  const hex = parseInt(c.toString()).toString(16);
-  return hex.length == 1 ? "0" + hex : hex;
-}
-
-function getColor(r: number, g: number, b: number, a: number): string | false {
-  if (a === 0) return false;
-  if (a === undefined || a === 255) return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
-  return `rgba(${r},${g},${b},${a/255})`;
-}
-
-function makePathData(x: number, y: number, w: number): string {
-  return `M${x} ${y}h${w}`;
-}
-
-function makePath(color: string, data: string): string {
-  return `<path stroke="${color}" d="${data}" />\n`;
-}
-
-function getColors(img: ImageData) {
-  const colors: Record<string, [number, number][]> = {};
-  const data = img.data;
-  const w = img.width;
-
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] > 0) {
-      const color = `${data[i]},${data[i + 1]},${data[i + 2]},${data[i + 3]}`;
-      colors[color] = colors[color] || [];
-      const x = (i / 4) % w;
-      const y = Math.floor((i / 4) / w);
-      colors[color].push([x, y]);
-    }
-  }
-  return colors;
-}
-
-function colorsToPaths(colors: Record<string, [number, number][]>): string {
-  let output = "";
-  for (const [colorKey, pixels] of Object.entries(colors)) {
-    const [r, g, b, a] = colorKey.split(',').map(Number);
-    const color = getColor(r, g, b, a);
-    if (!color) continue;
-
-    let paths: string[] = [];
-    let curPath: [number, number] | null = null;
-    let w = 1;
-
-    for (const pixel of pixels) {
-      if (curPath && pixel[1] === curPath[1] && pixel[0] === (curPath[0] + w)) {
-        w++;
-      } else {
-        if (curPath) {
-          paths.push(makePathData(curPath[0], curPath[1], w));
-          w = 1;
-        }
-        curPath = pixel;
-      }
-    }
-    if (curPath) {
-      paths.push(makePathData(curPath[0], curPath[1], w));
-    }
-    output += makePath(color, paths.join(''));
-  }
-  return output;
-}
-
-const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
+const downloadCharacter = async (format: 'json' | 'png') => {
   if (!character || (format === 'png' && !generatedImage)) return;
-       
+
   try {
     if (format === 'json') {
       const { type, ...characterWithoutType } = character;
@@ -291,7 +226,7 @@ const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
       const { embedJsonInPng } = await import('@/utils/helpers/pngEncoder');
       const imageToUse = pixelMode ? pixelatedImage : generatedImage;
       if (!imageToUse) return;
-      
+
       const pngBlob = await embedJsonInPng(imageToUse, character);
       const url = window.URL.createObjectURL(pngBlob);
       const a = document.createElement('a');
@@ -302,55 +237,25 @@ const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } else if (format === 'svg') {
-      const smallCanvas = document.createElement('canvas');
-      const smallCtx = smallCanvas.getContext('2d')!;
-      smallCanvas.width = 64;
-      smallCanvas.height = 64;
-            const image = pixelMode ? pixelatedImage : generatedImage;
-      if (!image) return;
-      
-      const img = new Image();
-      img.src = image;
-      await new Promise<void>((resolve) => {
-        img.onload = () => resolve();
-      });
-      
-      smallCtx.drawImage(img, 0, 0, 64, 64);
-      const imageData = smallCtx.getImageData(0, 0, 64, 64);
-      
-      const colors = getColors(imageData);
-      const paths = colorsToPaths(colors);
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">\n${paths}</svg>`;
-      const blob = new Blob([svg], { type: 'image/svg+xml' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `${character.name.toLowerCase().replace(/\s+/g, '-')}.svg`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
     }
   } catch (error) {
     console.error('Download error:', error);
     setError('Failed to download character');
   }
 };
- 
+
  const generateCharacter = async () => {
   if (!characterName.trim() || !selectedFramework || !selectedClients.length) {
     setError("Please fill in all required fields");
     return;
   }
- 
+
    setLoading(true);
    setError(null);
    setProgress(0);
    setCurrentStep('generating');
    setInitialPixelMode(pixelMode);
-     
+
    const progressInterval = setInterval(() => {
      setProgress(prev => {
        if (prev >= 90) {
@@ -370,10 +275,8 @@ const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
         createElizaTemplate(characterName, selectedClients) : 
         createFleekTemplate(characterName, selectedClients);
       prompt = `Create an AI character named "${characterName}" for the ${selectedFramework} framework. The character should have a strong, consistent personality across all their attributes.
-
 Return ONLY valid JSON matching this exact template:
 ${JSON.stringify(template, null, 2)}
-
 Requirements:
 1. Name: "${characterName}"
 2. Bio: Array of at least 10 unique personality descriptions
@@ -387,10 +290,8 @@ Requirements:
     } else {
       template = createZerePyTemplate(characterName, selectedClients);
       prompt = `Create an AI agent named "${characterName}" for the ZerePy framework. The agent should have a strong, consistent personality.
-
 Return ONLY valid JSON matching this exact template:
 ${JSON.stringify(template, null, 2)}
-
 Requirements:
 1. Name: "${characterName}"
 2. Bio: Array of strings describing personality and purpose
@@ -434,7 +335,7 @@ Requirements:
        console.error("Failed to parse response:", responseText);
        throw new Error("Invalid JSON response from API");
      }
-     
+
      if (!data.content || data.content.length === 0) {
        throw new Error("Invalid response from API");
      }
@@ -446,7 +347,7 @@ Requirements:
        console.error('JSON Parse Error:', e);
        throw new Error("Failed to parse generated character data");
      }
-     
+
 // Validate based on framework
 if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
   const char = generatedCharacter as ElizaTemplate;
