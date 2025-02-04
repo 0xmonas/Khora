@@ -31,6 +31,8 @@ type GeneratorContextType = {
   setPixelMode: (mode: boolean) => void;
   pixelatedImage: string | null;
   initialPixelMode: boolean | null;
+  selectedPalette: 'DEFAULT' | 'MONOCHROME';
+  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME') => void;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
@@ -50,6 +52,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
+const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME'>('DEFAULT');
 
 
 const setSelectedFramework = (framework: Framework | null) => {
@@ -73,8 +76,12 @@ useEffect(() => {
         initialPixelMode: savedPixelMode,
         characterName: savedName,
         selectedFramework: savedFramework,
-        selectedClients: savedClients
+        selectedClients: savedClients,
+        selectedPalette: savedPalette,
+
       } = JSON.parse(savedData);
+      if (savedPalette) setSelectedPalette(savedPalette);
+
 
       if (savedCharacter) setCharacter(savedCharacter);
       if (savedImage) setGeneratedImage(savedImage);
@@ -104,7 +111,8 @@ useEffect(() => {
       initialPixelMode,
       characterName,
       selectedFramework,
-      selectedClients
+      selectedClients,
+      selectedPalette
     }));
   }
 }, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients]);
@@ -124,6 +132,8 @@ const resetGenerator = () => {
   setPixelMode(false);
   setPixelatedImage(null);
   setInitialPixelMode(null);
+  setSelectedPalette('DEFAULT');
+
 };
 
  const goToStep = (step: Step) => {
@@ -169,32 +179,30 @@ const resetGenerator = () => {
       isProcessing
     });
 
-    if (!generatedImage) return;
+    if (!generatedImage || !pixelMode) {
+      setPixelatedImage(generatedImage);
+      return;
+    }
 
     setIsProcessing(true);
     try {
-      if (pixelMode) {
-        console.log('Starting pixel processing...');
-        const img = new Image();
-        img.src = generatedImage;
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            console.log('Image loaded successfully');
-            resolve();
-          };
-        });
+      console.log('Starting pixel processing...');
+      const img = new Image();
+      img.src = generatedImage;
+      await new Promise<void>((resolve) => {
+        img.onload = () => {
+          console.log('Image loaded successfully');
+          resolve();
+        };
+      });
 
-        // delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      // delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-        console.log('Starting pixelation...');
-        const processed = await pixelateImage(generatedImage);
-        console.log('Pixelation completed');
-        setPixelatedImage(processed);
-      } else {
-        console.log('Pixel mode off, using original image');
-        setPixelatedImage(generatedImage);
-      }
+      console.log('Starting pixelation...');
+      const processed = await pixelateImage(generatedImage, selectedPalette);
+      console.log('Pixelation completed');
+      setPixelatedImage(processed);
     } catch (error) {
       console.error('Detailed error in processImage:', error);
       setPixelatedImage(generatedImage);
@@ -204,7 +212,7 @@ const resetGenerator = () => {
   };
 
   processImage();
-}, [generatedImage, pixelMode]);
+}, [generatedImage, pixelMode, selectedPalette]);
 
 const downloadCharacter = async (format: 'json' | 'png' | 'svg') => {
   if (!character || (format === 'png' && !generatedImage)) return;
@@ -421,7 +429,9 @@ if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
   pixelMode,
   setPixelMode,
   pixelatedImage,
-  initialPixelMode
+  initialPixelMode,
+  selectedPalette,
+  setSelectedPalette,
 };
 
  return (
