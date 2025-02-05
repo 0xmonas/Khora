@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server';
 import Replicate from "replicate";
 
+const AI_MODELS = {
+  KHORA: {
+    version: "7498c642f7eebd7be9dd2af5dff40f11e8a59c501625bcd5b157a65ff7b70b08",
+  },
+  ZEREBRO: {
+    version: "a7ef5162f8ddc5832d4b2ecde760933031cdd46d30aacc381af0473fffd7cd49",
+  },
+  BAYC: {
+    version: "d111b63dd1444d142fe8a0c0812ce6796e270f05b791d48d2a5c6296627da82a",
+  }
+} as const;
+
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json();
+    const { prompt, selectedModel = 'KHORA' } = await request.json();
     
     if (!process.env.REPLICATE_API_TOKEN) {
       return NextResponse.json(
@@ -25,7 +37,7 @@ export async function POST(request: Request) {
 
     // 1. Create prediction
     const prediction = await replicate.predictions.create({
-      version: "7498c642f7eebd7be9dd2af5dff40f11e8a59c501625bcd5b157a65ff7b70b08",
+      version: AI_MODELS[selectedModel as keyof typeof AI_MODELS].version,
       input: {
         model: "dev",
         prompt: prompt,

@@ -33,6 +33,8 @@ type GeneratorContextType = {
   initialPixelMode: boolean | null;
   selectedPalette: 'DEFAULT' | 'MONOCHROME';
   setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME') => void;
+  selectedModel: 'KHORA' | 'ZEREBRO' | 'BAYC';
+  setSelectedModel: (model: 'KHORA' | 'ZEREBRO' | 'BAYC') => void;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
@@ -53,6 +55,7 @@ const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
 const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME'>('DEFAULT');
+const [selectedModel, setSelectedModel] = useState<'KHORA' | 'ZEREBRO' | 'BAYC'>('KHORA');
 
 
 const setSelectedFramework = (framework: Framework | null) => {
@@ -78,9 +81,13 @@ useEffect(() => {
         selectedFramework: savedFramework,
         selectedClients: savedClients,
         selectedPalette: savedPalette,
+        selectedModel: savedModel,
+
 
       } = JSON.parse(savedData);
       if (savedPalette) setSelectedPalette(savedPalette);
+      if (savedModel) setSelectedModel(savedModel);
+
 
 
       if (savedCharacter) setCharacter(savedCharacter);
@@ -112,7 +119,8 @@ useEffect(() => {
       characterName,
       selectedFramework,
       selectedClients,
-      selectedPalette
+      selectedPalette,
+      selectedModel
     }));
   }
 }, [character, generatedImage, pixelatedImage, currentStep, initialPixelMode, characterName, selectedFramework, selectedClients]);
@@ -133,7 +141,7 @@ const resetGenerator = () => {
   setPixelatedImage(null);
   setInitialPixelMode(null);
   setSelectedPalette('DEFAULT');
-
+  setSelectedModel('KHORA');
 };
 
  const goToStep = (step: Step) => {
@@ -141,35 +149,47 @@ const resetGenerator = () => {
  };
 
  const generateImage = async (char: CharacterTemplate) => {
-   try {
-     setImageLoading(true);
-     const prompt = await createPortraitPrompt(char);
+  try {
+    setImageLoading(true);
+    const prompt = await createPortraitPrompt(char);
 
-     const response = await fetch('/api/generate-image', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-       },
-       body: JSON.stringify({ prompt }),
-     });
+    const response = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        prompt,
+        selectedModel 
+      }),
+    });
 
-     const data = await response.json();
+    const responseText = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Response parsing error:', responseText);
+      throw new Error('Invalid response format from image API');
+    }
 
-     if (!response.ok || data.error) {
-       throw new Error(data.error || 'Failed to generate image');
-     }
+    if (!response.ok || data.error) {
+      throw new Error(data.error || `Image generation failed: ${response.status}`);
+    }
 
-     if (!data.imageUrl) {
-       throw new Error('No image URL in response');
-     }
+    if (!data.imageUrl) {
+      throw new Error('No image URL in response');
+    }
 
-     setGeneratedImage(data.imageUrl);
-   } catch (error) {
-     console.error('Error generating image:', error);
-   } finally {
-     setImageLoading(false);
-   }
- };
+    setGeneratedImage(data.imageUrl);
+  } catch (error) {
+    console.error('Error generating image:', error);
+    setError(error instanceof Error ? error.message : 'Failed to generate image');
+  } finally {
+    setImageLoading(false);
+  }
+};
 
  useEffect(() => {
   const processImage = async () => {
@@ -432,6 +452,8 @@ if (selectedFramework === 'eliza' || selectedFramework === 'fleek') {
   initialPixelMode,
   selectedPalette,
   setSelectedPalette,
+  selectedModel,
+  setSelectedModel,
 };
 
  return (
