@@ -3,6 +3,7 @@
 
 import { ReactNode } from "react";
 import { CustomScrollArea } from "@/components/ui/custom-scroll-area";
+import { useGenerator } from "../GeneratorContext";
 
 interface OutputBoxProps {
   title: string;
@@ -23,6 +24,8 @@ export const OutputBox = ({
   type = 'text',
   onClose
 }: OutputBoxProps) => {
+  const { selectedModel } = useGenerator();
+  
   return (
     <div className="flex flex-col w-full">
       <div className="aspect-square w-full border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden">
@@ -46,7 +49,7 @@ export const OutputBox = ({
         )}
       </div>
       {downloadType !== 'none' && downloadType !== 'json' && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className={`grid ${selectedModel === 'KHORA' ? 'grid-cols-2' : 'grid-cols-1'} gap-4 mt-4`}>
           <button
             onClick={() => onDownload('png')}
             disabled={isDownloadDisabled}
@@ -54,18 +57,20 @@ export const OutputBox = ({
           >
             Download PNG
           </button>
-          <button
-            onClick={() => onDownload('svg')}
-            disabled={isDownloadDisabled}
-            className="h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Download SVG
-          </button>
+          {selectedModel === 'KHORA' && (
+            <button
+              onClick={() => onDownload('svg')}
+              disabled={isDownloadDisabled}
+              className="h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Download SVG
+            </button>
+          )}
         </div>
       )}
       {downloadType === 'json' && (
         <button
-          onClick={() => onDownload('json' as any)} // tip uyumluluğu için
+          onClick={() => onDownload('json' as any)}
           disabled={isDownloadDisabled}
           className="w-full h-12 mt-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
