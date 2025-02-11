@@ -101,7 +101,7 @@ return (
 
     {selectedModel === 'KHORA' && (
       <div>
-        <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode BETA</h3>
+        <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode</h3>
         <div 
           onClick={() => {
             if (initialPixelMode === false && currentStep === 'complete') return;
@@ -170,12 +170,12 @@ return (
       <h3 className="text-sm font-mono mb-1 dark:text-white">
         {currentStep === 'complete' ? 'Create new agent' : 'Generate character'}
       </h3>
-      <div className="relative">
+      <div className="relative flex gap-2">
         <button
           type="button"
           onClick={currentStep === 'complete' ? resetGenerator : generateCharacter}
           disabled={(currentStep === 'complete' ? false : isGenerateDisabled()) || loading}
-          className="w-full p-3 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 relative overflow-hidden"
+          className="flex-1 p-3 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 relative overflow-hidden"
         >
           {loading && (
             <div 
@@ -188,6 +188,17 @@ return (
               currentStep === 'complete' ? 'New Agent' : 'Generate'}
           </span>
         </button>
+
+        {currentStep === 'complete' && (
+          <button
+            type="button"
+            onClick={generateCharacter}
+            className="w-12 p-3 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 flex items-center justify-center"
+            title="Try Again with Same Parameters"
+          >
+            <span className="font-['Departure-Mono']">↻</span>
+          </button>
+        )}
       </div>
     </div>
 
