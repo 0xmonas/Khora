@@ -24,7 +24,9 @@ export const OutputBox = ({
   type = 'text',
   onClose
 }: OutputBoxProps) => {
-  const { selectedModel } = useGenerator();
+  const { selectedModel, loading, imageLoading } = useGenerator();
+  
+  const isProcessing = loading || imageLoading;
   
   return (
     <div className="flex flex-col w-full">
@@ -52,7 +54,7 @@ export const OutputBox = ({
         <div className={`grid ${selectedModel === 'KHORA' ? 'grid-cols-2' : 'grid-cols-1'} gap-4 mt-4`}>
           <button
             onClick={() => onDownload('png')}
-            disabled={isDownloadDisabled}
+            disabled={isDownloadDisabled || isProcessing}
             className="h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Download PNG
@@ -60,7 +62,7 @@ export const OutputBox = ({
           {selectedModel === 'KHORA' && (
             <button
               onClick={() => onDownload('svg')}
-              disabled={isDownloadDisabled}
+              disabled={isDownloadDisabled || isProcessing}
               className="h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Download SVG
@@ -71,7 +73,7 @@ export const OutputBox = ({
       {downloadType === 'json' && (
         <button
           onClick={() => onDownload('json' as any)}
-          disabled={isDownloadDisabled}
+          disabled={isDownloadDisabled || isProcessing}
           className="w-full h-12 mt-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Download JSON
