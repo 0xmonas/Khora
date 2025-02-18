@@ -30,13 +30,15 @@ type PixelateContextType = {
   resetPixelate: () => void;
   pixelMode: boolean;
   setPixelMode: (mode: boolean) => void;
-  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST';
-  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST') => void;
+  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM';
+  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM') => void;
   settings: ImageSettings;
   setSettings: (settings: ImageSettings) => void;
   defaultSettings: ImageSettings;
   resetSettings: () => void;
   applySettings: () => Promise<void>;
+  selectedSize: '64' | '124' | '192';
+  setSelectedSize: (size: '64' | '124' | '192') => void;
 };
 
 const defaultSettings: ImageSettings = {
@@ -58,8 +60,9 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
   const [imageLoading, setImageLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<Step>('initial');
   const [pixelMode, setPixelMode] = useState(false);
-  const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST'>('MIDWEST');
+  const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM'>('MIDWEST');
   const [settings, setSettings] = useState<ImageSettings>(defaultSettings);
+  const [selectedSize, setSelectedSize] = useState<'64' | '124' | '192'>('64');
 
   const resetSettings = () => {
     setSettings(defaultSettings);
@@ -75,7 +78,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     try {
       const imageUrl = URL.createObjectURL(uploadedImage);
       if (pixelMode) {
-        const pixelated = await pixalteImage(imageUrl, selectedPalette, settings);
+        const pixelated = await pixalteImage(imageUrl, selectedPalette, settings, selectedSize);
         setGeneratedImage(pixelated);
       } else {
         setGeneratedImage(imageUrl);
@@ -98,7 +101,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
         const imageUrl = URL.createObjectURL(uploadedImage);
         
         if (pixelMode) {
-          const pixelated = await pixalteImage(imageUrl, selectedPalette, settings);
+          const pixelated = await pixalteImage(imageUrl, selectedPalette, settings, selectedSize);
           setGeneratedImage(pixelated);
         } else {
           setGeneratedImage(imageUrl);
@@ -112,7 +115,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     };
 
     processUploadedImage();
-  }, [uploadedImage, pixelMode, selectedPalette]);
+  }, [uploadedImage, pixelMode, selectedPalette, selectedSize]);
 
   const goToStep = (step: Step) => {
     setCurrentStep(step);
@@ -130,6 +133,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     setPixelMode(false);
     setSelectedPalette('DEFAULT');
     setSettings(defaultSettings);
+    setSelectedSize('64');
   };
 
   const processImage = async () => {
@@ -146,7 +150,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     try {
       const imageUrl = URL.createObjectURL(uploadedImage);
       if (pixelMode) {
-        const pixelated = await pixalteImage(imageUrl, selectedPalette, settings);
+        const pixelated = await pixalteImage(imageUrl, selectedPalette, settings, selectedSize);
         setGeneratedImage(pixelated);
       } else {
         setGeneratedImage(imageUrl);
@@ -167,7 +171,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     
     try {
       if (format === 'svg' && pixelMode) {
-        const svgData = await convertToSVG(generatedImage);
+        const svgData = await convertToSVG(generatedImage, parseInt(selectedSize));
         const link = document.createElement('a');
         link.href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`;
         link.download = `${imageName.split('.')[0]}_pixelated.svg`;
@@ -211,7 +215,9 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     setSettings,
     defaultSettings,
     resetSettings,
-    applySettings
+    applySettings,
+    selectedSize,
+    setSelectedSize,
   };
 
   return (

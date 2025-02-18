@@ -14,7 +14,8 @@ export function OutputSection() {
     goToStep,
     pixelMode,
     loading,
-    imageLoading
+    imageLoading,
+    selectedSize
   } = usePixelate();
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function OutputSection() {
       if (generatedImage) {
         try {
           console.log('TokenURI oluşturuluyor...');
-          const svgData = await convertToSVG(generatedImage);
+          const svgData = await convertToSVG(generatedImage, parseInt(selectedSize));
           console.log('SVG dönüşümü tamamlandı:', svgData.substring(0, 50) + '...');
           
           const fullMetadata = {
@@ -71,7 +72,7 @@ export function OutputSection() {
     };
 
     generateTokenURI();
-  }, [generatedImage, metadata]);
+  }, [generatedImage, metadata, selectedSize]);
 
   const handleMetadataChange = (key: string, value: string) => {
     setMetadata(prev => ({
