@@ -1,7 +1,10 @@
 'use client';
 import { usePixelate } from '../../PixelateContext';
+import { convertToSVG } from '@/utils/helpers/svgConverter';
+import { useState, useEffect } from 'react';
 
 export function InputForm() {
+  const [svgSize, setSvgSize] = useState<string>('');
   const {
     loading,
     error,
@@ -17,8 +20,33 @@ export function InputForm() {
     settings,
     setSettings,
     resetSettings,
-    applySettings
+    applySettings,
+    selectedSize,
+    setSelectedSize,
+    generatedImage
   } = usePixelate();
+
+  useEffect(() => {
+    const calculateSvgSize = async () => {
+      if (generatedImage) {
+        try {
+          const svgData = await convertToSVG(generatedImage, parseInt(selectedSize));
+          const bytes = new TextEncoder().encode(svgData).length;
+          const size = bytes < 1024 
+            ? `${bytes}B` 
+            : bytes < 1024 * 1024 
+              ? `${(bytes / 1024).toFixed(1)}KB` 
+              : `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+          setSvgSize(size);
+        } catch (error) {
+          console.error('SVG size calculation error:', error);
+          setSvgSize('');
+        }
+      }
+    };
+
+    calculateSvgSize();
+  }, [generatedImage, selectedSize]);
 
   // Apply settings automatically when changed
   const handleSettingChange = async (key: keyof typeof settings, value: number) => {
@@ -98,7 +126,7 @@ export function InputForm() {
             >
               <select
                 value={selectedPalette}
-                onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST')}
+                onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM')}
                 disabled={currentStep === 'processing'}
                 className="w-full bg-transparent outline-none cursor-pointer"
               >
@@ -106,11 +134,40 @@ export function InputForm() {
                 <option value="DEFAULT">Default Blue</option>
                 <option value="MONOCHROME">Monochrome</option>
                 <option value="EXPERIMENTAL">Experimental</option>
+                <option value="SECAM">SECAM</option>
               </select>
             </div>
           </div>
 
           <div className="space-y-6 bg-neutral-700 dark:bg-neutral-200 p-4">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-mono text-white dark:text-neutral-900">
+                  Output Size {svgSize ? `(~${svgSize})` : ''}
+                </h3>
+                <span className="text-sm font-mono text-white dark:text-neutral-900">
+                  {selectedSize === '64' ? '1x' : selectedSize === '124' ? '2x' : '3x'}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="1"
+                value={selectedSize === '64' ? '0' : selectedSize === '124' ? '1' : '2'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '0') setSelectedSize('64');
+                  else if (value === '1') setSelectedSize('124');
+                  else setSelectedSize('192');
+                }}
+                className="w-full appearance-none h-1 bg-white dark:bg-neutral-900 rounded-full outline-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#30f] dark:[&::-webkit-slider-thumb]:bg-[#30f] [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#30f] dark:[&::-moz-range-thumb]:bg-[#30f] [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+                disabled={currentStep === 'processing'}
+              />
+            </div>
+
             <div>
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-mono text-white dark:text-neutral-900">Contrast</h3>

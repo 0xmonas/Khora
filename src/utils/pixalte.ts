@@ -30,6 +30,17 @@ interface Color {
     '#32291f', '#f6db91', '#e4ceb3'
   ].map(hexToRgb);
   
+  const SECAM_COLORS = [
+    '#000000', // Black
+    '#2121ff', // Blue
+    '#f03c79', // Red
+    '#ff50ff', // Magenta
+    '#7fff00', // Green
+    '#7fffff', // Cyan
+    '#ffff3f', // Yellow
+    '#ffffff'  // White
+  ].map(hexToRgb);
+  
   const ColorPalettes = {
     DEFAULT: {
       color1: { r: 51, g: 0, b: 255 },    // #3300ff
@@ -45,29 +56,48 @@ interface Color {
     },
     MIDWEST: {
       colors: MIDWEST_COLORS
+    },
+    SECAM: {
+      colors: SECAM_COLORS
     }
   };
   
-  type PaletteType = 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST';
+  type PaletteType = 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM';
   
   // Standard image ratios
   const ASPECT_RATIOS = {
-    SQUARE: { width: 64, height: 64 },     // 1:1
-    PORTRAIT: { width: 48, height: 64 },   // 3:4
-    LANDSCAPE: { width: 64, height: 48 },  // 4:3
-    WIDE: { width: 64, height: 36 },       // 16:9
-    TALL: { width: 36, height: 64 }        // 9:16
+    // 64x64 ratios
+    SQUARE_64: { width: 64, height: 64 },       // 1:1
+    PORTRAIT_64: { width: 48, height: 64 },     // 3:4
+    LANDSCAPE_64: { width: 64, height: 48 },    // 4:3
+    WIDE_64: { width: 64, height: 36 },         // 16:9
+    TALL_64: { width: 36, height: 64 },         // 9:16
+    
+    // 124x124 ratios
+    SQUARE_124: { width: 124, height: 124 },     // 1:1
+    PORTRAIT_124: { width: 93, height: 124 },    // 3:4
+    LANDSCAPE_124: { width: 124, height: 93 },   // 4:3
+    WIDE_124: { width: 124, height: 70 },        // 16:9
+    TALL_124: { width: 70, height: 124 },        // 9:16
+
+    // 192x192 ratios
+    SQUARE_192: { width: 192, height: 192 },     // 1:1
+    PORTRAIT_192: { width: 144, height: 192 },   // 3:4
+    LANDSCAPE_192: { width: 192, height: 144 },  // 4:3
+    WIDE_192: { width: 192, height: 108 },       // 16:9
+    TALL_192: { width: 108, height: 192 }        // 9:16
   } as const;
   
-  const findClosestAspectRatio = (width: number, height: number) => {
+  const findClosestAspectRatio = (width: number, height: number, size: '64' | '124' | '192' = '64') => {
     const ratio = width / height;
+    const suffix = `_${size}` as const;
     
     // Find closest ratio
-    if (ratio > 1.7) return ASPECT_RATIOS.WIDE;        // 16:9
-    if (ratio > 1.2) return ASPECT_RATIOS.LANDSCAPE;   // 4:3
-    if (ratio > 0.8) return ASPECT_RATIOS.SQUARE;      // 1:1
-    if (ratio > 0.6) return ASPECT_RATIOS.PORTRAIT;    // 3:4
-    return ASPECT_RATIOS.TALL;                         // 9:16
+    if (ratio > 1.7) return ASPECT_RATIOS[`WIDE${suffix}`];        // 16:9
+    if (ratio > 1.2) return ASPECT_RATIOS[`LANDSCAPE${suffix}`];   // 4:3
+    if (ratio > 0.8) return ASPECT_RATIOS[`SQUARE${suffix}`];      // 1:1
+    if (ratio > 0.6) return ASPECT_RATIOS[`PORTRAIT${suffix}`];    // 3:4
+    return ASPECT_RATIOS[`TALL${suffix}`];                         // 9:16
   };
   
   const findDominantColors = (imageData: ImageData): { color1: Color; color2: Color } => {
@@ -107,11 +137,13 @@ interface Color {
   };
   
   // Find closest color function
-  const findClosestMidwestColor = (color: Color): Color => {
+  const findClosestMidwestColor = (color: Color, selectedPalette: PaletteType): Color => {
     let minDistance = Infinity;
     let closestColor = MIDWEST_COLORS[0];
   
-    for (const paletteColor of MIDWEST_COLORS) {
+    const colorsToCheck = selectedPalette === 'SECAM' ? SECAM_COLORS : MIDWEST_COLORS;
+  
+    for (const paletteColor of colorsToCheck) {
       const distance = colorDistance(color, paletteColor);
       if (distance < minDistance) {
         minDistance = distance;
@@ -124,15 +156,16 @@ interface Color {
   
   export const pixalteImage = async (
     imageUrl: string,
-    selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' = 'DEFAULT',
+    selectedPalette: PaletteType = 'DEFAULT',
     settings: ImageSettings = {
       threshold: 127,
       contrast: 100,
       brightness: 100,
       dithering: 10
-    }
+    },
+    size: '64' | '124' | '192' = '64'
   ): Promise<string> => {
-    console.log('🚀 Starting... Selected palette:', selectedPalette);
+    console.log('🚀 Starting... Selected palette:', selectedPalette, 'Size:', size);
     let manualThreshold = settings.threshold;
   
     const loadImage = (url: string): Promise<HTMLImageElement> => {
@@ -230,8 +263,8 @@ interface Color {
     };
   
     const findClosestColor = (color: Color): Color => {
-      if (selectedPalette === 'MIDWEST') {
-        return findClosestMidwestColor(color);
+      if (selectedPalette === 'MIDWEST' || selectedPalette === 'SECAM') {
+        return findClosestMidwestColor(color, selectedPalette);
       }
   
       const palette = ColorPalettes[selectedPalette];
@@ -333,11 +366,12 @@ interface Color {
     const createPixelArt = (img: HTMLImageElement): HTMLCanvasElement => {
       console.log('🎯 Creating pixel art... Threshold:', manualThreshold);
       
-      // Select optimal ratio automatically
-      const dimensions = findClosestAspectRatio(img.width, img.height);
+      // Select optimal ratio automatically with size parameter
+      const dimensions = findClosestAspectRatio(img.width, img.height, size);
       console.log('📐 Selected dimensions:', dimensions);
       
-      const scale = 16; // 16x scaling factor
+      // Adjust scale based on size
+      const scale = size === '192' ? 4 : size === '124' ? 8 : 16;
       
       console.log('🔍 Preparing small canvas...');
       const smallCanvas = document.createElement('canvas');
@@ -374,8 +408,8 @@ interface Color {
     try {
       const img = await loadImage(imageUrl);
       
-      // Select optimal ratio automatically
-      const dimensions = findClosestAspectRatio(img.width, img.height);
+      // Select optimal ratio automatically with size parameter
+      const dimensions = findClosestAspectRatio(img.width, img.height, size);
       console.log('🔄 Processing image with dimensions:', dimensions);
       
       const smallCanvas = document.createElement('canvas');

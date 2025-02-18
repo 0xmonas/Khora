@@ -99,7 +99,7 @@ const getAspectRatios = (baseSize: number) => ({
   TALL: { width: Math.round(baseSize * 0.5625), height: baseSize }      // 9:16
 });
 
-const findClosestAspectRatio = (width: number, height: number, baseSize: number) => {
+const findClosestAspectRatio = (width: number, height: number, baseSize: number = 64) => {
   const ratio = width / height;
   const ASPECT_RATIOS = getAspectRatios(baseSize);
   
@@ -114,9 +114,10 @@ const findClosestAspectRatio = (width: number, height: number, baseSize: number)
 /**
  * Converts an image to SVG format
  * @param imageUrl - URL of the image to convert
+ * @param size - Base size for the image (64, 124, or 192)
  * @returns Promise that resolves to SVG string
  */
-export async function convertToSVG(imageUrl: string): Promise<string> {
+export async function convertToSVG(imageUrl: string, size: number = 64): Promise<string> {
   // Get original image
   const tempImg = new Image();
   tempImg.src = imageUrl;
@@ -124,15 +125,15 @@ export async function convertToSVG(imageUrl: string): Promise<string> {
     tempImg.onload = () => resolve();
   });
   
-  // Her zaman 64x64 grid'i baz al
-  const baseSize = 64;
-  const dimensions = findClosestAspectRatio(tempImg.width, tempImg.height, baseSize);
+  // Her zaman size parametresini baz al
+  const dimensions = findClosestAspectRatio(tempImg.width, tempImg.height, size);
   
   console.log('🖼 SVG dönüşüm boyutları:', {
     imageWidth: tempImg.width,
     imageHeight: tempImg.height,
     svgWidth: dimensions.width,
-    svgHeight: dimensions.height
+    svgHeight: dimensions.height,
+    baseSize: size
   });
   
   // Create temporary canvas with calculated dimensions
