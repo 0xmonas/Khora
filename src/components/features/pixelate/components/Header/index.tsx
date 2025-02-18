@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 
-export function Header() {
+export function PixelateHeader() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
 
@@ -31,11 +31,11 @@ export function Header() {
             </div>
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.replace('/pixelate')}
+                onClick={() => router.replace('/generator')}
                 className="h-10 sm:h-12 px-4 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit text-base sm:text-lg"
                 style={{ fontFamily: 'var(--font-departure-mono)' }}
               >
-                Pixelator
+                AI generate
               </button>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -51,4 +51,4 @@ export function Header() {
       </div>
     </div>
   );
-}
+} 

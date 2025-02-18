@@ -56,6 +56,7 @@ return (
           }}
           className="w-full bg-transparent outline-none"
           placeholder="Type a name..."
+          disabled={currentStep === 'complete' || currentStep === 'generating'}
         />
       </div>
     </div>
@@ -81,7 +82,7 @@ return (
       <h3 className="text-sm font-mono mb-1 dark:text-white">Art Model</h3>
       <div 
         className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm ${
-          currentStep === 'generating'
+          currentStep === 'generating' || currentStep === 'complete'
             ? 'opacity-50 cursor-not-allowed'
             : ''
         }`}
@@ -89,7 +90,7 @@ return (
         <select
           value={selectedModel}
           onChange={(e) => setSelectedModel(e.target.value as 'KHORA' | 'ZEREBRO' | 'BAYC')}
-          disabled={currentStep === 'generating'}
+          disabled={currentStep === 'generating' || currentStep === 'complete'}
           className="w-full bg-transparent outline-none cursor-pointer"
         >
           <option value="KHORA">Khôra</option>
@@ -104,12 +105,11 @@ return (
         <h3 className="text-sm font-mono mb-1 dark:text-white">Khôra Mode</h3>
         <div 
           onClick={() => {
-            if (initialPixelMode === false && currentStep === 'complete') return;
             if (currentStep === 'generating') return;
             setPixelMode(!pixelMode);
           }}
           className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 relative ${
-            (initialPixelMode === false && currentStep === 'complete') || currentStep === 'generating'
+            currentStep === 'generating'
               ? 'opacity-50 cursor-not-allowed'
               : 'cursor-pointer'
           }`}

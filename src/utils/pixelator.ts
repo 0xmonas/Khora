@@ -17,29 +17,36 @@ const ColorPalettes = {
 
 type PaletteType = keyof typeof ColorPalettes;
 
+const loadImage = (url: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      console.log('✅ Image loaded successfully');
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      console.error('❌ Failed to load image');
+      reject(new Error('Failed to load image. Please check if the image format is supported.'));
+    };
+
+    try {
+      img.src = url;
+    } catch (error) {
+      console.error('❌ Invalid image URL:', error);
+      reject(new Error('Invalid image URL or format. Please try with a different image.'));
+    }
+  });
+};
+
 export const pixelateImage = async (
   imageUrl: string,
   selectedPalette: 'DEFAULT' | 'MONOCHROME' = 'DEFAULT'
 ): Promise<string> => {
   console.log('🚀 Starting... Selected palette:', selectedPalette);
   let manualThreshold = 127;
-
-  const loadImage = (url: string): Promise<HTMLImageElement> => {
-    console.log('📥 Loading image:', url);
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        console.log('✅ Image loaded successfully');
-        resolve(img);
-      };
-      img.onerror = (e) => {
-        console.error('❌ Failed to load image:', e);
-        reject(e);
-      };
-      img.src = url;
-    });
-  };
 
   const findOptimalThreshold = (imageData: ImageData): number => {
     console.log('🔍 Calculating optimal threshold...');
@@ -249,7 +256,41 @@ export const pixelateImage = async (
     console.log('🏁 Process completed!');
     return finalCanvas.toDataURL('image/png');
   } catch (error) {
-    console.error('❌ Error:', error);
-    throw error;
+    if (error instanceof Error) {
+      console.error('Error processing image:', error.message);
+      throw new Error(`Failed to process image: ${error.message}`);
+    } else {
+      console.error('Unknown error while processing image');
+      throw new Error('An unexpected error occurred while processing the image.');
+    }
+  }
+};
+
+export const processImage = async (imageUrl: string): Promise<string> => {
+  try {
+    const img = await loadImage(imageUrl);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Canvas context not supported in your browser.');
+    }
+
+    // Set canvas dimensions
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    // Draw image
+    ctx.drawImage(img, 0, 0);
+
+    return canvas.toDataURL('image/png');
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error processing image:', error.message);
+      throw new Error(`Failed to process image: ${error.message}`);
+    } else {
+      console.error('Unknown error while processing image');
+      throw new Error('An unexpected error occurred while processing the image.');
+    }
   }
 };

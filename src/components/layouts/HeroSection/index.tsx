@@ -29,12 +29,20 @@ export function HeroSection() {
              <p className="font-mono text-lg sm:text-xl text-muted-foreground max-w-2xl text-center mt-12">
                We&apos;ve reimagined how AI characters come to life—so you can shape yours effortlessly.
              </p>
-             <button 
-               onClick={() => router.replace('/generator')}
-               className="h-10 sm:h-12 px-4 border-2 border-primary bg-background text-foreground font-mono hover:bg-accent transition-colors w-fit mt-8"
-             >
-               Generate
-             </button>
+             <div className="flex gap-4 mt-8">
+               <button 
+                 onClick={() => router.replace('/generator')}
+                 className="h-10 sm:h-12 px-4 border-2 border-primary bg-background text-foreground font-mono hover:bg-accent transition-colors w-fit"
+               >
+                Generator
+               </button>
+               <button 
+                 onClick={() => router.replace('/pixelate')}
+                 className="h-10 sm:h-12 px-4 border-2 border-primary bg-background text-foreground font-mono hover:bg-accent transition-colors w-fit"
+               >
+                 Pixelator
+               </button>
+             </div>
            </div>
 
            {/* Social Links Grid */}
