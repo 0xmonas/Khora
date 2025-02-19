@@ -4,7 +4,28 @@ interface Color {
   b: number;
 }
 
-const ColorPalettes = {
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+};
+
+type RGBColor = {
+  r: number;
+  g: number;
+  b: number;
+};
+
+type ColorPalette = {
+  color1?: RGBColor;
+  color2?: RGBColor;
+  colors?: RGBColor[];
+};
+
+const ColorPalettes: Record<PaletteType, ColorPalette> = {
   DEFAULT: {
     color1: { r: 51, g: 0, b: 255 },    // #3300ff
     color2: { r: 242, g: 242, b: 242 }  // #f2f2f2
@@ -12,10 +33,56 @@ const ColorPalettes = {
   MONOCHROME: {
     color1: { r: 54, g: 54, b: 54 },    // #171219
     color2: { r: 236, g: 236, b: 236 }  // #ffffff
+  },
+  EXPERIMENTAL: {
+    color1: { r: 0, g: 0, b: 0 },     // Temporary values, to be calculated from image
+    color2: { r: 255, g: 255, b: 255 }
+  },
+  MIDWEST: {
+    colors: [
+      '#e7cfab', '#b9ba7e', '#8e9359', '#646641', '#7f8fa6',
+      '#ccdcf5', '#fcfcfa', '#73abd8', '#cc403e', '#1d1610',
+      '#573d27', '#b27f5a',
+      '#eca73b', '#fcd856', '#966a64', '#4d8eca', '#c0c7d3',
+      '#fbe9c3', '#fca95a', '#444b4e', '#e0785c', '#bd9d86',
+      '#32291f', '#f6db91', '#e4ceb3'
+    ].map(hexToRgb)
+  },
+  SECAM: {
+    colors: [
+      '#000000', // Black
+      '#2121ff', // Blue
+      '#f03c79', // Red
+      '#ff50ff', // Magenta
+      '#7fff00', // Green
+      '#7fffff', // Cyan
+      '#ffff3f', // Yellow
+      '#ffffff'  // White
+    ].map(hexToRgb)
+  },
+  C64: {
+    colors: [
+      '#000000', // Black
+      '#626262', // Dark Gray
+      '#898989', // Gray
+      '#adadad', // Light Gray
+      '#ffffff', // White
+      '#9f4e44', // Red
+      '#cb7e75', // Light Red
+      '#6d5412', // Brown
+      '#a1683c', // Light Brown
+      '#c9d487', // Light Green
+      '#9ae29b', // Green
+      '#5cab5e', // Dark Green
+      '#6abfc6', // Cyan
+      '#887ecb', // Light Blue
+      '#50459b', // Blue
+      '#a057a3'  // Purple
+    ].map(hexToRgb)
   }
 } as const;
 
-type PaletteType = keyof typeof ColorPalettes;
+type PaletteType = 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64';
 
 const loadImage = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -41,9 +108,16 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   });
 };
 
+const colorDistance = (color1: RGBColor, color2: RGBColor): number => {
+  const rDiff = color1.r - color2.r;
+  const gDiff = color1.g - color2.g;
+  const bDiff = color1.b - color2.b;
+  return Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
+};
+
 export const pixelateImage = async (
   imageUrl: string,
-  selectedPalette: 'DEFAULT' | 'MONOCHROME' = 'DEFAULT'
+  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64' = 'DEFAULT'
 ): Promise<string> => {
   console.log('🚀 Starting... Selected palette:', selectedPalette);
   let manualThreshold = 127;
@@ -98,22 +172,19 @@ export const pixelateImage = async (
     return threshold;
   };
 
-  const findClosestColor = (color: Color): Color => {
-    const palette = ColorPalettes[selectedPalette];
-    const brightness = (color.r * 0.299 + color.g * 0.587 + color.b * 0.114);
-    const selectedColor = (brightness * 0.55) > manualThreshold ? palette.color2 : palette.color1;
-    
-    if (Math.random() < 0.01) { // Log every 100 pixels
-      console.log('🎨 Color transformation:', {
-        input: `rgb(${color.r},${color.g},${color.b})`,
-        brightness: brightness.toFixed(2),
-        adjustedBrightness: (brightness * 0.55).toFixed(2),
-        threshold: manualThreshold,
-        output: selectedColor === palette.color1 ? 'color1' : 'color2'
-      });
+  const findClosestColor = (targetColor: RGBColor, palette: ColorPalette): RGBColor => {
+    if (palette.colors) {
+      return palette.colors.reduce((closest, current) => {
+        const currentDistance = colorDistance(targetColor, current);
+        const closestDistance = colorDistance(targetColor, closest);
+        return currentDistance < closestDistance ? current : closest;
+      }, palette.colors[0]);
+    } else if (palette.color1 && palette.color2) {
+      const distance1 = colorDistance(targetColor, palette.color1);
+      const distance2 = colorDistance(targetColor, palette.color2);
+      return distance1 < distance2 ? palette.color1 : palette.color2;
     }
-    
-    return selectedColor;
+    return targetColor;
   };
 
   // 4x4 Bayer dithering matrisi
@@ -172,7 +243,7 @@ export const pixelateImage = async (
         b: data[i + 2]
       };
 
-      const closestColor = findClosestColor(currentColor);
+      const closestColor = findClosestColor(currentColor, ColorPalettes[selectedPalette]);
       data[i] = closestColor.r;
       data[i + 1] = closestColor.g;
       data[i + 2] = closestColor.b;

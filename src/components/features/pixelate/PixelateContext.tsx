@@ -30,8 +30,8 @@ type PixelateContextType = {
   resetPixelate: () => void;
   pixelMode: boolean;
   setPixelMode: (mode: boolean) => void;
-  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM';
-  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM') => void;
+  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64';
+  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64') => void;
   settings: ImageSettings;
   setSettings: (settings: ImageSettings) => void;
   defaultSettings: ImageSettings;
@@ -60,7 +60,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
   const [imageLoading, setImageLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<Step>('initial');
   const [pixelMode, setPixelMode] = useState(false);
-  const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM'>('MIDWEST');
+  const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64'>('MIDWEST');
   const [settings, setSettings] = useState<ImageSettings>(defaultSettings);
   const [selectedSize, setSelectedSize] = useState<'64' | '124' | '192'>('64');
 
@@ -131,7 +131,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     setImageLoading(false);
     setCurrentStep('initial');
     setPixelMode(false);
-    setSelectedPalette('DEFAULT');
+    setSelectedPalette('MIDWEST');
     setSettings(defaultSettings);
     setSelectedSize('64');
   };

@@ -155,12 +155,16 @@ return (
         >
           <select
             value={selectedPalette}
-            onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME')}
+            onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64')}
             disabled={currentStep === 'generating'}
             className="w-full bg-transparent outline-none cursor-pointer"
           >
+            <option value="MIDWEST">Midwest</option>
             <option value="DEFAULT">Default Blue</option>
             <option value="MONOCHROME">Monochrome</option>
+            <option value="EXPERIMENTAL">Experimental</option>
+            <option value="SECAM">SECAM</option>
+            <option value="C64">Commodore 64</option>
           </select>
         </div>
       </div>

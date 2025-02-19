@@ -41,6 +41,25 @@ interface Color {
     '#ffffff'  // White
   ].map(hexToRgb);
   
+  const C64_COLORS = [
+    '#000000', // Black
+    '#626262', // Dark Gray
+    '#898989', // Gray
+    '#adadad', // Light Gray
+    '#ffffff', // White
+    '#9f4e44', // Red
+    '#cb7e75', // Light Red
+    '#6d5412', // Brown
+    '#a1683c', // Light Brown
+    '#c9d487', // Light Green
+    '#9ae29b', // Green
+    '#5cab5e', // Dark Green
+    '#6abfc6', // Cyan
+    '#887ecb', // Light Blue
+    '#50459b', // Blue
+    '#a057a3'  // Purple
+  ].map(hexToRgb);
+  
   const ColorPalettes = {
     DEFAULT: {
       color1: { r: 51, g: 0, b: 255 },    // #3300ff
@@ -59,10 +78,13 @@ interface Color {
     },
     SECAM: {
       colors: SECAM_COLORS
+    },
+    C64: {
+      colors: C64_COLORS
     }
   };
   
-  type PaletteType = 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM';
+  type PaletteType = 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64';
   
   // Standard image ratios
   const ASPECT_RATIOS = {
@@ -141,7 +163,9 @@ interface Color {
     let minDistance = Infinity;
     let closestColor = MIDWEST_COLORS[0];
   
-    const colorsToCheck = selectedPalette === 'SECAM' ? SECAM_COLORS : MIDWEST_COLORS;
+    const colorsToCheck = selectedPalette === 'SECAM' ? SECAM_COLORS : 
+                         selectedPalette === 'C64' ? C64_COLORS :
+                         MIDWEST_COLORS;
   
     for (const paletteColor of colorsToCheck) {
       const distance = colorDistance(color, paletteColor);
@@ -263,7 +287,7 @@ interface Color {
     };
   
     const findClosestColor = (color: Color): Color => {
-      if (selectedPalette === 'MIDWEST' || selectedPalette === 'SECAM') {
+      if (selectedPalette === 'MIDWEST' || selectedPalette === 'SECAM' || selectedPalette === 'C64') {
         return findClosestMidwestColor(color, selectedPalette);
       }
   

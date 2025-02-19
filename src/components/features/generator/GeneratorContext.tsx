@@ -31,8 +31,8 @@ type GeneratorContextType = {
   setPixelMode: (mode: boolean) => void;
   pixelatedImage: string | null;
   initialPixelMode: boolean | null;
-  selectedPalette: 'DEFAULT' | 'MONOCHROME';
-  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME') => void;
+  selectedPalette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64';
+  setSelectedPalette: (palette: 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64') => void;
   selectedModel: 'KHORA' | 'ZEREBRO' | 'BAYC';
   setSelectedModel: (model: 'KHORA' | 'ZEREBRO' | 'BAYC') => void;
 };
@@ -54,7 +54,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 const [initialPixelMode, setInitialPixelMode] = useState<boolean | null>(null);
-const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME'>('DEFAULT');
+const [selectedPalette, setSelectedPalette] = useState<'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64'>('DEFAULT');
 const [selectedModel, setSelectedModel] = useState<'KHORA' | 'ZEREBRO' | 'BAYC'>('KHORA');
 
 
@@ -103,7 +103,7 @@ useEffect(() => {
       if (savedClients) setSelectedClients(savedClients);
     } catch (error) {
       console.error('Error loading saved data:', error);
-      localStorage.removeItem('generatorData'); // Hatalı veriyi temizle
+      localStorage.removeItem('generatorData'); // Clear invalid data
     }
   }
 }, [currentStep]);
