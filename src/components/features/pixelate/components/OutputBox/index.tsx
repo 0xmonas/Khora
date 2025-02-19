@@ -26,8 +26,7 @@ export const OutputBox = ({
   svgSize,
   pngSize
 }: OutputBoxProps) => {
-  const { loading, imageLoading, pixelMode } = usePixelate();
-  const [isProcessing, setIsProcessing] = React.useState(false);
+  const { pixelMode } = usePixelate();
   const [isCopied, setIsCopied] = React.useState(false);
 
   const handleCopyClick = async () => {
