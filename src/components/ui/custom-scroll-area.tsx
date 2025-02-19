@@ -1,38 +1,49 @@
 // components/ui/custom-scroll-area.tsx
 'use client';
 
-import { ReactNode } from "react";
+import * as React from "react"
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
-interface CustomScrollAreaProps {
- children: ReactNode;
- className?: string;
-}
+import { cn } from "@/lib/utils"
 
-export const CustomScrollArea = ({ children, className = "" }: CustomScrollAreaProps) => {
- return (
-   <div className={`custom-scrollbar overflow-auto ${className}`}>
-     {children}
-     <style jsx>{`
-       .custom-scrollbar {
-         scrollbar-gutter: stable;
-       }
-       .custom-scrollbar::-webkit-scrollbar {
-         width: 2px;
-         height: 2px;
-       }
-       .custom-scrollbar::-webkit-scrollbar-track {
-         background: transparent;
-       }
-       .custom-scrollbar::-webkit-scrollbar-thumb {
-         background: black;
-         border-radius: 9999px;
-         min-width: 2px;
-         min-height: 2px;
-       }
-       .custom-scrollbar::-webkit-scrollbar-corner {
-         background: transparent;
-       }
-     `}</style>
-   </div>
- );
-};
+const CustomScrollArea = React.forwardRef<
+  React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+>(({ className, children, ...props }, ref) => (
+  <ScrollAreaPrimitive.Root
+    ref={ref}
+    className={cn("relative overflow-hidden", className)}
+    {...props}
+  >
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+      {children}
+    </ScrollAreaPrimitive.Viewport>
+    <ScrollBar />
+    <ScrollAreaPrimitive.Corner />
+  </ScrollAreaPrimitive.Root>
+))
+CustomScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+
+const ScrollBar = React.forwardRef<
+  React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+>(({ className, orientation = "vertical", ...props }, ref) => (
+  <ScrollAreaPrimitive.ScrollAreaScrollbar
+    ref={ref}
+    orientation={orientation}
+    className={cn(
+      "flex touch-none select-none transition-colors",
+      orientation === "vertical" &&
+        "h-full w-2.5 border-l border-l-transparent p-[1px]",
+      orientation === "horizontal" &&
+        "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+      className
+    )}
+    {...props}
+  >
+    <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+  </ScrollAreaPrimitive.ScrollAreaScrollbar>
+))
+ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+
+export { CustomScrollArea }

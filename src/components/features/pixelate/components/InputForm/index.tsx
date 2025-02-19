@@ -143,7 +143,7 @@ export function InputForm() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-mono text-white dark:text-neutral-900">
-                  Output Size {svgSize ? `(~${svgSize})` : ''}
+                  Pixel Size
                 </h3>
                 <span className="text-sm font-mono text-white dark:text-neutral-900">
                   {selectedSize === '64' ? '1x' : selectedSize === '124' ? '2x' : '3x'}
