@@ -22,7 +22,7 @@ type PixelateContextType = {
   uploadedImage: File | null;
   setUploadedImage: (file: File | null) => void;
   processImage: () => Promise<void>;
-  downloadImage: (format: 'png' | 'svg') => Promise<void>;
+  downloadImage: (format: 'png' | 'svg' | 'copy') => Promise<void>;
   generatedImage: string | null;
   imageLoading: boolean;
   currentStep: Step;
@@ -166,7 +166,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const downloadImage = async (format: 'png' | 'svg') => {
+  const downloadImage = async (format: 'png' | 'svg' | 'copy'): Promise<void> => {
     if (!generatedImage) return;
     
     try {
@@ -178,7 +178,7 @@ export function PixelateProvider({ children }: { children: React.ReactNode }) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else {
+      } else if (format === 'png') {
         const link = document.createElement('a');
         link.href = generatedImage;
         link.download = `${imageName.split('.')[0]}_${pixelMode ? 'pixelated' : 'original'}.${format}`;
