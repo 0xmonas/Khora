@@ -129,7 +129,7 @@ export function OutputSection() {
             setSvgSize(svgSizeStr);
           }
         } catch (error) {
-          console.error('Dosya boyutu hesaplama hatası:', error);
+          console.error('File size calculation error:', error);
           setPngSize('');
           setSvgSize('');
         }
@@ -255,7 +255,6 @@ export function OutputSection() {
               <div className="relative w-[600px] h-[600px]">
                 <img-comparison-slider className="absolute inset-0">
                   {previewUrl && (
-                    // @next/next/no-img-element
                     <img
                       slot="first"
                       src={previewUrl}
@@ -264,7 +263,6 @@ export function OutputSection() {
                       style={{ imageRendering: 'pixelated' }}
                     />
                   )}
-                  {/* @next/next/no-img-element */}
                   <img
                     slot="second"
                     src={generatedImage}
@@ -277,9 +275,7 @@ export function OutputSection() {
             </div>
           ) : (
             <div className="h-full w-full flex items-center justify-center">
-              <div className="font-mono text-[14px] text-neutral-400 dark:text-neutral-500">
-                Image comparison will appear here...
-              </div>
+              <div className="w-[600px] h-[600px] bg-neutral-200 dark:bg-neutral-700" />
             </div>
           )}
         </OutputBox>
@@ -370,10 +366,12 @@ export function OutputSection() {
               </div>
             </div>
           ) : (
-            <div className="h-full w-full flex items-center justify-center">
-              <div className="font-mono text-[14px] text-neutral-400 dark:text-neutral-500">
-                Token URI will appear here...
-              </div>
+            <div className="h-full w-full flex flex-col gap-4 p-4">
+              <div className="h-10 bg-neutral-200 dark:bg-neutral-700 w-3/4" />
+              <div className="h-10 bg-neutral-200 dark:bg-neutral-700 w-full" />
+              <div className="h-10 bg-neutral-200 dark:bg-neutral-700 w-2/3" />
+              <div className="h-10 bg-neutral-200 dark:bg-neutral-700 w-4/5" />
+              <div className="h-10 bg-neutral-200 dark:bg-neutral-700 w-3/4" />
             </div>
           )}
         </OutputBox>

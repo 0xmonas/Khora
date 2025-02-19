@@ -50,15 +50,15 @@ export function InputForm() {
 
   // Apply settings automatically when changed
   const handleSettingChange = async (key: keyof typeof settings, value: number) => {
-    console.log(`Ayar değişikliği başlıyor - ${key}:`, value);
+    console.log(`Setting change starting - ${key}:`, value);
     
-    // Önce state'i güncelle
+    // First update state
     const newSettings = { 
       ...settings, 
       [key]: value 
     };
     
-    console.log('Yeni ayarlar uygulanıyor:', {
+    console.log('Applying new settings:', {
       key,
       oldValue: settings[key],
       newValue: value,
@@ -67,13 +67,13 @@ export function InputForm() {
     
     setSettings(newSettings);
 
-    // State güncellemesinin tamamlanmasını bekle
+    // Wait for state update to complete
     await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       await applySettings();
     } catch (error) {
-      console.error(`${key} ayarı uygulanırken hata:`, error);
+      console.error(`Error applying ${key} setting:`, error);
     }
   };
 
@@ -126,15 +126,16 @@ export function InputForm() {
             >
               <select
                 value={selectedPalette}
-                onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM')}
+                onChange={(e) => setSelectedPalette(e.target.value as 'DEFAULT' | 'MONOCHROME' | 'EXPERIMENTAL' | 'MIDWEST' | 'SECAM' | 'C64')}
                 disabled={currentStep === 'processing'}
                 className="w-full bg-transparent outline-none cursor-pointer"
               >
-                <option value="MIDWEST">Midwest</option>
                 <option value="DEFAULT">Default Blue</option>
+                <option value="MIDWEST">Midwest</option>
                 <option value="MONOCHROME">Monochrome</option>
                 <option value="EXPERIMENTAL">Experimental</option>
                 <option value="SECAM">SECAM</option>
+                <option value="C64">Commodore 64</option>
               </select>
             </div>
           </div>

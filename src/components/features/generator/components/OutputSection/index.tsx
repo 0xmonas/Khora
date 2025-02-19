@@ -52,8 +52,8 @@ export function OutputSection() {
 
   const handleFleekCancel = () => {
     setPendingFramework(null);
-    setSelectedFramework(null); // Framework seçimini sıfırla
-    setSelectedClients([]); // Client seçimlerini sıfırla
+    setSelectedFramework(null); // Reset framework selection
+    setSelectedClients([]); // Reset client selections
     setShowFleekWarning(false);
   };
 
@@ -221,10 +221,15 @@ export function OutputSection() {
               {JSON.stringify(character, (key, value) => key === 'type' ? undefined : value, 2)}
             </pre>
           ) : (
-            <div className="h-full w-full flex items-center justify-center">
-              <div className="font-mono text-[14px] text-neutral-400 dark:text-neutral-500">
-              Character data will appear here...
-              </div>
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-5/6" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-4/6" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-5/6" />
+              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-2/3" />
             </div>
           )}
         </OutputBox>
@@ -239,24 +244,24 @@ export function OutputSection() {
        >
          <div className="w-full h-full flex items-center justify-center">
          {loading ? (
-    <div className="animate-pulse flex items-center justify-center">
-      <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
-    </div>
-  ) : imageLoading ? (
-    <div className="text-center font-mono text-[14px] text-neutral-400 dark:text-neutral-500">
-      Generating image...
-    </div>
-  ) : generatedImage ? (
-    <img 
-      src={pixelMode && pixelatedImage ? pixelatedImage : generatedImage} 
-      alt="Generated character portrait" 
-      className="max-w-full max-h-full object-contain"
-    />
-  ) : (
-    <div className="text-center font-mono text-[14px] text-neutral-400 dark:text-neutral-500">
-      Character PFP will appear here...
-    </div>
-  )}
+           <div className="animate-pulse flex items-center justify-center">
+             <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
+           </div>
+         ) : imageLoading ? (
+           <div className="animate-pulse flex items-center justify-center">
+             <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
+           </div>
+         ) : generatedImage ? (
+           <img 
+             src={pixelMode && pixelatedImage ? pixelatedImage : generatedImage} 
+             alt="Generated character portrait" 
+             className="max-w-full max-h-full object-contain"
+           />
+         ) : (
+           <div className="animate-pulse flex items-center justify-center">
+             <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
+           </div>
+         )}
          </div>
        </OutputBox>
      </div>
