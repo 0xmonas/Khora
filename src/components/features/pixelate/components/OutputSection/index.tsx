@@ -255,6 +255,7 @@ export function OutputSection() {
               <div className="relative w-[600px] h-[600px]">
                 <img-comparison-slider className="absolute inset-0">
                   {previewUrl && (
+                    // @next/next/no-img-element
                     <img
                       slot="first"
                       src={previewUrl}
@@ -263,6 +264,7 @@ export function OutputSection() {
                       style={{ imageRendering: 'pixelated' }}
                     />
                   )}
+                  {/* @next/next/no-img-element */}
                   <img
                     slot="second"
                     src={generatedImage}
