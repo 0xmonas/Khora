@@ -14,6 +14,7 @@ export function ConnectPrompt() {
 }
 
 function WalletConnectButton() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ConnectButton, setConnectButton] = useState<any>(null);
 
   useEffect(() => {
@@ -32,7 +33,7 @@ function WalletConnectButton() {
 
   return (
     <ConnectButton.Custom>
-      {({ openConnectModal, mounted }: any) => (
+      {({ openConnectModal, mounted }: { openConnectModal: () => void; mounted: boolean }) => (
         <button
           onClick={openConnectModal}
           disabled={!mounted}

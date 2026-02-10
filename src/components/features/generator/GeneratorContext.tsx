@@ -52,10 +52,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [imageLoading, setImageLoading] = useState(false);
   const [mintedTokenId, setMintedTokenId] = useState<bigint | null>(null);
 
-  // Restore from localStorage
+  // Restore from localStorage (mount-only — intentionally no deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedData = localStorage.getItem('khoraGeneratorData');
-    if (savedData && currentStep !== 'complete') {
+    if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
         if (parsed.agent) setAgent(parsed.agent);
@@ -240,7 +241,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (format === 'json') {
-        const { image: _image, ...dataWithoutImage } = agent;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { image: _img, ...dataWithoutImage } = agent;
         const blob = new Blob([JSON.stringify(dataWithoutImage, null, 2)], { type: 'application/json' });
         downloadBlob(blob, `${fileName}.json`);
       } else if (format === 'png') {

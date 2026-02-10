@@ -17,7 +17,8 @@ export function MintButton() {
   const [preparing, setPreparing] = useState(false);
   const [prepError, setPrepError] = useState<string | null>(null);
 
-  // Owner check for import mode
+  // Owner check for import mode (TODO: re-enable before production)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [ownerCheckPassed, setOwnerCheckPassed] = useState<boolean | null>(null);
   const [ownerCheckLoading, setOwnerCheckLoading] = useState(false);
 

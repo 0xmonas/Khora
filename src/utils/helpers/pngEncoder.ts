@@ -19,7 +19,8 @@ export async function embedJsonInPng(imageUrl: string, jsonData: KhoraAgent): Pr
   }
 
   const chunks = extractChunks(uint8Array);
-  const { image, ...dataWithoutImage } = jsonData;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { image: _img, ...dataWithoutImage } = jsonData;
   const textData = new TextEncoder().encode(`KhoraAgent\0${JSON.stringify(dataWithoutImage)}`);
 
   const textChunk = {
