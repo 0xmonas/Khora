@@ -35,3 +35,7 @@ export const enrichAgentSchema = z.object({
   skills: z.array(z.string()).default([]),
   domains: z.array(z.string()).default([]),
 });
+
+export const discoverAgentsSchema = z.object({
+  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+});

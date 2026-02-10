@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid chain' }, { status: 400 });
     }
 
-    const { createPublicClient, http } = await import('viem');
-    const client = createPublicClient({ transport: http(config.rpcUrl) });
+    const { createPublicClient, http, fallback } = await import('viem');
+    const client = createPublicClient({
+      transport: fallback(config.rpcUrls.map((url) => http(url))),
+    });
 
     const owner = await client.readContract({
       address: IDENTITY_REGISTRY_ADDRESS,
