@@ -30,17 +30,11 @@ export function HeroSection() {
                We&apos;ve reimagined how AI characters come to life—so you can shape yours effortlessly.
              </p>
              <div className="flex gap-4 mt-8">
-               <button 
+               <button
                  onClick={() => router.replace('/generator')}
                  className="h-10 sm:h-12 px-4 border-2 border-primary bg-background text-foreground font-mono hover:bg-accent transition-colors w-fit"
                >
                 Generator
-               </button>
-               <button 
-                 onClick={() => router.replace('/pixelate')}
-                 className="h-10 sm:h-12 px-4 border-2 border-primary bg-background text-foreground font-mono hover:bg-accent transition-colors w-fit"
-               >
-                 Pixelator
                </button>
              </div>
            </div>

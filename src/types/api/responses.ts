@@ -1,30 +1,26 @@
+import { KhoraAgent, ERC8004Registration } from '@/types/agent';
+
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
 
-export interface GenerateCharacterResponse {
-  character: {
-    name: string;
-    bio: string;
-    lore: string;
-    traits: string[];
-  };
+export interface GenerateAgentResponse {
+  agent: Omit<KhoraAgent, 'image'>;
 }
 
 export interface GenerateImageResponse {
-  imageUrl: string;
+  image: string;
 }
 
 export interface GeneratePromptResponse {
   prompt: string;
 }
 
-export interface LoginResponse {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-  };
+export interface FetchAgentResponse {
+  registration: ERC8004Registration;
+}
+
+export interface EnrichAgentResponse {
+  agent: Omit<KhoraAgent, 'image'>;
 }

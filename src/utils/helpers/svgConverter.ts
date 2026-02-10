@@ -128,14 +128,6 @@ export async function convertToSVG(imageUrl: string, size: number = 64): Promise
   // Her zaman size parametresini baz al
   const dimensions = findClosestAspectRatio(tempImg.width, tempImg.height, size);
   
-  console.log('🖼 SVG dönüşüm boyutları:', {
-    imageWidth: tempImg.width,
-    imageHeight: tempImg.height,
-    svgWidth: dimensions.width,
-    svgHeight: dimensions.height,
-    baseSize: size
-  });
-  
   // Create temporary canvas with calculated dimensions
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
