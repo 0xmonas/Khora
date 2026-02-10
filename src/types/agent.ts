@@ -35,7 +35,7 @@ export interface ERC8004Registration {
 
 // Supported chains for ERC-8004 Identity Registry
 export type SupportedChain =
-  | 'ethereum' | 'polygon' | 'arbitrum'
+  | 'ethereum' | 'base' | 'polygon' | 'arbitrum'
   | 'celo' | 'gnosis' | 'scroll' | 'taiko' | 'bsc';
 
 export interface ChainInfo {
@@ -45,9 +45,10 @@ export interface ChainInfo {
 }
 
 export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
-  ethereum: { chainId: 1, name: 'Ethereum', rpcUrl: 'https://eth.llamarpc.com' },
-  polygon: { chainId: 137, name: 'Polygon', rpcUrl: 'https://polygon.llamarpc.com' },
-  arbitrum: { chainId: 42161, name: 'Arbitrum', rpcUrl: 'https://arbitrum.llamarpc.com' },
+  ethereum: { chainId: 1, name: 'Ethereum', rpcUrl: 'https://ethereum-rpc.publicnode.com' },
+  base: { chainId: 8453, name: 'Base', rpcUrl: 'https://mainnet.base.org' },
+  polygon: { chainId: 137, name: 'Polygon', rpcUrl: 'https://polygon-bor-rpc.publicnode.com' },
+  arbitrum: { chainId: 42161, name: 'Arbitrum', rpcUrl: 'https://arb1.arbitrum.io/rpc' },
   celo: { chainId: 42220, name: 'Celo', rpcUrl: 'https://forno.celo.org' },
   gnosis: { chainId: 100, name: 'Gnosis', rpcUrl: 'https://rpc.gnosischain.com' },
   scroll: { chainId: 534352, name: 'Scroll', rpcUrl: 'https://rpc.scroll.io' },
