@@ -9,7 +9,9 @@ import {
   useChainId,
 } from 'wagmi';
 import { decodeEventLog, toHex } from 'viem';
+import { readContract } from '@wagmi/core';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
+import { wagmiConfig } from '@/lib/wagmi';
 
 export type CommitRevealPhase =
   | 'idle'
@@ -131,19 +133,48 @@ export function useCommitReveal() {
     }
   }
 
-  // Recover slotIndex from localStorage on mount
+  // Recover slotIndex from localStorage on mount, fallback to on-chain scan
   useEffect(() => {
     if (recovered || !address || !isConnected) return;
     setRecovered(true);
-
-    const pending = loadPendingCommit();
-    if (!pending) return;
-    if (pending.address.toLowerCase() !== address.toLowerCase()) return;
-    if (pending.chainId !== chainId) return;
     if (slotIndex !== null) return;
 
-    setSlotIndex(BigInt(pending.slotIndex));
-  }, [address, isConnected, chainId, recovered, slotIndex]);
+    // Try localStorage first
+    const pending = loadPendingCommit();
+    if (pending && pending.address.toLowerCase() === address.toLowerCase() && pending.chainId === chainId) {
+      setSlotIndex(BigInt(pending.slotIndex));
+      return;
+    }
+
+    // Fallback: scan on-chain commitments for unrevealed slots
+    (async () => {
+      try {
+        const count = await readContract(wagmiConfig, {
+          address: contractAddress,
+          abi: BOOA_NFT_ABI,
+          functionName: 'commitmentCount',
+          args: [address],
+        }) as bigint;
+
+        for (let i = Number(count) - 1; i >= 0; i--) {
+          const [timestamp, revealed] = await readContract(wagmiConfig, {
+            address: contractAddress,
+            abi: BOOA_NFT_ABI,
+            functionName: 'getCommitment',
+            args: [address, BigInt(i)],
+          }) as [bigint, boolean];
+
+          if (timestamp > BigInt(0) && !revealed) {
+            setSlotIndex(BigInt(i));
+            savePendingCommit({ address, chainId, slotIndex: i });
+            break;
+          }
+        }
+      } catch {
+        // On-chain recovery failed, silently continue
+      }
+    })();
+  }, [address, isConnected, chainId, recovered, slotIndex, contractAddress]);
 
   // Extract tokenId from Transfer event
   let tokenId: bigint | null = null;

@@ -6,9 +6,10 @@ interface GalleryThumbnailProps {
   tokenId: bigint;
   svg: string | null;
   isOwned: boolean;
+  onClick?: () => void;
 }
 
-export function GalleryThumbnail({ tokenId, svg, isOwned }: GalleryThumbnailProps) {
+export function GalleryThumbnail({ tokenId, svg, isOwned, onClick }: GalleryThumbnailProps) {
   const [hovered, setHovered] = useState(false);
 
   const borderClass = isOwned
@@ -20,6 +21,7 @@ export function GalleryThumbnail({ tokenId, svg, isOwned }: GalleryThumbnailProp
       className={`relative aspect-square ${borderClass} bg-neutral-100 dark:bg-neutral-800 overflow-hidden cursor-pointer transition-transform duration-150 hover:scale-[1.03]`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
     >
       {svg ? (
         <img

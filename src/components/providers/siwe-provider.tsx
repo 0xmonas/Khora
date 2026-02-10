@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   createAuthenticationAdapter,
   RainbowKitAuthenticationProvider,
@@ -9,6 +9,9 @@ import {
 import { createSiweMessage } from 'viem/siwe';
 import { useAccount } from 'wagmi';
 
+const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
+export function useSiweStatus() { return useContext(SiweStatusContext); }
+
 export function SiweProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthenticationStatus>('unauthenticated');
   const { isConnected } = useAccount();
@@ -16,7 +19,6 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   // Check session when wallet is connected
   useEffect(() => {
     if (!isConnected) {
-      // No wallet = no auth, skip server call
       setStatus('unauthenticated');
       return;
     }
@@ -105,8 +107,10 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   }, [status, isConnected]);
 
   return (
-    <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
-      {children}
-    </RainbowKitAuthenticationProvider>
+    <SiweStatusContext.Provider value={status}>
+      <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
+        {children}
+      </RainbowKitAuthenticationProvider>
+    </SiweStatusContext.Provider>
   );
 }

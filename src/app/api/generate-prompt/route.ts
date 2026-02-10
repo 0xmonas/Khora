@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { MODEL_TEXT, STYLES } from '@/lib/constants';
+const MODEL_TEXT = 'gemini-3-flash-preview';
 import { validateInput } from '@/lib/api/api-helpers';
 import { generatePromptSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     if ('error' in result) return result.error;
 
     const { prompt } = result.data;
-    const style = STYLES[0]; // Khora Classic default
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -35,7 +34,6 @@ export async function POST(request: NextRequest) {
       model: MODEL_TEXT,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        systemInstruction: style.systemInstruction,
         temperature: 0.7,
       },
     });

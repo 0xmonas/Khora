@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { MODEL_IMAGE, MODEL_IMAGE_FLASH } from '@/lib/constants';
+const MODEL_IMAGE = 'gemini-2.5-flash-image';
+const MODEL_IMAGE_FLASH = 'gemini-2.5-flash-image';
 import { validateInput } from '@/lib/api/api-helpers';
 import { generateImageSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';

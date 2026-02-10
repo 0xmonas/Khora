@@ -7,31 +7,30 @@ const redis = new Redis({
 });
 
 /**
- * General API rate limiter: 30 requests per 60 seconds per IP.
+ * General API rate limiter: 60 requests per 60 seconds per IP.
  * Sliding window algorithm for smooth limiting.
  */
 export const generalLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(30, '60 s'),
+  limiter: Ratelimit.slidingWindow(60, '60 s'),
   prefix: 'rl:general',
 });
 
 /**
- * Stricter rate limiter for write operations (POST/DELETE): 10 per 60s per IP.
+ * Rate limiter for write operations (POST/DELETE): 30 per 60s per IP.
  */
 export const writeLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(10, '60 s'),
+  limiter: Ratelimit.slidingWindow(30, '60 s'),
   prefix: 'rl:write',
 });
 
 /**
- * AI generation rate limiter: 5 per 60 seconds per IP.
- * Image/agent generation is expensive.
+ * AI generation rate limiter: 15 per 60 seconds per IP.
  */
 export const generationLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(5, '60 s'),
+  limiter: Ratelimit.slidingWindow(15, '60 s'),
   prefix: 'rl:generation',
 });
 

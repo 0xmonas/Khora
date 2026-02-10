@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState, useRef } from 'react';
 import { useGenerator } from '../../GeneratorContext';
 import {
   Dialog,
@@ -9,6 +10,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { formatEther } from 'viem';
+import { useChainId } from 'wagmi';
+import { base } from 'wagmi/chains';
 import { cn } from '@/lib/utils';
 
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
@@ -83,6 +86,29 @@ function StepIndicator({ number, label, desc, status }: {
   );
 }
 
+function TxHashLink({ hash, label }: { hash: `0x${string}`; label: string }) {
+  const chainId = useChainId();
+  const isMainnet = chainId === base.id;
+  const explorerBase = isMainnet
+    ? 'https://basescan.org'
+    : 'https://sepolia.basescan.org';
+  const short = `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+
+  return (
+    <div className="flex justify-between font-mono text-[10px]">
+      <span className="text-neutral-500">{label}:</span>
+      <a
+        href={`${explorerBase}/tx/${hash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:underline"
+      >
+        {short}
+      </a>
+    </div>
+  );
+}
+
 function StepContent() {
   const {
     currentStep,
@@ -93,7 +119,11 @@ function StepContent() {
     mintedTokenId,
     triggerReveal,
     retryReveal,
+    regenerateForReveal,
+    hasRevealData,
     error,
+    commitTxHash,
+    revealTxHash,
   } = useGenerator();
 
   const imageToShow = pixelatedImage || generatedImage;
@@ -111,6 +141,7 @@ function StepContent() {
             <span className="dark:text-white">{formatEther(mintPrice)} ETH</span>
           </div>
         )}
+        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
           <span className="font-mono text-xs text-neutral-500">Waiting for wallet...</span>
@@ -183,6 +214,8 @@ function StepContent() {
             />
           </div>
         )}
+        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
+        {revealTxHash && <TxHashLink hash={revealTxHash} label="Reveal tx" />}
         <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
           Confirm the reveal transaction in your wallet.
         </p>
@@ -213,12 +246,21 @@ function StepContent() {
             <p className="font-mono text-xs text-red-500">{error}</p>
           </div>
         )}
-        <button
-          onClick={retryReveal}
-          className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
-        >
-          RETRY REVEAL
-        </button>
+        {hasRevealData ? (
+          <button
+            onClick={retryReveal}
+            className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+          >
+            RETRY REVEAL
+          </button>
+        ) : (
+          <button
+            onClick={regenerateForReveal}
+            className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+          >
+            REGENERATE IMAGE
+          </button>
+        )}
       </div>
     );
   }
@@ -243,6 +285,8 @@ function StepContent() {
             <span className="dark:text-white">#{mintedTokenId.toString()}</span>
           </div>
         )}
+        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
+        {revealTxHash && <TxHashLink hash={revealTxHash} label="Reveal tx" />}
         <p className="font-mono text-xs text-green-600 dark:text-green-400">
           Agent minted successfully.
         </p>
@@ -253,13 +297,48 @@ function StepContent() {
   return null;
 }
 
+const AUTO_CLOSE_SECONDS = 30;
+
 export function MintFlowModal() {
   const { isModalOpen, closeModal, currentStep, error } = useGenerator();
+  const [countdown, setCountdown] = useState(AUTO_CLOSE_SECONDS);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-close countdown when mint is complete
+  useEffect(() => {
+    if (currentStep === 'complete' && isModalOpen) {
+      setCountdown(AUTO_CLOSE_SECONDS);
+      timerRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [currentStep, isModalOpen]);
+
+  // Close modal when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0 && currentStep === 'complete' && isModalOpen) {
+      closeModal();
+    }
+  }, [countdown, currentStep, isModalOpen, closeModal]);
 
   const statuses = getStepStatuses(currentStep);
 
   // Modal can only be closed in safe states
-  const canClose = currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal';
+  const canClose = currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed';
 
   const handleOpenChange = (open: boolean) => {
     if (!open && canClose) {
@@ -267,12 +346,16 @@ export function MintFlowModal() {
     }
   };
 
+  // Non-modal during reveal_failed so overlay doesn't block header (wallet/chain switcher)
+  const isNonModal = currentStep === 'reveal_failed';
+
   return (
-    <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isModalOpen} onOpenChange={handleOpenChange} modal={!isNonModal}>
       <DialogContent
         onPointerDownOutside={(e) => { if (!canClose) e.preventDefault(); }}
         onEscapeKeyDown={(e) => { if (!canClose) e.preventDefault(); }}
         onInteractOutside={(e) => { if (!canClose) e.preventDefault(); }}
+        showOverlay={!isNonModal}
         className="p-0"
       >
         <DialogHeader>
@@ -309,6 +392,13 @@ export function MintFlowModal() {
 
           {/* Active step content */}
           <StepContent />
+
+          {/* Auto-close countdown */}
+          {currentStep === 'complete' && countdown > 0 && (
+            <p className="font-mono text-[10px] text-neutral-400 text-center">
+              closing in {countdown}s
+            </p>
+          )}
 
           {/* Error display (only for non-reveal errors, reveal errors shown in StepContent) */}
           {error && currentStep !== 'reveal_failed' && (

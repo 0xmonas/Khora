@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { pixelateImage } from '@/utils/pixelator';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
+import { useSiweStatus } from '@/components/providers/siwe-provider';
 import type { KhoraAgent, SupportedChain } from '@/types/agent';
 
 export type Mode = 'create' | 'import';
@@ -35,15 +36,20 @@ type GeneratorContextType = {
   maxSupply: bigint | undefined;
   commitRevealPhase: CommitRevealPhase;
   contractAddress: `0x${string}`;
+  commitTxHash: `0x${string}` | undefined;
+  revealTxHash: `0x${string}` | undefined;
   // Modal
   isModalOpen: boolean;
+  hasRevealData: boolean;
   // Actions
   mintAndGenerate: () => void;
   triggerReveal: () => void;
   retryReveal: () => void;
+  regenerateForReveal: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
   closeModal: () => void;
+  openModal: () => void;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
@@ -86,7 +92,23 @@ async function deletePendingRevealFromAPI(address: string, chainId: number, slot
   } catch {}
 }
 
+async function saveAgentMetadataToAPI(
+  address: string, chainId: number, tokenId: number,
+  agent: KhoraAgent,
+) {
+  try {
+    await fetch('/api/agent-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, chainId, tokenId, agent }),
+    });
+  } catch {}
+}
+
 export function GeneratorProvider({ children }: { children: React.ReactNode }) {
+  const siweStatus = useSiweStatus();
+  const isAuthenticated = siweStatus === 'authenticated';
+
   const [mode, setMode] = useState<Mode>('create');
   const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
@@ -189,7 +211,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase]);
 
-  // When reveal succeeds, finalize + cleanup API
+  // When reveal succeeds, finalize + cleanup API + save metadata
   useEffect(() => {
     if (commitReveal.phase === 'success' && isFlowActive.current) {
       setMintedTokenId(commitReveal.tokenId);
@@ -202,6 +224,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       if (commitReveal.address && commitReveal.slotIndex !== null) {
         deletePendingRevealFromAPI(
           commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
+        );
+      }
+      // Save full agent metadata to Upstash (permanent, no TTL)
+      if (agent && commitReveal.tokenId !== null && commitReveal.address) {
+        saveAgentMetadataToAPI(
+          commitReveal.address,
+          commitReveal.chainId,
+          Number(commitReveal.tokenId),
+          agent,
         );
       }
     }
@@ -468,7 +499,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // ── Retry reveal (after reject/cancel) ──
   const retryReveal = useCallback(() => {
     if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
-      setError('No pending reveal data — generate a new image');
+      setError('No pending reveal data — use Regenerate to create a new image');
       return;
     }
     setError(null);
@@ -483,6 +514,22 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, [commitReveal]);
+
+  // ── Regenerate image for existing commit (when reveal data was lost) ──
+  const regenerateForReveal = useCallback(() => {
+    if (!isAuthenticated) {
+      setError('Please sign in with your wallet first');
+      return;
+    }
+    if (mode === 'create' && (!agentName.trim() || !agentDescription.trim())) {
+      setError('Please fill in agent name and description first, then retry');
+      return;
+    }
+    setError(null);
+    isFlowActive.current = true;
+    runGeneration();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, mode, agentName, agentDescription]);
 
   // ── Main action: MINT button ──
   const mintAndGenerate = useCallback(() => {
@@ -516,9 +563,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mode, agentName, agentDescription, agentId, commitReveal]);
 
-  // ── Close modal ──
+  // ── Open/Close modal ──
+  const openModal = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
   const closeModal = useCallback(() => {
-    if (currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal') {
+    if (currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed') {
       setIsModalOpen(false);
     }
   }, [currentStep]);
@@ -604,8 +655,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     maxSupply: commitReveal.maxSupply as bigint | undefined,
     commitRevealPhase: commitReveal.phase,
     contractAddress: commitReveal.contractAddress,
+    commitTxHash: commitReveal.commitTxHash,
+    revealTxHash: commitReveal.revealTxHash,
+    hasRevealData: !!(pendingSvgBytes.current && pendingTraitsBytes.current),
     isModalOpen,
-    mintAndGenerate, triggerReveal, retryReveal, downloadAgent, reset, closeModal,
+    mintAndGenerate, triggerReveal, retryReveal, regenerateForReveal, downloadAgent, reset, closeModal, openModal,
   };
 
   return (

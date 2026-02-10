@@ -7,6 +7,8 @@ const PUBLIC_PATHS = [
   '/api/auth/verify',
   '/api/auth/session',
   '/api/auth/logout',
+  '/api/agent-metadata',
+  '/api/pending-reveal',
 ];
 
 export async function middleware(request: NextRequest) {

@@ -43,6 +43,7 @@ export function InputForm() {
     totalSupply,
     maxSupply,
     contractAddress,
+    openModal,
   } = useGenerator();
 
   const { address, isConnected } = useAccount();
@@ -78,7 +79,7 @@ export function InputForm() {
       .finally(() => setDiscoveryLoading(false));
   }, [mode, isConnected, address, manualMode]);
 
-  const isBusy = currentStep !== 'input' && currentStep !== 'complete';
+  const isBusy = currentStep !== 'input' && currentStep !== 'complete' && currentStep !== 'reveal_failed';
 
   const isMintDisabled = () => {
     if (isBusy) return true;
@@ -94,6 +95,7 @@ export function InputForm() {
 
   const getMintLabel = () => {
     if (currentStep === 'complete') return 'MINT AGAIN';
+    if (currentStep === 'reveal_failed') return 'RESUME MINT';
     if (currentStep !== 'input') return 'MINTING...';
     return 'MINT';
   };
@@ -301,8 +303,8 @@ export function InputForm() {
         <div>
           <button
             type="button"
-            onClick={currentStep === 'complete' ? reset : mintAndGenerate}
-            disabled={currentStep === 'complete' ? false : isMintDisabled()}
+            onClick={currentStep === 'complete' ? reset : currentStep === 'reveal_failed' ? openModal : mintAndGenerate}
+            disabled={currentStep === 'complete' || currentStep === 'reveal_failed' ? false : isMintDisabled()}
             className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {getMintLabel()}
