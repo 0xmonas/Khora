@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { CHAIN_CONFIG, IDENTITY_REGISTRY_ADDRESS } from '@/types/agent';
+import type { SupportedChain } from '@/types/agent';
+
+const OWNER_OF_ABI = [
+  {
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    name: 'ownerOf',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export async function POST(request: NextRequest) {
+  try {
+    const { chain, agentId } = await request.json();
+
+    if (!chain || !agentId) {
+      return NextResponse.json({ error: 'Missing chain or agentId' }, { status: 400 });
+    }
+
+    const config = CHAIN_CONFIG[chain as SupportedChain];
+    if (!config) {
+      return NextResponse.json({ error: 'Invalid chain' }, { status: 400 });
+    }
+
+    const { createPublicClient, http } = await import('viem');
+    const client = createPublicClient({ transport: http(config.rpcUrl) });
+
+    const owner = await client.readContract({
+      address: IDENTITY_REGISTRY_ADDRESS,
+      abi: OWNER_OF_ABI,
+      functionName: 'ownerOf',
+      args: [BigInt(agentId)],
+    });
+
+    return NextResponse.json({ owner: owner as string });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to check ownership';
+
+    if (message.includes('execution reverted') || message.includes('revert')) {
+      return NextResponse.json({ error: 'Agent ID not found on this chain' }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

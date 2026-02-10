@@ -1,38 +1,32 @@
-import { CharacterTemplate } from '@/types/templates';
+import type { KhoraAgent } from '@/types/agent';
 
 export async function createPortraitPrompt(
-  character: CharacterTemplate,
-  selectedModel: 'KHORA' | 'ZEREBRO' | 'BAYC' = 'KHORA'
+  agent: Omit<KhoraAgent, 'image'>
 ): Promise<string> {
   try {
-    let characterJson;
-    if (character.type === 'eliza' || character.type === 'fleek') {
-      characterJson = {
-        name: character.name,
-        personality: character.bio,
-        traits: character.adjectives,
-        interests: character.topics,
-        background: character.lore
-      };
-    } else {
-      characterJson = {
-        name: character.name,
-        personality: character.bio.join('\n'),
-        traits: character.traits,
-        examples: character.examples
-      };
-    }
+    const agentJson = {
+      name: agent.name,
+      creature: agent.creature,
+      vibe: agent.vibe,
+      personality: agent.personality,
+      skills: agent.skills,
+      domains: agent.domains,
+    };
 
     const aiPrompt =
-     `Analyze this character JSON and create a visual image generation prompt that captures their essence.
-     The prompt MUST:
-     1. Start with exactly "style of nft pfp art without backgroud, a portrait of"
-     2. Use the character's entity, traits, interests, and background to create a vivid visual description
-     3. Focus only on visual elements
-     4. color pallete is C64
+     `Analyze this AI agent identity and create a visual image generation prompt that captures their essence as a pixel art NFT portrait.
 
-Character JSON:
-${JSON.stringify(characterJson, null, 2)}
+The prompt MUST:
+1. Start with exactly "pixel art style nft pfp, front-facing portrait looking directly at camera, head and shoulders centered, solid color or transparent background,"
+2. The character MUST be facing forward, looking directly at the viewer (like a passport photo or ID badge)
+3. Frame the character consistently: head and upper shoulders visible, centered in frame, same scale every time
+4. Use the agent's creature type, vibe, personality, and skills to describe visual features (colors, textures, accessories, expression)
+5. Specify pixel art aesthetic: chunky pixels, limited color palette, retro game character feel, clean edges
+6. Focus only on visual elements — no text, no logos, no words
+7. Be concise but descriptive (max 150 words)
+
+Agent identity:
+${JSON.stringify(agentJson, null, 2)}
 
 Return ONLY the prompt, nothing else.`;
 
@@ -50,15 +44,14 @@ Return ONLY the prompt, nothing else.`;
 
     const data = await response.json();
     let finalPrompt = data.prompt.trim();
-    
-    if (!finalPrompt.toLowerCase().includes("style of nft pfp art without backgroud, a portrait of")) {
-      finalPrompt = "style of nft pfp art without backgroud, a portrait of, " + finalPrompt;
+
+    if (!finalPrompt.toLowerCase().includes("pixel art")) {
+      finalPrompt = "pixel art style nft pfp, front-facing portrait looking directly at camera, head and shoulders centered, " + finalPrompt;
     }
 
     return finalPrompt;
 
   } catch (error) {
-    console.error('Error creating AI portrait prompt:', error);
-    return "style of nft pfp art without backgroud, a portrait of";
+    return "pixel art style nft pfp, front-facing portrait looking directly at camera, head and shoulders centered, solid color background";
   }
 }

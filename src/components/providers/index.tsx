@@ -1,13 +1,19 @@
+'use client';
+
+import dynamic from 'next/dynamic';
 import { ThemeProvider } from './theme-provider';
-import { GeneratorProvider } from '@/components/features/generator/GeneratorContext';
-import Privy from '@/providers/PrivyProvider';
+
+const Web3Provider = dynamic(
+  () => import('./web3-provider').then((mod) => mod.Web3Provider),
+  { ssr: false }
+);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <GeneratorProvider>
-        <Privy>{children}</Privy>
-      </GeneratorProvider>
+      <Web3Provider>
+        {children}
+      </Web3Provider>
     </ThemeProvider>
   );
 }
