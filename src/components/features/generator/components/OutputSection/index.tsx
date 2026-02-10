@@ -15,9 +15,11 @@ export function OutputSection() {
     reset,
   } = useGenerator();
 
-  const skeletonSize = "w-32 h-32";
   // Only show pixelated image — never show raw Gemini output
   const imageToShow = pixelatedImage;
+
+  // Don't render anything before generation starts
+  if (currentStep === 'input' && !loading) return null;
 
   return (
     <div className="w-full max-w-[1200px] mx-auto">
@@ -29,17 +31,40 @@ export function OutputSection() {
           onClose={() => reset()}
         >
           {loading ? (
-            <div className="w-full h-full animate-pulse flex flex-col p-4">
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-5/6" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-4/6" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-5/6" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-2/3" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-4/5" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
+            <div className="w-full h-full animate-pulse flex flex-col p-4 space-y-4">
+              {/* Label + value pairs mimicking real data layout */}
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-12" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 w-32" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-16" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 w-28" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-10" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 w-40" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-12" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 w-8" />
+              </div>
+              {/* Personality list block */}
+              <div className="pt-1 space-y-2.5">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-20" />
+                <div className="ml-3 h-2 bg-neutral-200 dark:bg-neutral-700 w-3/4" />
+                <div className="ml-3 h-2 bg-neutral-200 dark:bg-neutral-700 w-5/6" />
+                <div className="ml-3 h-2 bg-neutral-200 dark:bg-neutral-700 w-2/3" />
+              </div>
+              {/* Skills / domains */}
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-12" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 flex-1" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2.5 bg-neutral-300 dark:bg-neutral-600 w-16" />
+                <div className="h-2.5 bg-neutral-200 dark:bg-neutral-700 flex-1" />
+              </div>
             </div>
           ) : agent ? (
             <div className="font-mono text-[13px] dark:text-white space-y-3">
@@ -70,16 +95,7 @@ export function OutputSection() {
                 </div>
               )}
             </div>
-          ) : (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-5/6" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-4/6" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-full" />
-              <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-sm mb-3 w-3/4" />
-            </div>
-          )}
+          ) : null}
         </OutputBox>
 
         {/* Agent PFP Box */}
@@ -90,8 +106,8 @@ export function OutputSection() {
         >
           <div className="w-full h-full flex items-center justify-center">
             {loading || imageLoading ? (
-              <div className="animate-pulse flex items-center justify-center">
-                <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
+              <div className="animate-pulse flex items-center justify-center w-full h-full">
+                <div className="w-3/4 aspect-square max-w-[280px] bg-neutral-200 dark:bg-neutral-700" />
               </div>
             ) : imageToShow ? (
               <img
@@ -99,11 +115,7 @@ export function OutputSection() {
                 alt="Generated agent PFP"
                 className="max-w-full max-h-full object-contain"
               />
-            ) : (
-              <div className="animate-pulse flex items-center justify-center">
-                <div className={`${skeletonSize} bg-neutral-200 dark:bg-neutral-700 rounded`} />
-              </div>
-            )}
+            ) : null}
           </div>
         </OutputBox>
       </div>
