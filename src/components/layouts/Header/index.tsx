@@ -7,6 +7,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 
 function WalletButton() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ConnectButton, setConnectButton] = useState<any>(null);
 
   useEffect(() => {
@@ -27,7 +28,13 @@ function WalletButton() {
 
   return (
     <ConnectButton.Custom>
-      {({ account, chain, openAccountModal, openConnectModal, mounted }: any) => {
+      {({ account, chain, openAccountModal, openConnectModal, mounted }: {
+        account?: { displayName: string };
+        chain?: { id: number };
+        openAccountModal: () => void;
+        openConnectModal: () => void;
+        mounted: boolean;
+      }) => {
         const connected = mounted && account && chain;
         return (
           <button
