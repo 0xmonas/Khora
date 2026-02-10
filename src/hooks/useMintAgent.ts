@@ -59,7 +59,7 @@ export function useMintAgent() {
     }
   }
 
-  function mint(svgBytes: Uint8Array, traitsBytes: Uint8Array, name: string, description: string) {
+  function mint(svgBytes: Uint8Array, traitsBytes: Uint8Array) {
     if (!isConnected || !address) {
       throw new Error('Wallet not connected');
     }
@@ -68,7 +68,7 @@ export function useMintAgent() {
       address: contractAddress,
       abi: BOOA_NFT_ABI,
       functionName: 'mintAgent',
-      args: [toHex(svgBytes), toHex(traitsBytes), name, description],
+      args: [toHex(svgBytes), toHex(traitsBytes)],
       value: mintPrice ?? BigInt(0),
     });
   }

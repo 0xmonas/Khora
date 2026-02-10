@@ -8,36 +8,40 @@ interface OutputBoxProps {
   children: ReactNode;
   type?: 'image' | 'text';
   onClose?: () => void;
+  className?: string;
 }
 
 export const OutputBox = ({
   title,
   children,
   type = 'text',
-  onClose
+  onClose,
+  className = '',
 }: OutputBoxProps) => {
   return (
-    <div className="flex flex-col w-full">
-      <div className="aspect-square w-full border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden">
-        <div className="h-10 border-b-2 border-neutral-700 dark:border-neutral-200 p-2 flex justify-between items-center">
-          <span className="text-sm font-mono tracking-tight dark:text-white">{title}</span>
+    <div
+      className={`border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden ${className}`}
+    >
+      <div className="h-10 border-b-2 border-neutral-700 dark:border-neutral-200 p-2 flex justify-between items-center">
+        <span className="text-sm font-mono tracking-tight dark:text-white">{title}</span>
+        {onClose && (
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 rounded"
           >
             <span className="text-sm font-mono dark:text-white">×</span>
           </button>
-        </div>
-        {type === 'text' ? (
-          <CustomScrollArea className="h-[calc(100%-40px)] p-4">
-            {children}
-          </CustomScrollArea>
-        ) : (
-          <div className="h-[calc(100%-40px)] overflow-hidden flex items-center justify-center p-4">
-            {children}
-          </div>
         )}
       </div>
+      {type === 'text' ? (
+        <CustomScrollArea className="h-[calc(100%-40px)] p-4">
+          {children}
+        </CustomScrollArea>
+      ) : (
+        <div className="h-[calc(100%-40px)] overflow-hidden flex items-center justify-center relative">
+          {children}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,31 +1,32 @@
 'use client';
 
 import { useAccount } from 'wagmi';
-import { InputForm, OutputSection } from './components';
+import { InputForm, OutputSection, Gallery } from './components';
 import { ConnectPrompt } from './components/ConnectPrompt';
 
 export default function GeneratorPage() {
   const { isConnected } = useAccount();
 
   return (
-    <div className="bg-background p-4 sm:p-8 lg:p-12">
-      <div className="grid grid-cols-12">
-        <div className="col-span-0 sm:col-span-1" />
-        <div className="col-span-12 sm:col-span-10">
+    <div className="bg-background p-4 md:p-8 lg:p-12">
+      <div className="w-full lg:grid lg:grid-cols-12">
+        <div className="hidden lg:block lg:col-span-1" />
+        <div className="lg:col-span-10">
           {isConnected ? (
-            <div className="flex flex-col lg:items-start lg:flex-row gap-8 lg:gap-16">
-              <div className="w-full lg:w-[300px]">
+            <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+              <div className="w-full lg:w-[280px] flex-shrink-0">
                 <InputForm />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8">
                 <OutputSection />
+                <Gallery />
               </div>
             </div>
           ) : (
             <ConnectPrompt />
           )}
         </div>
-        <div className="col-span-0 sm:col-span-1" />
+        <div className="hidden lg:block lg:col-span-1" />
       </div>
     </div>
   );
