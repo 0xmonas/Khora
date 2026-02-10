@@ -30,7 +30,7 @@ const BAYER_4X4 = [
   [15,  7, 13,  5]
 ];
 
-const DITHER_STRENGTH = 1.0; // take-over default: full strength
+const DITHER_STRENGTH = 0.5; // take-over default: full strength
 
 const applyBayerDither = (imageData: ImageData): ImageData => {
   const data = imageData.data;

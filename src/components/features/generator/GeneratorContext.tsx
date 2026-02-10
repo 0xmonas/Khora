@@ -1,16 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { signMessage } from 'wagmi/actions';
 import { pixelateImage } from '@/utils/pixelator';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
-import { buildPendingRevealMessage } from '@/lib/verify-signature';
-import { wagmiConfig } from '@/lib/wagmi';
 import type { KhoraAgent, SupportedChain } from '@/types/agent';
 
 export type Mode = 'create' | 'import';
-export type Step = 'input' | 'committing' | 'generating' | 'revealing' | 'reveal_failed' | 'complete';
+export type Step = 'input' | 'committing' | 'generating' | 'ready_to_reveal' | 'revealing' | 'reveal_failed' | 'complete';
 
 type GeneratorContextType = {
   mode: Mode;
@@ -38,38 +35,30 @@ type GeneratorContextType = {
   maxSupply: bigint | undefined;
   commitRevealPhase: CommitRevealPhase;
   contractAddress: `0x${string}`;
+  // Modal
+  isModalOpen: boolean;
   // Actions
   mintAndGenerate: () => void;
+  triggerReveal: () => void;
   retryReveal: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
+  closeModal: () => void;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
 
-// ── Pending reveal API helpers (with wallet signature auth) ──
-
-async function signForAPI(action: 'save' | 'delete', address: string, chainId: number, slot: number): Promise<string | null> {
-  try {
-    const message = buildPendingRevealMessage(action, address, chainId, slot);
-    const sig = await signMessage(wagmiConfig, { message });
-    return sig;
-  } catch {
-    return null;
-  }
-}
+// ── Pending reveal API helpers ──
 
 async function savePendingRevealToAPI(
   address: string, chainId: number, slot: number,
   svgHex: string, traitsHex: string,
 ) {
   try {
-    const signature = await signForAPI('save', address, chainId, slot);
-    if (!signature) return; // User rejected sign — silently skip, localStorage is primary
     await fetch('/api/pending-reveal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, chainId, slot, svg: svgHex, traits: traitsHex, signature }),
+      body: JSON.stringify({ address, chainId, slot, svg: svgHex, traits: traitsHex }),
     });
   } catch {}
 }
@@ -89,7 +78,6 @@ async function loadPendingRevealFromAPI(
 
 async function deletePendingRevealFromAPI(address: string, chainId: number, slot: number) {
   try {
-    // No signature needed — API verifies on-chain that slot is already revealed
     await fetch('/api/pending-reveal', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -113,6 +101,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [mintedTokenId, setMintedTokenId] = useState<bigint | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Track whether we're in an active mint-generate flow
   const isFlowActive = useRef(false);
@@ -138,7 +127,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (parsed.agentName) setAgentName(parsed.agentName);
         if (parsed.agentDescription) setAgentDescription(parsed.agentDescription);
         if (parsed.mode) setMode(parsed.mode);
-        // Restore pending SVG/traits from localStorage
         if (parsed.pendingSvgHex) {
           pendingSvgBytes.current = hexToBytes(parsed.pendingSvgHex);
         }
@@ -151,7 +139,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Persist to localStorage (include pending SVG/traits hex)
+  // Persist to localStorage
   useEffect(() => {
     if (agent || generatedImage) {
       const data: Record<string, unknown> = {
@@ -192,7 +180,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   }, [generatedImage]);
 
   // ── React to commit-reveal phase changes ──
-  // When commit is confirmed ('committed'), start API generation
+
+  // When commit is confirmed, start AI generation
   useEffect(() => {
     if (commitReveal.phase === 'committed' && isFlowActive.current && currentStep === 'committing') {
       runGeneration();
@@ -210,7 +199,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       pendingSvgBytes.current = null;
       pendingTraitsBytes.current = null;
       commitReveal.refetchSupply();
-      // Clean up API store
       if (commitReveal.address && commitReveal.slotIndex !== null) {
         deletePendingRevealFromAPI(
           commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
@@ -220,7 +208,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase, commitReveal.tokenId]);
 
-  // Handle reveal_failed — keep SVG, allow retry
+  // Handle reveal_failed
   useEffect(() => {
     if (commitReveal.phase === 'reveal_failed' && isFlowActive.current) {
       const errMsg = commitReveal.error instanceof Error
@@ -229,12 +217,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError(errMsg.slice(0, 200));
       setCurrentStep('reveal_failed');
       setLoading(false);
-      // Keep isFlowActive true so retry works
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase]);
 
-  // Handle commit errors (not reveal errors)
+  // Handle commit errors
   useEffect(() => {
     if (commitReveal.phase === 'error' && isFlowActive.current) {
       const errMsg = commitReveal.error instanceof Error
@@ -244,6 +231,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('input');
       setLoading(false);
       isFlowActive.current = false;
+      setIsModalOpen(false);
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
@@ -252,7 +240,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase]);
 
-  // Recovery: if hook recovered a slotIndex and we have pending SVG, show reveal_failed UI
+  // Recovery: slotIndex + pending SVG in localStorage
   useEffect(() => {
     if (
       commitReveal.phase === 'committed' &&
@@ -261,15 +249,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       commitReveal.slotIndex !== null &&
       pendingSvgBytes.current
     ) {
-      // We have a recovered commitment with pending SVG — show retry UI
       setCurrentStep('reveal_failed');
       setError('You have a pending reveal from a previous session. Retry or generate a new image.');
       isFlowActive.current = true;
+      setIsModalOpen(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase, commitReveal.slotIndex, currentStep]);
 
-  // Recovery: if hook recovered slotIndex but we have NO pending SVG, try API
+  // Recovery: slotIndex but NO local SVG → try API
   useEffect(() => {
     if (
       commitReveal.phase === 'committed' &&
@@ -279,7 +267,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       !pendingSvgBytes.current &&
       commitReveal.address
     ) {
-      // Try loading from API
       loadPendingRevealFromAPI(
         commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
       ).then(result => {
@@ -288,13 +275,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           pendingTraitsBytes.current = hexToBytes(result.traits);
           setCurrentStep('reveal_failed');
           setError('You have a pending reveal recovered from the server. Retry or generate a new image.');
-          isFlowActive.current = true;
         } else {
-          // No SVG anywhere — show option to generate new
           setCurrentStep('reveal_failed');
           setError('You have a pending commitment but the image was lost. You can generate a new image or wait for expiry to reclaim.');
-          isFlowActive.current = true;
         }
+        isFlowActive.current = true;
+        setIsModalOpen(true);
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,7 +307,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setProgress(100);
   };
 
-  // API generation (called after commit is confirmed)
+  // API generation — generates but does NOT auto-reveal
   const runGeneration = async () => {
     setCurrentStep('generating');
     startProgressBar();
@@ -378,11 +364,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setAgent(finalAgent);
       stopProgressBar();
 
-      // Pixelate inline (don't rely on useEffect which hasn't run yet)
+      // Pixelate
       const pixelated = await pixelateImage(imageUrl);
       setPixelatedImage(pixelated);
 
-      // Prepare SVG + traits for reveal
+      // Prepare SVG + traits
       const imageToUse = pixelated;
       const { convertToSVG } = await import('@/utils/helpers/svgConverter');
       const { minifySVG, svgToBytes, svgByteSize, SSTORE2_MAX_BYTES } = await import('@/utils/helpers/svgMinifier');
@@ -397,7 +383,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
       const svgBytes = svgToBytes(minified);
 
-      // Build traits (include agent name/description as traits for off-chain use)
       const attributes: Array<{ trait_type: string; value: string }> = [];
       if (agentName.trim()) attributes.push({ trait_type: 'Name', value: agentName.trim() });
       if (agentDescription.trim()) attributes.push({ trait_type: 'Description', value: agentDescription.trim() });
@@ -415,7 +400,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       pendingSvgBytes.current = svgBytes;
       pendingTraitsBytes.current = traitsBytes;
 
-      // Save to API for cross-session recovery
+      // Save to API for cross-session recovery (fire-and-forget)
       if (commitReveal.address && commitReveal.slotIndex !== null) {
         savePendingRevealToAPI(
           commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex),
@@ -423,14 +408,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      // Phase 2: Reveal
-      setCurrentStep('revealing');
-      commitReveal.reveal(svgBytes, traitsBytes);
+      // Stop here — user will click REVEAL in the modal
+      setCurrentStep('ready_to_reveal');
+      setLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       setCurrentStep('input');
       setLoading(false);
       isFlowActive.current = false;
+      setIsModalOpen(false);
       stopProgressBar();
     }
   };
@@ -460,18 +446,35 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // ── User clicks REVEAL in the modal ──
+  const triggerReveal = useCallback(() => {
+    if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
+      setError('No pending reveal data');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    setCurrentStep('revealing');
+    isFlowActive.current = true;
+    try {
+      commitReveal.reveal(pendingSvgBytes.current, pendingTraitsBytes.current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to initiate reveal');
+      setCurrentStep('reveal_failed');
+      setLoading(false);
+    }
+  }, [commitReveal]);
+
   // ── Retry reveal (after reject/cancel) ──
   const retryReveal = useCallback(() => {
     if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
       setError('No pending reveal data — generate a new image');
       return;
     }
-
     setError(null);
     setLoading(true);
     setCurrentStep('revealing');
     isFlowActive.current = true;
-
     try {
       commitReveal.reveal(pendingSvgBytes.current, pendingTraitsBytes.current);
     } catch (err) {
@@ -483,7 +486,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // ── Main action: MINT button ──
   const mintAndGenerate = useCallback(() => {
-    // Validate inputs
     if (mode === 'create') {
       if (!agentName.trim()) { setError('Agent name is required'); return; }
       if (!agentDescription.trim()) { setError('Agent description is required'); return; }
@@ -497,13 +499,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setCurrentStep('committing');
     isFlowActive.current = true;
+    setIsModalOpen(true);
 
-    // Reset previous commit-reveal state
     commitReveal.reset();
     pendingSvgBytes.current = null;
     pendingTraitsBytes.current = null;
 
-    // Phase 1: Commit (pay ETH)
     try {
       commitReveal.commit();
     } catch (err) {
@@ -511,8 +512,16 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('input');
       setLoading(false);
       isFlowActive.current = false;
+      setIsModalOpen(false);
     }
   }, [mode, agentName, agentDescription, agentId, commitReveal]);
+
+  // ── Close modal ──
+  const closeModal = useCallback(() => {
+    if (currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal') {
+      setIsModalOpen(false);
+    }
+  }, [currentStep]);
 
   const reset = useCallback(() => {
     localStorage.removeItem('khoraGeneratorData');
@@ -532,6 +541,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setCurrentStep('input');
     setMode('create');
     setMintedTokenId(null);
+    setIsModalOpen(false);
     commitReveal.reset();
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -594,7 +604,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     maxSupply: commitReveal.maxSupply as bigint | undefined,
     commitRevealPhase: commitReveal.phase,
     contractAddress: commitReveal.contractAddress,
-    mintAndGenerate, retryReveal, downloadAgent, reset,
+    isModalOpen,
+    mintAndGenerate, triggerReveal, retryReveal, downloadAgent, reset, closeModal,
   };
 
   return (
@@ -622,7 +633,6 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
 }
 
-// Hex conversion helpers for localStorage persistence of byte arrays
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }

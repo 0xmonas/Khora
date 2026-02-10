@@ -1,7 +1,7 @@
 'use client';
 
 import { useAccount } from 'wagmi';
-import { InputForm, OutputSection, Gallery } from './components';
+import { InputForm, OutputSection, Gallery, MintFlowModal } from './components';
 import { ConnectPrompt } from './components/ConnectPrompt';
 
 export default function GeneratorPage() {
@@ -13,15 +13,18 @@ export default function GeneratorPage() {
         <div className="hidden lg:block lg:col-span-1" />
         <div className="lg:col-span-10">
           {isConnected ? (
-            <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
-              <div className="w-full lg:w-[280px] flex-shrink-0">
-                <InputForm />
+            <>
+              <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+                <div className="w-full lg:w-[280px] flex-shrink-0">
+                  <InputForm />
+                </div>
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <OutputSection />
+                  <Gallery />
+                </div>
               </div>
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <OutputSection />
-                <Gallery />
-              </div>
-            </div>
+              <MintFlowModal />
+            </>
           ) : (
             <ConnectPrompt />
           )}

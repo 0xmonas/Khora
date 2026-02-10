@@ -38,7 +38,6 @@ export function InputForm() {
     pixelatedImage,
     downloadAgent,
     mintAndGenerate,
-    retryReveal,
     reset,
     mintPrice,
     totalSupply,
@@ -79,7 +78,7 @@ export function InputForm() {
       .finally(() => setDiscoveryLoading(false));
   }, [mode, isConnected, address, manualMode]);
 
-  const isBusy = currentStep !== 'input' && currentStep !== 'complete' && currentStep !== 'reveal_failed';
+  const isBusy = currentStep !== 'input' && currentStep !== 'complete';
 
   const isMintDisabled = () => {
     if (isBusy) return true;
@@ -94,14 +93,9 @@ export function InputForm() {
   };
 
   const getMintLabel = () => {
-    switch (currentStep) {
-      case 'committing': return 'Confirm in wallet...';
-      case 'generating': return 'Generating...';
-      case 'revealing': return 'Finalizing...';
-      case 'reveal_failed': return 'RETRY REVEAL';
-      case 'complete': return 'MINT AGAIN';
-      default: return 'MINT';
-    }
+    if (currentStep === 'complete') return 'MINT AGAIN';
+    if (currentStep !== 'input') return 'MINTING...';
+    return 'MINT';
   };
 
   // Handle agent selection from discovery dropdown
@@ -307,12 +301,8 @@ export function InputForm() {
         <div>
           <button
             type="button"
-            onClick={
-              currentStep === 'complete' ? () => { reset(); }
-              : currentStep === 'reveal_failed' ? retryReveal
-              : mintAndGenerate
-            }
-            disabled={currentStep === 'complete' || currentStep === 'reveal_failed' ? false : isMintDisabled()}
+            onClick={currentStep === 'complete' ? reset : mintAndGenerate}
+            disabled={currentStep === 'complete' ? false : isMintDisabled()}
             className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {getMintLabel()}

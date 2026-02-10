@@ -13,8 +13,9 @@ function StatusDisplay() {
     switch (currentStep) {
       case 'committing': return 'Confirm in wallet...';
       case 'generating': return 'Generating...';
+      case 'ready_to_reveal': return 'Ready — check modal';
       case 'revealing': return 'Finalizing on-chain...';
-      case 'reveal_failed': return 'Reveal failed — retry below';
+      case 'reveal_failed': return 'Reveal failed — check modal';
       default: return 'Loading...';
     }
   };
