@@ -194,7 +194,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         const registration = fetchResult.registration;
         const allSkills: string[] = [];
         const allDomains: string[] = [];
-        for (const svc of registration.services || []) {
+        // ERC-8004 spec uses "endpoints", but our internal model uses "services"
+        const services = registration.services || registration.endpoints || [];
+        for (const svc of services) {
           if (svc.skills) allSkills.push(...svc.skills);
           if (svc.domains) allDomains.push(...svc.domains);
         }
@@ -213,7 +215,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         const enrichResult = await enrichResponse.json();
         if (!enrichResponse.ok || enrichResult.error) throw new Error(enrichResult.error || 'Failed to enrich agent');
         agentData = enrichResult.agent;
-        agentData.services = registration.services || [];
+        agentData.services = registration.services || registration.endpoints || [];
       }
 
       // Generate PFP

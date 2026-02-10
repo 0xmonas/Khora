@@ -20,7 +20,6 @@ const ERC721_ABI = [
 async function callTokenURI(chain: SupportedChain, agentId: number): Promise<string> {
   const { createPublicClient, http } = await import('viem');
   const config = CHAIN_CONFIG[chain];
-
   const client = createPublicClient({
     transport: http(config.rpcUrl),
   });

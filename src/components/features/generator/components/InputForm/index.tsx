@@ -4,9 +4,13 @@ import type { SupportedChain } from '@/types/agent';
 
 const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = [
   { value: 'ethereum', label: 'Ethereum' },
-  { value: 'base', label: 'Base' },
   { value: 'polygon', label: 'Polygon' },
   { value: 'arbitrum', label: 'Arbitrum' },
+  { value: 'celo', label: 'Celo' },
+  { value: 'gnosis', label: 'Gnosis' },
+  { value: 'scroll', label: 'Scroll' },
+  { value: 'taiko', label: 'Taiko' },
+  { value: 'bsc', label: 'BNB Chain' },
 ];
 
 export function InputForm() {
