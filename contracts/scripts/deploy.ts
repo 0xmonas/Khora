@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const mintPrice = ethers.parseEther("0.00042");
+  const mintPrice = ethers.parseEther("0.0001");
   const royaltyFee = 500; // 5% in basis points
 
   const [deployer] = await ethers.getSigners();

@@ -4,7 +4,6 @@ import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
-import { buildPendingRevealMessage, verifyWalletSignature } from '@/lib/verify-signature';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -74,7 +73,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { address, chainId, slot, svg, traits, signature } = body;
+  const { address, chainId, slot, svg, traits } = body;
 
   if (!address || chainId === undefined || slot === undefined || !svg) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -84,19 +83,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
   }
 
-  // Verify wallet signature — proves the caller owns this address
-  if (!signature) {
-    return NextResponse.json({ error: 'Signature required' }, { status: 401 });
-  }
-
-  const message = buildPendingRevealMessage('save', address, Number(chainId), Number(slot));
-  const valid = await verifyWalletSignature(
-    message,
-    signature as `0x${string}`,
-    address as `0x${string}`,
-  );
-  if (!valid) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+  // SIWE: ensure request is for the authenticated wallet
+  const sessionAddress = req.headers.get('x-siwe-address');
+  if (sessionAddress && address.toLowerCase() !== sessionAddress.toLowerCase()) {
+    return NextResponse.json({ error: 'Address mismatch' }, { status: 403 });
   }
 
   // Validate slot is a reasonable number (0-99)
@@ -181,6 +171,12 @@ export async function DELETE(req: NextRequest) {
 
   if (!isValidAddress(address)) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
+  }
+
+  // SIWE: ensure request is for the authenticated wallet
+  const deleteSessionAddress = req.headers.get('x-siwe-address');
+  if (deleteSessionAddress && address.toLowerCase() !== deleteSessionAddress.toLowerCase()) {
+    return NextResponse.json({ error: 'Address mismatch' }, { status: 403 });
   }
 
   // Only allow deletion if the slot has been revealed on-chain
