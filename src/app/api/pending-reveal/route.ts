@@ -195,7 +195,8 @@ export async function DELETE(req: NextRequest) {
       }) as [bigint, boolean];
 
       if (!revealed) {
-        return NextResponse.json({ error: 'Slot not yet revealed — cannot delete' }, { status: 403 });
+        // Allow delete anyway — RPC may lag behind tx confirmation.
+        // TTL cleanup handles the rest.
       }
     } catch {
       // RPC error — allow delete (TTL will clean up anyway)

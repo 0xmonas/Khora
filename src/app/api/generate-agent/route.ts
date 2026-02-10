@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { MODEL_TEXT } from '@/lib/constants';
+const MODEL_TEXT = 'gemini-3-flash-preview';
 import { validateInput } from '@/lib/api/api-helpers';
 import { generateAgentSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';

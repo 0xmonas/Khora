@@ -1,11 +1,13 @@
 'use client';
 
+import { useCallback } from 'react';
 import {
   useReadContract,
   useReadContracts,
   useAccount,
   useChainId,
 } from 'wagmi';
+import { useQueryClient } from '@tanstack/react-query';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
 
 export interface GalleryToken {
@@ -107,10 +109,26 @@ export function useGalleryTokens() {
 
   const isLoading = enabled && count > 0 && (!tokenIdResults || svgsLoading);
 
+  const queryClient = useQueryClient();
+
+  const refetchAll = useCallback(async () => {
+    // Invalidate all queries that involve this contract address
+    // wagmi v2 query keys contain BigInt values — use a safe serializer
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = JSON.stringify(query.queryKey, (_k, v) =>
+          typeof v === 'bigint' ? v.toString() : v,
+        );
+        return key.includes(contractAddress);
+      },
+    });
+    await refetchSupply();
+  }, [queryClient, contractAddress, refetchSupply]);
+
   return {
     tokens,
     totalSupply: count,
     isLoading,
-    refetch: refetchSupply,
+    refetch: refetchAll,
   };
 }
