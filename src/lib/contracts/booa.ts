@@ -13,8 +13,6 @@ export const BOOA_NFT_ABI = [
     inputs: [
       { name: 'svgData', type: 'bytes' },
       { name: 'traitsData', type: 'bytes' },
-      { name: 'name', type: 'string' },
-      { name: 'description', type: 'string' },
     ],
     name: 'mintAgent',
     outputs: [{ name: '', type: 'uint256' }],
@@ -131,6 +129,53 @@ export const BOOA_NFT_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Commit-Reveal
+  {
+    inputs: [],
+    name: 'commitMint',
+    outputs: [{ name: 'slotIndex', type: 'uint256' }],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'slotIndex', type: 'uint256' },
+      { name: 'svgData', type: 'bytes' },
+      { name: 'traitsData', type: 'bytes' },
+    ],
+    name: 'revealMint',
+    outputs: [{ name: 'tokenId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'slotIndex', type: 'uint256' }],
+    name: 'reclaimExpired',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'commitmentCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'slotIndex', type: 'uint256' },
+    ],
+    name: 'getCommitment',
+    outputs: [
+      { name: 'timestamp', type: 'uint256' },
+      { name: 'revealed', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Events
   {
     type: 'event',
     name: 'Transfer',
@@ -138,6 +183,14 @@ export const BOOA_NFT_ABI = [
       { type: 'address', name: 'from', indexed: true },
       { type: 'address', name: 'to', indexed: true },
       { type: 'uint256', name: 'tokenId', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'CommitMint',
+    inputs: [
+      { type: 'address', name: 'committer', indexed: true },
+      { type: 'uint256', name: 'slotIndex', indexed: true },
     ],
   },
 ] as const;

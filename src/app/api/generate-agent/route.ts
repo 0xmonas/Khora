@@ -3,11 +3,21 @@ import { GoogleGenAI } from '@google/genai';
 import { MODEL_TEXT } from '@/lib/constants';
 import { validateInput } from '@/lib/api/api-helpers';
 import { generateAgentSchema } from '@/lib/validation/schemas';
+import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 agent generations per 60s per IP
+    const ip = getIP(request);
+    const rl = await generationLimiter.limit(ip);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: 'Too many requests — please wait before generating again' },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
+    }
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY is not configured' },

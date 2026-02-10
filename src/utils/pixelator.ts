@@ -22,14 +22,7 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   });
 };
 
-const colorDistance = (c1: RGBColor, c2: RGBColor): number => {
-  const dr = c1.r - c2.r;
-  const dg = c1.g - c2.g;
-  const db = c1.b - c2.b;
-  return dr * dr + dg * dg + db * db; // skip sqrt — only used for comparison
-};
-
-// 4x4 Bayer ordered dithering matrix
+// 4x4 Bayer ordered dithering matrix (take-over default)
 const BAYER_4X4 = [
   [ 0,  8,  2, 10],
   [12,  4, 14,  6],
@@ -37,7 +30,7 @@ const BAYER_4X4 = [
   [15,  7, 13,  5]
 ];
 
-const DITHER_STRENGTH = 0.35; // 0.0 = no dither, 0.5 = max dither
+const DITHER_STRENGTH = 1.0; // take-over default: full strength
 
 const applyBayerDither = (imageData: ImageData): ImageData => {
   const data = imageData.data;
@@ -50,9 +43,7 @@ const applyBayerDither = (imageData: ImageData): ImageData => {
 
       for (let c = 0; c < 3; c++) {
         let v = data[i + c] / 255;
-        // Apply contrast boost (1.3x) to sharpen edges
-        v = (v - 0.5) * 1.3 + 0.5;
-        // Apply Bayer dither offset
+        // No contrast/brightness boost (take-over neutral defaults)
         v = v + (bayerNorm - 0.5) * DITHER_STRENGTH;
         data[i + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
       }
@@ -66,10 +57,8 @@ const quantizeToTwoTone = (imageData: ImageData): ImageData => {
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
-    const pixel: RGBColor = { r: data[i], g: data[i + 1], b: data[i + 2] };
-    const distWhite = colorDistance(pixel, COLOR_WHITE);
-    const distBlack = colorDistance(pixel, COLOR_BLACK);
-    const chosen = distWhite < distBlack ? COLOR_WHITE : COLOR_BLACK;
+    // Threshold at 128 (take-over default)
+    const chosen = data[i] < 128 ? COLOR_BLACK : COLOR_WHITE;
 
     data[i] = chosen.r;
     data[i + 1] = chosen.g;

@@ -1,12 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { signMessage } from 'wagmi/actions';
 import { pixelateImage } from '@/utils/pixelator';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
+import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
+import { buildPendingRevealMessage } from '@/lib/verify-signature';
+import { wagmiConfig } from '@/lib/wagmi';
 import type { KhoraAgent, SupportedChain } from '@/types/agent';
 
 export type Mode = 'create' | 'import';
-export type Step = 'input' | 'generating' | 'complete';
+export type Step = 'input' | 'committing' | 'generating' | 'revealing' | 'reveal_failed' | 'complete';
 
 type GeneratorContextType = {
   mode: Mode;
@@ -28,13 +32,71 @@ type GeneratorContextType = {
   pixelatedImage: string | null;
   imageLoading: boolean;
   mintedTokenId: bigint | null;
-  setMintedTokenId: (id: bigint | null) => void;
-  generate: () => Promise<void>;
+  // Commit-reveal info
+  mintPrice: bigint | undefined;
+  totalSupply: bigint | undefined;
+  maxSupply: bigint | undefined;
+  commitRevealPhase: CommitRevealPhase;
+  contractAddress: `0x${string}`;
+  // Actions
+  mintAndGenerate: () => void;
+  retryReveal: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
 };
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
+
+// ── Pending reveal API helpers (with wallet signature auth) ──
+
+async function signForAPI(action: 'save' | 'delete', address: string, chainId: number, slot: number): Promise<string | null> {
+  try {
+    const message = buildPendingRevealMessage(action, address, chainId, slot);
+    const sig = await signMessage(wagmiConfig, { message });
+    return sig;
+  } catch {
+    return null;
+  }
+}
+
+async function savePendingRevealToAPI(
+  address: string, chainId: number, slot: number,
+  svgHex: string, traitsHex: string,
+) {
+  try {
+    const signature = await signForAPI('save', address, chainId, slot);
+    if (!signature) return; // User rejected sign — silently skip, localStorage is primary
+    await fetch('/api/pending-reveal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, chainId, slot, svg: svgHex, traits: traitsHex, signature }),
+    });
+  } catch {}
+}
+
+async function loadPendingRevealFromAPI(
+  address: string, chainId: number, slot: number,
+): Promise<{ svg: string; traits: string } | null> {
+  try {
+    const res = await fetch(
+      `/api/pending-reveal?address=${address}&chainId=${chainId}&slot=${slot}`
+    );
+    const data = await res.json();
+    if (data.found) return { svg: data.svg, traits: data.traits };
+  } catch {}
+  return null;
+}
+
+async function deletePendingRevealFromAPI(address: string, chainId: number, slot: number) {
+  try {
+    // No signature needed — API verifies on-chain that slot is already revealed
+    await fetch('/api/pending-reveal', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, chainId, slot }),
+    });
+  } catch {}
+}
 
 export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>('create');
@@ -52,7 +114,17 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [imageLoading, setImageLoading] = useState(false);
   const [mintedTokenId, setMintedTokenId] = useState<bigint | null>(null);
 
-  // Restore from localStorage (mount-only — intentionally no deps)
+  // Track whether we're in an active mint-generate flow
+  const isFlowActive = useRef(false);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Keep SVG/traits bytes in ref for retry
+  const pendingSvgBytes = useRef<Uint8Array | null>(null);
+  const pendingTraitsBytes = useRef<Uint8Array | null>(null);
+
+  const commitReveal = useCommitReveal();
+
+  // Restore from localStorage (mount-only)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedData = localStorage.getItem('khoraGeneratorData');
@@ -62,27 +134,41 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (parsed.agent) setAgent(parsed.agent);
         if (parsed.generatedImage) setGeneratedImage(parsed.generatedImage);
         if (parsed.pixelatedImage) setPixelatedImage(parsed.pixelatedImage);
-        if (parsed.currentStep) setCurrentStep(parsed.currentStep as Step);
+        if (parsed.currentStep === 'complete') setCurrentStep('complete');
         if (parsed.agentName) setAgentName(parsed.agentName);
         if (parsed.agentDescription) setAgentDescription(parsed.agentDescription);
         if (parsed.mode) setMode(parsed.mode);
+        // Restore pending SVG/traits from localStorage
+        if (parsed.pendingSvgHex) {
+          pendingSvgBytes.current = hexToBytes(parsed.pendingSvgHex);
+        }
+        if (parsed.pendingTraitsHex) {
+          pendingTraitsBytes.current = hexToBytes(parsed.pendingTraitsHex);
+        }
       } catch {
         localStorage.removeItem('khoraGeneratorData');
       }
     }
   }, []);
 
-  // Persist to localStorage
+  // Persist to localStorage (include pending SVG/traits hex)
   useEffect(() => {
     if (agent || generatedImage) {
-      localStorage.setItem('khoraGeneratorData', JSON.stringify({
+      const data: Record<string, unknown> = {
         agent, generatedImage, pixelatedImage, currentStep,
         agentName, agentDescription, mode,
-      }));
+      };
+      if (pendingSvgBytes.current) {
+        data.pendingSvgHex = bytesToHex(pendingSvgBytes.current);
+      }
+      if (pendingTraitsBytes.current) {
+        data.pendingTraitsHex = bytesToHex(pendingTraitsBytes.current);
+      }
+      localStorage.setItem('khoraGeneratorData', JSON.stringify(data));
     }
   }, [agent, generatedImage, pixelatedImage, currentStep, agentName, agentDescription, mode]);
 
-  // Pixelate when image changes (pixel mode always on)
+  // Pixelate when image changes
   useEffect(() => {
     const processImage = async () => {
       if (!generatedImage) {
@@ -105,22 +191,248 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     processImage();
   }, [generatedImage]);
 
-  const reset = () => {
-    localStorage.removeItem('khoraGeneratorData');
-    setAgent(null);
-    setLoading(false);
+  // ── React to commit-reveal phase changes ──
+  // When commit is confirmed ('committed'), start API generation
+  useEffect(() => {
+    if (commitReveal.phase === 'committed' && isFlowActive.current && currentStep === 'committing') {
+      runGeneration();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase]);
+
+  // When reveal succeeds, finalize + cleanup API
+  useEffect(() => {
+    if (commitReveal.phase === 'success' && isFlowActive.current) {
+      setMintedTokenId(commitReveal.tokenId);
+      setCurrentStep('complete');
+      setLoading(false);
+      isFlowActive.current = false;
+      pendingSvgBytes.current = null;
+      pendingTraitsBytes.current = null;
+      commitReveal.refetchSupply();
+      // Clean up API store
+      if (commitReveal.address && commitReveal.slotIndex !== null) {
+        deletePendingRevealFromAPI(
+          commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
+        );
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase, commitReveal.tokenId]);
+
+  // Handle reveal_failed — keep SVG, allow retry
+  useEffect(() => {
+    if (commitReveal.phase === 'reveal_failed' && isFlowActive.current) {
+      const errMsg = commitReveal.error instanceof Error
+        ? commitReveal.error.message
+        : 'Reveal transaction failed — you can retry';
+      setError(errMsg.slice(0, 200));
+      setCurrentStep('reveal_failed');
+      setLoading(false);
+      // Keep isFlowActive true so retry works
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase]);
+
+  // Handle commit errors (not reveal errors)
+  useEffect(() => {
+    if (commitReveal.phase === 'error' && isFlowActive.current) {
+      const errMsg = commitReveal.error instanceof Error
+        ? commitReveal.error.message
+        : 'Transaction failed';
+      setError(errMsg.slice(0, 200));
+      setCurrentStep('input');
+      setLoading(false);
+      isFlowActive.current = false;
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase]);
+
+  // Recovery: if hook recovered a slotIndex and we have pending SVG, show reveal_failed UI
+  useEffect(() => {
+    if (
+      commitReveal.phase === 'committed' &&
+      !isFlowActive.current &&
+      currentStep === 'input' &&
+      commitReveal.slotIndex !== null &&
+      pendingSvgBytes.current
+    ) {
+      // We have a recovered commitment with pending SVG — show retry UI
+      setCurrentStep('reveal_failed');
+      setError('You have a pending reveal from a previous session. Retry or generate a new image.');
+      isFlowActive.current = true;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase, commitReveal.slotIndex, currentStep]);
+
+  // Recovery: if hook recovered slotIndex but we have NO pending SVG, try API
+  useEffect(() => {
+    if (
+      commitReveal.phase === 'committed' &&
+      !isFlowActive.current &&
+      currentStep === 'input' &&
+      commitReveal.slotIndex !== null &&
+      !pendingSvgBytes.current &&
+      commitReveal.address
+    ) {
+      // Try loading from API
+      loadPendingRevealFromAPI(
+        commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
+      ).then(result => {
+        if (result) {
+          pendingSvgBytes.current = hexToBytes(result.svg);
+          pendingTraitsBytes.current = hexToBytes(result.traits);
+          setCurrentStep('reveal_failed');
+          setError('You have a pending reveal recovered from the server. Retry or generate a new image.');
+          isFlowActive.current = true;
+        } else {
+          // No SVG anywhere — show option to generate new
+          setCurrentStep('reveal_failed');
+          setError('You have a pending commitment but the image was lost. You can generate a new image or wait for expiry to reclaim.');
+          isFlowActive.current = true;
+        }
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitReveal.phase, commitReveal.slotIndex, currentStep, commitReveal.address]);
+
+  const startProgressBar = () => {
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     setProgress(0);
-    setError(null);
-    setAgentName('');
-    setAgentDescription('');
-    setAgentId('');
-    setSelectedChain('ethereum');
-    setGeneratedImage(null);
-    setPixelatedImage(null);
-    setImageLoading(false);
-    setCurrentStep('input');
-    setMode('create');
-    setMintedTokenId(null);
+    progressIntervalRef.current = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 99.9) return 99.9;
+        const remaining = 99.9 - prev;
+        const increment = Math.max(0.1, remaining * 0.03);
+        return Math.round((prev + increment) * 10) / 10;
+      });
+    }, 100);
+  };
+
+  const stopProgressBar = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setProgress(100);
+  };
+
+  // API generation (called after commit is confirmed)
+  const runGeneration = async () => {
+    setCurrentStep('generating');
+    startProgressBar();
+
+    try {
+      let agentData: Omit<KhoraAgent, 'image'>;
+
+      if (mode === 'create') {
+        const agentResponse = await fetch('/api/generate-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: agentName.trim(), description: agentDescription.trim() }),
+        });
+        const agentResult = await agentResponse.json();
+        if (!agentResponse.ok || agentResult.error) throw new Error(agentResult.error || 'Failed to generate agent');
+        agentData = agentResult.agent;
+      } else {
+        const fetchResponse = await fetch('/api/fetch-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chain: selectedChain, agentId: parseInt(agentId) }),
+        });
+        const fetchResult = await fetchResponse.json();
+        if (!fetchResponse.ok || fetchResult.error) throw new Error(fetchResult.error || 'Failed to fetch agent');
+
+        const registration = fetchResult.registration;
+        const allSkills: string[] = [];
+        const allDomains: string[] = [];
+        const services = registration.services || registration.endpoints || [];
+        for (const svc of services) {
+          if (svc.skills) allSkills.push(...svc.skills);
+          if (svc.domains) allDomains.push(...svc.domains);
+        }
+
+        const enrichResponse = await fetch('/api/enrich-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: registration.name,
+            description: registration.description || '',
+            skills: Array.from(new Set(allSkills)),
+            domains: Array.from(new Set(allDomains)),
+          }),
+        });
+        const enrichResult = await enrichResponse.json();
+        if (!enrichResponse.ok || enrichResult.error) throw new Error(enrichResult.error || 'Failed to enrich agent');
+        agentData = enrichResult.agent;
+        agentData.services = registration.services || registration.endpoints || [];
+      }
+
+      // Generate PFP
+      const imageUrl = await generateImageFromAgent(agentData);
+      const finalAgent: KhoraAgent = { ...agentData, image: imageUrl };
+      setAgent(finalAgent);
+      stopProgressBar();
+
+      // Pixelate inline (don't rely on useEffect which hasn't run yet)
+      const pixelated = await pixelateImage(imageUrl);
+      setPixelatedImage(pixelated);
+
+      // Prepare SVG + traits for reveal
+      const imageToUse = pixelated;
+      const { convertToSVG } = await import('@/utils/helpers/svgConverter');
+      const { minifySVG, svgToBytes, svgByteSize, SSTORE2_MAX_BYTES } = await import('@/utils/helpers/svgMinifier');
+
+      const svgString = await convertToSVG(imageToUse);
+      const minified = minifySVG(svgString);
+      const byteSize = svgByteSize(minified);
+
+      if (byteSize > SSTORE2_MAX_BYTES) {
+        throw new Error(`SVG too large: ${(byteSize / 1024).toFixed(1)}KB (max 24KB)`);
+      }
+
+      const svgBytes = svgToBytes(minified);
+
+      // Build traits (include agent name/description as traits for off-chain use)
+      const attributes: Array<{ trait_type: string; value: string }> = [];
+      if (agentName.trim()) attributes.push({ trait_type: 'Name', value: agentName.trim() });
+      if (agentDescription.trim()) attributes.push({ trait_type: 'Description', value: agentDescription.trim() });
+      if (agentData.creature) attributes.push({ trait_type: 'Creature', value: agentData.creature });
+      if (agentData.vibe) attributes.push({ trait_type: 'Vibe', value: agentData.vibe });
+      if (agentData.emoji) attributes.push({ trait_type: 'Emoji', value: agentData.emoji });
+      for (const s of agentData.skills || []) attributes.push({ trait_type: 'Skill', value: s });
+      for (const d of agentData.domains || []) attributes.push({ trait_type: 'Domain', value: d });
+      for (const p of agentData.personality || []) attributes.push({ trait_type: 'Personality', value: p });
+      for (const b of agentData.boundaries || []) attributes.push({ trait_type: 'Boundary', value: b });
+
+      const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
+
+      // Save bytes for retry
+      pendingSvgBytes.current = svgBytes;
+      pendingTraitsBytes.current = traitsBytes;
+
+      // Save to API for cross-session recovery
+      if (commitReveal.address && commitReveal.slotIndex !== null) {
+        savePendingRevealToAPI(
+          commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex),
+          bytesToHex(svgBytes), bytesToHex(traitsBytes),
+        );
+      }
+
+      // Phase 2: Reveal
+      setCurrentStep('revealing');
+      commitReveal.reveal(svgBytes, traitsBytes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setCurrentStep('input');
+      setLoading(false);
+      isFlowActive.current = false;
+      stopProgressBar();
+    }
   };
 
   const generateImageFromAgent = async (agentData: Omit<KhoraAgent, 'image'>) => {
@@ -148,7 +460,30 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const generate = async () => {
+  // ── Retry reveal (after reject/cancel) ──
+  const retryReveal = useCallback(() => {
+    if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
+      setError('No pending reveal data — generate a new image');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    setCurrentStep('revealing');
+    isFlowActive.current = true;
+
+    try {
+      commitReveal.reveal(pendingSvgBytes.current, pendingTraitsBytes.current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to retry reveal');
+      setCurrentStep('reveal_failed');
+      setLoading(false);
+    }
+  }, [commitReveal]);
+
+  // ── Main action: MINT button ──
+  const mintAndGenerate = useCallback(() => {
+    // Validate inputs
     if (mode === 'create') {
       if (!agentName.trim()) { setError('Agent name is required'); return; }
       if (!agentDescription.trim()) { setError('Agent description is required'); return; }
@@ -158,81 +493,51 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       if (isNaN(parsed) || parsed <= 0) { setError('Agent ID must be a positive number'); return; }
     }
 
-    setLoading(true);
     setError(null);
-    setProgress(0);
-    setCurrentStep('generating');
+    setLoading(true);
+    setCurrentStep('committing');
+    isFlowActive.current = true;
 
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) { clearInterval(progressInterval); return 90; }
-        return prev + 10;
-      });
-    }, 500);
+    // Reset previous commit-reveal state
+    commitReveal.reset();
+    pendingSvgBytes.current = null;
+    pendingTraitsBytes.current = null;
 
+    // Phase 1: Commit (pay ETH)
     try {
-      let agentData: Omit<KhoraAgent, 'image'>;
-
-      if (mode === 'create') {
-        const agentResponse = await fetch('/api/generate-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: agentName.trim(), description: agentDescription.trim() }),
-        });
-        const agentResult = await agentResponse.json();
-        if (!agentResponse.ok || agentResult.error) throw new Error(agentResult.error || 'Failed to generate agent');
-        agentData = agentResult.agent;
-      } else {
-        // Fetch from ERC-8004 registry
-        const fetchResponse = await fetch('/api/fetch-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chain: selectedChain, agentId: parseInt(agentId) }),
-        });
-        const fetchResult = await fetchResponse.json();
-        if (!fetchResponse.ok || fetchResult.error) throw new Error(fetchResult.error || 'Failed to fetch agent');
-
-        const registration = fetchResult.registration;
-        const allSkills: string[] = [];
-        const allDomains: string[] = [];
-        // ERC-8004 spec uses "endpoints", but our internal model uses "services"
-        const services = registration.services || registration.endpoints || [];
-        for (const svc of services) {
-          if (svc.skills) allSkills.push(...svc.skills);
-          if (svc.domains) allDomains.push(...svc.domains);
-        }
-
-        // Enrich with OpenClaw personality fields
-        const enrichResponse = await fetch('/api/enrich-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: registration.name,
-            description: registration.description || '',
-            skills: Array.from(new Set(allSkills)),
-            domains: Array.from(new Set(allDomains)),
-          }),
-        });
-        const enrichResult = await enrichResponse.json();
-        if (!enrichResponse.ok || enrichResult.error) throw new Error(enrichResult.error || 'Failed to enrich agent');
-        agentData = enrichResult.agent;
-        agentData.services = registration.services || registration.endpoints || [];
-      }
-
-      // Generate PFP
-      const imageUrl = await generateImageFromAgent(agentData);
-      const finalAgent: KhoraAgent = { ...agentData, image: imageUrl };
-      setAgent(finalAgent);
-      setProgress(100);
-      setCurrentStep('complete');
+      commitReveal.commit();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError(err instanceof Error ? err.message : 'Failed to initiate transaction');
       setCurrentStep('input');
-    } finally {
-      clearInterval(progressInterval);
       setLoading(false);
+      isFlowActive.current = false;
     }
-  };
+  }, [mode, agentName, agentDescription, agentId, commitReveal]);
+
+  const reset = useCallback(() => {
+    localStorage.removeItem('khoraGeneratorData');
+    pendingSvgBytes.current = null;
+    pendingTraitsBytes.current = null;
+    setAgent(null);
+    setLoading(false);
+    setProgress(0);
+    setError(null);
+    setAgentName('');
+    setAgentDescription('');
+    setAgentId('');
+    setSelectedChain('ethereum');
+    setGeneratedImage(null);
+    setPixelatedImage(null);
+    setImageLoading(false);
+    setCurrentStep('input');
+    setMode('create');
+    setMintedTokenId(null);
+    commitReveal.reset();
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  }, [commitReveal]);
 
   const downloadAgent = async (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => {
     if (!agent) return;
@@ -283,8 +588,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     mode, setMode, agentName, setAgentName, agentDescription, setAgentDescription,
     selectedChain, setSelectedChain, agentId, setAgentId,
     agent, loading, progress, error, currentStep, generatedImage, pixelatedImage, imageLoading,
-    mintedTokenId, setMintedTokenId,
-    generate, downloadAgent, reset,
+    mintedTokenId,
+    mintPrice: commitReveal.mintPrice as bigint | undefined,
+    totalSupply: commitReveal.totalSupply as bigint | undefined,
+    maxSupply: commitReveal.maxSupply as bigint | undefined,
+    commitRevealPhase: commitReveal.phase,
+    contractAddress: commitReveal.contractAddress,
+    mintAndGenerate, retryReveal, downloadAgent, reset,
   };
 
   return (
@@ -310,4 +620,17 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+// Hex conversion helpers for localStorage persistence of byte arrays
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
 }

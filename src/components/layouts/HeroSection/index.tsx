@@ -9,10 +9,10 @@ export function HeroSection() {
 
  return (
    <div className="flex-1 flex flex-col">
-     <div className="p-4 sm:p-8 lg:p-8">
-       <div className="grid grid-cols-12">
-         <div className="col-span-0 sm:col-span-1" />
-         <div className="col-span-12 sm:col-span-10">
+     <div className="p-4 md:p-8 lg:p-12">
+       <div className="w-full lg:grid lg:grid-cols-12">
+         <div className="hidden lg:block lg:col-span-1" />
+         <div className="lg:col-span-10">
            {/* Hero Section */}
            <div className="flex flex-col items-center">
              <div className="w-full max-w-[1200px] mx-auto aspect-[5/2] relative">
@@ -114,7 +114,7 @@ export function HeroSection() {
              </div>
            </div>
          </div>
-         <div className="col-span-0 sm:col-span-1" />
+         <div className="hidden lg:block lg:col-span-1" />
        </div>
      </div>
    </div>

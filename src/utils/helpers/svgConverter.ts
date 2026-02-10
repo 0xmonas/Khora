@@ -1,154 +1,135 @@
 /**
- * SVG conversion utilities for pixel art images
- * Converts 64x64 pixel art to optimized SVG paths
+ * SVG conversion utilities for pixel art images.
+ *
+ * Compact on-chain SVG strategy:
+ * 1. Majority color = background rect (1 element)
+ * 2. Minority color = single <path> with row-based horizontal runs
+ * 3. CSS <style> for stroke color (avoids repeating per path)
+ * 4. For 2-tone images: 1 bg rect + 1 path element = minimal overhead
+ *
+ * For a dithered 2-tone 64x64 image: ~6-14KB (vs ~48KB before)
  */
 
-/**
- * Converts a decimal color component to hexadecimal
- */
-function componentToHex(c: number): string {
-  const hex = parseInt(c.toString()).toString(16);
-  return hex.length == 1 ? "0" + hex : hex;
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1).toUpperCase();
 }
 
-/**
- * Converts RGBA values to SVG color string
- * Returns false if pixel is transparent
- */
-function getColor(r: number, g: number, b: number, a: number): string | false {
-  if (a === 0) return false;
-  if (a === undefined || a === 255) {
-    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+function shortenHex(hex: string): string {
+  if (hex.length !== 7) return hex;
+  if (hex[1] === hex[2] && hex[3] === hex[4] && hex[5] === hex[6]) {
+    return `#${hex[1]}${hex[3]}${hex[5]}`;
   }
-  return `rgba(${r},${g},${b},${a/255})`;
+  return hex;
 }
 
-/**
- * Creates SVG path data for a horizontal line
- */
-function makePathData(x: number, y: number, w: number): string {
-  return `M${x} ${y}h${w}`;
-}
-
-/**
- * Creates complete SVG path element with color
- */
-function makePath(color: string, data: string): string {
-  return `<path stroke="${color}" d="${data}" />\n`;
-}
-
-/**
- * Groups pixels by color from ImageData
- */
-function getColors(img: ImageData): Record<string, [number, number][]> {
-  const colors: Record<string, [number, number][]> = {};
-  const data = img.data;
-  const w = img.width;
-
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] > 0) {
-      const color = `${data[i]},${data[i + 1]},${data[i + 2]},${data[i + 3]}`;
-      colors[color] = colors[color] || [];
-      const x = (i / 4) % w;
-      const y = Math.floor((i / 4) / w);
-      colors[color].push([x, y]);
-    }
-  }
-  return colors;
-}
-
-/**
- * Converts color groups to optimized SVG paths
- */
-function colorsToPaths(colors: Record<string, [number, number][]>): string {
-  let output = "";
-  for (const [colorKey, pixels] of Object.entries(colors)) {
-    const [r, g, b, a] = colorKey.split(',').map(Number);
-    const color = getColor(r, g, b, a);
-    if (!color) continue;
-
-    const paths: string[] = [];
-    let curPath: [number, number] | null = null;
-    let w = 1;
-
-    for (const pixel of pixels) {
-      if (curPath && pixel[1] === curPath[1] && pixel[0] === (curPath[0] + w)) {
-        w++;
-      } else {
-        if (curPath) {
-          paths.push(makePathData(curPath[0], curPath[1], w));
-          w = 1;
-        }
-        curPath = pixel;
-      }
-    }
-    if (curPath) {
-      paths.push(makePathData(curPath[0], curPath[1], w));
-    }
-    output += makePath(color, paths.join(''));
-  }
-  return output;
-}
-
-// Standard image ratios
 const getAspectRatios = (baseSize: number) => ({
-  SQUARE: { width: baseSize, height: baseSize },     // 1:1
-  PORTRAIT: { width: Math.round(baseSize * 0.75), height: baseSize },   // 3:4
-  LANDSCAPE: { width: baseSize, height: Math.round(baseSize * 0.75) },  // 4:3
-  WIDE: { width: baseSize, height: Math.round(baseSize * 0.5625) },     // 16:9
-  TALL: { width: Math.round(baseSize * 0.5625), height: baseSize }      // 9:16
+  SQUARE: { width: baseSize, height: baseSize },
+  PORTRAIT: { width: Math.round(baseSize * 0.75), height: baseSize },
+  LANDSCAPE: { width: baseSize, height: Math.round(baseSize * 0.75) },
+  WIDE: { width: baseSize, height: Math.round(baseSize * 0.5625) },
+  TALL: { width: Math.round(baseSize * 0.5625), height: baseSize }
 });
 
 const findClosestAspectRatio = (width: number, height: number, baseSize: number = 64) => {
   const ratio = width / height;
-  const ASPECT_RATIOS = getAspectRatios(baseSize);
-  
-  // Find closest ratio
-  if (ratio > 1.7) return ASPECT_RATIOS.WIDE;        // 16:9
-  if (ratio > 1.2) return ASPECT_RATIOS.LANDSCAPE;   // 4:3
-  if (ratio > 0.8) return ASPECT_RATIOS.SQUARE;      // 1:1
-  if (ratio > 0.6) return ASPECT_RATIOS.PORTRAIT;    // 3:4
-  return ASPECT_RATIOS.TALL;                         // 9:16
+  const AR = getAspectRatios(baseSize);
+  if (ratio > 1.7) return AR.WIDE;
+  if (ratio > 1.2) return AR.LANDSCAPE;
+  if (ratio > 0.8) return AR.SQUARE;
+  if (ratio > 0.6) return AR.PORTRAIT;
+  return AR.TALL;
 };
 
 /**
- * Converts an image to SVG format
- * @param imageUrl - URL of the image to convert
- * @param size - Base size for the image (64, 124, or 192)
- * @returns Promise that resolves to SVG string
+ * Converts an image to a compact SVG.
+ *
+ * For 2-tone (dithered pixel art):
+ * - Background = majority color as a single <rect fill="...">
+ * - Foreground = one <path> per color with all horizontal runs
+ * - Uses <style> to define stroke color once via CSS class
+ * - viewBox uses -0.5 y offset for stroke-based rendering
  */
 export async function convertToSVG(imageUrl: string, size: number = 64): Promise<string> {
-  // Get original image
   const tempImg = new Image();
   tempImg.src = imageUrl;
-  await new Promise<void>((resolve) => {
-    tempImg.onload = () => resolve();
-  });
-  
-  // Her zaman size parametresini baz al
+  await new Promise<void>((resolve) => { tempImg.onload = () => resolve(); });
+
   const dimensions = findClosestAspectRatio(tempImg.width, tempImg.height, size);
-  
-  // Create temporary canvas with calculated dimensions
+  const w = dimensions.width;
+  const h = dimensions.height;
+
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
-  canvas.width = dimensions.width;
-  canvas.height = dimensions.height;
-  
-  // Scale down to calculated dimensions
-  ctx.drawImage(tempImg, 0, 0, dimensions.width, dimensions.height);
-  const imageData = ctx.getImageData(0, 0, dimensions.width, dimensions.height);
-  
-  // Convert to SVG
-  const colors = getColors(imageData);
-  const paths = colorsToPaths(colors);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 ${dimensions.width} ${dimensions.height}" shape-rendering="crispEdges">\n${paths}</svg>`;
+  canvas.width = w;
+  canvas.height = h;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tempImg, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  // Build grid + count colors
+  const colorCount: Record<string, number> = {};
+  const grid: string[][] = [];
+
+  for (let y = 0; y < h; y++) {
+    grid[y] = [];
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const hex = rgbToHex(data[i], data[i + 1], data[i + 2]);
+      grid[y][x] = hex;
+      colorCount[hex] = (colorCount[hex] || 0) + 1;
+    }
+  }
+
+  const sortedColors = Object.entries(colorCount).sort((a, b) => b[1] - a[1]);
+  if (sortedColors.length === 0) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"/>`;
+  }
+
+  const bgColor = shortenHex(sortedColors[0][0]);
+  const fgColors = sortedColors.slice(1); // minority colors
+
+  // Build one <path> per foreground color with all horizontal runs
+  const paths: string[] = [];
+
+  for (let ci = 0; ci < fgColors.length; ci++) {
+    const color = fgColors[ci][0];
+    const segments: string[] = [];
+
+    for (let y = 0; y < h; y++) {
+      let x = 0;
+      while (x < w) {
+        if (grid[y][x] === color) {
+          const startX = x;
+          while (x < w && grid[y][x] === color) x++;
+          segments.push(`M${startX} ${y}h${x - startX}`);
+        } else {
+          x++;
+        }
+      }
+    }
+
+    if (segments.length > 0) {
+      paths.push(`<path class="c${ci}" d="${segments.join('')}"/>`);
+    }
+  }
+
+  // Build CSS: stroke colors defined once
+  const styleRules = fgColors.map(([color], i) =>
+    `.c${i}{stroke:${shortenHex(color)}}`
+  ).join('');
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 ${w} ${h}" shape-rendering="crispEdges">`;
+  svg += `<style>${styleRules}</style>`;
+  // Background as a filled rect
+  svg += `<rect fill="${bgColor}" width="${w}" height="${h}"/>`;
+  svg += paths.join('');
+  svg += '</svg>';
+
+  return svg;
 }
 
 /**
  * Creates downloadable SVG blob from image URL
- * @param imageUrl - URL of the image to convert
- * @param fileName - Name for the downloaded file
- * @returns Promise that resolves to Blob
  */
 export async function createSVGBlob(imageUrl: string): Promise<Blob> {
   const svg = await convertToSVG(imageUrl);

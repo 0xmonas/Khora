@@ -3,11 +3,10 @@
 export function Footer() {
   return (
     <footer className="bg-background">
-      <div className="flex-1 flex flex-col">
-        <div className="p-4 sm:p-8 lg:p-8">
-          <div className="grid grid-cols-12">
-            <div className="col-span-0 sm:col-span-1" />
-            <div className="col-span-12 sm:col-span-10">
+      <div className="p-4 md:p-8 lg:p-12">
+        <div className="w-full lg:grid lg:grid-cols-12">
+          <div className="hidden lg:block lg:col-span-1" />
+          <div className="lg:col-span-10">
               <div className="flex flex-row items-center justify-between">
                 <p 
                   className="text-sm text-neutral-500"
@@ -38,8 +37,7 @@ export function Footer() {
                 </div>
               </div>
             </div>
-            <div className="col-span-0 sm:col-span-1" />
-          </div>
+            <div className="hidden lg:block lg:col-span-1" />
         </div>
       </div>
     </footer>
