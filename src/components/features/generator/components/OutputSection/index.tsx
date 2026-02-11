@@ -44,6 +44,7 @@ function StatusDisplay() {
 
 export function OutputSection() {
   const {
+    mode,
     loading,
     downloadAgent,
     imageLoading,
@@ -79,22 +80,45 @@ export function OutputSection() {
           {isIdle ? (
             <div className="w-full h-full flex items-center justify-center p-6">
               <div className="space-y-4 font-mono text-sm max-w-xs">
-                <div className="flex gap-3 items-start">
-                  <span className="text-neutral-400 flex-shrink-0">01</span>
-                  <p className="text-neutral-600 dark:text-neutral-400">Name your agent & describe its personality</p>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className="text-neutral-400 flex-shrink-0">02</span>
-                  <p className="text-neutral-600 dark:text-neutral-400">Click mint & confirm the transaction</p>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className="text-neutral-400 flex-shrink-0">03</span>
-                  <p className="text-neutral-600 dark:text-neutral-400">AI generates a unique pixel art PFP</p>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className="text-neutral-400 flex-shrink-0">04</span>
-                  <p className="text-neutral-600 dark:text-neutral-400">Your agent is minted as an on-chain SVG NFT</p>
-                </div>
+                {mode === 'create' ? (
+                  <>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">01</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Name your agent & describe its personality</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">02</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Click mint & confirm the transaction</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">03</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">AI generates a unique pixel art PFP</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">04</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Your agent is minted as an on-chain SVG NFT</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">01</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Connect wallet & select your ERC-8004 agent</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">02</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Identity is fetched from the on-chain registry</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">03</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">AI reimagines your agent as pixel art</p>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="text-neutral-400 flex-shrink-0">04</span>
+                      <p className="text-neutral-600 dark:text-neutral-400">Minted on Base with original traits & new art</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ) : (

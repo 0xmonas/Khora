@@ -46,13 +46,13 @@
     "@types/png-chunks-extract": "^1.0.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^8.55.0",
+    "@typescript-eslint/parser": "^8.55.0",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^13.4.19",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^15.5.12",
+    "eslint-config-prettier": "^9.1.2",
     "postcss": "^8.5.1",
     "postcss-import": "^16.1.0",
     "postcss-nesting": "^13.0.1",
@@ -61,5 +61,14 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.3",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "@walletconnect/sign-client": "^2.23.4",
+    "@walletconnect/universal-provider": "^2.23.4",
+    "@walletconnect/ethereum-provider": "^2.23.4",
+    "@paulmillr/qr": "npm:qr@^0.5.0",
+    "glob": "^13.0.0",
+    "rimraf": "^6.0.0",
+    "inflight": "npm:noop3@*"
   }
 }

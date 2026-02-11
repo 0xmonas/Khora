@@ -67,3 +67,61 @@ export function svgByteSize(svg: string): number {
 
 /** SSTORE2 maximum data size per pointer (24KB) */
 export const SSTORE2_MAX_BYTES = 24576;
+
+/**
+ * Tags the contract rejects (UnsafeSVG revert).
+ * Used for pre-reveal client-side validation.
+ */
+const UNSAFE_SVG_TAGS = [
+  'script', 'style', 'iframe', 'object', 'embed',
+  'foreignobject', 'feimage', 'animate', 'image',
+];
+
+/**
+ * Sanitizes cached SVG bytes: converts <style>-based class strokes
+ * to inline stroke attributes, removing the <style> block entirely.
+ *
+ * Old SVG format: <style>.c0{stroke:#0A0A0A}</style> ... <path class="c0" d="..."/>
+ * New SVG format: <path stroke="#0A0A0A" d="..."/>
+ */
+export function sanitizeSvgBytes(bytes: Uint8Array): Uint8Array {
+  const svg = new TextDecoder().decode(bytes);
+
+  // No <style> tag → already clean
+  if (!svg.includes('<style>')) return bytes;
+
+  // Extract class→color mappings from <style> block
+  const styleMatch = svg.match(/<style>([\s\S]*?)<\/style>/);
+  if (!styleMatch) return bytes;
+
+  const colorMap: Record<string, string> = {};
+  const classRegex = /\.(c\d+)\{stroke:(#[0-9a-fA-F]{3,6})\}/g;
+  let m;
+  while ((m = classRegex.exec(styleMatch[1])) !== null) {
+    colorMap[m[1]] = m[2];
+  }
+
+  // Remove the <style>...</style> block
+  let cleaned = svg.replace(/<style>[\s\S]*?<\/style>/, '');
+
+  // Replace class="cN" with stroke="COLOR" on each path
+  cleaned = cleaned.replace(/class="(c\d+)"/g, (_, cls) => {
+    return colorMap[cls] ? `stroke="${colorMap[cls]}"` : '';
+  });
+
+  return new TextEncoder().encode(cleaned);
+}
+
+/**
+ * Validates SVG string against the contract's safety rules.
+ * Returns null if valid, or an error message if it would be rejected.
+ */
+export function validateSvgForContract(bytes: Uint8Array): string | null {
+  const svg = new TextDecoder().decode(bytes).toLowerCase();
+  for (const tag of UNSAFE_SVG_TAGS) {
+    if (svg.includes(`<${tag}`)) {
+      return `SVG contains <${tag}> which the contract rejects. Please regenerate.`;
+    }
+  }
+  return null;
+}

@@ -5,6 +5,7 @@ import { pixelateImage } from '@/utils/pixelator';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
+import { sanitizeSvgBytes, validateSvgForContract } from '@/utils/helpers/svgMinifier';
 import type { KhoraAgent, SupportedChain } from '@/types/agent';
 
 export type Mode = 'create' | 'import';
@@ -150,7 +151,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (parsed.agentDescription) setAgentDescription(parsed.agentDescription);
         if (parsed.mode) setMode(parsed.mode);
         if (parsed.pendingSvgHex) {
-          pendingSvgBytes.current = hexToBytes(parsed.pendingSvgHex);
+          pendingSvgBytes.current = sanitizeSvgBytes(hexToBytes(parsed.pendingSvgHex));
         }
         if (parsed.pendingTraitsHex) {
           pendingTraitsBytes.current = hexToBytes(parsed.pendingTraitsHex);
@@ -302,7 +303,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
       ).then(result => {
         if (result) {
-          pendingSvgBytes.current = hexToBytes(result.svg);
+          pendingSvgBytes.current = sanitizeSvgBytes(hexToBytes(result.svg));
           pendingTraitsBytes.current = hexToBytes(result.traits);
           setCurrentStep('reveal_failed');
           setError('You have a pending reveal recovered from the server. Retry or generate a new image.');
@@ -483,6 +484,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError('No pending reveal data');
       return;
     }
+    const svgError = validateSvgForContract(pendingSvgBytes.current);
+    if (svgError) {
+      setError(svgError);
+      setCurrentStep('reveal_failed');
+      return;
+    }
     setError(null);
     setLoading(true);
     setCurrentStep('revealing');
@@ -500,6 +507,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const retryReveal = useCallback(() => {
     if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
       setError('No pending reveal data — use Regenerate to create a new image');
+      return;
+    }
+    const svgError = validateSvgForContract(pendingSvgBytes.current);
+    if (svgError) {
+      setError(svgError);
+      setCurrentStep('reveal_failed');
       return;
     }
     setError(null);
@@ -637,7 +650,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         downloadBlob(blob, `${fileName}-erc8004.json`);
       } else if (format === 'openclaw') {
         const { toOpenClawZip } = await import('@/utils/helpers/exportFormats');
-        const zipBlob = await toOpenClawZip(agent);
+        let openClawImage: string | undefined;
+        if (mintedTokenId !== null) {
+          const contractAddr = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
+          if (contractAddr) {
+            openClawImage = `eip155:8453/erc721:${contractAddr}/${mintedTokenId.toString()}`;
+          }
+        }
+        const zipBlob = await toOpenClawZip(agent, openClawImage);
         downloadBlob(zipBlob, `${fileName}-openclaw.zip`);
       }
     } catch {

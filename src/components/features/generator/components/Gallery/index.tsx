@@ -82,6 +82,7 @@ async function downloadFormat(
   agent: KhoraAgent,
   svgString: string | null,
   format: 'json' | 'openclaw' | 'png' | 'svg',
+  onChainImage?: string,
 ) {
   const fileName = agent.name.toLowerCase().replace(/\s+/g, '-') || 'agent';
 
@@ -92,7 +93,7 @@ async function downloadFormat(
     downloadBlob(blob, `${fileName}.json`);
   } else if (format === 'openclaw') {
     const { toOpenClawZip } = await import('@/utils/helpers/exportFormats');
-    const zipBlob = await toOpenClawZip(agent);
+    const zipBlob = await toOpenClawZip(agent, onChainImage);
     downloadBlob(zipBlob, `${fileName}-openclaw.zip`);
   } else if (format === 'svg' && svgString) {
     const blob = new Blob([svgString], { type: 'image/svg+xml' });
@@ -265,7 +266,11 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 <FileCode className="w-3.5 h-3.5 dark:text-white" />
               </button>
               <button
-                onClick={() => downloadFormat(metadata || traitsToAgent(traits), token.svg, 'openclaw')}
+                onClick={() => {
+                  const chainPrefix = isMainnet ? '8453' : '84532';
+                  const imgRef = `eip155:${chainPrefix}/erc721:${contract}/${tokenId}`;
+                  downloadFormat(metadata || traitsToAgent(traits), token.svg, 'openclaw', imgRef);
+                }}
                 className={iconBtn}
                 title="OpenClaw ZIP"
               >
