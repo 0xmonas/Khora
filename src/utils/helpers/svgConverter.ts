@@ -4,7 +4,7 @@
  * Compact on-chain SVG strategy:
  * 1. Majority color = background rect (1 element)
  * 2. Minority color = single <path> with row-based horizontal runs
- * 3. CSS <style> for stroke color (avoids repeating per path)
+ * 3. Inline stroke attribute per <path> (no <style> tag for on-chain safety)
  * 4. For 2-tone images: 1 bg rect + 1 path element = minimal overhead
  *
  * For a dithered 2-tone 64x64 image: ~6-14KB (vs ~48KB before)
@@ -46,7 +46,7 @@ const findClosestAspectRatio = (width: number, height: number, baseSize: number 
  * For 2-tone (dithered pixel art):
  * - Background = majority color as a single <rect fill="...">
  * - Foreground = one <path> per color with all horizontal runs
- * - Uses <style> to define stroke color once via CSS class
+ * - Inline stroke attribute on each <path> (no <style> tag)
  * - viewBox uses -0.5 y offset for stroke-based rendering
  */
 export async function convertToSVG(imageUrl: string, size: number = 64): Promise<string> {
@@ -109,18 +109,11 @@ export async function convertToSVG(imageUrl: string, size: number = 64): Promise
     }
 
     if (segments.length > 0) {
-      paths.push(`<path class="c${ci}" d="${segments.join('')}"/>`);
+      paths.push(`<path stroke="${shortenHex(color)}" d="${segments.join('')}"/>`);
     }
   }
 
-  // Build CSS: stroke colors defined once
-  const styleRules = fgColors.map(([color], i) =>
-    `.c${i}{stroke:${shortenHex(color)}}`
-  ).join('');
-
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 ${w} ${h}" shape-rendering="crispEdges">`;
-  svg += `<style>${styleRules}</style>`;
-  // Background as a filled rect
   svg += `<rect fill="${bgColor}" width="${w}" height="${h}"/>`;
   svg += paths.join('');
   svg += '</svg>';

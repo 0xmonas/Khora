@@ -29,6 +29,7 @@ type PendingCommit = {
   address: string;
   chainId: number;
   slotIndex: number;
+  contractAddress?: string;
 };
 
 function savePendingCommit(data: PendingCommit) {
@@ -123,7 +124,7 @@ export function useCommitReveal() {
           const idx = decoded.args.slotIndex as bigint;
           setSlotIndex(idx);
           if (address) {
-            savePendingCommit({ address, chainId, slotIndex: Number(idx) });
+            savePendingCommit({ address, chainId, slotIndex: Number(idx), contractAddress });
           }
           break;
         }
@@ -141,10 +142,17 @@ export function useCommitReveal() {
 
     // Try localStorage first
     const pending = loadPendingCommit();
-    if (pending && pending.address.toLowerCase() === address.toLowerCase() && pending.chainId === chainId) {
+    if (
+      pending &&
+      pending.address.toLowerCase() === address.toLowerCase() &&
+      pending.chainId === chainId &&
+      (!pending.contractAddress || pending.contractAddress.toLowerCase() === contractAddress.toLowerCase())
+    ) {
       setSlotIndex(BigInt(pending.slotIndex));
       return;
     }
+    // Stale entry from different contract — clear it
+    if (pending) clearPendingCommit();
 
     // Fallback: scan on-chain commitments for unrevealed slots
     (async () => {
@@ -166,7 +174,7 @@ export function useCommitReveal() {
 
           if (timestamp > BigInt(0) && !revealed) {
             setSlotIndex(BigInt(i));
-            savePendingCommit({ address, chainId, slotIndex: i });
+            savePendingCommit({ address, chainId, slotIndex: i, contractAddress });
             break;
           }
         }
@@ -237,6 +245,7 @@ export function useCommitReveal() {
       abi: BOOA_NFT_ABI,
       functionName: 'revealMint',
       args: [slotIndex, toHex(svgBytes), toHex(traitsBytes)],
+      gas: BigInt(5_000_000),
     });
   }, [isConnected, address, contractAddress, slotIndex, writeReveal, resetReveal]);
 
