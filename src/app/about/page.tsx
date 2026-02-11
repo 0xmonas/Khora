@@ -168,6 +168,22 @@ export default function AboutPage() {
                   </a>
                 </div>
 
+                {/* OpenSea */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    OpenSea
+                  </h2>
+                  <a
+                    href="https://opensea.io/collection/booa-nft"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
+                    style={font}
+                  >
+                    opensea.io/collection/booa-nft
+                  </a>
+                </div>
+
                 {/* Token */}
                 <div className="space-y-4">
                   <h2
