@@ -66,10 +66,9 @@ export async function GET(
   }
 
   // Strip internal fields to build KhoraAgent
-  const {
-    _minter: _m, _chainId: _c, _tokenId: _t, _savedAt: _s,
-    ...agentFields
-  } = entry;
+  const agentFields = Object.fromEntries(
+    Object.entries(entry).filter(([k]) => !k.startsWith('_'))
+  );
   const agent = agentFields as unknown as KhoraAgent;
 
   // Build ERC-8004 registration JSON

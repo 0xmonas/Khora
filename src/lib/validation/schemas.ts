@@ -6,6 +6,11 @@ export const generatePromptSchema = z.object({
     .trim()
     .min(1, 'Prompt is required')
     .max(5000, 'Prompt is too long (max 5000 characters)'),
+  systemInstruction: z
+    .string()
+    .trim()
+    .max(10000, 'System instruction is too long')
+    .optional(),
 });
 
 export const generateImageSchema = z.object({

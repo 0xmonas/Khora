@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const result = await validateInput(request, generatePromptSchema);
     if ('error' in result) return result.error;
 
-    const { prompt } = result.data;
+    const { prompt, systemInstruction } = result.data;
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         temperature: 0.7,
+        ...(systemInstruction ? { systemInstruction } : {}),
       },
     });
 
