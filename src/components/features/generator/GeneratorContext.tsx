@@ -227,7 +227,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         );
       }
       // Save full agent metadata to Upstash (permanent, no TTL)
-      if (agent && commitReveal.tokenId !== null && commitReveal.address) {
+      if (agent && agent.name && commitReveal.tokenId !== null && commitReveal.address) {
         saveAgentMetadataToAPI(
           commitReveal.address,
           commitReveal.chainId,

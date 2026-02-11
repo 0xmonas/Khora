@@ -27,11 +27,14 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
     struct Commitment {
         uint256 timestamp;
+        uint256 pricePaid;
         bool revealed;
     }
 
     mapping(address => Commitment[]) private _commitments;
     uint256 public constant REVEAL_DEADLINE = 7 days;
+
+    uint256 public reservedFunds;
 
     event AgentMinted(uint256 indexed tokenId, address indexed minter, address svgPointer);
     event CommitMint(address indexed committer, uint256 indexed slotIndex);
@@ -42,6 +45,7 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
     error UnsafeSVG();
     error TraitsTooLarge();
+    error UnsafeTraits();
 
     constructor(uint256 _mintPrice, address royaltyReceiver, uint96 royaltyFeeNumerator)
         ERC721("BOOA", "BOOA")
@@ -80,23 +84,52 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
             if (b == 0x3C && i + 1 < len) {
                 uint8 next = _toLower(uint8(data[i + 1]));
+                // <script>
                 if (next == 0x73 && i + 7 < len) {
                     if (_matchesLower(data, i + 1, "script")) revert UnsafeSVG();
+                    if (_matchesLower(data, i + 1, "style")) revert UnsafeSVG();
+                    // <set>
+                    if (i + 4 < len && _matchesLower(data, i + 1, "set")) {
+                        uint8 afterSet = i + 4 < len ? _toLower(uint8(data[i + 4])) : 0;
+                        if (afterSet == 0x20 || afterSet == 0x3E || afterSet == 0x2F || afterSet == 0x09 || afterSet == 0x0A || afterSet == 0x0D) {
+                            revert UnsafeSVG();
+                        }
+                    }
                 }
+                // <iframe>
                 if (next == 0x69 && i + 7 < len) {
                     if (_matchesLower(data, i + 1, "iframe")) revert UnsafeSVG();
                 }
+                // <object>
                 if (next == 0x6F && i + 7 < len) {
                     if (_matchesLower(data, i + 1, "object")) revert UnsafeSVG();
                 }
+                // <embed>
                 if (next == 0x65 && i + 6 < len) {
                     if (_matchesLower(data, i + 1, "embed")) revert UnsafeSVG();
                 }
+                // <foreignobject>
                 if (next == 0x66 && i + 14 < len) {
                     if (_matchesLower(data, i + 1, "foreignobject")) revert UnsafeSVG();
+                    if (_matchesLower(data, i + 1, "feimage")) revert UnsafeSVG();
+                }
+                // <animate>, <a>
+                if (next == 0x61 && i + 2 < len) {
+                    // <animate> or <animatetransform> etc
+                    if (i + 8 < len && _matchesLower(data, i + 1, "animate")) revert UnsafeSVG();
+                    // <a> — check it's just <a followed by space/> not <animate etc
+                    uint8 afterA = _toLower(uint8(data[i + 2]));
+                    if (afterA == 0x20 || afterA == 0x3E || afterA == 0x09 || afterA == 0x0A || afterA == 0x0D) {
+                        revert UnsafeSVG();
+                    }
+                }
+                // <image>
+                if (next == 0x69 && i + 6 < len) {
+                    if (_matchesLower(data, i + 1, "image")) revert UnsafeSVG();
                 }
             }
 
+            // on* event handler detection
             if (b == 0x6F && i + 2 < len) {
                 uint8 n = _toLower(uint8(data[i + 1]));
                 if (n == 0x6E) {
@@ -108,7 +141,7 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
                             for (uint256 j = i + 3; j < len && j < i + 30; j++) {
                                 uint8 jb = uint8(data[j]);
                                 if (jb == 0x3D) revert UnsafeSVG();
-                                if (jb == 0x20 || jb == 0x3E || jb == 0x2F) break;
+                                if (jb == 0x20 || jb == 0x09 || jb == 0x0A || jb == 0x0D || jb == 0x3E || jb == 0x2F) break;
                             }
                         }
                     }
@@ -121,6 +154,43 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
             if (b == 0x64 && i + 14 < len) {
                 if (_matchesLower(data, i, "data:text/html")) revert UnsafeSVG();
+            }
+        }
+    }
+
+    function _validateTraits(bytes calldata data) internal pure {
+        if (data.length == 0) return;
+        // Must start with [ and end with ]
+        uint8 first = uint8(data[0]);
+        uint8 last = uint8(data[data.length - 1]);
+        if (first != 0x5B || last != 0x5D) revert UnsafeTraits(); // [ and ]
+
+        // Scan for unescaped characters that could break JSON encapsulation
+        // The traits are placed directly into JSON via abi.encodePacked.
+        // We disallow raw `}` outside of the traits array context that could
+        // close the parent JSON object. Specifically, we track bracket depth.
+        uint256 braceDepth = 0;
+        bool inString = false;
+        bool escaped = false;
+        for (uint256 i = 0; i < data.length; i++) {
+            uint8 b = uint8(data[i]);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (b == 0x5C) { // backslash
+                escaped = true;
+                continue;
+            }
+            if (b == 0x22) { // double quote
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+            if (b == 0x7B) braceDepth++;       // {
+            if (b == 0x7D) {                    // }
+                if (braceDepth == 0) revert UnsafeTraits();
+                braceDepth--;
             }
         }
     }
@@ -151,6 +221,7 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
         _validateSVG(svgData);
+        _validateTraits(traitsData);
 
         if (maxSupply > 0) {
             require(_nextTokenId < maxSupply, "Max supply reached");
@@ -182,14 +253,18 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
             require(_nextTokenId < maxSupply, "Max supply reached");
         }
         if (maxPerWallet > 0) {
-            require(mintCount[msg.sender] < maxPerWallet, "Wallet mint limit reached");
+            uint256 pending = _pendingCommitCount(msg.sender);
+            require(mintCount[msg.sender] + pending < maxPerWallet, "Wallet mint limit reached");
         }
 
         slotIndex = _commitments[msg.sender].length;
         _commitments[msg.sender].push(Commitment({
             timestamp: block.timestamp,
+            pricePaid: msg.value,
             revealed: false
         }));
+
+        reservedFunds += msg.value;
 
         emit CommitMint(msg.sender, slotIndex);
     }
@@ -199,6 +274,7 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         bytes calldata svgData,
         bytes calldata traitsData
     ) external returns (uint256 tokenId) {
+        require(!paused, "Minting is paused");
         require(slotIndex < _commitments[msg.sender].length, "Invalid slot");
         Commitment storage c = _commitments[msg.sender][slotIndex];
         require(!c.revealed, "Already revealed");
@@ -207,13 +283,19 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
         c.revealed = true;
 
+        reservedFunds -= c.pricePaid;
+
         require(svgData.length > 0, "Empty SVG data");
         require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
         _validateSVG(svgData);
+        _validateTraits(traitsData);
 
         if (maxSupply > 0) {
             require(_nextTokenId < maxSupply, "Max supply reached");
+        }
+        if (maxPerWallet > 0) {
+            require(mintCount[msg.sender] < maxPerWallet, "Wallet mint limit reached");
         }
 
         tokenId = _nextTokenId++;
@@ -236,9 +318,21 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         require(block.timestamp > c.timestamp + REVEAL_DEADLINE, "Not expired yet");
 
         c.revealed = true;
+        uint256 refundAmount = c.pricePaid;
+        reservedFunds -= refundAmount;
 
-        (bool ok, ) = msg.sender.call{value: mintPrice}("");
+        (bool ok, ) = msg.sender.call{value: refundAmount}("");
         require(ok, "Refund failed");
+    }
+
+    function _pendingCommitCount(address account) internal view returns (uint256 count) {
+        uint256 len = _commitments[account].length;
+        for (uint256 i = 0; i < len; i++) {
+            Commitment memory c = _commitments[account][i];
+            if (!c.revealed && c.timestamp > 0 && block.timestamp <= c.timestamp + REVEAL_DEADLINE) {
+                count++;
+            }
+        }
     }
 
     function commitmentCount(address account) external view returns (uint256) {
@@ -340,13 +434,17 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     }
 
     function withdraw() external onlyOwner {
-        (bool ok, ) = owner().call{value: address(this).balance}("");
+        uint256 available = address(this).balance - reservedFunds;
+        require(available > 0, "No available funds");
+        (bool ok, ) = owner().call{value: available}("");
         require(ok, "Withdrawal failed");
     }
 
     function withdrawTo(address payable to) external onlyOwner {
         require(to != address(0), "Zero address");
-        (bool ok, ) = to.call{value: address(this).balance}("");
+        uint256 available = address(this).balance - reservedFunds;
+        require(available > 0, "No available funds");
+        (bool ok, ) = to.call{value: available}("");
         require(ok, "Withdrawal failed");
     }
 

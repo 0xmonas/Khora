@@ -959,4 +959,390 @@ describe("BOOA", function () {
       expect(await contract.ownerOf(0)).to.equal(user.address);
     });
   });
+
+  // ══════════════════════════════════════════════════════════
+  // SECURITY AUDIT — Verify Fixes
+  // ══════════════════════════════════════════════════════════
+
+  describe("FIX #1: maxPerWallet enforced in commitMint and revealMint", function () {
+    it("should block second commit when maxPerWallet=1 (pending commit counted)", async function () {
+      await contract.connect(owner).setMaxPerWallet(1);
+      await contract.connect(user).commitMint({ value: mintPrice });
+      // Second commit should fail — pending commit is counted
+      await expect(
+        contract.connect(user).commitMint({ value: mintPrice })
+      ).to.be.revertedWith("Wallet mint limit reached");
+    });
+
+    it("should block revealMint when mintCount already at maxPerWallet", async function () {
+      // First: direct mint to fill wallet limit
+      await contract.connect(owner).setMaxPerWallet(1);
+      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      // Remove limit temporarily so user can commit
+      await contract.connect(owner).setMaxPerWallet(0);
+      await contract.connect(user).commitMint({ value: mintPrice });
+      // Restore limit
+      await contract.connect(owner).setMaxPerWallet(1);
+      // Reveal should fail
+      await expect(
+        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+      ).to.be.revertedWith("Wallet mint limit reached");
+    });
+
+    it("should allow commit after expired commit frees up a slot", async function () {
+      await contract.connect(owner).setMaxPerWallet(1);
+      await contract.connect(user).commitMint({ value: mintPrice });
+
+      // Wait for expiry
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+      await contract.connect(user).reclaimExpired(0);
+
+      // Now user can commit again (expired commit no longer counted as pending)
+      await contract.connect(user).commitMint({ value: mintPrice });
+      expect(await contract.commitmentCount(user.address)).to.equal(2);
+    });
+  });
+
+  describe("FIX #2: withdraw protects reserved funds", function () {
+    it("should not allow withdrawing commit-reserved funds", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(user2).commitMint({ value: mintPrice });
+
+      // All funds are reserved — withdraw should fail
+      await expect(
+        contract.connect(owner).withdraw()
+      ).to.be.revertedWith("No available funds");
+    });
+
+    it("should allow withdrawing only unreserved funds", async function () {
+      // Direct mint creates unreserved revenue
+      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      // Commit creates reserved funds
+      await contract.connect(user2).commitMint({ value: mintPrice });
+
+      const balBefore = await ethers.provider.getBalance(owner.address);
+      const tx = await contract.connect(owner).withdraw();
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(owner.address);
+
+      // Only the direct mint revenue is withdrawable
+      expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
+
+      // Contract still holds reserved funds
+      const contractBal = await ethers.provider.getBalance(await contract.getAddress());
+      expect(contractBal).to.equal(mintPrice);
+    });
+
+    it("should release reserved funds after reveal", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      expect(await contract.reservedFunds()).to.equal(mintPrice);
+
+      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      expect(await contract.reservedFunds()).to.equal(0);
+
+      // Now owner can withdraw
+      await contract.connect(owner).withdraw();
+      const contractBal = await ethers.provider.getBalance(await contract.getAddress());
+      expect(contractBal).to.equal(0);
+    });
+
+    it("should release reserved funds after reclaim", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      expect(await contract.reservedFunds()).to.equal(mintPrice);
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+      await contract.connect(user).reclaimExpired(0);
+
+      expect(await contract.reservedFunds()).to.equal(0);
+    });
+
+    it("reclaim always succeeds when funds are reserved", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      // Even with a direct mint revenue withdrawn, commit funds are safe
+      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(owner).withdraw(); // only withdraws unreserved
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      const balBefore = await ethers.provider.getBalance(user.address);
+      const tx = await contract.connect(user).reclaimExpired(0);
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(user.address);
+      expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
+    });
+  });
+
+  describe("FIX #3: reclaimExpired refunds actual paid amount", function () {
+    it("should refund original paid amount even after price change", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+
+      // Owner changes the price
+      const newPrice = mintPrice / 2n;
+      await contract.connect(owner).setMintPrice(newPrice);
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      const balBefore = await ethers.provider.getBalance(user.address);
+      const tx = await contract.connect(user).reclaimExpired(0);
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(user.address);
+
+      // User gets back ORIGINAL mintPrice, not the new lower price
+      const refunded = balAfter + gasUsed - balBefore;
+      expect(refunded).to.equal(mintPrice);
+    });
+
+    it("should refund original amount when price is set to 0", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(owner).setMintPrice(0);
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      const balBefore = await ethers.provider.getBalance(user.address);
+      const tx = await contract.connect(user).reclaimExpired(0);
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(user.address);
+
+      // User gets back original paid amount, not 0
+      expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
+    });
+
+    it("should refund exact overpayment when user sent extra", async function () {
+      const overpay = mintPrice * 2n;
+      await contract.connect(user).commitMint({ value: overpay });
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      const balBefore = await ethers.provider.getBalance(user.address);
+      const tx = await contract.connect(user).reclaimExpired(0);
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(user.address);
+
+      // User gets back the FULL amount they paid (including overpayment)
+      expect(balAfter + gasUsed - balBefore).to.equal(overpay);
+    });
+  });
+
+  describe("FIX #4: supply race condition (still possible but reclaim works)", function () {
+    it("directMint can exhaust supply before revealMint but reclaim is safe", async function () {
+      await contract.connect(owner).setMaxSupply(2);
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+
+      // user's reveal fails
+      await expect(
+        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+      ).to.be.revertedWith("Max supply reached");
+
+      // But user can safely reclaim their funds
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      const balBefore = await ethers.provider.getBalance(user.address);
+      const tx = await contract.connect(user).reclaimExpired(0);
+      const receipt = await tx.wait();
+      const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
+      const balAfter = await ethers.provider.getBalance(user.address);
+      expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
+    });
+  });
+
+  describe("FIX #5: revealMint respects pause", function () {
+    it("should block revealMint when contract is paused", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(owner).setPaused(true);
+      await expect(
+        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+      ).to.be.revertedWith("Minting is paused");
+    });
+
+    it("should allow revealMint after unpause", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(owner).setPaused(true);
+      await contract.connect(owner).setPaused(false);
+      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      expect(await contract.ownerOf(0)).to.equal(user.address);
+    });
+
+    it("reclaimExpired works even when paused", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(owner).setPaused(true);
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      await contract.connect(user).reclaimExpired(0);
+      const [, revealed] = await contract.getCommitment(user.address, 0);
+      expect(revealed).to.be.true;
+    });
+  });
+
+  describe("FIX #6: SVG sanitization now blocks dangerous tags", function () {
+    it("should reject <style> tag", async function () {
+      const withStyle = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><style>body{background:red}</style><rect/></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withStyle, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <STYLE> tag (case-insensitive)", async function () {
+      const withStyle = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><STYLE>body{background:red}</STYLE><rect/></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withStyle, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <animate> tag", async function () {
+      const withAnimate = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect><animate attributeName="width" from="0" to="100" dur="1s"/></rect></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withAnimate, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <set> tag", async function () {
+      const withSet = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect><set attributeName="fill" to="red"/></rect></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withSet, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <image> tag", async function () {
+      const withImage = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.com/track.png"/></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withImage, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <a> tag (phishing)", async function () {
+      const withLink = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://evil.com"><text>Click me</text></a></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withLink, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should reject <feImage> tag", async function () {
+      const withFeImage = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><filter id="f"><feImage href="https://evil.com/exfil"/></filter><rect filter="url(#f)"/></svg>'
+      );
+      await expect(
+        contract.connect(user).mintAgent(withFeImage, testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    });
+
+    it("should still allow valid SVG with rect, path, text, g, defs, use", async function () {
+      const safeSvg = ethers.toUtf8Bytes(
+        '<svg xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="c"><rect/></clipPath></defs><g><path stroke="#000" d="M0 0h64"/><text>hello</text><use href="#c"/></g></svg>'
+      );
+      await contract.connect(user).mintAgent(safeSvg, testTraitsBytes, { value: mintPrice });
+      expect(await contract.totalSupply()).to.equal(1);
+    });
+  });
+
+  describe("FIX #7: traits JSON injection prevented", function () {
+    it("should reject traits that don't start with [", async function () {
+      const maliciousTraits = ethers.toUtf8Bytes(
+        '"},"injected_key":"injected_value","x":{"y":"z'
+      );
+      await expect(
+        contract.connect(user).mintAgent(testSVGBytes, maliciousTraits, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeTraits");
+    });
+
+    it("should reject traits with unbalanced braces", async function () {
+      const badTraits = ethers.toUtf8Bytes('[{"trait_type":"test"}]}');
+      await expect(
+        contract.connect(user).mintAgent(testSVGBytes, badTraits, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "UnsafeTraits");
+    });
+
+    it("should accept valid traits JSON array", async function () {
+      const validTraits = ethers.toUtf8Bytes('[{"trait_type":"Creature","value":"Fox"},{"trait_type":"Vibe","value":"chill"}]');
+      await contract.connect(user).mintAgent(testSVGBytes, validTraits, { value: mintPrice });
+      expect(await contract.totalSupply()).to.equal(1);
+    });
+
+    it("should accept empty traits", async function () {
+      await contract.connect(user).mintAgent(testSVGBytes, "0x", { value: mintPrice });
+      expect(await contract.totalSupply()).to.equal(1);
+    });
+
+    it("should accept empty array traits", async function () {
+      const emptyArray = ethers.toUtf8Bytes('[]');
+      await contract.connect(user).mintAgent(testSVGBytes, emptyArray, { value: mintPrice });
+      expect(await contract.totalSupply()).to.equal(1);
+    });
+
+    it("should allow traits with special characters inside strings", async function () {
+      const specialChars = ethers.toUtf8Bytes('[{"trait_type":"test","value":"hello \\"world\\" }]"}]');
+      await contract.connect(user).mintAgent(testSVGBytes, specialChars, { value: mintPrice });
+      expect(await contract.totalSupply()).to.equal(1);
+    });
+  });
+
+  describe("AUDIT: reentrancy via reclaimExpired", function () {
+    it("state is updated before ETH transfer (CEI pattern)", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+
+      await contract.connect(user).reclaimExpired(0);
+
+      const [, revealed] = await contract.getCommitment(user.address, 0);
+      expect(revealed).to.be.true;
+
+      await expect(
+        contract.connect(user).reclaimExpired(0)
+      ).to.be.revertedWith("Already revealed");
+    });
+  });
+
+  describe("AUDIT: maxSupply can be set to 0 after minting (unlimited)", function () {
+    it("owner can remove supply cap after mints exist", async function () {
+      await contract.connect(owner).setMaxSupply(2);
+      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+
+      await contract.connect(owner).setMaxSupply(0);
+
+      for (let i = 0; i < 5; i++) {
+        await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      }
+      expect(await contract.totalSupply()).to.equal(6);
+    });
+  });
+
+  describe("AUDIT: no receive/fallback — ETH locked scenario", function () {
+    it("contract should not accept plain ETH transfers", async function () {
+      await expect(
+        owner.sendTransaction({
+          to: await contract.getAddress(),
+          value: ethers.parseEther("1"),
+        })
+      ).to.be.reverted;
+    });
+  });
 });

@@ -61,11 +61,11 @@ describe('Middleware', () => {
     expect(body.error).toContain('Authentication required');
   });
 
-  it('should return 401 for /api/pending-reveal without session', async () => {
+  it('should allow /api/pending-reveal without session (public path)', async () => {
     const { middleware } = await import('@/middleware');
 
     const response = await middleware(makeRequest('/api/pending-reveal'));
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
   });
 
   it('should return 401 for /api/generate-image without session', async () => {
