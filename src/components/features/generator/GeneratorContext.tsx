@@ -128,6 +128,14 @@ async function saveAgentMetadataToAPI(
   } catch {}
 }
 
+function getRegistryClub(totalSupply: number): string {
+  if (totalSupply < 1000) return '999 Club';
+  if (totalSupply < 10000) return '1K Club';
+  if (totalSupply < 100000) return '10K Club';
+  if (totalSupply < 1000000) return '100K Club';
+  return '1M Club';
+}
+
 export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const siweStatus = useSiweStatus();
   const isAuthenticated = siweStatus === 'authenticated';
@@ -287,10 +295,22 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           abi: BOOA_NFT_ABI,
           functionName: 'getCommitment',
           args: [commitReveal.address, commitReveal.slotIndex],
-        }).then((result) => {
+        }).then(async (result) => {
           const [, revealed] = result as [bigint, boolean];
           if (revealed) {
-            // Reveal actually succeeded on-chain!
+            // Reveal actually succeeded on-chain — recover tokenId via totalSupply
+            try {
+              const supply = await publicClient!.readContract({
+                address: commitReveal.contractAddress as `0x${string}`,
+                abi: BOOA_NFT_ABI,
+                functionName: 'totalSupply',
+              }) as bigint;
+              if (supply > BigInt(0)) {
+                setMintedTokenId(supply - BigInt(1));
+              }
+            } catch {
+              // tokenId recovery failed — registration won't work but mint is safe
+            }
             setError(null);
             setCurrentStep('complete');
             setLoading(false);
@@ -512,6 +532,23 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       for (const p of agentData.personality || []) attributes.push({ trait_type: 'Personality', value: p });
       for (const b of agentData.boundaries || []) attributes.push({ trait_type: 'Boundary', value: b });
 
+      // ERC-8004 Registry Club trait
+      if (publicClient) {
+        try {
+          const chainId = commitReveal.chainId;
+          const registryAddress = getRegistryAddress(chainId);
+          const supply = await publicClient.readContract({
+            address: registryAddress,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'totalSupply',
+          }) as bigint;
+          const club = getRegistryClub(Number(supply));
+          attributes.push({ trait_type: '8004 Club', value: club });
+        } catch {
+          // Registry read failed — club trait skipped, mint continues
+        }
+      }
+
       const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
 
       // Save bytes for retry
@@ -614,7 +651,19 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }) as [bigint, boolean];
 
         if (revealed) {
-          // Reveal already succeeded on-chain — skip to complete
+          // Reveal already succeeded on-chain — recover tokenId and skip to complete
+          try {
+            const supply = await publicClient.readContract({
+              address: commitReveal.contractAddress as `0x${string}`,
+              abi: BOOA_NFT_ABI,
+              functionName: 'totalSupply',
+            }) as bigint;
+            if (supply > BigInt(0)) {
+              setMintedTokenId(supply - BigInt(1));
+            }
+          } catch {
+            // tokenId recovery failed — registration won't work but mint is safe
+          }
           setError(null);
           setCurrentStep('complete');
           setLoading(false);

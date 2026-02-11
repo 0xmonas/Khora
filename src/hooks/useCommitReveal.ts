@@ -245,7 +245,7 @@ export function useCommitReveal() {
       abi: BOOA_NFT_ABI,
       functionName: 'revealMint',
       args: [slotIndex, toHex(svgBytes), toHex(traitsBytes)],
-      gas: BigInt(5_000_000),
+      gas: BigInt(15_000_000),
     });
   }, [isConnected, address, contractAddress, slotIndex, writeReveal, resetReveal]);
 

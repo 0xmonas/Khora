@@ -96,6 +96,93 @@ export default function AboutPage() {
                 {/* How it works */}
                 <AboutHowItWorks />
 
+                {/* ERC-8004 */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    What is ERC-8004?
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    ERC-8004 is an on-chain identity registry standard for AI agents.
+                    It gives every agent a verifiable, decentralized identity — like a
+                    passport for autonomous software. The registry stores the agent&apos;s
+                    name, description, services, skills, domains, and metadata as a
+                    data URI directly on-chain. Any protocol, marketplace, or
+                    application can read this identity without trusting a centralized
+                    server.
+                  </p>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    Khora uses ERC-8004 to make your AI characters discoverable across
+                    the agent ecosystem. When you register an agent, it gets listed in
+                    the Identity Registry on Base — other apps can find it, read its
+                    capabilities, and interact with it.
+                  </p>
+                </div>
+
+                {/* 8004 Config */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    ERC-8004 Config
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    When creating or importing an agent, you can configure its on-chain
+                    identity through the ERC-8004 Config panel:
+                  </p>
+                  <div className="space-y-3 pl-2 border-l border-border">
+                    {[
+                      ['Services', 'Declare how your agent can be reached. Add service endpoints like A2A (Agent-to-Agent), MCP, or web URLs. Each service entry includes a protocol type and an endpoint URL.'],
+                      ['Skills (OASF)', 'Tag your agent with capabilities from the OASF taxonomy — text-generation, image-creation, swap-execution, summarization, etc. Skills tell other agents what yours can do.'],
+                      ['Domains (OASF)', 'Categorize your agent into domains like DeFi, gaming, social, healthcare, etc. Domains help with discovery and filtering.'],
+                      ['x402 Payment', 'Enable or disable x402 protocol support. When enabled, your agent signals that it can accept HTTP 402 micropayments for its services.'],
+                      ['Supported Trust', 'Declare which trust mechanisms your agent supports — reputation, crypto-economic staking, or TEE (Trusted Execution Environment).'],
+                    ].map(([label, desc]) => (
+                      <div key={label}>
+                        <span className="text-sm text-foreground" style={font}>{label}</span>
+                        <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
+                          {desc}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    All config fields are optional. You can mint a character with no
+                    8004 config and register it later from the Collection page.
+                  </p>
+                </div>
+
+                {/* Create vs Import */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    Create vs Import
+                  </h2>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm text-foreground" style={font}>Create mode</span>
+                      <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
+                        Start from scratch. Enter a name and description, optionally
+                        configure ERC-8004 settings, and mint. AI generates the full
+                        agent identity (creature type, personality, vibe) and a unique
+                        portrait. After minting, you can optionally register the agent
+                        on the ERC-8004 Identity Registry — this is a separate on-chain
+                        transaction that makes your agent discoverable.
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-foreground" style={font}>Import mode</span>
+                      <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
+                        Already have an agent registered on ERC-8004? Connect your
+                        wallet and we scan 9 chains for your registered agents. Select
+                        one and its identity is fetched from the on-chain registry —
+                        name, description, services, skills, domains. You can edit any
+                        field before minting. AI generates a new portrait for the
+                        imported identity. After minting, the &quot;Register&quot; button
+                        becomes &quot;Update&quot; — it calls setAgentURI to update your
+                        existing registry entry with the new on-chain art and any
+                        edited metadata.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* On-chain */}
                 <div className="space-y-4">
                   <h2
@@ -128,9 +215,11 @@ export default function AboutPage() {
                       ['Chain', 'Base (Ethereum L2)'],
                       ['Contract', 'ERC-721 + ERC-2981'],
                       ['Storage', 'SSTORE2 (on-chain)'],
+                      ['Registry', 'ERC-8004'],
                       ['Art', 'AI pixel art → SVG'],
                       ['Frontend', 'Next.js + wagmi'],
                       ['AI', 'Gemini + Replicate'],
+                      ['Taxonomy', 'OASF v0.8.0'],
                     ].map(([label, value]) => (
                       <div key={label} className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase" style={font}>
