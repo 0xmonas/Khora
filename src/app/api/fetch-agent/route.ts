@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateInput } from '@/lib/api/api-helpers';
 import { fetchAgentSchema } from '@/lib/validation/schemas';
-import { CHAIN_CONFIG, IDENTITY_REGISTRY_ADDRESS } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
+import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+
+const TESTNET_CHAINS: string[] = ['base-sepolia'];
+
+function getRegistryForChain(chain: string): `0x${string}` {
+  return TESTNET_CHAINS.includes(chain) ? IDENTITY_REGISTRY_TESTNET : IDENTITY_REGISTRY_MAINNET;
+}
 
 export const maxDuration = 30;
 
@@ -25,7 +32,7 @@ async function callTokenURI(chain: SupportedChain, agentId: number): Promise<str
   });
 
   const agentURI = await client.readContract({
-    address: IDENTITY_REGISTRY_ADDRESS,
+    address: getRegistryForChain(chain),
     abi: ERC721_ABI,
     functionName: 'tokenURI',
     args: [BigInt(agentId)],

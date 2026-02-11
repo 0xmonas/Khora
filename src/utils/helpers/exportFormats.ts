@@ -1,13 +1,50 @@
 import type { KhoraAgent, ERC8004Registration } from '@/types/agent';
 
-export function toERC8004(agent: KhoraAgent, onChainImage?: string): ERC8004Registration {
+export function toERC8004(agent: KhoraAgent): ERC8004Registration {
+  // Include user-added services (filter empty endpoints except OASF which may be metadata-only)
+  const validServices = agent.services.filter(s => s.endpoint.trim() || s.name === 'OASF');
+
+  // Merge agent-level skills/domains into existing OASF service
+  let hasOASF = false;
+  const enrichedServices = validServices.map(s => {
+    if (s.name === 'OASF') {
+      hasOASF = true;
+      return {
+        ...s,
+        skills: Array.from(new Set([...(s.skills || []), ...(agent.skills || [])])),
+        domains: Array.from(new Set([...(s.domains || []), ...(agent.domains || [])])),
+      };
+    }
+    return s;
+  });
+
+  // Auto-create OASF service for skills/domains if none exists
+  if (!hasOASF && (agent.skills?.length || agent.domains?.length)) {
+    enrichedServices.push({
+      name: 'OASF',
+      endpoint: '',
+      version: '0.8.0',
+      skills: agent.skills || [],
+      domains: agent.domains || [],
+    });
+  }
+
+  // Fix OASF version: ensure semver format (IA026)
+  for (const s of enrichedServices) {
+    if (s.name === 'OASF' && s.version && !/^\d+\.\d+/.test(s.version)) {
+      s.version = '0.8.0';
+    }
+  }
+
   return {
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: agent.name,
     description: agent.description,
-    image: onChainImage || agent.image,
-    services: agent.services,
-    active: agent.services.length > 0,
+    image: agent.image,
+    services: enrichedServices,
+    active: enrichedServices.some(s => s.endpoint.trim() !== ''),
+    x402Support: agent.x402Support ?? false,
+    supportedTrust: agent.supportedTrust?.length ? agent.supportedTrust : undefined,
   };
 }
 

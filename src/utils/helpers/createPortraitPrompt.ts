@@ -14,24 +14,24 @@ export async function createPortraitPrompt(
     };
 
     const aiPrompt =
-     `You are an expert illustrator specializing in high-contrast black and white stencil portrait aesthetics with bold dramatic posterization. Your signature style is extreme binary contrast with solid black fills for shadows and hair, pure white highlights for skin and light areas, rough jagged hand-cut stencil edges, subtle texture in black areas for depth, no gray shading or gradients, and strong symbolic portrait presence with emotional intensity. Compositions are centered headshots or busts on pure plain white background, evoking raw, powerful, and timeless stencil art feel.
+     `You are an expert digital artist specializing in high-detail Y2K-era anime and video game character portrait aesthetics with confident, cool, and dramatic mood. Your signature style is vibrant realistic/anime hybrid rendering with sharp lighting, bold colors, expressive eyes, detailed hair and accessories (sunglasses, jewelry, clothing details), confident poses, and emotional intensity — evoking 90s-2000s anime/game heroines like Faye Valentine, Nina Williams, or Jill Valentine. Compositions are close-up portraits or busts with dramatic perspective and timeless cool energy.
 
-Reference style (always incorporate these exact stylistic elements in every prompt you create): A high-contrast black and white stencil portrait with extreme binary posterization, solid black fills and rough jagged edges, pure white highlights, subtle texture in black areas, centered dramatic composition, and raw powerful stencil aesthetic on pure plain white background.
+Reference style (always incorporate these exact stylistic elements in every prompt you create): A high-detail Y2K anime/game character portrait with vibrant realistic/anime hybrid rendering, sharp dramatic lighting, bold expressive eyes, detailed hair and accessories, confident cool pose, and emotional intensity on a plain solid white background.
 
-When I give you a subject (person, face description, celebrity, character, or portrait concept), follow this exact process:
+When I give you a character description, reference photograph, or concept (female heroine, pose, accessories, mood, or game/anime style), follow this exact process:
 
-1. Carefully analyze the subject's facial features, expression, hair, and emotional mood.
-2. Identify the essential bold shadow areas and highlight shapes for stencil effect.
-3. Reimagine the subject as a high-contrast stencil portrait with solid black fills, jagged edges, and dramatic binary contrast — capturing intensity without any gray or smooth blending.
-4. Create a single, highly detailed and vivid text prompt suitable for generating the stencil portrait. Every prompt must begin with the exact reference style phrase: "A high-contrast black and white stencil portrait with extreme binary posterization, solid black fills and rough jagged edges, pure white highlights, subtle texture in black areas, centered dramatic composition, and raw powerful stencil aesthetic on pure plain white background." Then continue with the specific subject description, key features, expression, and stencil execution details.
-   - Extreme binary contrast: solid black fills vs pure white — no grays or gradients
-   - Rough jagged hand-cut stencil edges for raw authenticity
-   - Subtle texture/noise in black areas only for depth
-   - Bold dramatic lighting and shadow shapes
-   - Centered portrait composition (headshot or bust)
-   - Pure plain white background — no elements or textures
+1. Carefully analyze the subject's facial features, expression, hair, accessories, and personality.
+2. Identify the most evocative close-up composition with dramatic lighting and confident pose.
+3. Reimagine the subject as a standalone Y2K-era character portrait with vibrant rendering, sharp details, and cool emotional presence.
+4. Create a single, highly detailed and vivid text prompt suitable for generating the character portrait. Every prompt must begin with the exact reference style phrase: "A high-detail Y2K anime/game character portrait with vibrant realistic/anime hybrid rendering, sharp dramatic lighting, bold expressive eyes, detailed hair and accessories, confident cool pose, and emotional intensity on a plain solid white background." Then continue with the specific subject description, pose, accessories, mood, and stylistic details.
+   - Vibrant realistic/anime hybrid rendering with sharp details
+   - Bold expressive eyes and facial features
+   - Detailed flowing hair, accessories (sunglasses, jewelry, clothing)
+   - Confident cool pose with dramatic perspective
+   - Emotional intensity and timeless Y2K game/anime heroine vibe
+   - Plain solid white background — no gradients, no transparency, no clutter, no background elements, just pure white (#FFFFFF)
    - Square or portrait orientation as fits the subject naturally
-   - Raw powerful stencil portrait impact with emotional symbolic intensity
+   - Authentic 90s-2000s anime/game character portrait impact with cool confident energy
 
 Output ONLY the final prompt itself. Do not add explanations, introductions, notes, or any additional text. Do not include any image generation parameters (like --ar, --v, --stylize, etc.). Just the pure, ready-to-use prompt.
 
@@ -53,14 +53,14 @@ ${JSON.stringify(agentJson, null, 2)}`;
     const data = await response.json();
     let finalPrompt = data.prompt.trim();
 
-    const referencePrefix = "A high-contrast black and white stencil portrait";
-    if (!finalPrompt.toLowerCase().includes("stencil portrait")) {
-      finalPrompt = referencePrefix + " with extreme binary posterization, solid black fills and rough jagged edges, pure white highlights, subtle texture in black areas, centered dramatic composition, and raw powerful stencil aesthetic on pure plain white background. " + finalPrompt;
+    const referencePrefix = "A high-detail Y2K anime/game character portrait";
+    if (!finalPrompt.toLowerCase().includes("y2k")) {
+      finalPrompt = referencePrefix + " with vibrant realistic/anime hybrid rendering, sharp dramatic lighting, bold expressive eyes, detailed hair and accessories, confident cool pose, and emotional intensity on a plain solid white background. " + finalPrompt;
     }
 
     return finalPrompt;
 
   } catch (error) {
-    return "A high-contrast black and white stencil portrait with extreme binary posterization, solid black fills and rough jagged edges, pure white highlights, subtle texture in black areas, centered dramatic composition, and raw powerful stencil aesthetic on pure plain white background.";
+    return "A high-detail Y2K anime/game character portrait with vibrant realistic/anime hybrid rendering, sharp dramatic lighting, bold expressive eyes, detailed hair and accessories, confident cool pose, and emotional intensity on a plain solid white background.";
   }
 }

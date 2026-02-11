@@ -23,7 +23,7 @@ export const generateAgentSchema = z.object({
 
 export const fetchAgentSchema = z.object({
   chain: z.enum([
-    'ethereum', 'base', 'polygon', 'arbitrum',
+    'ethereum', 'base', 'base-sepolia', 'polygon', 'arbitrum',
     'celo', 'gnosis', 'scroll', 'taiko', 'bsc',
   ]),
   agentId: z.number().int().positive('Agent ID must be a positive integer'),
