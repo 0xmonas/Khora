@@ -30,7 +30,7 @@
  │  │   • Supported Trust               │  │
  │  ├────────────────────────────────────┤  │
  │  │        [ MINT ]                    │  │
- │  │   0 minted / 0.001 ETH            │  │
+ │  │   0 minted / 0.0001 ETH           │  │
  │  └────────────────────────────────────┘  │
  └──────────────────┬───────────────────────┘
                     │
@@ -74,15 +74,33 @@
         │                     │                         │
         │                     ▼                         │
         │  ┌─────────────────────────────────────────┐  │
+        │  │ /api/generate-prompt                    │  │
+        │  │   input:  agent JSON as user content    │  │
+        │  │   config: systemInstruction (khora      │  │
+        │  │           LoRA concise subject desc.)   │  │
+        │  │   rules:  always start with "A bust     │  │
+        │  │           portrait of", always end      │  │
+        │  │           with "white background"       │  │
+        │  │   output: portrait prompt text          │  │
+        │  └──────────────────┬──────────────────────┘  │
+        │                     │                         │
+        │                     ▼                         │
+        │  ┌─────────────────────────────────────────┐  │
         │  │ /api/generate-image                     │  │
-        │  │   input:  portrait prompt from agent    │  │
+        │  │   input:  portrait prompt from above    │  │
+        │  │   model:  replicate 0xmonas/khora LoRA  │  │
+        │  │   params: 1:1 aspect, 28 steps,         │  │
+        │  │           guidance 3, lora_scale 1       │  │
         │  │   output: base64 image                  │  │
         │  └──────────────────┬──────────────────────┘  │
         │                     │                         │
         │                     ▼                         │
         │  ┌─────────────────────────────────────────┐  │
         │  │ Client-side processing:                 │  │
-        │  │   • Pixelate image (24x24 → upscaled)  │  │
+        │  │   • Downscale to 64x64                  │  │
+        │  │   • Bayer 4x4 ordered dither            │  │
+        │  │   • Quantize two-tone (#F5F5F5/#0A0A0A) │  │
+        │  │   • Upscale 16x to 1024x1024 (nearest)  │  │
         │  │   • Convert to SVG                      │  │
         │  │   • Minify SVG (must be < 24KB)         │  │
         │  │   • Encode traits as JSON bytes         │  │

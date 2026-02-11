@@ -34,6 +34,7 @@
     "png-chunks-extract": "^1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "replicate": "^1.4.0",
     "tailwind-merge": "^1.14.0",
     "tailwind-scrollbar": "^3.1.0",
     "viem": "^2.45.2",
