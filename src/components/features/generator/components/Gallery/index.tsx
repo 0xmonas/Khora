@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Download, FileCode, Image as ImageIcon, Archive, FileText, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ExternalLink, Download, FileCode, Image as ImageIcon, Archive, FileText, X, Search } from 'lucide-react';
 import { useChainId, useReadContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
@@ -326,6 +326,8 @@ export function Gallery() {
   const { tokens, isLoading, totalSupply, refetch } = useGalleryTokens();
   const { currentStep } = useGenerator();
   const [selectedToken, setSelectedToken] = useState<GalleryToken | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<'newest' | 'oldest' | 'mine'>('newest');
 
   // Refetch when a new token is minted
   useEffect(() => {
@@ -333,6 +335,31 @@ export function Gallery() {
       refetch();
     }
   }, [currentStep, refetch]);
+
+  const filteredTokens = useMemo(() => {
+    let result = [...tokens];
+
+    if (searchQuery.trim()) {
+      result = result.filter(t =>
+        t.tokenId.toString().includes(searchQuery.trim())
+      );
+    }
+
+    if (filter === 'mine') {
+      result = result.filter(t => t.isOwned);
+    }
+
+    if (filter === 'oldest') {
+      result.sort((a, b) => Number(a.tokenId - b.tokenId));
+    } else {
+      // newest and mine both sort newest first
+      result.sort((a, b) => Number(b.tokenId - a.tokenId));
+    }
+
+    return result;
+  }, [tokens, searchQuery, filter]);
+
+  const hasActiveFilter = searchQuery.trim() || filter === 'mine';
 
   return (
     <div
@@ -352,7 +379,7 @@ export function Gallery() {
           </button>
         ) : (
           <span className="text-sm font-mono tracking-tight dark:text-white">
-            collection ({totalSupply})
+            collection ({hasActiveFilter ? `${filteredTokens.length}/` : ''}{totalSupply})
           </span>
         )}
       </div>
@@ -363,27 +390,60 @@ export function Gallery() {
           <TokenDetail token={selectedToken} />
         </div>
       ) : (
-        <CustomScrollArea className="h-[calc(100%-40px)]">
-          {isLoading ? (
-            <GallerySkeleton />
-          ) : tokens.length === 0 ? (
-            <div className="flex items-center justify-center h-full min-h-[200px]">
-              <p className="font-mono text-sm text-neutral-500">No agents minted yet</p>
+        <div className="h-[calc(100%-40px)] flex flex-col">
+          {/* Search & Filter bar */}
+          <div className="px-3 pt-2 pb-1 flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0 border-b border-neutral-300 dark:border-neutral-600">
+              <Search className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="search by id..."
+                className="w-full bg-transparent font-mono text-xs py-1 outline-none text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400"
+              />
             </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
-              {tokens.map((token) => (
-                <GalleryThumbnail
-                  key={token.tokenId.toString()}
-                  tokenId={token.tokenId}
-                  svg={token.svg}
-                  isOwned={token.isOwned}
-                  onClick={() => setSelectedToken(token)}
-                />
-              ))}
-            </div>
-          )}
-        </CustomScrollArea>
+            {(['newest', 'oldest', 'mine'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex-shrink-0 px-2 py-0.5 font-mono text-[10px] border transition-colors ${
+                  filter === f
+                    ? 'bg-neutral-800 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-800 dark:border-neutral-100'
+                    : 'bg-transparent text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-500'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          <CustomScrollArea className="flex-1 min-h-0">
+            {isLoading ? (
+              <GallerySkeleton />
+            ) : tokens.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[200px]">
+                <p className="font-mono text-sm text-neutral-500">No agents minted yet</p>
+              </div>
+            ) : filteredTokens.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[200px]">
+                <p className="font-mono text-sm text-neutral-500">No matching agents</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
+                {filteredTokens.map((token) => (
+                  <GalleryThumbnail
+                    key={token.tokenId.toString()}
+                    tokenId={token.tokenId}
+                    svg={token.svg}
+                    isOwned={token.isOwned}
+                    onClick={() => setSelectedToken(token)}
+                  />
+                ))}
+              </div>
+            )}
+          </CustomScrollArea>
+        </div>
       )}
     </div>
   );

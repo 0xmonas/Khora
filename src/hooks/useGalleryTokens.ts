@@ -112,8 +112,10 @@ export function useGalleryTokens() {
   const queryClient = useQueryClient();
 
   const refetchAll = useCallback(async () => {
-    // Invalidate all queries that involve this contract address
-    // wagmi v2 query keys contain BigInt values — use a safe serializer
+    // Force refetch totalSupply first so count updates
+    await refetchSupply();
+    // Then invalidate + force refetch all contract queries
+    // (tokenByIndex, balanceOf, tokenOfOwnerByIndex, getSVG)
     await queryClient.invalidateQueries({
       predicate: (query) => {
         const key = JSON.stringify(query.queryKey, (_k, v) =>
@@ -121,8 +123,8 @@ export function useGalleryTokens() {
         );
         return key.includes(contractAddress);
       },
+      refetchType: 'all',
     });
-    await refetchSupply();
   }, [queryClient, contractAddress, refetchSupply]);
 
   return {
