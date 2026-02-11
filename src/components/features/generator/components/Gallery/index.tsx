@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ExternalLink, Download, FileCode, Image as ImageIcon, Archive, FileText, X, Search } from 'lucide-react';
-import { useChainId, useReadContract } from 'wagmi';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ExternalLink, Download, FileCode, FileJson, Image as ImageIcon, Archive, FileText, X, Search } from 'lucide-react';
+import { useChainId, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
+import { decodeEventLog } from 'viem';
 import { base } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
 import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
@@ -10,6 +11,8 @@ import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+import { toERC8004 } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
 
 interface OnChainTrait {
@@ -59,6 +62,28 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
 }
 
+function TxHashLink({ hash, label, chainId }: { hash: `0x${string}`; label: string; chainId: number }) {
+  const isMainnet = chainId === base.id;
+  const explorerBase = isMainnet
+    ? 'https://basescan.org'
+    : 'https://sepolia.basescan.org';
+  const short = `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+
+  return (
+    <div className="flex justify-between font-mono text-[10px]">
+      <span className="text-neutral-500">{label}:</span>
+      <a
+        href={`${explorerBase}/tx/${hash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:underline"
+      >
+        {short}
+      </a>
+    </div>
+  );
+}
+
 // Build a KhoraAgent-like object from on-chain traits for downloads
 function traitsToAgent(traits: OnChainTrait[]): KhoraAgent {
   const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
@@ -81,7 +106,7 @@ function traitsToAgent(traits: OnChainTrait[]): KhoraAgent {
 async function downloadFormat(
   agent: KhoraAgent,
   svgString: string | null,
-  format: 'json' | 'openclaw' | 'png' | 'svg',
+  format: 'json' | 'erc8004' | 'openclaw' | 'png' | 'svg',
   onChainImage?: string,
 ) {
   const fileName = agent.name.toLowerCase().replace(/\s+/g, '-') || 'agent';
@@ -91,6 +116,11 @@ async function downloadFormat(
     const { image: _img, ...dataWithoutImage } = agent;
     const blob = new Blob([JSON.stringify(dataWithoutImage, null, 2)], { type: 'application/json' });
     downloadBlob(blob, `${fileName}.json`);
+  } else if (format === 'erc8004') {
+    const { toERC8004 } = await import('@/utils/helpers/exportFormats');
+    const registration = toERC8004(agent);
+    const blob = new Blob([JSON.stringify(registration, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `${fileName}-erc8004.json`);
   } else if (format === 'openclaw') {
     const { toOpenClawZip } = await import('@/utils/helpers/exportFormats');
     const zipBlob = await toOpenClawZip(agent, onChainImage);
@@ -114,6 +144,121 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   // Only fetch full metadata (Upstash) for owned tokens
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Registration state
+  const [registerStatus, setRegisterStatus] = useState<'idle' | 'registering' | 'success' | 'error' | 'already_registered'>('idle');
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
+  const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
+
+  // Check if this token is already registered on the Identity Registry
+  useEffect(() => {
+    if (!token.isOwned) return;
+    let cancelled = false;
+    fetch(`/api/agent-registry/${chainId}/${token.tokenId.toString()}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!cancelled && data?.registrations?.length > 0) {
+          setRegistryAgentId(BigInt(data.registrations[0].agentId));
+          setRegisterStatus('already_registered');
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token.isOwned, chainId, token.tokenId]);
+
+  const handleRegister = useCallback(async () => {
+    if (!token.isOwned || !publicClient) return;
+
+    setRegisterStatus('registering');
+    setRegisterError(null);
+    setRegisterTxHash(null);
+
+    try {
+      // Build agent from Upstash metadata or on-chain traits
+      const agent = metadata || traitsToAgent(traits);
+
+      // Build ERC-8004 registration JSON
+      const registration = toERC8004(agent);
+
+      // Fetch on-chain SVG and embed as data URI (WA005 fix)
+      if (token.svg) {
+        registration.image = `data:image/svg+xml;base64,${btoa(token.svg)}`;
+      }
+
+      // Strip empty endpoint from OASF (WA009 fix)
+      for (const svc of registration.services) {
+        if (svc.name === 'OASF' && !svc.endpoint.trim()) {
+          delete (svc as unknown as Record<string, unknown>).endpoint;
+        }
+      }
+
+      // Encode as on-chain data URI
+      const jsonStr = JSON.stringify(registration);
+      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+
+      // Register on Identity Registry
+      const registryAddress = getRegistryAddress(chainId);
+      const hash = await writeContractAsync({
+        address: registryAddress,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'register',
+        args: [agentURI],
+      });
+
+      setRegisterTxHash(hash);
+
+      // Wait for receipt
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      // Decode Registered event to get agentId
+      let registeredAgentId: bigint | null = null;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: IDENTITY_REGISTRY_ABI,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (decoded.eventName === 'Registered') {
+            registeredAgentId = (decoded.args as { agentId: bigint }).agentId;
+            break;
+          }
+        } catch { /* Not our event */ }
+      }
+
+      if (registeredAgentId === null) {
+        throw new Error('Could not find Registered event in transaction');
+      }
+
+      setRegistryAgentId(registeredAgentId);
+
+      // Save registry data to backend
+      try {
+        const address = receipt.from;
+        await fetch(`/api/agent-registry/${chainId}/${tokenId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address,
+            registryAgentId: Number(registeredAgentId),
+          }),
+        });
+      } catch { /* best effort */ }
+
+      setRegisterStatus('success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Registration failed';
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setRegisterStatus('idle');
+        return;
+      }
+      setRegisterError(msg.slice(0, 200));
+      setRegisterStatus('error');
+    }
+  }, [token.isOwned, token.svg, publicClient, metadata, traits, chainId, tokenId, writeContractAsync]);
 
   // Close lightbox on Escape
   useEffect(() => {
@@ -266,6 +411,13 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 <FileCode className="w-3.5 h-3.5 dark:text-white" />
               </button>
               <button
+                onClick={() => downloadFormat(metadata || traitsToAgent(traits), token.svg, 'erc8004')}
+                className={iconBtn}
+                title="ERC-8004"
+              >
+                <FileJson className="w-3.5 h-3.5 dark:text-white" />
+              </button>
+              <button
                 onClick={() => {
                   const chainPrefix = isMainnet ? '8453' : '84532';
                   const imgRef = `eip155:${chainPrefix}/erc721:${contract}/${tokenId}`;
@@ -297,6 +449,86 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Register on Agent Protocol — only for owned tokens */}
+        {token.isOwned && registerStatus === 'already_registered' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+            {registryAgentId !== null && (
+              <div className="flex justify-between font-mono text-[10px]">
+                <span className="text-neutral-500">Registry ID:</span>
+                <span className="dark:text-white">#{registryAgentId.toString()}</span>
+              </div>
+            )}
+            <p className="font-mono text-xs text-green-600 dark:text-green-400">
+              Registered on ERC-8004 protocol.
+            </p>
+          </div>
+        )}
+
+        {token.isOwned && registerStatus === 'idle' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
+            <button
+              onClick={handleRegister}
+              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
+            >
+              REGISTER ON AGENT PROTOCOL
+            </button>
+            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1">
+              gas only, no fee
+            </p>
+          </div>
+        )}
+
+        {token.isOwned && registerStatus === 'registering' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+            <button
+              disabled
+              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-100 dark:bg-neutral-800 dark:text-white font-mono text-xs cursor-not-allowed opacity-70"
+            >
+              REGISTERING...
+            </button>
+            {registerTxHash && (
+              <TxHashLink hash={registerTxHash} label="Register tx" chainId={chainId} />
+            )}
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
+              <span className="font-mono text-[10px] text-neutral-500">Waiting for confirmation...</span>
+            </div>
+          </div>
+        )}
+
+        {token.isOwned && registerStatus === 'success' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+            {registryAgentId !== null && (
+              <div className="flex justify-between font-mono text-[10px]">
+                <span className="text-neutral-500">Registry ID:</span>
+                <span className="dark:text-white">#{registryAgentId.toString()}</span>
+              </div>
+            )}
+            {registerTxHash && (
+              <TxHashLink hash={registerTxHash} label="Register tx" chainId={chainId} />
+            )}
+            <p className="font-mono text-xs text-green-600 dark:text-green-400">
+              Agent registered on ERC-8004 protocol.
+            </p>
+          </div>
+        )}
+
+        {token.isOwned && registerStatus === 'error' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+            {registerError && (
+              <div className="border border-red-500 p-2">
+                <p className="font-mono text-[10px] text-red-500">{registerError}</p>
+              </div>
+            )}
+            <button
+              onClick={handleRegister}
+              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
+            >
+              RETRY REGISTER
+            </button>
           </div>
         )}
       </div>

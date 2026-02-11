@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CHAIN_CONFIG, IDENTITY_REGISTRY_ADDRESS } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
+import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+
+// Testnet chains use the testnet registry address
+const TESTNET_CHAINS: SupportedChain[] = ['base-sepolia'];
+
+function getRegistryForChain(chain: SupportedChain): `0x${string}` {
+  return TESTNET_CHAINS.includes(chain) ? IDENTITY_REGISTRY_TESTNET : IDENTITY_REGISTRY_MAINNET;
+}
 
 export const maxDuration = 30;
 
@@ -38,7 +46,7 @@ const REGISTRY_ABI = [
  * Tolerates gaps (burned tokens) via allowFailure.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function findMaxTokenId(client: any): Promise<number> {
+async function findMaxTokenId(client: any, registryAddress: `0x${string}`): Promise<number> {
   const MAX_CEILING = 100_000;
   const COARSE_STEP = 1000;
 
@@ -49,7 +57,7 @@ async function findMaxTokenId(client: any): Promise<number> {
   }
 
   const coarseContracts = coarseIds.map((id) => ({
-    address: IDENTITY_REGISTRY_ADDRESS as `0x${string}`,
+    address: registryAddress,
     abi: REGISTRY_ABI,
     functionName: 'ownerOf' as const,
     args: [BigInt(id)],
@@ -73,7 +81,7 @@ async function findMaxTokenId(client: any): Promise<number> {
     const smallContracts = [];
     for (let id = 1; id <= COARSE_STEP; id++) {
       smallContracts.push({
-        address: IDENTITY_REGISTRY_ADDRESS as `0x${string}`,
+        address: registryAddress,
         abi: REGISTRY_ABI,
         functionName: 'ownerOf' as const,
         args: [BigInt(id)],
@@ -97,7 +105,7 @@ async function findMaxTokenId(client: any): Promise<number> {
   const denseContracts = [];
   for (let id = denseStart; id <= denseEnd; id++) {
     denseContracts.push({
-      address: IDENTITY_REGISTRY_ADDRESS as `0x${string}`,
+      address: registryAddress,
       abi: REGISTRY_ABI,
       functionName: 'ownerOf' as const,
       args: [BigInt(id)],
@@ -120,13 +128,26 @@ async function findMaxTokenId(client: any): Promise<number> {
   return maxId;
 }
 
-/** Extract agent name from a data URI. Returns null for HTTP/IPFS URIs. */
+/** Extract agent name from a data URI or by fetching an HTTP agentURI. */
 function extractNameFromDataURI(uri: string): string | null {
   if (!uri.startsWith('data:')) return null;
   try {
     const base64 = uri.split(',')[1];
     const json = Buffer.from(base64, 'base64').toString('utf-8');
     return JSON.parse(json).name || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch agent name from an HTTP agentURI (ERC-8004 registration JSON). */
+async function fetchNameFromHTTP(uri: string): Promise<string | null> {
+  if (!uri.startsWith('http://') && !uri.startsWith('https://')) return null;
+  try {
+    const res = await fetch(uri, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.name || null;
   } catch {
     return null;
   }
@@ -139,6 +160,7 @@ function extractNameFromDataURI(uri: string): string | null {
 async function scanOwnedTokenIds(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any,
+  registryAddress: `0x${string}`,
   maxTokenId: number,
   targetAddress: string,
   expectedBalance: number,
@@ -163,7 +185,7 @@ async function scanOwnedTokenIds(
         const contracts = [];
         for (let id = start; id <= end; id++) {
           contracts.push({
-            address: IDENTITY_REGISTRY_ADDRESS as `0x${string}`,
+            address: registryAddress,
             abi: REGISTRY_ABI,
             functionName: 'ownerOf' as const,
             args: [BigInt(id)],
@@ -202,6 +224,7 @@ async function discoverOnChain(
   address: string,
 ): Promise<{ agents: DiscoveredAgent[]; error?: string }> {
   const config = CHAIN_CONFIG[chain];
+  const registryAddress = getRegistryForChain(chain);
   const { createPublicClient, http, fallback } = await import('viem');
   const client = createPublicClient({
     transport: fallback(config.rpcUrls.map((url) => http(url))),
@@ -209,7 +232,7 @@ async function discoverOnChain(
   try {
     // Step 1: Quick balance check — skip chain if 0
     const balance = await client.readContract({
-      address: IDENTITY_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: REGISTRY_ABI,
       functionName: 'balanceOf',
       args: [address as `0x${string}`],
@@ -221,16 +244,16 @@ async function discoverOnChain(
     }
 
     // Step 2: Find max tokenId via multicall probe
-    const maxTokenId = await findMaxTokenId(client);
+    const maxTokenId = await findMaxTokenId(client, registryAddress);
     if (maxTokenId === 0) return { agents: [] };
 
     // Step 3: Parallel multicall scan with early termination
-    const ownedIds = await scanOwnedTokenIds(client, maxTokenId, address, expectedBalance);
+    const ownedIds = await scanOwnedTokenIds(client, registryAddress, maxTokenId, address, expectedBalance);
     if (ownedIds.length === 0) return { agents: [] };
 
     // Step 4: Batch tokenURI for owned tokens
     const uriContracts = ownedIds.map((id) => ({
-      address: IDENTITY_REGISTRY_ADDRESS as `0x${string}`,
+      address: registryAddress,
       abi: REGISTRY_ABI,
       functionName: 'tokenURI' as const,
       args: [BigInt(id)],
@@ -242,17 +265,21 @@ async function discoverOnChain(
       allowFailure: true,
     });
 
-    const agents: DiscoveredAgent[] = [];
-    uriResults.forEach((result: { status: string; result?: string }, index: number) => {
-      const tokenId = ownedIds[index];
-      if (result.status === 'success') {
-        const uri = (result.result as string) || '';
-        const hasMetadata = !!uri;
-        agents.push({ chain, chainName: config.name, tokenId, name: uri ? extractNameFromDataURI(uri) : null, hasMetadata });
-      } else {
-        agents.push({ chain, chainName: config.name, tokenId, name: null, hasMetadata: false });
-      }
-    });
+    const agents: DiscoveredAgent[] = await Promise.all(
+      uriResults.map(async (result: { status: string; result?: string }, index: number) => {
+        const tokenId = ownedIds[index];
+        if (result.status === 'success') {
+          const uri = (result.result as string) || '';
+          const hasMetadata = !!uri;
+          // Try data URI first, then HTTP fetch
+          const name = uri
+            ? (extractNameFromDataURI(uri) ?? await fetchNameFromHTTP(uri))
+            : null;
+          return { chain, chainName: config.name, tokenId, name, hasMetadata };
+        }
+        return { chain, chainName: config.name, tokenId, name: null, hasMetadata: false };
+      }),
+    );
 
     return { agents };
   } catch (error) {

@@ -38,6 +38,8 @@ function getStepStatuses(
     case 'reveal_failed':
       return ['done', 'done', 'error', 'pending'];
     case 'complete':
+    case 'registering':
+    case 'register_complete':
       return ['done', 'done', 'done', 'done'];
     default:
       return ['pending', 'pending', 'pending', 'pending'];
@@ -120,10 +122,15 @@ function StepContent() {
     triggerReveal,
     retryReveal,
     regenerateForReveal,
+    registerAgent,
+    registryAgentId,
+    registerTxHash,
     hasRevealData,
     error,
     commitTxHash,
     revealTxHash,
+    mode,
+    importedRegistryTokenId,
   } = useGenerator();
 
   const imageToShow = pixelatedImage || generatedImage;
@@ -265,7 +272,7 @@ function StepContent() {
     );
   }
 
-  // Step 4: Complete
+  // Step 4: Complete — with optional registration
   if (currentStep === 'complete') {
     return (
       <div className="space-y-3">
@@ -290,6 +297,92 @@ function StepContent() {
         <p className="font-mono text-xs text-green-600 dark:text-green-400">
           Agent minted successfully.
         </p>
+
+        {/* Agent Registration CTA */}
+        <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+          <button
+            onClick={registerAgent}
+            className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
+          >
+            {mode === 'import' && importedRegistryTokenId
+              ? 'UPDATE AGENT ON PROTOCOL'
+              : 'REGISTER ON AGENT PROTOCOL'}
+          </button>
+          <p className="font-mono text-[10px] text-neutral-400 text-center">
+            {mode === 'import' && importedRegistryTokenId
+              ? `updates your existing registry agent #${importedRegistryTokenId}`
+              : 'optional — gas only, no fee'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Registering: waiting for wallet + tx confirmation
+  if (currentStep === 'registering') {
+    return (
+      <div className="space-y-3">
+        {imageToShow && (
+          <div className="w-full aspect-square max-h-48 border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-white dark:bg-neutral-900">
+            <img
+              src={imageToShow}
+              alt="Minted agent"
+              className="max-w-full max-h-full object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+        )}
+        <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+          {mode === 'import' && importedRegistryTokenId
+            ? 'Updating agent on Identity Registry...'
+            : 'Registering agent on Identity Registry...'}
+        </p>
+        {registerTxHash && <TxHashLink hash={registerTxHash} label={mode === 'import' ? 'Update tx' : 'Register tx'} />}
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
+          <span className="font-mono text-xs text-neutral-500">Waiting for confirmation...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Register complete
+  if (currentStep === 'register_complete') {
+    return (
+      <div className="space-y-3">
+        {imageToShow && (
+          <div className="w-full aspect-square max-h-48 border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-white dark:bg-neutral-900">
+            <img
+              src={imageToShow}
+              alt="Registered agent"
+              className="max-w-full max-h-full object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+        )}
+        {mintedTokenId !== null && (
+          <div className="flex justify-between font-mono text-xs">
+            <span className="text-neutral-500">Token ID:</span>
+            <span className="dark:text-white">#{mintedTokenId.toString()}</span>
+          </div>
+        )}
+        {registryAgentId !== null && (
+          <div className="flex justify-between font-mono text-xs">
+            <span className="text-neutral-500">Registry ID:</span>
+            <span className="dark:text-white">#{registryAgentId.toString()}</span>
+          </div>
+        )}
+        {registerTxHash && <TxHashLink hash={registerTxHash} label={mode === 'import' ? 'Update tx' : 'Register tx'} />}
+        <p className="font-mono text-xs text-green-600 dark:text-green-400">
+          {mode === 'import' && importedRegistryTokenId
+            ? 'Agent updated on ERC-8004 protocol.'
+            : 'Agent registered on ERC-8004 protocol.'}
+        </p>
+        <p className="font-mono text-[10px] text-neutral-400">
+          {mode === 'import' && importedRegistryTokenId
+            ? 'Your agent metadata has been updated on-chain.'
+            : 'Your agent is now discoverable on the agent protocol.'}
+        </p>
       </div>
     );
   }
@@ -304,9 +397,9 @@ export function MintFlowModal() {
   const [countdown, setCountdown] = useState(AUTO_CLOSE_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Auto-close countdown when mint is complete
+  // Auto-close countdown only after registration/update is complete
   useEffect(() => {
-    if (currentStep === 'complete' && isModalOpen) {
+    if (currentStep === 'register_complete' && isModalOpen) {
       setCountdown(AUTO_CLOSE_SECONDS);
       timerRef.current = setInterval(() => {
         setCountdown(prev => {
@@ -330,7 +423,7 @@ export function MintFlowModal() {
 
   // Close modal when countdown reaches 0
   useEffect(() => {
-    if (countdown === 0 && currentStep === 'complete' && isModalOpen) {
+    if (countdown === 0 && currentStep === 'register_complete' && isModalOpen) {
       closeModal();
     }
   }, [countdown, currentStep, isModalOpen, closeModal]);
@@ -338,7 +431,7 @@ export function MintFlowModal() {
   const statuses = getStepStatuses(currentStep);
 
   // Modal can only be closed in safe states
-  const canClose = currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed';
+  const canClose = currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed';
 
   const handleOpenChange = (open: boolean) => {
     if (!open && canClose) {
@@ -394,7 +487,7 @@ export function MintFlowModal() {
           <StepContent />
 
           {/* Auto-close countdown */}
-          {currentStep === 'complete' && countdown > 0 && (
+          {currentStep === 'register_complete' && countdown > 0 && (
             <p className="font-mono text-[10px] text-neutral-400 text-center">
               closing in {countdown}s
             </p>

@@ -11,11 +11,15 @@ export interface KhoraAgent {
   domains: string[];
   services: AgentService[];
   image: string; // base64 data URI (pixel art PFP)
+  // ERC-8004 registration config (user-provided, optional)
+  x402Support?: boolean;
+  supportedTrust?: string[];
 }
 
 export interface AgentService {
   name: string;
   endpoint: string;
+  version?: string;
   skills?: string[];
   domains?: string[];
 }
@@ -35,7 +39,7 @@ export interface ERC8004Registration {
 
 // Supported chains for ERC-8004 Identity Registry
 export type SupportedChain =
-  | 'ethereum' | 'base' | 'polygon' | 'arbitrum'
+  | 'ethereum' | 'base' | 'base-sepolia' | 'polygon' | 'arbitrum'
   | 'celo' | 'gnosis' | 'scroll' | 'taiko' | 'bsc';
 
 export interface ChainInfo {
@@ -48,6 +52,7 @@ export interface ChainInfo {
 export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
   ethereum: { chainId: 1, name: 'Ethereum', rpcUrl: 'https://ethereum-rpc.publicnode.com', rpcUrls: ['https://ethereum-rpc.publicnode.com', 'https://rpc.ankr.com/eth', 'https://1rpc.io/eth'] },
   base: { chainId: 8453, name: 'Base', rpcUrl: 'https://base-rpc.publicnode.com', rpcUrls: ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://1rpc.io/base'] },
+  'base-sepolia': { chainId: 84532, name: 'Base Sepolia', rpcUrl: 'https://sepolia.base.org', rpcUrls: ['https://sepolia.base.org', 'https://base-sepolia-rpc.publicnode.com'] },
   polygon: { chainId: 137, name: 'Polygon', rpcUrl: 'https://1rpc.io/matic', rpcUrls: ['https://1rpc.io/matic', 'https://polygon-bor-rpc.publicnode.com', 'https://rpc.ankr.com/polygon'] },
   arbitrum: { chainId: 42161, name: 'Arbitrum', rpcUrl: 'https://arbitrum-one-rpc.publicnode.com', rpcUrls: ['https://arbitrum-one-rpc.publicnode.com', 'https://arb1.arbitrum.io/rpc', 'https://1rpc.io/arb'] },
   celo: { chainId: 42220, name: 'Celo', rpcUrl: 'https://celo-rpc.publicnode.com', rpcUrls: ['https://celo-rpc.publicnode.com', 'https://1rpc.io/celo', 'https://rpc.ankr.com/celo'] },

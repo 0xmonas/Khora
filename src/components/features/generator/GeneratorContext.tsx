@@ -6,10 +6,15 @@ import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { sanitizeSvgBytes, validateSvgForContract } from '@/utils/helpers/svgMinifier';
-import type { KhoraAgent, SupportedChain } from '@/types/agent';
+import { useWriteContract, usePublicClient } from 'wagmi';
+import { decodeEventLog } from 'viem';
+import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
+import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { BOOA_NFT_ABI } from '@/lib/contracts/booa';
+import { toERC8004 } from '@/utils/helpers/exportFormats';
 
 export type Mode = 'create' | 'import';
-export type Step = 'input' | 'committing' | 'generating' | 'ready_to_reveal' | 'revealing' | 'reveal_failed' | 'complete';
+export type Step = 'input' | 'committing' | 'generating' | 'ready_to_reveal' | 'revealing' | 'reveal_failed' | 'complete' | 'registering' | 'register_complete';
 
 type GeneratorContextType = {
   mode: Mode;
@@ -39,6 +44,22 @@ type GeneratorContextType = {
   contractAddress: `0x${string}`;
   commitTxHash: `0x${string}` | undefined;
   revealTxHash: `0x${string}` | undefined;
+  // ERC-8004 config
+  erc8004Services: AgentService[];
+  setErc8004Services: (s: AgentService[]) => void;
+  x402Support: boolean;
+  setX402Support: (v: boolean) => void;
+  supportedTrust: string[];
+  setSupportedTrust: (t: string[]) => void;
+  selectedSkills: string[];
+  setSelectedSkills: (s: string[]) => void;
+  selectedDomains: string[];
+  setSelectedDomains: (d: string[]) => void;
+  // Agent registration (ERC-8004 Identity Registry)
+  importedRegistryTokenId: number | null;
+  setImportedRegistryTokenId: (id: number | null) => void;
+  registryAgentId: bigint | null;
+  registerTxHash: `0x${string}` | null;
   // Modal
   isModalOpen: boolean;
   hasRevealData: boolean;
@@ -47,6 +68,7 @@ type GeneratorContextType = {
   triggerReveal: () => void;
   retryReveal: () => void;
   regenerateForReveal: () => void;
+  registerAgent: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
   closeModal: () => void;
@@ -125,6 +147,20 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [imageLoading, setImageLoading] = useState(false);
   const [mintedTokenId, setMintedTokenId] = useState<bigint | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ERC-8004 config state
+  const [erc8004Services, setErc8004Services] = useState<AgentService[]>([]);
+  const [x402Support, setX402Support] = useState(false);
+  const [supportedTrust, setSupportedTrust] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
+
+  // Agent registration state (Identity Registry)
+  const [importedRegistryTokenId, setImportedRegistryTokenId] = useState<number | null>(null);
+  const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
+  const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
+
+  const publicClient = usePublicClient();
 
   // Track whether we're in an active mint-generate flow
   const isFlowActive = useRef(false);
@@ -357,42 +393,53 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (!agentResponse.ok || agentResult.error) throw new Error(agentResult.error || 'Failed to generate agent');
         agentData = agentResult.agent;
       } else {
-        const fetchResponse = await fetch('/api/fetch-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chain: selectedChain, agentId: parseInt(agentId) }),
-        });
-        const fetchResult = await fetchResponse.json();
-        if (!fetchResponse.ok || fetchResult.error) throw new Error(fetchResult.error || 'Failed to fetch agent');
-
-        const registration = fetchResult.registration;
-        const allSkills: string[] = [];
-        const allDomains: string[] = [];
-        const services = registration.services || registration.endpoints || [];
-        for (const svc of services) {
-          if (svc.skills) allSkills.push(...svc.skills);
-          if (svc.domains) allDomains.push(...svc.domains);
-        }
-
+        // Import mode: use pre-filled form values (name/desc/skills/domains from selection)
+        // Enrich with AI to generate creature, vibe, emoji, personality, boundaries
         const enrichResponse = await fetch('/api/enrich-agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: registration.name,
-            description: registration.description || '',
-            skills: Array.from(new Set(allSkills)),
-            domains: Array.from(new Set(allDomains)),
+            name: agentName.trim(),
+            description: agentDescription.trim(),
+            skills: [...selectedSkills],
+            domains: [...selectedDomains],
           }),
         });
         const enrichResult = await enrichResponse.json();
         if (!enrichResponse.ok || enrichResult.error) throw new Error(enrichResult.error || 'Failed to enrich agent');
         agentData = enrichResult.agent;
-        agentData.services = registration.services || registration.endpoints || [];
+        // Keep the user's current services from form (already pre-filled at selection)
+        agentData.services = [...erc8004Services];
       }
 
       // Generate PFP
       const imageUrl = await generateImageFromAgent(agentData);
-      const finalAgent: KhoraAgent = { ...agentData, image: imageUrl };
+      // Clean services: remove empty endpoints, strip OASF fields from non-OASF
+      const cleanedServices = erc8004Services
+        .filter(s => s.endpoint.trim())
+        .map(s => {
+          if (s.name !== 'OASF') {
+            const { skills: _s, domains: _d, ...rest } = s;
+            return rest;
+          }
+          return s;
+        });
+
+      // Merge AI-generated skills/domains with user-selected taxonomy picks
+      const mergedSkills = Array.from(new Set([...(agentData.skills || []), ...selectedSkills]));
+      const mergedDomains = Array.from(new Set([...(agentData.domains || []), ...selectedDomains]));
+      setSelectedSkills(mergedSkills);
+      setSelectedDomains(mergedDomains);
+
+      const finalAgent: KhoraAgent = {
+        ...agentData,
+        image: imageUrl,
+        services: cleanedServices,
+        skills: mergedSkills,
+        domains: mergedDomains,
+        x402Support,
+        supportedTrust,
+      };
       setAgent(finalAgent);
       stopProgressBar();
 
@@ -544,6 +591,153 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, mode, agentName, agentDescription]);
 
+  // ── Register agent on Identity Registry ──
+  const { writeContractAsync: writeRegister } = useWriteContract();
+
+  const registerAgent = useCallback(async () => {
+    if (!mintedTokenId || !commitReveal.address || !agent) {
+      setError('Missing mint data for registration');
+      return;
+    }
+
+    setError(null);
+    setCurrentStep('registering');
+
+    try {
+      const chainId = commitReveal.chainId;
+      const registryAddress = getRegistryAddress(chainId);
+      const booaTokenId = Number(mintedTokenId);
+
+      // Build ERC-8004 registration JSON
+      const registration = toERC8004(agent);
+
+      // Fetch on-chain SVG from BOOA NFT and embed as data URI (WA005 fix)
+      if (!publicClient) throw new Error('No public client');
+      const booaContract = (chainId === 8453
+        ? process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS
+        : process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET) as `0x${string}`;
+      if (booaContract) {
+        try {
+          const svgString = await publicClient.readContract({
+            address: booaContract,
+            abi: BOOA_NFT_ABI,
+            functionName: 'getSVG',
+            args: [mintedTokenId],
+          }) as string;
+          if (svgString) {
+            registration.image = `data:image/svg+xml;base64,${btoa(svgString)}`;
+          }
+        } catch {
+          // Fallback: leave image as-is from toERC8004 (base64 pixel art)
+        }
+      }
+
+      // Strip empty endpoint field from metadata-only OASF services (WA009 fix)
+      for (const svc of registration.services) {
+        if (svc.name === 'OASF' && !svc.endpoint.trim()) {
+          delete (svc as unknown as Record<string, unknown>).endpoint;
+        }
+      }
+
+      // Add registrations array for bidirectional linking (IA004 fix)
+      // For import mode, we know the agentId upfront; for create mode, we set it to null
+      // (will be filled after registration when agentId is known)
+      const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      if (mode === 'import' && importedRegistryTokenId) {
+        registration.registrations = [{
+          agentId: importedRegistryTokenId,
+          agentRegistry: `eip155:${chainId}:${registryAddr}`,
+        }];
+      }
+
+      // Encode as on-chain data URI — fully self-contained, no API dependency
+      const jsonStr = JSON.stringify(registration);
+      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+
+      let hash: `0x${string}`;
+
+      if (mode === 'import' && importedRegistryTokenId) {
+        // UPDATE existing agent via setAgentURI
+        hash = await writeRegister({
+          address: registryAddress,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'setAgentURI',
+          args: [BigInt(importedRegistryTokenId), agentURI],
+        });
+      } else {
+        // REGISTER new agent
+        hash = await writeRegister({
+          address: registryAddress,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'register',
+          args: [agentURI],
+        });
+      }
+
+      setRegisterTxHash(hash);
+
+      // Wait for receipt via publicClient
+      if (!publicClient) throw new Error('No public client');
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      let finalAgentId: number;
+
+      if (mode === 'import' && importedRegistryTokenId) {
+        // setAgentURI doesn't mint a new token — use the existing ID
+        setRegistryAgentId(BigInt(importedRegistryTokenId));
+        finalAgentId = importedRegistryTokenId;
+      } else {
+        // Decode Registered event to get agentId
+        let registeredAgentId: bigint | null = null;
+        for (const log of receipt.logs) {
+          try {
+            const decoded = decodeEventLog({
+              abi: IDENTITY_REGISTRY_ABI,
+              data: log.data,
+              topics: log.topics,
+            });
+            if (decoded.eventName === 'Registered') {
+              registeredAgentId = (decoded.args as { agentId: bigint }).agentId;
+              break;
+            }
+          } catch {
+            // Not our event, skip
+          }
+        }
+
+        if (registeredAgentId === null) {
+          throw new Error('Could not find Registered event in transaction');
+        }
+
+        setRegistryAgentId(registeredAgentId);
+        finalAgentId = Number(registeredAgentId);
+      }
+
+      // Save registry data to backend (best effort)
+      try {
+        await fetch(`/api/agent-registry/${chainId}/${booaTokenId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: commitReveal.address,
+            registryAgentId: finalAgentId,
+          }),
+        });
+      } catch { /* best effort */ }
+
+      setCurrentStep('register_complete');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Registration failed';
+      // If user rejected, go back to complete (don't show error)
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setCurrentStep('complete');
+        return;
+      }
+      setError(msg.slice(0, 200));
+      setCurrentStep('complete');
+    }
+  }, [mintedTokenId, commitReveal.address, commitReveal.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient]);
+
   // ── Main action: MINT button ──
   const mintAndGenerate = useCallback(() => {
     if (mode === 'create') {
@@ -553,6 +747,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       if (!agentId.trim()) { setError('Agent ID is required'); return; }
       const parsed = parseInt(agentId);
       if (isNaN(parsed) || parsed <= 0) { setError('Agent ID must be a positive number'); return; }
+      if (!agentName.trim()) { setError('Agent name is required — select an agent or enter a name'); return; }
     }
 
     setError(null);
@@ -582,7 +777,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const closeModal = useCallback(() => {
-    if (currentStep === 'complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed') {
+    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed') {
       setIsModalOpen(false);
     }
   }, [currentStep]);
@@ -606,6 +801,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setMode('create');
     setMintedTokenId(null);
     setIsModalOpen(false);
+    setErc8004Services([]);
+    setX402Support(false);
+    setSupportedTrust([]);
+    setSelectedSkills([]);
+    setSelectedDomains([]);
+    setImportedRegistryTokenId(null);
+    setRegistryAgentId(null);
+    setRegisterTxHash(null);
     commitReveal.reset();
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -637,15 +840,41 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         downloadBlob(svgBlob, `${fileName}.svg`);
       } else if (format === 'erc8004') {
         const { toERC8004 } = await import('@/utils/helpers/exportFormats');
-        const agentWithPixelImage = { ...agent, image: imageToUse || agent.image };
-        let onChainImage: string | undefined;
-        if (mintedTokenId !== null) {
-          const contractAddr = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
-          if (contractAddr) {
-            onChainImage = `eip155:8453/erc721:${contractAddr}/${mintedTokenId.toString()}`;
+        const registration = toERC8004(agent);
+        // Fetch on-chain SVG for image field (WA005 fix)
+        if (mintedTokenId !== null && publicClient) {
+          const chainId = commitReveal.chainId;
+          const booaContract = (chainId === 8453
+            ? process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS
+            : process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET) as `0x${string}`;
+          if (booaContract) {
+            try {
+              const svgString = await publicClient.readContract({
+                address: booaContract,
+                abi: BOOA_NFT_ABI,
+                functionName: 'getSVG',
+                args: [mintedTokenId],
+              }) as string;
+              if (svgString) {
+                registration.image = `data:image/svg+xml;base64,${btoa(svgString)}`;
+              }
+            } catch { /* fallback: base64 pixel art from agent */ }
+          }
+          // Add registrations if registered (IA004 fix)
+          if (registryAgentId !== null) {
+            const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+            registration.registrations = [{
+              agentId: Number(registryAgentId),
+              agentRegistry: `eip155:${chainId}:${registryAddr}`,
+            }];
           }
         }
-        const registration = toERC8004(agentWithPixelImage, onChainImage);
+        // Strip empty endpoint from OASF (WA009 fix)
+        for (const svc of registration.services) {
+          if (svc.name === 'OASF' && !svc.endpoint.trim()) {
+            delete (svc as unknown as Record<string, unknown>).endpoint;
+          }
+        }
         const blob = new Blob([JSON.stringify(registration, null, 2)], { type: 'application/json' });
         downloadBlob(blob, `${fileName}-erc8004.json`);
       } else if (format === 'openclaw') {
@@ -677,9 +906,16 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     contractAddress: commitReveal.contractAddress,
     commitTxHash: commitReveal.commitTxHash,
     revealTxHash: commitReveal.revealTxHash,
+    erc8004Services, setErc8004Services,
+    x402Support, setX402Support,
+    supportedTrust, setSupportedTrust,
+    selectedSkills, setSelectedSkills,
+    selectedDomains, setSelectedDomains,
+    importedRegistryTokenId, setImportedRegistryTokenId,
+    registryAgentId, registerTxHash,
     hasRevealData: !!(pendingSvgBytes.current && pendingTraitsBytes.current),
     isModalOpen,
-    mintAndGenerate, triggerReveal, retryReveal, regenerateForReveal, downloadAgent, reset, closeModal, openModal,
+    mintAndGenerate, triggerReveal, retryReveal, regenerateForReveal, registerAgent, downloadAgent, reset, closeModal, openModal,
   };
 
   return (
