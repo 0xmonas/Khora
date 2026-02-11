@@ -1,9 +1,70 @@
 // /src/app/about/page.tsx
 'use client';
+import { useState } from 'react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
+
+const CREATE_STEPS = [
+  { num: '01', title: 'Describe', desc: 'Describe your character — name, creature type, vibe, personality traits, skills, and boundaries. Or let AI generate one from a simple prompt.' },
+  { num: '02', title: 'Generate', desc: 'AI generates a unique pixel art portrait and a complete character profile. The image is converted to a compact on-chain SVG — no external hosting, no IPFS, no links that can break.' },
+  { num: '03', title: 'Mint', desc: 'Mint your character using a commit-reveal pattern. First you commit (reserves your slot), then reveal (writes the SVG and traits on-chain). This prevents front-running.' },
+  { num: '04', title: 'On-chain forever', desc: 'Your character is now permanently on-chain. Anyone can read its traits, render its art, and verify its authenticity — directly from the contract, forever.' },
+];
+
+const IMPORT_STEPS = [
+  { num: '01', title: 'Connect', desc: 'Connect your wallet. We scan 9 chains for your registered ERC-8004 agents — or enter a token ID manually.' },
+  { num: '02', title: 'Fetch', desc: 'Your agent\'s identity is pulled from the on-chain registry: name, creature, vibe, skills, and boundaries.' },
+  { num: '03', title: 'Reimagine', desc: 'AI generates a brand-new pixel art portrait for your imported agent, preserving its original identity and traits.' },
+  { num: '04', title: 'Mint on Base', desc: 'Your reimagined agent is minted on Base with its new art and original traits — fully on-chain, cross-chain identity.' },
+];
+
+function AboutHowItWorks() {
+  const [activeMode, setActiveMode] = useState<'create' | 'import'>('create');
+  const steps = activeMode === 'create' ? CREATE_STEPS : IMPORT_STEPS;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <h2 className="text-lg text-foreground" style={font}>
+          How it works
+        </h2>
+        <div className="flex gap-2">
+          {(['create', 'import'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setActiveMode(m)}
+              className={`px-2 py-0.5 font-mono text-[10px] border transition-colors ${
+                activeMode === m
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-transparent text-muted-foreground border-border hover:border-foreground'
+              }`}
+              style={font}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-3">
+        {steps.map((step) => (
+          <div key={step.num} className="flex gap-3">
+            <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>
+              {step.num}
+            </span>
+            <div>
+              <span className="text-sm text-foreground" style={font}>{step.title}</span>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
+                {step.desc}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function AboutPage() {
   return (
@@ -33,50 +94,7 @@ export default function AboutPage() {
                 </div>
 
                 {/* How it works */}
-                <div className="space-y-4">
-                  <h2
-                    className="text-lg text-foreground"
-                    style={font}
-                  >
-                    How it works
-                  </h2>
-                  <div className="space-y-3">
-                    <div className="flex gap-3">
-                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>01</span>
-                      <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                        Describe your character — name, creature type, vibe,
-                        personality traits, skills, and boundaries. Or let AI
-                        generate one from a simple prompt.
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>02</span>
-                      <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                        AI generates a unique pixel art portrait and a complete
-                        character profile. The image is converted to a compact
-                        on-chain SVG — no external hosting, no IPFS, no links
-                        that can break.
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>03</span>
-                      <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                        Mint your character using a commit-reveal pattern.
-                        First you commit (reserves your slot), then reveal
-                        (writes the SVG and traits on-chain). This prevents
-                        front-running.
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>04</span>
-                      <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                        Your character is now permanently on-chain. Anyone can
-                        read its traits, render its art, and verify its
-                        authenticity — directly from the contract, forever.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <AboutHowItWorks />
 
                 {/* On-chain */}
                 <div className="space-y-4">

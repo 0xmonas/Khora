@@ -11,14 +11,15 @@ export function toERC8004(agent: KhoraAgent, onChainImage?: string): ERC8004Regi
   };
 }
 
-export function toIdentityMd(agent: KhoraAgent): string {
+export function toIdentityMd(agent: KhoraAgent, onChainImage?: string): string {
+  const avatar = onChainImage || '(not minted yet)';
   return `# IDENTITY
 
 **Name:** ${agent.name}
 **Creature:** ${agent.creature}
 **Vibe:** ${agent.vibe}
 **Emoji:** ${agent.emoji}
-**Avatar:** (see attached PFP)
+**Avatar:** ${avatar}
 `;
 }
 
@@ -30,14 +31,6 @@ export function toSoulMd(agent: KhoraAgent): string {
   const boundariesSection = agent.boundaries.length > 0
     ? agent.boundaries.map(b => `- ${b}`).join('\n')
     : 'No boundaries defined.';
-
-  const skillsSection = agent.skills.length > 0
-    ? agent.skills.map(s => `- ${s}`).join('\n')
-    : 'No skills defined.';
-
-  const domainsSection = agent.domains.length > 0
-    ? agent.domains.map(d => `- ${d}`).join('\n')
-    : 'No domains defined.';
 
   return `# SOUL
 
@@ -51,21 +44,21 @@ ${personalitySection}
 
 ${boundariesSection}
 
-## Skills
+## Vibe
 
-${skillsSection}
+${agent.vibe || 'Not defined.'}
 
-## Domains
+## Continuity
 
-${domainsSection}
+This agent's identity and art are stored fully on-chain. No external dependencies.
 `;
 }
 
-export async function toOpenClawZip(agent: KhoraAgent): Promise<Blob> {
+export async function toOpenClawZip(agent: KhoraAgent, onChainImage?: string): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
 
-  zip.file('IDENTITY.md', toIdentityMd(agent));
+  zip.file('IDENTITY.md', toIdentityMd(agent, onChainImage));
   zip.file('SOUL.md', toSoulMd(agent));
 
   return zip.generateAsync({ type: 'blob' });

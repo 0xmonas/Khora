@@ -44,44 +44,6 @@ export function Footer() {
               </div>
             )}
 
-            {/* $KHORA contract row */}
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-neutral-500" style={footerFont}>
-                $KHORA
-              </span>
-              <span className="text-xs text-neutral-400 break-all" style={footerFont}>
-                4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
-              </span>
-              <div className="flex gap-2">
-                <Link
-                  href="https://dexscreener.com/solana/4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Image
-                    src="/dex-screener.png"
-                    alt="Dex Screener"
-                    width={20}
-                    height={20}
-                    className="rounded-full hover:opacity-80 transition-opacity"
-                  />
-                </Link>
-                <Link
-                  href="https://dexscreener.com/solana/4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Image
-                    src="/moonshot.png"
-                    alt="Moonshot"
-                    width={20}
-                    height={20}
-                    className="rounded-full hover:opacity-80 transition-opacity"
-                  />
-                </Link>
-              </div>
-            </div>
-
             {/* Main footer row */}
             <div className="flex flex-row items-center justify-between">
               <p className="text-sm text-neutral-500" style={footerFont}>

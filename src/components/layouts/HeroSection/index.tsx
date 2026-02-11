@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,7 +9,7 @@ import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
-const STEPS = [
+const CREATE_STEPS = [
   {
     num: '01',
     title: 'Describe',
@@ -28,6 +29,29 @@ const STEPS = [
     num: '04',
     title: 'On-chain forever',
     desc: 'Your character lives entirely on Base. Anyone can read its traits and render its art — directly from the contract.',
+  },
+];
+
+const IMPORT_STEPS = [
+  {
+    num: '01',
+    title: 'Connect',
+    desc: 'Connect your wallet. We scan 9 chains for your registered ERC-8004 agents — or enter a token ID manually.',
+  },
+  {
+    num: '02',
+    title: 'Fetch',
+    desc: 'Your agent\'s identity is pulled from the on-chain registry: name, creature, vibe, skills, and boundaries.',
+  },
+  {
+    num: '03',
+    title: 'Reimagine',
+    desc: 'AI generates a brand-new pixel art portrait for your imported agent, preserving its original identity and traits.',
+  },
+  {
+    num: '04',
+    title: 'Mint on Base',
+    desc: 'Your reimagined agent is minted on Base with its new art and original traits — fully on-chain, cross-chain identity.',
   },
 ];
 
@@ -119,6 +143,51 @@ function RecentMints() {
   );
 }
 
+function HowItWorks() {
+  const [activeMode, setActiveMode] = useState<'create' | 'import'>('create');
+  const steps = activeMode === 'create' ? CREATE_STEPS : IMPORT_STEPS;
+
+  return (
+    <div className="mt-20">
+      <p className="text-[10px] text-muted-foreground uppercase text-center mb-4" style={font}>
+        how it works
+      </p>
+      <div className="flex justify-center gap-2 mb-8">
+        {(['create', 'import'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setActiveMode(m)}
+            className={`px-3 py-1 font-mono text-[10px] border transition-colors ${
+              activeMode === m
+                ? 'bg-neutral-800 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-800 dark:border-neutral-100'
+                : 'bg-transparent text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-500'
+            }`}
+            style={font}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {steps.map((step) => (
+          <div
+            key={step.num}
+            className="border border-neutral-200 dark:border-neutral-700 p-4 space-y-2"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs text-muted-foreground" style={font}>{step.num}</span>
+              <span className="text-sm text-foreground" style={font}>{step.title}</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed" style={font}>
+              {step.desc}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function HeroSection() {
   const { theme } = useTheme();
   const router = useRouter();
@@ -172,27 +241,7 @@ export function HeroSection() {
             </div>
 
             {/* How it works */}
-            <div className="mt-20">
-              <p className="text-[10px] text-muted-foreground uppercase text-center mb-8" style={font}>
-                how it works
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {STEPS.map((step) => (
-                  <div
-                    key={step.num}
-                    className="border border-neutral-200 dark:border-neutral-700 p-4 space-y-2"
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs text-muted-foreground" style={font}>{step.num}</span>
-                      <span className="text-sm text-foreground" style={font}>{step.title}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed" style={font}>
-                      {step.desc}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <HowItWorks />
 
             {/* Recent Mints */}
             <div className="mt-20">
