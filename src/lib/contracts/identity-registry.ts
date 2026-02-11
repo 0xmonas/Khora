@@ -50,4 +50,11 @@ export const IDENTITY_REGISTRY_ABI = [
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     outputs: [{ name: '', type: 'string' }],
   },
+  {
+    type: 'function',
+    name: 'totalSupply',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ] as const;
