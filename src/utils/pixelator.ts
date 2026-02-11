@@ -4,9 +4,25 @@ interface RGBColor {
   b: number;
 }
 
-// Fixed two-tone palette: #F5F5F5 + #0A0A0A
-const COLOR_WHITE: RGBColor = { r: 245, g: 245, b: 245 }; // #F5F5F5
-const COLOR_BLACK: RGBColor = { r: 10, g: 10, b: 10 }; // #0A0A0A
+// C64 16-color palette
+const PALETTE: RGBColor[] = [
+  { r: 0x00, g: 0x00, b: 0x00 }, // #000000
+  { r: 0x62, g: 0x62, b: 0x62 }, // #626262
+  { r: 0x89, g: 0x89, b: 0x89 }, // #898989
+  { r: 0xAD, g: 0xAD, b: 0xAD }, // #ADADAD
+  { r: 0xFF, g: 0xFF, b: 0xFF }, // #FFFFFF
+  { r: 0x9F, g: 0x4E, b: 0x44 }, // #9F4E44
+  { r: 0xCB, g: 0x7E, b: 0x75 }, // #CB7E75
+  { r: 0x6D, g: 0x54, b: 0x12 }, // #6D5412
+  { r: 0xA1, g: 0x68, b: 0x3C }, // #A1683C
+  { r: 0xC9, g: 0xD4, b: 0x87 }, // #C9D487
+  { r: 0x9A, g: 0xE2, b: 0x9B }, // #9AE29B
+  { r: 0x5C, g: 0xAB, b: 0x5E }, // #5CAB5E
+  { r: 0x6A, g: 0xBF, b: 0xC6 }, // #6ABFC6
+  { r: 0x88, g: 0x7E, b: 0xCB }, // #887ECB
+  { r: 0x50, g: 0x45, b: 0x9B }, // #50459B
+  { r: 0xA0, g: 0x57, b: 0xA3 }, // #A057A3
+];
 
 const loadImage = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -53,16 +69,27 @@ const applyBayerDither = (imageData: ImageData): ImageData => {
   return imageData;
 };
 
-const quantizeToTwoTone = (imageData: ImageData): ImageData => {
+/** Find nearest palette color by Euclidean distance */
+const quantizeToPalette = (imageData: ImageData): ImageData => {
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
-    // Threshold at 128 (take-over default)
-    const chosen = data[i] < 128 ? COLOR_BLACK : COLOR_WHITE;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    let bestDist = Infinity;
+    let best = PALETTE[0];
 
-    data[i] = chosen.r;
-    data[i + 1] = chosen.g;
-    data[i + 2] = chosen.b;
+    for (const color of PALETTE) {
+      const dr = r - color.r, dg = g - color.g, db = b - color.b;
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = color;
+      }
+    }
+
+    data[i] = best.r;
+    data[i + 1] = best.g;
+    data[i + 2] = best.b;
     data[i + 3] = 255;
   }
 
@@ -83,11 +110,11 @@ export const pixelateImage = async (imageUrl: string): Promise<string> => {
   sCtx.imageSmoothingEnabled = false;
   sCtx.drawImage(img, 0, 0, size, size);
 
-  // Apply Bayer dither then quantize to two-tone
-  const dithered = applyBayerDither(sCtx.getImageData(0, 0, size, size));
-  sCtx.putImageData(dithered, 0, 0);
+  // Bayer dither disabled for testing
+  // const dithered = applyBayerDither(sCtx.getImageData(0, 0, size, size));
+  // sCtx.putImageData(dithered, 0, 0);
 
-  const quantized = quantizeToTwoTone(sCtx.getImageData(0, 0, size, size));
+  const quantized = quantizeToPalette(sCtx.getImageData(0, 0, size, size));
   sCtx.putImageData(quantized, 0, 0);
 
   // Scale up to 1024x1024 with nearest-neighbor

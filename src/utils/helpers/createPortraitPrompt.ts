@@ -6,7 +6,7 @@ The prompt MUST:
 1. Start with exactly "style of nft pfp art, a portrait of"
 2. Use the character's creature, traits, vibe, and personality to create a vivid visual description
 3. Focus only on visual elements
-4. End with "white background"
+4. End with "black background"
 5. The agent's "creature" field determines what kind of being this is. Respect it literally.
 6. Do NOT default to female human. Mix freely between genders and non-human forms.
 
@@ -14,9 +14,9 @@ Return ONLY the prompt, nothing else.`;
 
 const REQUIRED_PREFIX = "style of nft pfp art, a portrait of";
 
-const FALLBACK_PREFIX = `${REQUIRED_PREFIX} a mysterious AI agent character, looking forward with a confident expression, white background`;
+const FALLBACK_PREFIX = `${REQUIRED_PREFIX} a mysterious AI agent character, looking forward with a confident expression, black background`;
 
-/** Ensure prompt always starts with required prefix and includes "white background" */
+/** Ensure prompt always starts with required prefix and includes "black background" */
 function enforcePromptRules(prompt: string): string {
   let result = prompt;
 
@@ -24,8 +24,8 @@ function enforcePromptRules(prompt: string): string {
     result = `${REQUIRED_PREFIX} ${result}`;
   }
 
-  if (!result.toLowerCase().includes('white background')) {
-    result = result.replace(/\.?\s*$/, ', white background');
+  if (!result.toLowerCase().includes('black background')) {
+    result = result.replace(/\.?\s*$/, ', black background');
   }
 
   return result;
