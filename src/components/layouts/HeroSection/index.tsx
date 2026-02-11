@@ -6,6 +6,7 @@ import { useTheme } from '@/components/providers/theme-provider';
 import { useGalleryTokens } from '@/hooks/useGalleryTokens';
 import { useReadContract, useChainId } from 'wagmi';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
+import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -207,9 +208,10 @@ export function HeroSection() {
                   fill
                   loading="eager"
                   sizes="(max-width: 768px) 100vw, 1200px"
-                  className="object-contain"
+                  className="object-contain invisible"
                   priority
                 />
+                <ShaderLogo />
               </div>
               <p
                 className="text-lg sm:text-xl text-muted-foreground max-w-2xl text-center mt-12"
