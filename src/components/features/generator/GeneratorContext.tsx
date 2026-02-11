@@ -276,15 +276,54 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase, commitReveal.tokenId]);
 
-  // Handle reveal_failed
+  // Handle reveal_failed — also check on-chain if reveal actually succeeded
   useEffect(() => {
     if (commitReveal.phase === 'reveal_failed' && isFlowActive.current) {
-      const errMsg = commitReveal.error instanceof Error
-        ? commitReveal.error.message
-        : 'Reveal transaction failed — you can retry';
-      setError(errMsg.slice(0, 200));
-      setCurrentStep('reveal_failed');
-      setLoading(false);
+      // Before showing retry, check if the reveal actually succeeded on-chain
+      // (race condition: tx confirmed but frontend missed receipt)
+      if (publicClient && commitReveal.contractAddress && commitReveal.address && commitReveal.slotIndex !== null) {
+        publicClient.readContract({
+          address: commitReveal.contractAddress as `0x${string}`,
+          abi: BOOA_NFT_ABI,
+          functionName: 'getCommitment',
+          args: [commitReveal.address, commitReveal.slotIndex],
+        }).then((result) => {
+          const [, revealed] = result as [bigint, boolean];
+          if (revealed) {
+            // Reveal actually succeeded on-chain!
+            setError(null);
+            setCurrentStep('complete');
+            setLoading(false);
+            isFlowActive.current = false;
+            pendingSvgBytes.current = null;
+            pendingTraitsBytes.current = null;
+            commitReveal.refetchSupply();
+          } else {
+            // Genuinely failed — show retry
+            const errMsg = commitReveal.error instanceof Error
+              ? commitReveal.error.message
+              : 'Reveal transaction failed — you can retry';
+            setError(errMsg.slice(0, 200));
+            setCurrentStep('reveal_failed');
+            setLoading(false);
+          }
+        }).catch(() => {
+          // On-chain check failed, show retry as fallback
+          const errMsg = commitReveal.error instanceof Error
+            ? commitReveal.error.message
+            : 'Reveal transaction failed — you can retry';
+          setError(errMsg.slice(0, 200));
+          setCurrentStep('reveal_failed');
+          setLoading(false);
+        });
+      } else {
+        const errMsg = commitReveal.error instanceof Error
+          ? commitReveal.error.message
+          : 'Reveal transaction failed — you can retry';
+        setError(errMsg.slice(0, 200));
+        setCurrentStep('reveal_failed');
+        setLoading(false);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitReveal.phase]);
@@ -551,7 +590,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   }, [commitReveal]);
 
   // ── Retry reveal (after reject/cancel) ──
-  const retryReveal = useCallback(() => {
+  const retryReveal = useCallback(async () => {
     if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
       setError('No pending reveal data — use Regenerate to create a new image');
       return;
@@ -562,18 +601,50 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('reveal_failed');
       return;
     }
+
+    // Check on-chain if this commitment was already revealed
+    // (handles case where reveal tx succeeded but frontend missed the receipt)
+    if (publicClient && commitReveal.contractAddress && commitReveal.address && commitReveal.slotIndex !== null) {
+      try {
+        const [, revealed] = await publicClient.readContract({
+          address: commitReveal.contractAddress as `0x${string}`,
+          abi: BOOA_NFT_ABI,
+          functionName: 'getCommitment',
+          args: [commitReveal.address, commitReveal.slotIndex],
+        }) as [bigint, boolean];
+
+        if (revealed) {
+          // Reveal already succeeded on-chain — skip to complete
+          setError(null);
+          setCurrentStep('complete');
+          setLoading(false);
+          isFlowActive.current = false;
+          pendingSvgBytes.current = null;
+          pendingTraitsBytes.current = null;
+          commitReveal.refetchSupply();
+          return;
+        }
+      } catch {
+        // On-chain check failed, proceed with retry anyway
+      }
+    }
+
+    const svgData = pendingSvgBytes.current;
+    const traitsData = pendingTraitsBytes.current;
+    if (!svgData || !traitsData) return;
+
     setError(null);
     setLoading(true);
     setCurrentStep('revealing');
     isFlowActive.current = true;
     try {
-      commitReveal.reveal(pendingSvgBytes.current, pendingTraitsBytes.current);
+      commitReveal.reveal(svgData, traitsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to retry reveal');
       setCurrentStep('reveal_failed');
       setLoading(false);
     }
-  }, [commitReveal]);
+  }, [commitReveal, publicClient]);
 
   // ── Regenerate image for existing commit (when reveal data was lost) ──
   const regenerateForReveal = useCallback(() => {

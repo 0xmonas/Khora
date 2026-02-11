@@ -1,31 +1,35 @@
 import type { KhoraAgent } from '@/types/agent';
 
-const STYLE_INSTRUCTION = `You are an expert illustrator specializing in posterized character portraits with a retro Commodore 64 color palette vibe. Your signature style is bold posterized imagery with limited flat color blocks, high contrast between light and dark areas, no smooth gradients or photorealistic rendering, and a strong graphic presence reminiscent of early computer art and pixel aesthetics. Compositions are centered headshots or busts on a pure plain white background, evoking a raw, iconic, lo-fi digital art feel.
+const STYLE_INSTRUCTION = `Analyze this character JSON and create a visual image generation prompt that captures their essence.
 
-Reference style (always incorporate these exact stylistic elements in every prompt you create): A posterized character portrait with limited flat color blocks in a Commodore 64 retro palette vibe, high contrast, bold graphic shapes, no smooth gradients, centered dramatic composition, and lo-fi digital art aesthetic on a pure plain white background.
+The prompt MUST:
+1. Start with exactly "style of nft pfp art, a portrait of"
+2. Use the character's creature, traits, vibe, and personality to create a vivid visual description
+3. Focus only on visual elements
+4. End with "white background"
+5. The agent's "creature" field determines what kind of being this is. Respect it literally.
+6. Do NOT default to female human. Mix freely between genders and non-human forms.
 
-CRITICAL — Character diversity rules:
-- The agent's "creature" field determines what kind of being this is. Respect it literally: if it says "robot", draw a robot. If "wolf", draw an anthropomorphic wolf. If "android", draw an android with visible synthetic parts. If it's a regular name/concept, choose ANY gender or non-human form that fits the vibe.
-- Do NOT default to female human. Mix freely between: male, female, androgynous, non-human, robotic, animal-hybrid, abstract entity, TV-headed figure, masked being, holographic AI, cyborg, alien, mythical creature.
+Return ONLY the prompt, nothing else.`;
 
-When given an agent identity, follow this exact process:
+const REQUIRED_PREFIX = "style of nft pfp art, a portrait of";
 
-1. Carefully analyze the creature type, vibe, personality, and domains to determine what KIND of being this is and its emotional mood.
-2. Identify bold color block areas and high-contrast shapes for the posterized effect.
-3. Reimagine the subject as a posterized portrait with limited flat colors, sharp graphic shapes, and retro digital art energy — no photorealism, no smooth blending.
-4. Create a single, detailed text prompt suitable for generating the portrait. Every prompt must begin with the exact reference style phrase: "A posterized character portrait with limited flat color blocks in a Commodore 64 retro palette vibe, high contrast, bold graphic shapes, no smooth gradients, centered dramatic composition, and lo-fi digital art aesthetic on a pure plain white background." Then continue with the specific subject description, key features, expression, and style details.
-   - Limited flat color blocks — posterized, not photorealistic
-   - High contrast between light and dark areas
-   - Bold graphic shapes with hard edges
-   - Retro Commodore 64 / early computer art color feeling
-   - Centered portrait composition (headshot or bust)
-   - Pure plain white background — no elements or textures
-   - Square or portrait orientation as fits the subject naturally
-   - Iconic lo-fi digital art presence with attitude
+const FALLBACK_PREFIX = `${REQUIRED_PREFIX} a mysterious AI agent character, looking forward with a confident expression, white background`;
 
-Output ONLY the final prompt itself. Do not add explanations, introductions, notes, or any additional text. Do not include any image generation parameters (like --ar, --v, --stylize, etc.). Just the pure, ready-to-use prompt.`;
+/** Ensure prompt always starts with required prefix and includes "white background" */
+function enforcePromptRules(prompt: string): string {
+  let result = prompt;
 
-const REFERENCE_PREFIX = "A posterized character portrait with limited flat color blocks in a Commodore 64 retro palette vibe, high contrast, bold graphic shapes, no smooth gradients, centered dramatic composition, and lo-fi digital art aesthetic on a pure plain white background.";
+  if (!result.toLowerCase().includes("style of nft pfp art")) {
+    result = `${REQUIRED_PREFIX} ${result}`;
+  }
+
+  if (!result.toLowerCase().includes('white background')) {
+    result = result.replace(/\.?\s*$/, ', white background');
+  }
+
+  return result;
+}
 
 export async function createPortraitPrompt(
   agent: Omit<KhoraAgent, 'image'>
@@ -40,7 +44,7 @@ export async function createPortraitPrompt(
       domains: agent.domains,
     };
 
-    const userPrompt = `Subject — this AI agent identity:\n${JSON.stringify(agentJson, null, 2)}`;
+    const userPrompt = `Analyze this character JSON and create a visual image generation prompt that captures their essence.\n\nCharacter JSON:\n${JSON.stringify(agentJson, null, 2)}\n\nReturn ONLY the prompt, nothing else.`;
 
     const response = await fetch('/api/generate-prompt', {
       method: 'POST',
@@ -58,15 +62,15 @@ export async function createPortraitPrompt(
     }
 
     const data = await response.json();
-    let finalPrompt = data.prompt.trim();
+    const finalPrompt = data.prompt.trim();
 
-    if (!finalPrompt.toLowerCase().includes("posteriz")) {
-      finalPrompt = REFERENCE_PREFIX + " " + finalPrompt;
+    if (!finalPrompt || finalPrompt.length < 10) {
+      return FALLBACK_PREFIX;
     }
 
-    return finalPrompt;
+    return enforcePromptRules(finalPrompt);
 
   } catch {
-    return REFERENCE_PREFIX;
+    return FALLBACK_PREFIX;
   }
 }
