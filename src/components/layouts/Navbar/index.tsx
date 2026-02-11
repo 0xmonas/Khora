@@ -21,8 +21,8 @@ export function Navbar() {
             Home
           </Link>
           <Link
-            href="/generator"
-            className={`text-sm ${isActive('/generator') ? 'text-black' : 'text-gray-600'}`}
+            href="/mint"
+            className={`text-sm ${isActive('/mint') ? 'text-black' : 'text-gray-600'}`}
           >
             Create
           </Link>
