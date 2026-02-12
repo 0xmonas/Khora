@@ -128,13 +128,6 @@ async function saveAgentMetadataToAPI(
   } catch {}
 }
 
-function getRegistryClub(totalSupply: number): string {
-  if (totalSupply < 1000) return '999 Club';
-  if (totalSupply < 10000) return '1K Club';
-  if (totalSupply < 100000) return '10K Club';
-  if (totalSupply < 1000000) return '100K Club';
-  return '1M Club';
-}
 
 export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const siweStatus = useSiweStatus();
@@ -235,8 +228,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         const img = new Image();
         img.src = generatedImage;
         await new Promise<void>((resolve) => { img.onload = () => resolve(); });
-        const processed = await pixelateImage(generatedImage);
-        setPixelatedImage(processed);
+        const result = await pixelateImage(generatedImage);
+        setPixelatedImage(result);
       } catch {
         setPixelatedImage(generatedImage);
       } finally {
@@ -471,8 +464,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         agentData.services = [...erc8004Services];
       }
 
-      // Generate PFP
-      const imageUrl = await generateImageFromAgent(agentData);
+      // Generate PFP + visual traits
+      const { imageUrl, visualTraits } = await generateImageFromAgent(agentData);
       // Clean services: remove empty endpoints, strip OASF fields from non-OASF
       const cleanedServices = erc8004Services
         .filter(s => s.endpoint.trim())
@@ -503,11 +496,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       stopProgressBar();
 
       // Pixelate
-      const pixelated = await pixelateImage(imageUrl);
-      setPixelatedImage(pixelated);
+      const pixelResult = await pixelateImage(imageUrl);
+      setPixelatedImage(pixelResult);
 
       // Prepare SVG + traits
-      const imageToUse = pixelated;
+      const imageToUse = pixelResult;
       const { convertToSVG } = await import('@/utils/helpers/svgConverter');
       const { minifySVG, svgToBytes, svgByteSize, SSTORE2_MAX_BYTES } = await import('@/utils/helpers/svgMinifier');
 
@@ -532,22 +525,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       for (const p of agentData.personality || []) attributes.push({ trait_type: 'Personality', value: p });
       for (const b of agentData.boundaries || []) attributes.push({ trait_type: 'Boundary', value: b });
 
-      // ERC-8004 Registry Club trait
-      if (publicClient) {
-        try {
-          const chainId = commitReveal.chainId;
-          const registryAddress = getRegistryAddress(chainId);
-          const supply = await publicClient.readContract({
-            address: registryAddress,
-            abi: IDENTITY_REGISTRY_ABI,
-            functionName: 'totalSupply',
-          }) as bigint;
-          const club = getRegistryClub(Number(supply));
-          attributes.push({ trait_type: '8004 Club', value: club });
-        } catch {
-          // Registry read failed — club trait skipped, mint continues
+      // Visual traits (Hair, Eyes, Facial Hair, Mouth, Accessory, Headwear, Skin)
+      for (const [traitType, value] of Object.entries(visualTraits)) {
+        if (value && value !== 'None' && value !== 'none') {
+          attributes.push({ trait_type: traitType, value });
         }
       }
+
+      // Color palette trait
+      attributes.push({ trait_type: 'Palette', value: pixelResult.palette });
 
       const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
 
@@ -579,11 +565,21 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const generateImageFromAgent = async (agentData: Omit<KhoraAgent, 'image'>) => {
     setImageLoading(true);
     try {
-      const prompt = await createPortraitPrompt(agentData);
+      const portraitResult = await createPortraitPrompt(agentData);
+
+      // Build enriched prompt: base prompt + explicit trait descriptions for image model
+      const traitLines = Object.entries(portraitResult.traits)
+        .filter(([, v]) => v && v !== 'None' && v !== 'none')
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      const enrichedPrompt = traitLines
+        ? `${portraitResult.prompt} Character details: ${traitLines}.`
+        : portraitResult.prompt;
+
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: enrichedPrompt }),
       });
       const responseText = await response.text();
       let data;
@@ -595,7 +591,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
       if (!data.image) throw new Error('No image in response');
       setGeneratedImage(data.image);
-      return data.image;
+      return { imageUrl: data.image, visualTraits: portraitResult.traits };
     } finally {
       setImageLoading(false);
     }

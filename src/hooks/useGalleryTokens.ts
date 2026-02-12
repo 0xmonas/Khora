@@ -114,7 +114,7 @@ export function useGalleryTokens() {
   const refetchAll = useCallback(async () => {
     // Force refetch totalSupply first so count updates
     await refetchSupply();
-    // Then invalidate + force refetch all contract queries
+    // Remove stale cache + force refetch all contract queries
     // (tokenByIndex, balanceOf, tokenOfOwnerByIndex, getSVG)
     await queryClient.invalidateQueries({
       predicate: (query) => {
@@ -124,6 +124,15 @@ export function useGalleryTokens() {
         return key.includes(contractAddress);
       },
       refetchType: 'all',
+    });
+    // Also reset query state to force fresh fetch (bypasses staleTime)
+    queryClient.resetQueries({
+      predicate: (query) => {
+        const key = JSON.stringify(query.queryKey, (_k, v) =>
+          typeof v === 'bigint' ? v.toString() : v,
+        );
+        return key.includes(contractAddress);
+      },
     });
   }, [queryClient, contractAddress, refetchSupply]);
 
