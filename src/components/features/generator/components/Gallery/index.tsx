@@ -566,10 +566,13 @@ export function Gallery() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'newest' | 'oldest' | 'mine'>('newest');
 
-  // Refetch when a new token is minted
+  // Refetch when a new token is minted — staggered to handle RPC cache delay
   useEffect(() => {
     if (currentStep === 'complete') {
       refetch();
+      const t1 = setTimeout(() => refetch(), 2000);
+      const t2 = setTimeout(() => refetch(), 5000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [currentStep, refetch]);
 

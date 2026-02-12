@@ -38,7 +38,7 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   });
 };
 
-// 4x4 Bayer ordered dithering matrix (take-over default)
+// 4x4 Bayer ordered dithering matrix
 const BAYER_4X4 = [
   [ 0,  8,  2, 10],
   [12,  4, 14,  6],
@@ -46,7 +46,7 @@ const BAYER_4X4 = [
   [15,  7, 13,  5]
 ];
 
-const DITHER_STRENGTH = 0.5; // take-over default: full strength
+const DITHER_STRENGTH = 0.5;
 
 const applyBayerDither = (imageData: ImageData): ImageData => {
   const data = imageData.data;
@@ -55,11 +55,10 @@ const applyBayerDither = (imageData: ImageData): ImageData => {
   for (let y = 0; y < imageData.height; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      const bayerNorm = BAYER_4X4[y % 4][x % 4] / 16; // 0..0.9375
+      const bayerNorm = BAYER_4X4[y % 4][x % 4] / 16;
 
       for (let c = 0; c < 3; c++) {
         let v = data[i + c] / 255;
-        // No contrast/brightness boost (take-over neutral defaults)
         v = v + (bayerNorm - 0.5) * DITHER_STRENGTH;
         data[i + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
       }
@@ -110,7 +109,7 @@ export const pixelateImage = async (imageUrl: string): Promise<string> => {
   sCtx.imageSmoothingEnabled = false;
   sCtx.drawImage(img, 0, 0, size, size);
 
-  // Bayer dither disabled for testing
+  // Bayer dither (disabled)
   // const dithered = applyBayerDither(sCtx.getImageData(0, 0, size, size));
   // sCtx.putImageData(dithered, 0, 0);
 
