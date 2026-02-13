@@ -24,6 +24,12 @@ const PALETTE: RGBColor[] = [
   { r: 0xA0, g: 0x57, b: 0xA3 }, // #A057A3
 ];
 
+// ── 2-color duotone palette — disabled ──
+// const PALETTE_DUOTONE: RGBColor[] = [
+//   { r: 0x0A, g: 0x0A, b: 0x0A }, // #0a0a0a
+//   { r: 0xF5, g: 0xF5, b: 0xF5 }, // #f5f5f5
+// ];
+
 const loadImage = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -61,6 +67,43 @@ const applyBayerDither = (imageData: ImageData): ImageData => {
         let v = data[i + c] / 255;
         v = v + (bayerNorm - 0.5) * DITHER_STRENGTH;
         data[i + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
+      }
+    }
+  }
+
+  return imageData;
+};
+
+/** Slight vertical pixel stretch — averages small vertical blocks for a scan-line feel */
+const applyPixelStretch = (imageData: ImageData): ImageData => {
+  const data = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  const stretchY = 2; // stretch 2 rows into 1 averaged block
+  const tempData = new Uint8ClampedArray(data);
+
+  for (let y = 0; y < h; y += stretchY) {
+    for (let x = 0; x < w; x++) {
+      const endY = Math.min(y + stretchY, h);
+      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+
+      for (let by = y; by < endY; by++) {
+        const idx = (by * w + x) * 4;
+        rSum += tempData[idx];
+        gSum += tempData[idx + 1];
+        bSum += tempData[idx + 2];
+        count++;
+      }
+
+      const avgR = Math.round(rSum / count);
+      const avgG = Math.round(gSum / count);
+      const avgB = Math.round(bSum / count);
+
+      for (let by = y; by < endY; by++) {
+        const idx = (by * w + x) * 4;
+        data[idx] = avgR;
+        data[idx + 1] = avgG;
+        data[idx + 2] = avgB;
       }
     }
   }
@@ -113,7 +156,8 @@ export const pixelateImage = async (imageUrl: string): Promise<string> => {
   // const dithered = applyBayerDither(sCtx.getImageData(0, 0, size, size));
   // sCtx.putImageData(dithered, 0, 0);
 
-  const quantized = quantizeToPalette(sCtx.getImageData(0, 0, size, size));
+  const stretched = applyPixelStretch(sCtx.getImageData(0, 0, size, size));
+  const quantized = quantizeToPalette(stretched);
   sCtx.putImageData(quantized, 0, 0);
 
   // Scale up to 1024x1024 with nearest-neighbor

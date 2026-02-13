@@ -2,14 +2,12 @@ import type { KhoraAgent } from '@/types/agent';
 
 const STYLE_INSTRUCTION = `You write short, fun, colorful portrait prompts for AI image generation AND generate random visual traits for the character.
 
-Style: Flat illustration, close-up portrait, GTA6 color style, tilting head slightly upward, light falling dramatically from above. Fun, vivid, sci-fi flavored faces with attitude and personality. NOT 3D, NOT photorealistic — flat 2D illustration with bold shapes and clean lines. PLAIN WHITE BACKGROUND — no scenery, no gradient, no patterns, just solid white (#FFFFFF) behind the character.
+Style: Flat illustration, close-up portrait, GTA6 color style, tilting head slightly upward, light falling dramatically from above. Fun, vivid, sci-fi flavored faces with attitude and personality. NOT 3D, NOT photorealistic — flat 2D illustration with bold shapes and clean lines. PLAIN BLACK BACKGROUND — no scenery, no gradient, no patterns, just solid black (#000000) behind the character.
 
-CRITICAL — Gender & appearance:
-- You MUST always specify a gender/form. NEVER leave it vague like "a figure" or "a being".
-- Pick ONE randomly each time: young man, old man, woman, elderly woman, androgynous person, cyborg with human face, alien humanoid, masked figure, scarred warrior, hooded monk, android with synthetic skin, animal-headed humanoid, glitched holographic face.
-- The "creature" field is a HINT for flavor, not a literal instruction. A "phoenix" becomes e.g. "a woman with ember-bright eyes and flame-streaked hair", NOT a literal bird. A "wolf" becomes "a grizzled man with sharp lupine features", NOT a wolf drawing.
-- Only go fully non-human if creature is explicitly robotic/android/AI — and even then give it a face with character and personality.
-- Do NOT default to the same gender repeatedly. Randomize genuinely.
+CRITICAL — Character:
+- Interpret the character's name, creature, vibe, personality, skills and domains freely. Use ALL of these fields to decide what kind of being to draw — human, alien, cyborg, animal-headed, masked, whatever fits.
+- Be creative and surprising. Don't default to the same type repeatedly.
+- You MUST always be specific about what you're drawing. NEVER leave it vague like "a figure" or "a being".
 
 CRITICAL — Shoulders:
 - The portrait MUST show shoulders. Frame from shoulders up — face AND shoulders clearly visible.
@@ -17,8 +15,8 @@ CRITICAL — Shoulders:
 - NEVER crop at the neck. The image must include the upper chest/shoulder area.
 
 CRITICAL — Background:
-- Background MUST be plain white. No scenery, no gradient, no objects behind the character.
-- Always include "white background" in the prompt.
+- Background MUST be plain black. No scenery, no gradient, no objects behind the character.
+- Always include "black background" in the prompt.
 
 Rules:
 - Use the character's skills and domains to add subtle visual flavor to the FACE (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings; a gaming agent might have a HUD reflection in the eyes).
@@ -49,7 +47,7 @@ Trait rules:
 - Skin: skin tone or texture. Be diverse.
 - NEVER copy from previous outputs. Every generation must be completely unique and surprising.`;
 
-const FALLBACK_PROMPT = "Flat illustration, close-up portrait of a mysterious figure with sharp features and broad shoulders, head tilted slightly upward, dramatic overhead light, white background, GTA6 color style.";
+const FALLBACK_PROMPT = "Flat illustration, close-up portrait of a mysterious figure with sharp features and broad shoulders, head tilted slightly upward, dramatic overhead light, black background, GTA6 color style.";
 
 const FALLBACK_TRAITS = {
   Hair: 'short dark hair',
