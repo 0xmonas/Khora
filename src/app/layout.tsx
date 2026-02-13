@@ -1,6 +1,7 @@
 // /src/app/layout.tsx
 import './globals.css';
 import localFont from 'next/font/local';
+import { Analytics } from '@vercel/analytics/next';
 import { Providers } from '@/components/providers';
 
 const departureMono = localFont({
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${departureMono.variable} font-mono min-h-screen flex flex-col`}>
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
