@@ -48,7 +48,7 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     error UnsafeTraits();
 
     constructor(uint256 _mintPrice, address royaltyReceiver, uint96 royaltyFeeNumerator)
-        ERC721("BOOA", "BOOA")
+        ERC721("BOOA by Khora", "BOOA")
         Ownable(msg.sender)
     {
         mintPrice = _mintPrice;

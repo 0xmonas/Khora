@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ExternalLink, Download, FileCode, FileJson, Image as ImageIcon, Archive, FileText, X, Search } from 'lucide-react';
+import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
 import { useChainId, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import { base } from 'wagmi/chains';
@@ -11,7 +12,7 @@ import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
 
@@ -286,7 +287,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const skills = traits.filter(t => t.trait_type === 'Skill').map(t => t.value);
   const domains = traits.filter(t => t.trait_type === 'Domain').map(t => t.value);
 
-  const iconBtn = 'w-8 h-8 border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors';
+  const iconBtn = 'w-8 h-8 flex items-center justify-center hover:opacity-60 transition-opacity';
 
   return (
     <>
@@ -333,7 +334,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 className={iconBtn}
                 title={isMainnet ? 'OpenSea' : 'Rarible'}
               >
-                <ExternalLink className="w-3.5 h-3.5 dark:text-white" />
+                <Image src="/openseatransparent.svg" alt="OpenSea" width={14} height={14} className="invert dark:invert-0" />
               </a>
               <a
                 href={onchainCheckerUrl}
@@ -342,7 +343,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 className={iconBtn}
                 title="OnchainChecker"
               >
-                <FileText className="w-3.5 h-3.5 dark:text-white" />
+                <ShieldCheck className="w-3.5 h-3.5 dark:text-white" />
               </a>
             </div>
           </div>
@@ -415,7 +416,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 className={iconBtn}
                 title="ERC-8004"
               >
-                <FileJson className="w-3.5 h-3.5 dark:text-white" />
+                <span className="font-mono text-[7px] font-bold leading-none dark:text-white">8004</span>
               </button>
               <button
                 onClick={() => {
@@ -426,7 +427,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 className={iconBtn}
                 title="OpenClaw ZIP"
               >
-                <Archive className="w-3.5 h-3.5 dark:text-white" />
+                <Image src="/openclaw.svg" alt="OpenClaw" width={14} height={14} />
               </button>
               {/* PNG only if Upstash has image */}
               {metadata?.image && (

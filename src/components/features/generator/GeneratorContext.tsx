@@ -533,7 +533,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Color palette trait
-      attributes.push({ trait_type: 'Palette', value: pixelResult.palette });
+      attributes.push({ trait_type: 'Palette', value: 'C64' });
 
       const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
 
