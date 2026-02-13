@@ -18,6 +18,7 @@ async function callImageModel(
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
       responseModalities: ['image', 'text'],
+      // @ts-expect-error aspectRatio exists at runtime but missing from SDK types
       aspectRatio: '1:1',
     },
   });
