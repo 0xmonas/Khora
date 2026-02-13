@@ -83,9 +83,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
   }
 
-  // SIWE: ensure request is for the authenticated wallet
+  // SIWE: require authenticated wallet and ensure it matches
   const sessionAddress = req.headers.get('x-siwe-address');
-  if (sessionAddress && address.toLowerCase() !== sessionAddress.toLowerCase()) {
+  if (!sessionAddress) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (address.toLowerCase() !== sessionAddress.toLowerCase()) {
     return NextResponse.json({ error: 'Address mismatch' }, { status: 403 });
   }
 
@@ -173,9 +176,12 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
   }
 
-  // SIWE: ensure request is for the authenticated wallet
+  // SIWE: require authenticated wallet and ensure it matches
   const deleteSessionAddress = req.headers.get('x-siwe-address');
-  if (deleteSessionAddress && address.toLowerCase() !== deleteSessionAddress.toLowerCase()) {
+  if (!deleteSessionAddress) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (address.toLowerCase() !== deleteSessionAddress.toLowerCase()) {
     return NextResponse.json({ error: 'Address mismatch' }, { status: 403 });
   }
 
