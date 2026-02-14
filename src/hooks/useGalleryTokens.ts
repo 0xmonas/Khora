@@ -8,7 +8,7 @@ import {
   useChainId,
 } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
-import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
+import { BOOA_NFT_ABI, getContractAddress, getContractChainId } from '@/lib/contracts/booa';
 
 export interface GalleryToken {
   tokenId: bigint;
@@ -20,6 +20,7 @@ export function useGalleryTokens() {
   const { address } = useAccount();
   const chainId = useChainId();
   const contractAddress = getContractAddress(chainId);
+  const targetChainId = getContractChainId(chainId);
   const enabled = !!contractAddress && contractAddress.length > 2;
 
   // Step 1: Total supply
@@ -27,6 +28,7 @@ export function useGalleryTokens() {
     address: contractAddress,
     abi: BOOA_NFT_ABI,
     functionName: 'totalSupply',
+    chainId: targetChainId,
     query: { enabled },
   });
 
@@ -36,6 +38,7 @@ export function useGalleryTokens() {
     abi: BOOA_NFT_ABI,
     functionName: 'balanceOf',
     args: [address!],
+    chainId: targetChainId,
     query: { enabled: enabled && !!address },
   });
 
@@ -46,6 +49,7 @@ export function useGalleryTokens() {
     abi: BOOA_NFT_ABI,
     functionName: 'tokenByIndex' as const,
     args: [BigInt(i)] as const,
+    chainId: targetChainId,
   }));
 
   const { data: tokenIdResults } = useReadContracts({
@@ -61,6 +65,7 @@ export function useGalleryTokens() {
         abi: BOOA_NFT_ABI,
         functionName: 'tokenOfOwnerByIndex' as const,
         args: [address, BigInt(i)] as const,
+        chainId: targetChainId,
       }))
     : [];
 
@@ -91,6 +96,7 @@ export function useGalleryTokens() {
     abi: BOOA_NFT_ABI,
     functionName: 'getSVG' as const,
     args: [tokenId] as const,
+    chainId: targetChainId,
   }));
 
   const { data: svgResults, isLoading: svgsLoading } = useReadContracts({
