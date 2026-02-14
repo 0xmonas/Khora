@@ -193,7 +193,7 @@ export default function AboutPage() {
                   </h2>
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
                     Most NFTs store a link to an image hosted somewhere else.
-                    If that server goes down, your NFT is gone. Khora characters
+                    If that server goes down, your NFT is gone. BOOA characters
                     are different — the SVG pixel art and the JSON traits are
                     written directly into the smart contract using SSTORE2.
                     No external dependencies. The contract validates every SVG

@@ -1,11 +1,17 @@
-import { base } from 'wagmi/chains';
+import { base, baseSepolia } from 'wagmi/chains';
 
 export const BOOA_NFT_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS || '') as `0x${string}`;
 export const BOOA_NFT_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET || '') as `0x${string}`;
 
 export function getContractAddress(chainId: number): `0x${string}` {
-  if (chainId === base.id) return BOOA_NFT_ADDRESS;
+  if (chainId === base.id && BOOA_NFT_ADDRESS.length > 2) return BOOA_NFT_ADDRESS;
   return BOOA_NFT_ADDRESS_TESTNET;
+}
+
+/** Returns the chainId where the contract actually lives */
+export function getContractChainId(chainId: number): number {
+  if (chainId === base.id && BOOA_NFT_ADDRESS.length > 2) return base.id;
+  return baseSepolia.id;
 }
 
 export const BOOA_NFT_ABI = [
