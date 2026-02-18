@@ -84,38 +84,62 @@ export function OutputSection() {
                   <>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">01</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Name your agent & describe its personality</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Commit</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Pick a background color, hit mint & confirm the commit transaction</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">02</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Click mint & confirm the transaction</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Generate</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">AI creates a unique identity — name, personality, skills — and a pixel art portrait</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">03</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">AI generates a unique pixel art PFP</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reveal</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm the reveal transaction to write SVG art & traits directly into the contract</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">04</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Your agent is minted as an on-chain SVG NFT</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">On-chain forever</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Your agent lives entirely on Base — no IPFS, no links that break</p>
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">01</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Connect wallet & select your ERC-8004 agent</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Connect</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Connect wallet — we scan 9 chains for your registered ERC-8004 agents</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">02</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Identity is fetched from the on-chain registry</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Commit</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Select an agent, hit mint & confirm the commit transaction</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">03</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">AI reimagines your agent as pixel art</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reimagine</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">AI generates a new pixel art portrait preserving your agent&apos;s identity and traits</p>
+                      </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">04</span>
-                      <p className="text-neutral-600 dark:text-neutral-400">Minted on Base with original traits & new art</p>
+                      <div>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reveal on Base</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm the reveal to mint on Base — art & traits written on-chain via SSTORE2</p>
+                      </div>
                     </div>
                   </>
                 )}

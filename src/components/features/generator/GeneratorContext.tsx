@@ -15,7 +15,6 @@ import { toERC8004 } from '@/utils/helpers/exportFormats';
 
 export type Mode = 'create' | 'import';
 export type Step = 'input' | 'committing' | 'generating' | 'ready_to_reveal' | 'revealing' | 'reveal_failed' | 'complete' | 'registering' | 'register_complete';
-
 type GeneratorContextType = {
   mode: Mode;
   setMode: (mode: Mode) => void;

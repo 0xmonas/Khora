@@ -298,15 +298,6 @@ export function InputForm() {
           </div>
         </div>
 
-        {/* Create Mode — fully generative, no user input needed */}
-        {mode === 'create' && (
-          <div className="py-2">
-            <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
-              AI generates everything — name, identity, and portrait. Just hit MINT.
-            </p>
-          </div>
-        )}
-
         {/* Import Mode Fields */}
         {mode === 'import' && (
           <>
