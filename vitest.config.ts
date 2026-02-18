@@ -6,6 +6,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    env: {
+      SESSION_SECRET: 'test-secret-at-least-32-characters-long-for-iron-session',
+    },
   },
   resolve: {
     alias: {

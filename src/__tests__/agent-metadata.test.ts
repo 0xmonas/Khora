@@ -185,7 +185,7 @@ describe('Agent Metadata API', () => {
 
     it('should save agent metadata', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -201,10 +201,16 @@ describe('Agent Metadata API', () => {
       );
     });
 
+    it('should return 401 when x-siwe-address header is missing', async () => {
+      const { POST } = await import('@/app/api/agent-metadata/route');
+      const res = await POST(makePostRequest(validBody));
+      expect(res.status).toBe(401);
+    });
+
     it('should return 400 when address is missing', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, address: undefined }),
+        makePostRequest({ ...validBody, address: undefined }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -212,7 +218,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 when agent is missing', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, agent: undefined }),
+        makePostRequest({ ...validBody, agent: undefined }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -220,7 +226,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 when agent is null', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, agent: null }),
+        makePostRequest({ ...validBody, agent: null }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -228,7 +234,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 for invalid address format', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, address: '0xZZZ' }),
+        makePostRequest({ ...validBody, address: '0xZZZ' }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -236,7 +242,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 for negative tokenId', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, tokenId: -1 }),
+        makePostRequest({ ...validBody, tokenId: -1 }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -244,7 +250,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 for non-integer tokenId', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(
-        makePostRequest({ ...validBody, tokenId: 1.5 }),
+        makePostRequest({ ...validBody, tokenId: 1.5 }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
     });
@@ -255,7 +261,7 @@ describe('Agent Metadata API', () => {
         makePostRequest({
           ...validBody,
           agent: { ...VALID_AGENT, image: 'x'.repeat(500_001) },
-        }),
+        }, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
       );
       expect(res.status).toBe(400);
       const body = await res.json();
@@ -265,7 +271,7 @@ describe('Agent Metadata API', () => {
     it('should return 409 when metadata already exists (first-write-wins)', async () => {
       mockRedisExists.mockResolvedValue(1);
       const { POST } = await import('@/app/api/agent-metadata/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
       expect(res.status).toBe(409);
       expect(mockRedisSet).not.toHaveBeenCalled();
     });
@@ -293,13 +299,13 @@ describe('Agent Metadata API', () => {
         success: false, limit: 30, remaining: 0, reset: Date.now() + 60000,
       });
       const { POST } = await import('@/app/api/agent-metadata/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
       expect(res.status).toBe(429);
     });
 
     it('should store metadata without TTL (permanent)', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
-      await POST(makePostRequest(validBody));
+      await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
       // Verify no TTL/ex option was passed
       const setCall = mockRedisSet.mock.calls[0];
       expect(setCall.length).toBe(2); // key, value — no options object

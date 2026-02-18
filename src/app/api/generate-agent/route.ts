@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 const MODEL_TEXT = 'gemini-3-flash-preview';
-import { validateInput } from '@/lib/api/api-helpers';
-import { generateAgentSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
@@ -25,19 +23,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await validateInput(request, generateAgentSchema);
-    if ('error' in result) return result.error;
-
-    const { name, description } = result.data;
-
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    const systemInstruction = `You are an AI agent identity designer. Given a name and description, you generate a complete agent identity profile.
+    const systemInstruction = `You are an AI agent identity designer. You generate completely unique, creative agent identities from scratch — no user input needed. Every agent must be wildly different from the last.
 Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
 {
-  "name": "string",
-  "description": "string",
-  "creature": "string (what kind of entity: AI familiar, digital ghost, neural construct, etc.)",
+  "name": "string (creative, memorable agent name — can be abstract, sci-fi, mythological, playful, or edgy)",
+  "description": "string (1-2 sentences describing what this agent does and its personality)",
+  "creature": "string (what kind of entity: AI familiar, digital ghost, neural construct, void walker, data wraith, etc.)",
   "vibe": "string (communication style: sharp and witty, calm and methodical, chaotic and creative, etc.)",
   "emoji": "string (single emoji that represents this agent)",
   "personality": ["string array of 4-6 core behavior principles"],
@@ -46,7 +39,7 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
   "domains": ["string array of 3-6 areas of expertise"],
   "services": []
 }
-Be creative and make each agent feel unique. The personality should be consistent with the description.`;
+Be wildly creative. Every agent should feel completely unique — vary the creature type, vibe, skills, domains, and personality drastically each time. Mix genres: cyberpunk, fantasy, noir, cosmic horror, solarpunk, etc.`;
 
     const response = await ai.models.generateContent({
       model: MODEL_TEXT,
@@ -55,16 +48,14 @@ Be creative and make each agent feel unique. The personality should be consisten
           role: 'user',
           parts: [
             {
-              text: `Create an agent identity for:
-Name: "${name}"
-Description: "${description}"`,
+              text: 'Generate a completely random, unique AI agent identity. Surprise me.',
             },
           ],
         },
       ],
       config: {
         systemInstruction,
-        temperature: 0.8,
+        temperature: 1.0,
       },
     });
 

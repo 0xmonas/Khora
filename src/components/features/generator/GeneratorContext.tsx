@@ -436,14 +436,18 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       let agentData: Omit<KhoraAgent, 'image'>;
 
       if (mode === 'create') {
+        // Fully generative — no user input needed
         const agentResponse = await fetch('/api/generate-agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: agentName.trim(), description: agentDescription.trim() }),
+          body: JSON.stringify({}),
         });
         const agentResult = await agentResponse.json();
         if (!agentResponse.ok || agentResult.error) throw new Error(agentResult.error || 'Failed to generate agent');
         agentData = agentResult.agent;
+        // Set name/description from AI-generated agent
+        setAgentName(agentData.name);
+        setAgentDescription(agentData.description);
       } else {
         // Import mode: use pre-filled form values (name/desc/skills/domains from selection)
         // Enrich with AI to generate creature, vibe, emoji, personality, boundaries
@@ -477,11 +481,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           return s;
         });
 
-      // Merge AI-generated skills/domains with user-selected taxonomy picks
-      const mergedSkills = Array.from(new Set([...(agentData.skills || []), ...selectedSkills]));
-      const mergedDomains = Array.from(new Set([...(agentData.domains || []), ...selectedDomains]));
-      setSelectedSkills(mergedSkills);
-      setSelectedDomains(mergedDomains);
+      // If user has set their own skills/domains via ERC-8004 config, use ONLY those.
+      // If user hasn't selected any, use AI-generated ones.
+      const userHasSkills = selectedSkills.length > 0;
+      const userHasDomains = selectedDomains.length > 0;
+      const mergedSkills = userHasSkills ? [...selectedSkills] : [...(agentData.skills || [])];
+      const mergedDomains = userHasDomains ? [...selectedDomains] : [...(agentData.domains || [])];
+      if (!userHasSkills) setSelectedSkills(mergedSkills);
+      if (!userHasDomains) setSelectedDomains(mergedDomains);
 
       const finalAgent: KhoraAgent = {
         ...agentData,
@@ -515,13 +522,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       const svgBytes = svgToBytes(minified);
 
       const attributes: Array<{ trait_type: string; value: string }> = [];
-      if (agentName.trim()) attributes.push({ trait_type: 'Name', value: agentName.trim() });
-      if (agentDescription.trim()) attributes.push({ trait_type: 'Description', value: agentDescription.trim() });
+      // Use agentData (AI-generated) for name/description — React state may not have flushed yet
+      if (agentData.name) attributes.push({ trait_type: 'Name', value: agentData.name });
+      if (agentData.description) attributes.push({ trait_type: 'Description', value: agentData.description });
       if (agentData.creature) attributes.push({ trait_type: 'Creature', value: agentData.creature });
       if (agentData.vibe) attributes.push({ trait_type: 'Vibe', value: agentData.vibe });
       if (agentData.emoji) attributes.push({ trait_type: 'Emoji', value: agentData.emoji });
-      for (const s of agentData.skills || []) attributes.push({ trait_type: 'Skill', value: s });
-      for (const d of agentData.domains || []) attributes.push({ trait_type: 'Domain', value: d });
+      // Use merged skills/domains (respects user ERC-8004 config)
+      for (const s of mergedSkills) attributes.push({ trait_type: 'Skill', value: s });
+      for (const d of mergedDomains) attributes.push({ trait_type: 'Domain', value: d });
       for (const p of agentData.personality || []) attributes.push({ trait_type: 'Personality', value: p });
       for (const b of agentData.boundaries || []) attributes.push({ trait_type: 'Boundary', value: b });
 
@@ -697,15 +706,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError('Please sign in with your wallet first');
       return;
     }
-    if (mode === 'create' && (!agentName.trim() || !agentDescription.trim())) {
-      setError('Please fill in agent name and description first, then retry');
-      return;
-    }
+    // Create mode is fully generative — no user input check needed
     setError(null);
     isFlowActive.current = true;
     runGeneration();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, mode, agentName, agentDescription]);
+  }, [isAuthenticated, mode]);
 
   // ── Register agent on Identity Registry ──
   const { writeContractAsync: writeRegister } = useWriteContract();
@@ -857,8 +863,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // ── Main action: MINT button ──
   const mintAndGenerate = useCallback(() => {
     if (mode === 'create') {
-      if (!agentName.trim()) { setError('Agent name is required'); return; }
-      if (!agentDescription.trim()) { setError('Agent description is required'); return; }
+      // Fully generative — no user input needed for create mode
     } else {
       if (!agentId.trim()) { setError('Agent ID is required'); return; }
       const parsed = parseInt(agentId);
@@ -885,7 +890,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       isFlowActive.current = false;
       setIsModalOpen(false);
     }
-  }, [mode, agentName, agentDescription, agentId, commitReveal]);
+  }, [mode, agentName, agentId, commitReveal]);
 
   // ── Open/Close modal ──
   const openModal = useCallback(() => {

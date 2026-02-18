@@ -196,7 +196,7 @@ export function InputForm() {
     if (!isConnected) return true;
     if (!contractAddress) return true;
     if (mode === 'create') {
-      return !agentName.trim() || !agentDescription.trim();
+      return false; // Fully generative — no user input needed
     } else {
       const parsed = parseInt(agentId);
       return !agentId.trim() || isNaN(parsed) || parsed <= 0 || !agentName.trim();
@@ -298,36 +298,13 @@ export function InputForm() {
           </div>
         </div>
 
-        {/* Create Mode Fields */}
+        {/* Create Mode — fully generative, no user input needed */}
         {mode === 'create' && (
-          <>
-            <div>
-              <h3 className="text-sm font-mono mb-1 dark:text-white">Agent name</h3>
-              <div className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <input
-                  type="text"
-                  value={agentName}
-                  onChange={(e) => { if (!isBusy) setAgentName(e.target.value); }}
-                  className="w-full bg-transparent outline-none"
-                  placeholder="Type a name..."
-                  disabled={isBusy}
-                />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-mono mb-1 dark:text-white">Description</h3>
-              <div className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <textarea
-                  value={agentDescription}
-                  onChange={(e) => { if (!isBusy) setAgentDescription(e.target.value); }}
-                  className="w-full bg-transparent outline-none resize-none min-h-[80px]"
-                  placeholder="Describe your agent..."
-                  disabled={isBusy}
-                  rows={3}
-                />
-              </div>
-            </div>
-          </>
+          <div className="py-2">
+            <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+              AI generates everything — name, identity, and portrait. Just hit MINT.
+            </p>
+          </div>
         )}
 
         {/* Import Mode Fields */}
