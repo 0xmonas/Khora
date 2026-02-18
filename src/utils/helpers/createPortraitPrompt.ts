@@ -20,13 +20,18 @@ CRITICAL — Shoulders:
 - Shoulders can have armor, jacket, hoodie, bare skin, tattoos, straps, cables, fur collar, etc.
 - NEVER crop at the neck. The image must include the upper chest/shoulder area.
 
+CRITICAL — Background color:
+- The background MUST be a single solid color chosen randomly from ONLY these five options: blue, red, yellow, green, black.
+- Pick one at random for each generation — do NOT always default to the same color.
+- The background must be a clean, solid flat fill of the chosen color — no patterns, no gradients.
+
 CRITICAL — Style requirements:
 - Vibrant limited color palette with flat block shading
 - Strong black outlines for definition
 - Dramatic lighting (strong highlights, deep shadows)
 - Expressive eyes, face, and pose with retro comic/anime vibe
 - Centered portrait composition
-- Solid color background
+- Solid color background (blue, red, yellow, green, or black — picked randomly)
 - Bold emotional retro portrait impact with confident intensity
 - NOT 3D, NOT photorealistic — flat 2D with bold shapes and clean lines
 - Use the character's skills and domains to add subtle visual flavor (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings).
@@ -83,7 +88,7 @@ export interface PortraitResult {
 }
 
 export async function createPortraitPrompt(
-  agent: Omit<KhoraAgent, 'image'>
+  agent: Omit<KhoraAgent, 'image'>,
 ): Promise<PortraitResult> {
   try {
     const agentJson = {
@@ -134,8 +139,8 @@ export async function createPortraitPrompt(
     if (!finalPrompt || finalPrompt.length < 10) {
       finalPrompt = FALLBACK_PROMPT;
     }
-    if (!finalPrompt.toLowerCase().startsWith("flat illustration")) {
-      finalPrompt = "Flat illustration, close-up portrait of " + finalPrompt;
+    if (!finalPrompt.toLowerCase().startsWith("a bold flat color portrait")) {
+      finalPrompt = "A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background. " + finalPrompt;
     }
 
     const traits: VisualTraits = {
