@@ -203,9 +203,11 @@ describe('Pending Reveal API', () => {
       traits: 'cafebabe',
     };
 
+    const siweHeader = { 'x-siwe-address': VALID_ADDRESS.toLowerCase() };
+
     it('should save pending reveal data', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -217,21 +219,27 @@ describe('Pending Reveal API', () => {
       );
     });
 
+    it('should return 401 when x-siwe-address header is missing', async () => {
+      const { POST } = await import('@/app/api/pending-reveal/route');
+      const res = await POST(makePostRequest(validBody));
+      expect(res.status).toBe(401);
+    });
+
     it('should return 400 when address is missing', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, address: undefined }));
+      const res = await POST(makePostRequest({ ...validBody, address: undefined }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 when svg is missing', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, svg: undefined }));
+      const res = await POST(makePostRequest({ ...validBody, svg: undefined }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 for invalid address format', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, address: '0xinvalid' }));
+      const res = await POST(makePostRequest({ ...validBody, address: '0xinvalid' }, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('Invalid address format');
@@ -239,7 +247,7 @@ describe('Pending Reveal API', () => {
 
     it('should return 400 for slot number out of range (>99)', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, slot: 100 }));
+      const res = await POST(makePostRequest({ ...validBody, slot: 100 }, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('Invalid slot number');
@@ -247,13 +255,13 @@ describe('Pending Reveal API', () => {
 
     it('should return 400 for negative slot number', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, slot: -1 }));
+      const res = await POST(makePostRequest({ ...validBody, slot: -1 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 for non-integer slot', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, slot: 1.5 }));
+      const res = await POST(makePostRequest({ ...validBody, slot: 1.5 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
@@ -262,7 +270,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(makePostRequest({
         ...validBody,
         svg: 'a'.repeat(50001),
-      }));
+      }, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('SVG too large or invalid');
@@ -270,13 +278,13 @@ describe('Pending Reveal API', () => {
 
     it('should return 400 for non-string SVG', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, svg: 12345 }));
+      const res = await POST(makePostRequest({ ...validBody, svg: 12345 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 for unsupported chain', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest({ ...validBody, chainId: 999999 }));
+      const res = await POST(makePostRequest({ ...validBody, chainId: 999999 }, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('Unsupported chain');
@@ -285,7 +293,7 @@ describe('Pending Reveal API', () => {
     it('should return 400 when commitment does not exist on-chain', async () => {
       mockReadContract.mockResolvedValue([BigInt(0), false]);
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('No commitment found on-chain');
@@ -294,7 +302,7 @@ describe('Pending Reveal API', () => {
     it('should return 400 when slot already revealed on-chain', async () => {
       mockReadContract.mockResolvedValue([BigInt(1000000), true]);
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('Slot already revealed');
@@ -303,7 +311,7 @@ describe('Pending Reveal API', () => {
     it('should return 503 when RPC is unavailable', async () => {
       mockReadContract.mockRejectedValue(new Error('RPC timeout'));
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       expect(res.status).toBe(503);
       const body = await res.json();
       expect(body.error).toContain('Chain verification unavailable');
@@ -312,7 +320,7 @@ describe('Pending Reveal API', () => {
     it('should return 409 when entry already exists (overwrite protection)', async () => {
       mockRedisExists.mockResolvedValue(1);
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       expect(res.status).toBe(409);
       const body = await res.json();
       expect(body.error).toContain('already exists');
@@ -323,14 +331,14 @@ describe('Pending Reveal API', () => {
         success: false, limit: 30, remaining: 0, reset: Date.now() + 60000,
       });
       const { POST } = await import('@/app/api/pending-reveal/route');
-      const res = await POST(makePostRequest(validBody));
+      const res = await POST(makePostRequest(validBody, siweHeader));
       expect(res.status).toBe(429);
     });
 
     it('should save empty traits when not provided', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
       const bodyNoTraits = { ...validBody, traits: undefined };
-      await POST(makePostRequest(bodyNoTraits));
+      await POST(makePostRequest(bodyNoTraits, siweHeader));
       expect(mockRedisSet).toHaveBeenCalledWith(
         expect.any(String),
         { svg: 'deadbeef', traits: '' },
@@ -360,10 +368,10 @@ describe('Pending Reveal API', () => {
       expect(res.status).toBe(200);
     });
 
-    it('should allow request when x-siwe-address header is absent (public path)', async () => {
+    it('should return 401 when x-siwe-address header is absent', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
       const res = await POST(makePostRequest(validBody));
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(401);
     });
   });
 
@@ -378,11 +386,13 @@ describe('Pending Reveal API', () => {
       slot: 0,
     };
 
+    const siweHeader = { 'x-siwe-address': VALID_ADDRESS.toLowerCase() };
+
     it('should delete pending reveal entry', async () => {
       // revealed = true on-chain
       mockReadContract.mockResolvedValue([BigInt(1000000), true]);
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest(validBody));
+      const res = await DELETE(makeDeleteRequest(validBody, siweHeader));
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -392,27 +402,33 @@ describe('Pending Reveal API', () => {
       );
     });
 
+    it('should return 401 when x-siwe-address header is missing', async () => {
+      const { DELETE } = await import('@/app/api/pending-reveal/route');
+      const res = await DELETE(makeDeleteRequest(validBody));
+      expect(res.status).toBe(401);
+    });
+
     it('should return 400 when address is missing', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ chainId: 84532, slot: 0 }));
+      const res = await DELETE(makeDeleteRequest({ chainId: 84532, slot: 0 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 when chainId is missing', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, slot: 0 }));
+      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, slot: 0 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 when slot is missing', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, chainId: 84532 }));
+      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, chainId: 84532 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
     it('should return 400 for invalid address format', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ ...validBody, address: 'invalid' }));
+      const res = await DELETE(makeDeleteRequest({ ...validBody, address: 'invalid' }, siweHeader));
       expect(res.status).toBe(400);
     });
 
@@ -421,14 +437,14 @@ describe('Pending Reveal API', () => {
         success: false, limit: 30, remaining: 0, reset: Date.now() + 60000,
       });
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest(validBody));
+      const res = await DELETE(makeDeleteRequest(validBody, siweHeader));
       expect(res.status).toBe(429);
     });
 
     it('should allow delete even when slot not yet revealed (RPC timing)', async () => {
       mockReadContract.mockResolvedValue([BigInt(1000000), false]);
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest(validBody));
+      const res = await DELETE(makeDeleteRequest(validBody, siweHeader));
       expect(res.status).toBe(200);
       expect(mockRedisDel).toHaveBeenCalled();
     });
@@ -436,7 +452,7 @@ describe('Pending Reveal API', () => {
     it('should allow delete when RPC fails', async () => {
       mockReadContract.mockRejectedValue(new Error('RPC timeout'));
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest(validBody));
+      const res = await DELETE(makeDeleteRequest(validBody, siweHeader));
       expect(res.status).toBe(200);
       expect(mockRedisDel).toHaveBeenCalled();
     });
@@ -461,31 +477,26 @@ describe('Pending Reveal API', () => {
       );
       expect(res.status).toBe(200);
     });
-
-    it('should allow delete when x-siwe-address is absent (public path)', async () => {
-      mockReadContract.mockResolvedValue([BigInt(1000000), true]);
-      const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest(validBody));
-      expect(res.status).toBe(200);
-    });
   });
 
   // ════════════════════════════════════════════════
   // SECURITY: Public path risks
   // ════════════════════════════════════════════════
 
-  describe('Security — public path risks', () => {
+  describe('Security — SIWE auth enforcement', () => {
+    const siweHeader = { 'x-siwe-address': VALID_ADDRESS.toLowerCase() };
+
     it('POST: attacker cannot write for non-existent commitment', async () => {
       // No commitment on-chain
       mockReadContract.mockResolvedValue([BigInt(0), false]);
       const { POST } = await import('@/app/api/pending-reveal/route');
       const res = await POST(
         makePostRequest({
-          address: OTHER_ADDRESS,
+          address: VALID_ADDRESS,
           chainId: 84532,
           slot: 0,
           svg: 'attacker-svg',
-        }),
+        }, siweHeader),
       );
       expect(res.status).toBe(400);
       expect(mockRedisSet).not.toHaveBeenCalled();
@@ -500,7 +511,7 @@ describe('Pending Reveal API', () => {
           chainId: 84532,
           slot: 0,
           svg: 'attacker-overwrite',
-        }),
+        }, siweHeader),
       );
       expect(res.status).toBe(409);
       expect(mockRedisSet).not.toHaveBeenCalled();
@@ -515,7 +526,7 @@ describe('Pending Reveal API', () => {
           chainId: 84532,
           slot: 0,
           svg: 'attacker-svg',
-        }),
+        }, siweHeader),
       );
       expect(res.status).toBe(400);
       const data = await res.json();
@@ -524,14 +535,13 @@ describe('Pending Reveal API', () => {
 
     it('POST: rejects XSS in SVG field (validates string type)', async () => {
       const { POST } = await import('@/app/api/pending-reveal/route');
-      // Non-string svg
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
           chainId: 84532,
           slot: 0,
           svg: { __proto__: 'xss' },
-        }),
+        }, siweHeader),
       );
       expect(res.status).toBe(400);
     });
@@ -544,13 +554,26 @@ describe('Pending Reveal API', () => {
           chainId: 84532,
           slot: 0,
           svg: 'test',
-        }),
+        }, { 'x-siwe-address': '0x' + 'g'.repeat(40) }),
       );
       expect(res.status).toBe(400);
     });
 
-    it('DELETE: attacker can delete other users entry without auth (known risk)', async () => {
-      // This test documents the known risk: without SIWE, DELETE works for any address
+    it('POST: returns 401 without SIWE auth header', async () => {
+      const { POST } = await import('@/app/api/pending-reveal/route');
+      const res = await POST(
+        makePostRequest({
+          address: VALID_ADDRESS,
+          chainId: 84532,
+          slot: 0,
+          svg: 'test',
+        }),
+      );
+      expect(res.status).toBe(401);
+      expect(mockRedisSet).not.toHaveBeenCalled();
+    });
+
+    it('DELETE: returns 401 without SIWE auth header', async () => {
       mockReadContract.mockResolvedValue([BigInt(1000000), true]);
       const { DELETE } = await import('@/app/api/pending-reveal/route');
       const res = await DELETE(
@@ -559,10 +582,9 @@ describe('Pending Reveal API', () => {
           chainId: 84532,
           slot: 0,
         }),
-        // No x-siwe-address header → no address enforcement
       );
-      expect(res.status).toBe(200);
-      // This passes because the route is public — TTL is the safety net
+      expect(res.status).toBe(401);
+      expect(mockRedisDel).not.toHaveBeenCalled();
     });
 
     it('POST: rate limiter prevents mass spam even without auth', async () => {
@@ -576,7 +598,7 @@ describe('Pending Reveal API', () => {
           chainId: 84532,
           slot: 0,
           svg: 'spam',
-        }),
+        }, siweHeader),
       );
       expect(res.status).toBe(429);
       expect(mockRedisSet).not.toHaveBeenCalled();

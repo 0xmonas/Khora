@@ -19,8 +19,9 @@
  │  ┌────────────────────────────────────┐  │
  │  │ Mode: [CREATE] [Import]            │  │
  │  ├────────────────────────────────────┤  │
- │  │ Agent name:  [_______________]     │  │
- │  │ Description: [_______________]     │  │
+ │  │ "AI generates everything — name,   │  │
+ │  │  identity, and portrait.           │  │
+ │  │  Just hit MINT."                   │  │
  │  ├────────────────────────────────────┤  │
  │  │ ▸ ERC-8004 Config (collapsed)     │  │
  │  │   • Services (web, A2A, MCP...)   │  │
@@ -28,6 +29,9 @@
  │  │   • Domains (OASF taxonomy)       │  │
  │  │   • x402 Payment (on/off)         │  │
  │  │   • Supported Trust               │  │
+ │  │   (optional — if user sets these, │  │
+ │  │    AI-generated values are NOT    │  │
+ │  │    used for skills/domains)       │  │
  │  ├────────────────────────────────────┤  │
  │  │        [ MINT ]                    │  │
  │  │   0 minted / 0.0001 ETH           │  │
@@ -36,8 +40,8 @@
                     │
                     │ click MINT
                     │ (requires: wallet connected,
-                    │  name + description filled,
                     │  contractAddress loaded)
+                    │ NO name/description input needed
                     ▼
  ┌──────────────────────────────────────────────────────────────────┐
  │                      MINT FLOW MODAL                             │
@@ -65,32 +69,37 @@
         │  STEP 2: GENERATE                             │
         │                                               │
         │  ┌─────────────────────────────────────────┐  │
-        │  │ /api/generate-agent                     │  │
-        │  │   input:  name + description            │  │
-        │  │   output: creature, vibe, emoji,        │  │
+        │  │ /api/generate-agent (FULLY GENERATIVE)  │  │
+        │  │   input:  none (empty body)             │  │
+        │  │   output: name, description,            │  │
+        │  │           creature, vibe, emoji,        │  │
         │  │           personality[], boundaries[],  │  │
         │  │           skills[], domains[]           │  │
+        │  │   temp:   1.0 (max creativity)          │  │
+        │  │                                         │  │
+        │  │   → setAgentName(name)                  │  │
+        │  │   → setAgentDescription(description)    │  │
         │  └──────────────────┬──────────────────────┘  │
         │                     │                         │
         │                     ▼                         │
         │  ┌─────────────────────────────────────────┐  │
         │  │ /api/generate-prompt                    │  │
         │  │   input:  agent JSON as user content    │  │
-        │  │   config: systemInstruction (khora      │  │
-        │  │           LoRA concise subject desc.)   │  │
-        │  │   rules:  always start with "A bust     │  │
-        │  │           portrait of", always end      │  │
-        │  │           with "white background"       │  │
-        │  │   output: portrait prompt text          │  │
+        │  │   config: systemInstruction (bold flat  │  │
+        │  │           color portrait, retro comic/  │  │
+        │  │           anime influence)              │  │
+        │  │   rules:  always start with "A bold     │  │
+        │  │           flat color portrait with..."  │  │
+        │  │   output: portrait prompt + visual      │  │
+        │  │           traits JSON                   │  │
         │  └──────────────────┬──────────────────────┘  │
         │                     │                         │
         │                     ▼                         │
         │  ┌─────────────────────────────────────────┐  │
         │  │ /api/generate-image                     │  │
         │  │   input:  portrait prompt from above    │  │
-        │  │   model:  replicate 0xmonas/khora LoRA  │  │
-        │  │   params: 1:1 aspect, 28 steps,         │  │
-        │  │           guidance 3, lora_scale 1       │  │
+        │  │   model:  gemini-2.5-flash-image        │  │
+        │  │   params: 1:1 aspect                    │  │
         │  │   output: base64 image                  │  │
         │  └──────────────────┬──────────────────────┘  │
         │                     │                         │
@@ -98,14 +107,13 @@
         │  ┌─────────────────────────────────────────┐  │
         │  │ Client-side processing:                 │  │
         │  │   • Downscale to 64x64                  │  │
-        │  │   • Bayer 4x4 ordered dither            │  │
-        │  │   • Quantize two-tone (#F5F5F5/#0A0A0A) │  │
+        │  │   • C64 palette quantization            │  │
         │  │   • Upscale 16x to 1024x1024 (nearest)  │  │
         │  │   • Convert to SVG                      │  │
         │  │   • Minify SVG (must be < 24KB)         │  │
         │  │   • Encode traits as JSON bytes         │  │
-        │  │   • Merge AI skills/domains with user   │  │
-        │  │     taxonomy selections                 │  │
+        │  │   • Skills/domains: use user's ERC-8004 │  │
+        │  │     picks if set, otherwise AI-generated │  │
         │  └──────────────────┬──────────────────────┘  │
         │                     │                         │
         │  ████████████░░ 85.3%  (progress bar)         │
