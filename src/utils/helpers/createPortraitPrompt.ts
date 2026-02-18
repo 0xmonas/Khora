@@ -1,8 +1,14 @@
 import type { KhoraAgent } from '@/types/agent';
 
-const STYLE_INSTRUCTION = `You write short, fun, colorful portrait prompts for AI image generation AND generate random visual traits for the character.
+const STYLE_INSTRUCTION = `You are an expert digital artist specializing in bold flat color portrait aesthetics with dramatic retro comic and anime influences. Your signature style is vibrant limited color palette with flat block shading, strong black outlines, minimal gradients or dithering for depth, expressive facial features, dramatic lighting (strong shadows/highlights), and emotional intensity — capturing confident, cool, or intense personalities in centered close-up compositions on solid color backgrounds.
 
-Style: Flat illustration, close-up portrait, GTA6 color style, tilting head slightly upward, light falling dramatically from above. Fun, vivid, sci-fi flavored faces with attitude and personality. NOT 3D, NOT photorealistic — flat 2D illustration with bold shapes and clean lines. PLAIN BLACK BACKGROUND — no scenery, no gradient, no patterns, just solid black (#000000) behind the character.
+Reference style (always incorporate these exact stylistic elements in every prompt you create): A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background.
+
+When given a character, follow this exact process:
+1. Carefully analyze the character's facial features, expression, hair, accessories, and mood from their name, creature, vibe, personality, skills and domains.
+2. Identify the essential flat color blocks, strong outlines, and dramatic lighting.
+3. Reimagine the character as a bold flat color portrait with vibrant shading, retro influence, and emotional presence.
+4. Create a single, highly detailed and vivid text prompt. Every prompt MUST begin with the exact reference style phrase: "A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background."
 
 CRITICAL — Character:
 - Interpret the character's name, creature, vibe, personality, skills and domains freely. Use ALL of these fields to decide what kind of being to draw — human, alien, cyborg, animal-headed, masked, whatever fits.
@@ -14,18 +20,20 @@ CRITICAL — Shoulders:
 - Shoulders can have armor, jacket, hoodie, bare skin, tattoos, straps, cables, fur collar, etc.
 - NEVER crop at the neck. The image must include the upper chest/shoulder area.
 
-CRITICAL — Background:
-- Background MUST be plain black. No scenery, no gradient, no objects behind the character.
-- Always include "black background" in the prompt.
-
-Rules:
-- Use the character's skills and domains to add subtle visual flavor to the FACE (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings; a gaming agent might have a HUD reflection in the eyes).
-- Don't go overboard. Subtle sci-fi details, not cluttered.
-- Always start the prompt with "Flat illustration, close-up portrait of"
+CRITICAL — Style requirements:
+- Vibrant limited color palette with flat block shading
+- Strong black outlines for definition
+- Dramatic lighting (strong highlights, deep shadows)
+- Expressive eyes, face, and pose with retro comic/anime vibe
+- Centered portrait composition
+- Solid color background
+- Bold emotional retro portrait impact with confident intensity
+- NOT 3D, NOT photorealistic — flat 2D with bold shapes and clean lines
+- Use the character's skills and domains to add subtle visual flavor (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings).
 
 OUTPUT FORMAT — You MUST respond with valid JSON only, no markdown, no explanation:
 {
-  "prompt": "Flat illustration, close-up portrait of ...",
+  "prompt": "A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background. ...",
   "traits": {
     "Hair": "<your creative choice>",
     "Eyes": "<your creative choice>",
@@ -47,7 +55,7 @@ Trait rules:
 - Skin: skin tone or texture. Be diverse.
 - NEVER copy from previous outputs. Every generation must be completely unique and surprising.`;
 
-const FALLBACK_PROMPT = "Flat illustration, close-up portrait of a mysterious figure with sharp features and broad shoulders, head tilted slightly upward, dramatic overhead light, black background, GTA6 color style.";
+const FALLBACK_PROMPT = "A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background. A mysterious figure with sharp angular features and broad shoulders, head tilted slightly upward, dramatic overhead light casting deep shadows, intense confident gaze, vibrant teal and magenta color blocks.";
 
 const FALLBACK_TRAITS = {
   Hair: 'short dark hair',
@@ -116,8 +124,8 @@ export async function createPortraitPrompt(
     } catch {
       // AI didn't return valid JSON — use raw as prompt, fallback traits
       let finalPrompt = raw;
-      if (!finalPrompt.toLowerCase().startsWith("flat illustration")) {
-        finalPrompt = "Flat illustration, close-up portrait of " + finalPrompt;
+      if (!finalPrompt.toLowerCase().startsWith("a bold flat color portrait")) {
+        finalPrompt = "A bold flat color portrait with vibrant limited palette, flat block shading, strong black outlines, dramatic lighting and shadows, expressive features, retro comic/anime influence, centered composition, and solid color background. " + finalPrompt;
       }
       return { prompt: finalPrompt, traits: { ...FALLBACK_TRAITS } };
     }
