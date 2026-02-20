@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { formatEther } from 'viem';
 import { useChainId } from 'wagmi';
-import { base } from 'wagmi/chains';
+import { base, baseSepolia } from 'wagmi/chains';
 import { cn } from '@/lib/utils';
 
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
@@ -90,10 +90,11 @@ function StepIndicator({ number, label, desc, status }: {
 
 function TxHashLink({ hash, label }: { hash: `0x${string}`; label: string }) {
   const chainId = useChainId();
-  const isMainnet = chainId === base.id;
-  const explorerBase = isMainnet
-    ? 'https://basescan.org'
-    : 'https://sepolia.basescan.org';
+  const EXPLORER_MAP: Record<number, string> = {
+    [base.id]: 'https://basescan.org',
+    [baseSepolia.id]: 'https://sepolia.basescan.org',
+  };
+  const explorerBase = EXPLORER_MAP[chainId] || 'https://sepolia.basescan.org';
   const short = `${hash.slice(0, 6)}...${hash.slice(-4)}`;
 
   return (

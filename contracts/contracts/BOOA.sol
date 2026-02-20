@@ -9,8 +9,25 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 
+/// @title BOOA by Khora — Bitmap Edition
+/// @notice On-chain AI agent PFPs stored as 64×64 4-bit bitmaps.
+///         SVG is reconstructed on-chain at read time (tokenURI).
+///
+/// Bitmap format:
+///   2,048 bytes = 4,096 nibbles = 64×64 pixels
+///   Each nibble (4 bits) = C64 palette index (0-15)
+///   Byte layout: high nibble = even pixel, low nibble = odd pixel
+///   Row-major order: row 0 = bytes 0-31, row 1 = bytes 32-63, ...
+///
+/// Security model:
+///   - No SVG validation needed (contract generates SVG itself)
+///   - No palette bypass possible (4-bit = 0-15 = C64 palette)
+///   - No tag/style injection possible (no user strings in SVG output)
+///   - Validation = require(length == 2048). That's it.
 contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     using Strings for uint256;
+
+    // ── State ──
 
     uint256 private _nextTokenId;
     uint256 public mintPrice;
@@ -18,12 +35,14 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     uint256 public maxPerWallet;
     bool public paused;
 
+    uint256 public constant BITMAP_SIZE = 2048;   // 64×64×4bit / 8
     uint256 public constant MAX_TRAITS_SIZE = 8192;
-    uint256 public constant MAX_SVG_SIZE = 24576;
 
-    mapping(uint256 => address) private _svgPointers;
+    mapping(uint256 => address) private _bitmapPointers;
     mapping(uint256 => address) private _traitsPointers;
     mapping(address => uint256) public mintCount;
+
+    // ── Commit-Reveal ──
 
     struct Commitment {
         uint256 timestamp;
@@ -33,19 +52,22 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
 
     mapping(address => Commitment[]) private _commitments;
     uint256 public constant REVEAL_DEADLINE = 7 days;
-
     uint256 public reservedFunds;
 
-    event AgentMinted(uint256 indexed tokenId, address indexed minter, address svgPointer);
+    // ── Events & Errors ──
+
+    event AgentMinted(uint256 indexed tokenId, address indexed minter, address bitmapPointer);
     event CommitMint(address indexed committer, uint256 indexed slotIndex);
     event MintPriceUpdated(uint256 newPrice);
     event MaxSupplyUpdated(uint256 newMaxSupply);
     event MaxPerWalletUpdated(uint256 newMaxPerWallet);
     event Paused(bool isPaused);
 
-    error UnsafeSVG();
     error TraitsTooLarge();
     error UnsafeTraits();
+    error InvalidBitmap();
+
+    // ── Constructor ──
 
     constructor(uint256 _mintPrice, address royaltyReceiver, uint96 royaltyFeeNumerator)
         ERC721("BOOA by Khora", "BOOA")
@@ -55,172 +77,53 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         _setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
     }
 
-    // ── SVG Sanitization ──
+    // ══════════════════════════════════════════════════════════════
+    //  VALIDATION
+    // ══════════════════════════════════════════════════════════════
 
-    function _validateSVG(bytes calldata data) internal pure {
-        uint256 len = data.length;
-        uint256 start = 0;
-
-        while (start < len) {
-            uint8 b = uint8(data[start]);
-            if (b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D || b == 0xEF || b == 0xBB || b == 0xBF) {
-                start++;
-            } else {
-                break;
-            }
-        }
-
-        require(
-            start + 4 <= len &&
-            uint8(data[start]) == 0x3C &&
-            _toLower(uint8(data[start + 1])) == 0x73 &&
-            _toLower(uint8(data[start + 2])) == 0x76 &&
-            _toLower(uint8(data[start + 3])) == 0x67,
-            "SVG must start with <svg"
-        );
-
-        for (uint256 i = start; i < len; i++) {
-            uint8 b = _toLower(uint8(data[i]));
-
-            if (b == 0x3C && i + 1 < len) {
-                uint8 next = _toLower(uint8(data[i + 1]));
-                // <script>
-                if (next == 0x73 && i + 7 < len) {
-                    if (_matchesLower(data, i + 1, "script")) revert UnsafeSVG();
-                    if (_matchesLower(data, i + 1, "style")) revert UnsafeSVG();
-                    // <set>
-                    if (i + 4 < len && _matchesLower(data, i + 1, "set")) {
-                        uint8 afterSet = i + 4 < len ? _toLower(uint8(data[i + 4])) : 0;
-                        if (afterSet == 0x20 || afterSet == 0x3E || afterSet == 0x2F || afterSet == 0x09 || afterSet == 0x0A || afterSet == 0x0D) {
-                            revert UnsafeSVG();
-                        }
-                    }
-                }
-                // <iframe>
-                if (next == 0x69 && i + 7 < len) {
-                    if (_matchesLower(data, i + 1, "iframe")) revert UnsafeSVG();
-                }
-                // <object>
-                if (next == 0x6F && i + 7 < len) {
-                    if (_matchesLower(data, i + 1, "object")) revert UnsafeSVG();
-                }
-                // <embed>
-                if (next == 0x65 && i + 6 < len) {
-                    if (_matchesLower(data, i + 1, "embed")) revert UnsafeSVG();
-                }
-                // <foreignobject>
-                if (next == 0x66 && i + 14 < len) {
-                    if (_matchesLower(data, i + 1, "foreignobject")) revert UnsafeSVG();
-                    if (_matchesLower(data, i + 1, "feimage")) revert UnsafeSVG();
-                }
-                // <animate>, <a>
-                if (next == 0x61 && i + 2 < len) {
-                    // <animate> or <animatetransform> etc
-                    if (i + 8 < len && _matchesLower(data, i + 1, "animate")) revert UnsafeSVG();
-                    // <a> — check it's just <a followed by space/> not <animate etc
-                    uint8 afterA = _toLower(uint8(data[i + 2]));
-                    if (afterA == 0x20 || afterA == 0x3E || afterA == 0x09 || afterA == 0x0A || afterA == 0x0D) {
-                        revert UnsafeSVG();
-                    }
-                }
-                // <image>
-                if (next == 0x69 && i + 6 < len) {
-                    if (_matchesLower(data, i + 1, "image")) revert UnsafeSVG();
-                }
-            }
-
-            // on* event handler detection
-            if (b == 0x6F && i + 2 < len) {
-                uint8 n = _toLower(uint8(data[i + 1]));
-                if (n == 0x6E) {
-                    uint8 charAfter = _toLower(uint8(data[i + 2]));
-                    if (i > 0) {
-                        uint8 prev = uint8(data[i - 1]);
-                        if ((prev == 0x20 || prev == 0x09 || prev == 0x0A || prev == 0x0D || prev == 0x22 || prev == 0x27) &&
-                            charAfter >= 0x61 && charAfter <= 0x7A) {
-                            for (uint256 j = i + 3; j < len && j < i + 30; j++) {
-                                uint8 jb = uint8(data[j]);
-                                if (jb == 0x3D) revert UnsafeSVG();
-                                if (jb == 0x20 || jb == 0x09 || jb == 0x0A || jb == 0x0D || jb == 0x3E || jb == 0x2F) break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (b == 0x6A && i + 11 < len) {
-                if (_matchesLower(data, i, "javascript:")) revert UnsafeSVG();
-            }
-
-            if (b == 0x64 && i + 14 < len) {
-                if (_matchesLower(data, i, "data:text/html")) revert UnsafeSVG();
-            }
-        }
+    /// @notice Bitmap validation: only length check.
+    ///         Every nibble 0-15 maps to a valid C64 palette color.
+    ///         No SVG content = no injection surface.
+    function _validateBitmap(bytes calldata data) internal pure {
+        if (data.length != BITMAP_SIZE) revert InvalidBitmap();
     }
 
+    /// @notice Traits validation: JSON array structure check.
     function _validateTraits(bytes calldata data) internal pure {
         if (data.length == 0) return;
-        // Must start with [ and end with ]
         uint8 first = uint8(data[0]);
         uint8 last = uint8(data[data.length - 1]);
-        if (first != 0x5B || last != 0x5D) revert UnsafeTraits(); // [ and ]
+        if (first != 0x5B || last != 0x5D) revert UnsafeTraits();
 
-        // Scan for unescaped characters that could break JSON encapsulation
-        // The traits are placed directly into JSON via abi.encodePacked.
-        // We disallow raw `}` outside of the traits array context that could
-        // close the parent JSON object. Specifically, we track bracket depth.
         uint256 braceDepth = 0;
         bool inString = false;
         bool escaped = false;
         for (uint256 i = 0; i < data.length; i++) {
             uint8 b = uint8(data[i]);
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-            if (b == 0x5C) { // backslash
-                escaped = true;
-                continue;
-            }
-            if (b == 0x22) { // double quote
-                inString = !inString;
-                continue;
-            }
+            if (escaped) { escaped = false; continue; }
+            if (b == 0x5C) { escaped = true; continue; }
+            if (b == 0x22) { inString = !inString; continue; }
             if (inString) continue;
-            if (b == 0x7B) braceDepth++;       // {
-            if (b == 0x7D) {                    // }
+            if (b == 0x7B) braceDepth++;
+            if (b == 0x7D) {
                 if (braceDepth == 0) revert UnsafeTraits();
                 braceDepth--;
             }
         }
     }
 
-    function _matchesLower(bytes calldata data, uint256 offset, string memory pattern) internal pure returns (bool) {
-        bytes memory p = bytes(pattern);
-        if (offset + p.length > data.length) return false;
-        for (uint256 i = 0; i < p.length; i++) {
-            if (_toLower(uint8(data[offset + i])) != uint8(p[i])) return false;
-        }
-        return true;
-    }
-
-    function _toLower(uint8 b) internal pure returns (uint8) {
-        if (b >= 0x41 && b <= 0x5A) return b + 0x20;
-        return b;
-    }
-
-    // ── Direct Minting ──
+    // ══════════════════════════════════════════════════════════════
+    //  DIRECT MINTING
+    // ══════════════════════════════════════════════════════════════
 
     function mintAgent(
-        bytes calldata svgData,
+        bytes calldata bitmapData,
         bytes calldata traitsData
     ) external payable returns (uint256) {
         require(!paused, "Minting is paused");
         require(msg.value >= mintPrice, "Insufficient payment");
-        require(svgData.length > 0, "Empty SVG data");
-        require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
+        _validateBitmap(bitmapData);
         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
-        _validateSVG(svgData);
         _validateTraits(traitsData);
 
         if (maxSupply > 0) {
@@ -233,17 +136,19 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         uint256 tokenId = _nextTokenId++;
         mintCount[msg.sender]++;
 
-        _svgPointers[tokenId] = SSTORE2.write(svgData);
+        _bitmapPointers[tokenId] = SSTORE2.write(bitmapData);
         if (traitsData.length > 0) {
             _traitsPointers[tokenId] = SSTORE2.write(traitsData);
         }
 
         _safeMint(msg.sender, tokenId);
-        emit AgentMinted(tokenId, msg.sender, _svgPointers[tokenId]);
+        emit AgentMinted(tokenId, msg.sender, _bitmapPointers[tokenId]);
         return tokenId;
     }
 
-    // ── Commit-Reveal Minting ──
+    // ══════════════════════════════════════════════════════════════
+    //  COMMIT-REVEAL MINTING
+    // ══════════════════════════════════════════════════════════════
 
     function commitMint() external payable returns (uint256 slotIndex) {
         require(!paused, "Minting is paused");
@@ -265,13 +170,12 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         }));
 
         reservedFunds += msg.value;
-
         emit CommitMint(msg.sender, slotIndex);
     }
 
     function revealMint(
         uint256 slotIndex,
-        bytes calldata svgData,
+        bytes calldata bitmapData,
         bytes calldata traitsData
     ) external returns (uint256 tokenId) {
         require(!paused, "Minting is paused");
@@ -282,13 +186,10 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         require(block.timestamp <= c.timestamp + REVEAL_DEADLINE, "Commitment expired");
 
         c.revealed = true;
-
         reservedFunds -= c.pricePaid;
 
-        require(svgData.length > 0, "Empty SVG data");
-        require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
+        _validateBitmap(bitmapData);
         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
-        _validateSVG(svgData);
         _validateTraits(traitsData);
 
         if (maxSupply > 0) {
@@ -301,13 +202,13 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         tokenId = _nextTokenId++;
         mintCount[msg.sender]++;
 
-        _svgPointers[tokenId] = SSTORE2.write(svgData);
+        _bitmapPointers[tokenId] = SSTORE2.write(bitmapData);
         if (traitsData.length > 0) {
             _traitsPointers[tokenId] = SSTORE2.write(traitsData);
         }
 
         _safeMint(msg.sender, tokenId);
-        emit AgentMinted(tokenId, msg.sender, _svgPointers[tokenId]);
+        emit AgentMinted(tokenId, msg.sender, _bitmapPointers[tokenId]);
     }
 
     function reclaimExpired(uint256 slotIndex) external {
@@ -340,26 +241,148 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     }
 
     function getCommitment(address account, uint256 slotIndex)
-        external
-        view
-        returns (uint256 timestamp, bool revealed)
+        external view returns (uint256 timestamp, bool revealed)
     {
         require(slotIndex < _commitments[account].length, "Invalid slot");
         Commitment memory c = _commitments[account][slotIndex];
         return (c.timestamp, c.revealed);
     }
 
-    // ── Metadata & Token URI ──
+    // ══════════════════════════════════════════════════════════════
+    //  ON-CHAIN SVG RENDERER
+    // ══════════════════════════════════════════════════════════════
+
+    /// @dev C64 16-color palette: 3 bytes (RGB) per color, 48 bytes total.
+    ///  0: #000000  1: #626262  2: #898989  3: #ADADAD  4: #FFFFFF
+    ///  5: #9F4E44  6: #CB7E75  7: #6D5412  8: #A1683C  9: #C9D487
+    /// 10: #9AE29B 11: #5CAB5E 12: #6ABFC6 13: #887ECB 14: #50459B
+    /// 15: #A057A3
+    bytes private constant PALETTE =
+        hex"000000626262898989ADADADFFFFFF"
+        hex"9F4E44CB7E756D5412A1683CC9D487"
+        hex"9AE29B5CAB5E6ABFC6887ECB50459B"
+        hex"A057A3";
+
+    /// @notice Reconstructs SVG from a 2048-byte bitmap.
+    /// @dev Uses horizontal run-length encoding: <path stroke="#color" d="M{x} {y}h{len}..."/>
+    ///      Output is identical in structure to svgConverter.ts.
+    function _renderSVG(bytes memory bitmap) internal pure returns (string memory) {
+        // 1. Count color frequency to find background
+        uint16[16] memory counts;
+        for (uint256 i = 0; i < BITMAP_SIZE; i++) {
+            uint8 b = uint8(bitmap[i]);
+            counts[b >> 4]++;
+            counts[b & 0x0F]++;
+        }
+        uint8 bgColor = 0;
+        uint16 maxCount = 0;
+        for (uint8 c = 0; c < 16; c++) {
+            if (counts[c] > maxCount) {
+                maxCount = counts[c];
+                bgColor = c;
+            }
+        }
+
+        // 2. SVG header + background rect
+        bytes memory svg = abi.encodePacked(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">',
+            '<rect fill="#', _colorHex(bgColor), '" width="64" height="64"/>'
+        );
+
+        // 3. One <path> per non-background color with horizontal run encoding
+        for (uint8 color = 0; color < 16; color++) {
+            if (color == bgColor || counts[color] == 0) continue;
+
+            bytes memory pathData = _buildPathData(bitmap, color);
+            if (pathData.length == 0) continue;
+
+            svg = abi.encodePacked(
+                svg,
+                '<path stroke="#', _colorHex(color), '" d="', pathData, '"/>'
+            );
+        }
+
+        return string(abi.encodePacked(svg, '</svg>'));
+    }
+
+    /// @dev Builds d="M{x} {y}h{len}..." for all horizontal runs of `color`.
+    function _buildPathData(bytes memory bitmap, uint8 color)
+        internal pure returns (bytes memory)
+    {
+        bytes memory result;
+        bool first = true;
+
+        for (uint256 y = 0; y < 64; y++) {
+            uint256 rowOffset = y * 32; // 64 pixels / 2 bytes per pixel pair
+            uint256 x = 0;
+
+            while (x < 64) {
+                // Skip non-matching pixels
+                if (_getPixel(bitmap, rowOffset, x) != color) {
+                    x++;
+                    continue;
+                }
+
+                // Found run start — measure length
+                uint256 runStart = x;
+                while (x < 64 && _getPixel(bitmap, rowOffset, x) == color) {
+                    x++;
+                }
+
+                // Encode: M{runStart} {y}h{runLen}
+                bytes memory segment = abi.encodePacked(
+                    "M", runStart.toString(), " ", y.toString(),
+                    "h", (x - runStart).toString()
+                );
+
+                if (first) {
+                    result = segment;
+                    first = false;
+                } else {
+                    result = abi.encodePacked(result, segment);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// @dev Read pixel at column `x` from row starting at `rowOffset`.
+    ///      High nibble = even column, low nibble = odd column.
+    function _getPixel(bytes memory bitmap, uint256 rowOffset, uint256 x)
+        internal pure returns (uint8)
+    {
+        uint8 b = uint8(bitmap[rowOffset + (x >> 1)]);
+        return (x & 1 == 0) ? (b >> 4) : (b & 0x0F);
+    }
+
+    /// @dev Returns 6-char uppercase hex for a palette index (0-15).
+    function _colorHex(uint8 index) internal pure returns (bytes memory) {
+        uint256 offset = uint256(index) * 3;
+        bytes memory hex6 = new bytes(6);
+        for (uint256 i = 0; i < 3; i++) {
+            uint8 b = uint8(PALETTE[offset + i]);
+            hex6[i * 2]     = _hexChar(b >> 4);
+            hex6[i * 2 + 1] = _hexChar(b & 0x0F);
+        }
+        return hex6;
+    }
+
+    function _hexChar(uint8 v) internal pure returns (bytes1) {
+        return v < 10 ? bytes1(v + 0x30) : bytes1(v + 0x37);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  METADATA & TOKEN URI
+    // ══════════════════════════════════════════════════════════════
 
     function tokenURI(uint256 tokenId)
-        public
-        view
-        override
-        returns (string memory)
+        public view override returns (string memory)
     {
         _requireOwned(tokenId);
 
-        string memory svg = string(SSTORE2.read(_svgPointers[tokenId]));
+        bytes memory bitmap = SSTORE2.read(_bitmapPointers[tokenId]);
+        string memory svg = _renderSVG(bitmap);
         string memory tokenName = string(abi.encodePacked("BOOA #", tokenId.toString()));
 
         bytes memory json;
@@ -391,18 +414,29 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         );
     }
 
+    /// @notice Returns the reconstructed SVG for a token.
     function getSVG(uint256 tokenId) public view returns (string memory) {
         _requireOwned(tokenId);
-        return string(SSTORE2.read(_svgPointers[tokenId]));
+        bytes memory bitmap = SSTORE2.read(_bitmapPointers[tokenId]);
+        return _renderSVG(bitmap);
     }
 
+    /// @notice Returns raw bitmap bytes for a token.
+    function getBitmap(uint256 tokenId) public view returns (bytes memory) {
+        _requireOwned(tokenId);
+        return SSTORE2.read(_bitmapPointers[tokenId]);
+    }
+
+    /// @notice Returns raw traits JSON for a token.
     function getTraits(uint256 tokenId) public view returns (string memory) {
         _requireOwned(tokenId);
         if (_traitsPointers[tokenId] == address(0)) return "";
         return string(SSTORE2.read(_traitsPointers[tokenId]));
     }
 
-    // ── Admin ──
+    // ══════════════════════════════════════════════════════════════
+    //  ADMIN
+    // ══════════════════════════════════════════════════════════════
 
     function setMintPrice(uint256 _price) external onlyOwner {
         mintPrice = _price;
@@ -448,7 +482,9 @@ contract BOOA is ERC721Enumerable, ERC2981, Ownable {
         require(ok, "Withdrawal failed");
     }
 
-    // ── Overrides ──
+    // ══════════════════════════════════════════════════════════════
+    //  OVERRIDES
+    // ══════════════════════════════════════════════════════════════
 
     function _increaseBalance(address account, uint128 value) internal override(ERC721Enumerable) {
         super._increaseBalance(account, value);

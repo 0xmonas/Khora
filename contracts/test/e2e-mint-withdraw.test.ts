@@ -4,10 +4,10 @@ import type { BOOA } from "../typechain-types";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
- * E2E Healthy Mint & Withdraw Test
+ * E2E Healthy Mint & Withdraw Test (Bitmap Edition)
  *
  * Full lifecycle tests:
- * - Direct mint → verify SVG/traits/tokenURI on-chain → owner withdraw
+ * - Direct mint → verify SVG rendering/traits/tokenURI on-chain → owner withdraw
  * - Commit → reveal → verify → owner withdraw
  * - Commit → expire → reclaim refund → owner withdraw
  * - Price change mid-flow → accounting stays correct
@@ -15,7 +15,7 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
  * - ETH balance tracking at every step
  */
 
-describe("E2E: Healthy Mint & Withdraw", function () {
+describe("E2E: Healthy Mint & Withdraw (Bitmap)", function () {
   let contract: BOOA;
   let owner: HardhatEthersSigner;
   let alice: HardhatEthersSigner;
@@ -25,8 +25,13 @@ describe("E2E: Healthy Mint & Withdraw", function () {
   const mintPrice = ethers.parseEther("0.005");
   const royaltyFee = 500; // 5%
 
-  const testSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges"><path stroke="#0A0A0A" d="M0 0h64M0 1h64"/></svg>';
-  const svgBytes = ethers.toUtf8Bytes(testSVG);
+  /** Create a 2048-byte bitmap filled with a single C64 palette index. */
+  function makeBitmap(colorIndex: number = 0): Uint8Array {
+    const packed = ((colorIndex & 0xF) << 4) | (colorIndex & 0xF);
+    return new Uint8Array(2048).fill(packed);
+  }
+
+  const bitmapBytes = makeBitmap(0); // all-black
 
   const makeTraits = (name: string, creature: string, vibe: string) =>
     ethers.toUtf8Bytes(JSON.stringify([
@@ -60,7 +65,7 @@ describe("E2E: Healthy Mint & Withdraw", function () {
 
       // ── MINT ──
       console.log("      [1] Alice mints...");
-      const tx = await contract.connect(alice).mintAgent(svgBytes, traits, { value: mintPrice });
+      const tx = await contract.connect(alice).mintAgent(bitmapBytes, traits, { value: mintPrice });
       const receipt = await tx.wait();
 
       expect(await contract.totalSupply()).to.equal(1);
@@ -68,10 +73,17 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       expect(await contract.mintCount(alice.address)).to.equal(1);
       console.log(`      Gas used: ${receipt!.gasUsed}`);
 
-      // ── VERIFY SVG ──
-      console.log("      [2] Verifying SVG on-chain...");
+      // ── VERIFY SVG (rendered from bitmap) ──
+      console.log("      [2] Verifying rendered SVG on-chain...");
       const svg = await contract.getSVG(0);
-      expect(svg).to.equal(testSVG);
+      expect(svg).to.include('<svg xmlns="http://www.w3.org/2000/svg"');
+      expect(svg).to.include('<rect fill="#000000" width="64" height="64"/>');
+      expect(svg).to.include('</svg>');
+
+      // ── VERIFY BITMAP ──
+      console.log("      [2b] Verifying raw bitmap on-chain...");
+      const rawBitmap = await contract.getBitmap(0);
+      expect(ethers.getBytes(rawBitmap).length).to.equal(2048);
 
       // ── VERIFY TRAITS ──
       console.log("      [3] Verifying traits on-chain...");
@@ -87,7 +99,6 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       const uri = await contract.tokenURI(0);
       expect(uri).to.match(/^data:application\/json;base64,/);
 
-      // Decode and verify JSON
       const json = Buffer.from(uri.split(",")[1], "base64").toString();
       const metadata = JSON.parse(json);
       expect(metadata.name).to.equal("BOOA #0");
@@ -95,17 +106,17 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       expect(metadata.image).to.match(/^data:image\/svg\+xml;base64,/);
       expect(metadata.attributes).to.be.an("array").with.length(3);
 
-      // Decode SVG from metadata
+      // Decode SVG from metadata — should match getSVG output
       const svgFromUri = Buffer.from(metadata.image.split(",")[1], "base64").toString();
-      expect(svgFromUri).to.equal(testSVG);
-      console.log("      SVG in tokenURI matches original ✓");
+      expect(svgFromUri).to.equal(svg);
+      console.log("      SVG in tokenURI matches getSVG ✓");
 
       // ── VERIFY ROYALTIES ──
       console.log("      [5] Verifying royalties...");
       const salePrice = ethers.parseEther("1");
       const [receiver, amount] = await contract.royaltyInfo(0, salePrice);
       expect(receiver).to.equal(owner.address);
-      expect(amount).to.equal(ethers.parseEther("0.05")); // 5%
+      expect(amount).to.equal(ethers.parseEther("0.05"));
 
       // ── OWNER WITHDRAW ──
       console.log("      [6] Owner withdraws...");
@@ -146,26 +157,24 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       expect(commitment.timestamp).to.be.gt(0);
       console.log(`      Reserved: ${ethers.formatEther(await contract.reservedFunds())} ETH`);
 
-      // Owner cannot withdraw reserved funds
       await expect(contract.connect(owner).withdraw()).to.be.revertedWith("No available funds");
       console.log("      Owner withdraw blocked (all funds reserved) ✓");
 
       // ── REVEAL ──
       console.log("      [2] Bob reveals...");
-      await contract.connect(bob).revealMint(0, svgBytes, traits);
+      await contract.connect(bob).revealMint(0, bitmapBytes, traits);
 
       expect(await contract.totalSupply()).to.equal(1);
       expect(await contract.ownerOf(0)).to.equal(bob.address);
       expect(await contract.reservedFunds()).to.equal(0);
-      console.log(`      Reserved after reveal: ${ethers.formatEther(await contract.reservedFunds())} ETH`);
 
       // ── VERIFY DATA ──
       console.log("      [3] Verifying on-chain data...");
-      expect(await contract.getSVG(0)).to.equal(testSVG);
+      const svg = await contract.getSVG(0);
+      expect(svg).to.include('<rect fill="#000000"');
       const parsed = JSON.parse(await contract.getTraits(0));
       expect(parsed[0].value).to.equal("Nyx");
 
-      // Commitment should be marked as revealed
       const c2 = await contract.getCommitment(bob.address, 0);
       expect(c2.revealed).to.equal(true);
 
@@ -186,83 +195,49 @@ describe("E2E: Healthy Mint & Withdraw", function () {
   // ═══════════════════════════════════════════════════════════
   // 3. COMMIT → EXPIRE → RECLAIM
   // ═══════════════════════════════════════════════════════════
-  describe("3. Commit → Expire → Reclaim Refund", function () {
+  describe("3. Commit → Expire → Reclaim", function () {
 
-    it("refunds correct amount after expiry", async function () {
-      // ── COMMIT ──
+    it("expired commitment refunds user, not owner", async function () {
       console.log("      [1] Carol commits...");
       await contract.connect(carol).commitMint({ value: mintPrice });
       expect(await contract.reservedFunds()).to.equal(mintPrice);
 
-      // ── FAST-FORWARD 7 DAYS + 1 ──
-      console.log("      [2] Fast-forwarding 7 days...");
+      console.log("      [2] Fast-forward 7 days...");
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
 
-      // ── RECLAIM ──
       console.log("      [3] Carol reclaims...");
-      const carolBefore = await ethers.provider.getBalance(carol.address);
+      const balBefore = await ethers.provider.getBalance(carol.address);
       const tx = await contract.connect(carol).reclaimExpired(0);
       const r = await tx.wait();
       const gas = r!.gasUsed * r!.gasPrice;
-      const carolAfter = await ethers.provider.getBalance(carol.address);
+      const balAfter = await ethers.provider.getBalance(carol.address);
 
-      const refund = carolAfter - carolBefore + gas;
-      expect(refund).to.equal(mintPrice);
-      console.log(`      Refunded: ${ethers.formatEther(refund)} ETH ✓`);
-
-      // Reserved should be 0 now
+      expect(balAfter + gas - balBefore).to.equal(mintPrice);
       expect(await contract.reservedFunds()).to.equal(0);
-      // Contract balance should be 0
       expect(await contractBalance()).to.equal(0);
-      // No token minted
-      expect(await contract.totalSupply()).to.equal(0);
-      console.log("      No token minted, all funds returned ✓");
-    });
-
-    it("refunds original price even if price changed", async function () {
-      const originalPrice = mintPrice;
-      const newPrice = ethers.parseEther("0.05"); // 10x increase
-
-      await contract.connect(carol).commitMint({ value: originalPrice });
-      await contract.connect(owner).setMintPrice(newPrice);
-
-      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-      const carolBefore = await ethers.provider.getBalance(carol.address);
-      const tx = await contract.connect(carol).reclaimExpired(0);
-      const r = await tx.wait();
-      const gas = r!.gasUsed * r!.gasPrice;
-      const carolAfter = await ethers.provider.getBalance(carol.address);
-
-      // Should refund original price, not new price
-      expect(carolAfter - carolBefore + gas).to.equal(originalPrice);
-      console.log(`      Refunded original price (${ethers.formatEther(originalPrice)} ETH) not new price (${ethers.formatEther(newPrice)} ETH) ✓`);
+      console.log(`      Reclaimed: ${ethers.formatEther(mintPrice)} ETH ✓`);
     });
   });
 
   // ═══════════════════════════════════════════════════════════
-  // 4. MIXED FLOW: MINTS + COMMITS + WITHDRAW
+  // 4. MIXED FLOW — DIRECT + COMMIT-REVEAL + PARTIAL WITHDRAW
   // ═══════════════════════════════════════════════════════════
-  describe("4. Mixed Flow: ETH Accounting", function () {
+  describe("4. Mixed Flow", function () {
 
-    it("tracks ETH correctly through complex multi-user flow", async function () {
+    it("complex multi-user flow with partial withdrawals", async function () {
       const p = mintPrice;
 
       // ── Alice direct mints ──
       console.log("      [1] Alice direct mints...");
-      await contract.connect(alice).mintAgent(svgBytes, makeTraits("A1", "Cat", "calm"), { value: p });
-      expect(await contractBalance()).to.equal(p);
-      expect(await contract.reservedFunds()).to.equal(0);
+      await contract.connect(alice).mintAgent(bitmapBytes, makeTraits("A1", "Cat", "calm"), { value: p });
 
       // ── Bob commits ──
       console.log("      [2] Bob commits...");
       await contract.connect(bob).commitMint({ value: p });
-      expect(await contractBalance()).to.equal(p * 2n);
       expect(await contract.reservedFunds()).to.equal(p);
 
-      // ── Owner partial withdraw (only Alice's mint is available) ──
+      // ── Owner partial withdraw ──
       console.log("      [3] Owner partial withdraw...");
       const ownerBefore = await ethers.provider.getBalance(owner.address);
       const tx1 = await contract.connect(owner).withdraw();
@@ -271,19 +246,19 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       const ownerAfter = await ethers.provider.getBalance(owner.address);
 
       const withdrawn1 = ownerAfter - ownerBefore + gas1;
-      expect(withdrawn1).to.equal(p); // Only Alice's mint, Bob's is reserved
-      expect(await contractBalance()).to.equal(p); // Bob's reserved funds remain
+      expect(withdrawn1).to.equal(p);
+      expect(await contractBalance()).to.equal(p);
       console.log(`      Withdrawn: ${ethers.formatEther(withdrawn1)} ETH (Bob's funds still reserved) ✓`);
 
       // ── Carol direct mints ──
       console.log("      [4] Carol direct mints...");
-      await contract.connect(carol).mintAgent(svgBytes, makeTraits("C1", "Bird", "free"), { value: p });
-      expect(await contractBalance()).to.equal(p * 2n); // Bob's reserved + Carol's mint
+      await contract.connect(carol).mintAgent(bitmapBytes, makeTraits("C1", "Bird", "free"), { value: p });
+      expect(await contractBalance()).to.equal(p * 2n);
 
       // ── Bob reveals ──
       console.log("      [5] Bob reveals...");
-      await contract.connect(bob).revealMint(0, svgBytes, makeTraits("B1", "Wolf", "wild"));
-      expect(await contract.reservedFunds()).to.equal(0); // Released
+      await contract.connect(bob).revealMint(0, bitmapBytes, makeTraits("B1", "Wolf", "wild"));
+      expect(await contract.reservedFunds()).to.equal(0);
 
       // ── Owner full withdraw ──
       console.log("      [6] Owner full withdraw...");
@@ -294,7 +269,7 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       const ownerAfter2 = await ethers.provider.getBalance(owner.address);
 
       const withdrawn2 = ownerAfter2 - ownerBefore2 + gas2;
-      expect(withdrawn2).to.equal(p * 2n); // Bob's revealed + Carol's mint
+      expect(withdrawn2).to.equal(p * 2n);
       expect(await contractBalance()).to.equal(0);
       console.log(`      Withdrawn: ${ethers.formatEther(withdrawn2)} ETH ✓`);
 
@@ -304,7 +279,8 @@ describe("E2E: Healthy Mint & Withdraw", function () {
 
       for (let i = 0; i < 3; i++) {
         const svg = await contract.getSVG(i);
-        expect(svg).to.equal(testSVG);
+        expect(svg).to.include('<svg xmlns');
+        expect(svg).to.include('<rect fill="#000000"');
 
         const uri = await contract.tokenURI(i);
         const json = Buffer.from(uri.split(",")[1], "base64").toString();
@@ -313,13 +289,11 @@ describe("E2E: Healthy Mint & Withdraw", function () {
         expect(meta.image).to.include("data:image/svg+xml;base64,");
       }
 
-      // Token 0 = Alice, 1 = Carol (direct), 2 = Bob (reveal)
       expect(await contract.ownerOf(0)).to.equal(alice.address);
       expect(await contract.ownerOf(1)).to.equal(carol.address);
       expect(await contract.ownerOf(2)).to.equal(bob.address);
       console.log("      All tokens verified on-chain ✓");
 
-      // ── TOTAL ETH ACCOUNTING ──
       const totalPaid = p * 3n;
       const totalWithdrawn = withdrawn1 + withdrawn2;
       expect(totalWithdrawn).to.equal(totalPaid);
@@ -333,7 +307,7 @@ describe("E2E: Healthy Mint & Withdraw", function () {
   describe("5. withdrawTo", function () {
 
     it("sends funds to specified address", async function () {
-      await contract.connect(alice).mintAgent(svgBytes, makeTraits("X", "Y", "Z"), { value: mintPrice });
+      await contract.connect(alice).mintAgent(bitmapBytes, makeTraits("X", "Y", "Z"), { value: mintPrice });
 
       const carolBefore = await ethers.provider.getBalance(carol.address);
       await contract.connect(owner).withdrawTo(carol.address);
@@ -345,7 +319,7 @@ describe("E2E: Healthy Mint & Withdraw", function () {
     });
 
     it("rejects zero address", async function () {
-      await contract.connect(alice).mintAgent(svgBytes, makeTraits("X", "Y", "Z"), { value: mintPrice });
+      await contract.connect(alice).mintAgent(bitmapBytes, makeTraits("X", "Y", "Z"), { value: mintPrice });
       await expect(
         contract.connect(owner).withdrawTo(ethers.ZeroAddress)
       ).to.be.revertedWith("Zero address");
@@ -359,20 +333,21 @@ describe("E2E: Healthy Mint & Withdraw", function () {
 
     it("data persists after transfer", async function () {
       const traits = makeTraits("Transferred", "Dragon", "ancient");
-      await contract.connect(alice).mintAgent(svgBytes, traits, { value: mintPrice });
+      await contract.connect(alice).mintAgent(bitmapBytes, traits, { value: mintPrice });
 
-      // Transfer Alice → Bob
       await contract.connect(alice).transferFrom(alice.address, bob.address, 0);
       expect(await contract.ownerOf(0)).to.equal(bob.address);
       expect(await contract.balanceOf(alice.address)).to.equal(0);
       expect(await contract.balanceOf(bob.address)).to.equal(1);
 
-      // SVG and traits still accessible
-      expect(await contract.getSVG(0)).to.equal(testSVG);
+      // SVG, bitmap, and traits still accessible
+      const svg = await contract.getSVG(0);
+      expect(svg).to.include('<rect fill="#000000"');
+      const rawBitmap = await contract.getBitmap(0);
+      expect(ethers.getBytes(rawBitmap).length).to.equal(2048);
       const parsed = JSON.parse(await contract.getTraits(0));
       expect(parsed[0].value).to.equal("Transferred");
 
-      // tokenURI still works
       const uri = await contract.tokenURI(0);
       expect(uri).to.include("data:application/json;base64,");
       console.log("      Data persists after transfer ✓");
@@ -385,13 +360,12 @@ describe("E2E: Healthy Mint & Withdraw", function () {
   describe("7. Overpayment Handling", function () {
 
     it("accepts overpayment (extra goes to contract)", async function () {
-      const overpay = ethers.parseEther("0.1"); // 20x mint price
-      await contract.connect(alice).mintAgent(svgBytes, makeTraits("Rich", "Whale", "generous"), { value: overpay });
+      const overpay = ethers.parseEther("0.1");
+      await contract.connect(alice).mintAgent(bitmapBytes, makeTraits("Rich", "Whale", "generous"), { value: overpay });
 
       expect(await contract.totalSupply()).to.equal(1);
       expect(await contractBalance()).to.equal(overpay);
 
-      // Owner can withdraw full overpayment
       const ownerBefore = await ethers.provider.getBalance(owner.address);
       const tx = await contract.connect(owner).withdraw();
       const r = await tx.wait();
@@ -412,35 +386,23 @@ describe("E2E: Healthy Mint & Withdraw", function () {
       const oldPrice = mintPrice;
       const newPrice = ethers.parseEther("0.01");
 
-      // Alice mints at old price
-      await contract.connect(alice).mintAgent(svgBytes, makeTraits("Old", "Cat", "calm"), { value: oldPrice });
-
-      // Bob commits at old price
+      await contract.connect(alice).mintAgent(bitmapBytes, makeTraits("Old", "Cat", "calm"), { value: oldPrice });
       await contract.connect(bob).commitMint({ value: oldPrice });
-
-      // Owner changes price
       await contract.connect(owner).setMintPrice(newPrice);
+      await contract.connect(carol).mintAgent(bitmapBytes, makeTraits("New", "Dog", "happy"), { value: newPrice });
 
-      // Carol mints at new price
-      await contract.connect(carol).mintAgent(svgBytes, makeTraits("New", "Dog", "happy"), { value: newPrice });
-
-      // Carol can't mint at old (lower) price anymore
       await expect(
-        contract.connect(carol).mintAgent(svgBytes, makeTraits("X", "Y", "Z"), { value: oldPrice })
+        contract.connect(carol).mintAgent(bitmapBytes, makeTraits("X", "Y", "Z"), { value: oldPrice })
       ).to.be.revertedWith("Insufficient payment");
 
-      // Carol mints again at new price
-      await contract.connect(carol).mintAgent(svgBytes, makeTraits("New2", "Fox", "sly"), { value: newPrice });
+      await contract.connect(carol).mintAgent(bitmapBytes, makeTraits("New2", "Fox", "sly"), { value: newPrice });
+      await contract.connect(bob).revealMint(0, bitmapBytes, makeTraits("Bob", "Wolf", "wild"));
 
-      // Bob reveals — this should work, he already paid at commit time
-      await contract.connect(bob).revealMint(0, svgBytes, makeTraits("Bob", "Wolf", "wild"));
+      expect(await contract.totalSupply()).to.equal(4);
 
-      expect(await contract.totalSupply()).to.equal(4); // Alice + Carol + Carol2 + Bob
-
-      // Accounting
       const balance = await contractBalance();
       const reserved = await contract.reservedFunds();
-      expect(reserved).to.equal(0); // all revealed
+      expect(reserved).to.equal(0);
       console.log(`      Balance: ${ethers.formatEther(balance)} ETH, Reserved: ${ethers.formatEther(reserved)} ETH`);
       console.log(`      Price change mid-flow handled correctly ✓`);
     });

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
-import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import type { KhoraAgent } from '@/types/agent';
-import { BOOA_NFT_ABI } from '@/lib/contracts/booa';
+import { BOOA_NFT_ABI, isMainnetChain } from '@/lib/contracts/booa';
+import type { Chain } from 'viem';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -49,9 +50,7 @@ export async function GET(
 
   // If no metadata but has registry → return minimal response with registrations
   if (!entry) {
-    const registryAddr = chainIdNum === 8453
-      ? IDENTITY_REGISTRY_MAINNET
-      : IDENTITY_REGISTRY_TESTNET;
+    const registryAddr = getRegistryAddress(chainIdNum);
     return NextResponse.json({
       registrations: [{
         agentId: registryData!.agentId,
@@ -75,14 +74,17 @@ export async function GET(
   const registration = toERC8004(agent);
 
   // Fetch on-chain SVG from BOOA NFT and embed as data URI (WA005 fix)
-  const booaContract = chainIdNum === 8453
+  const booaContract = isMainnetChain(chainIdNum)
     ? process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS
     : process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET;
   if (booaContract) {
     try {
       const { createPublicClient, http } = await import('viem');
       const { base, baseSepolia } = await import('viem/chains');
-      const chain = chainIdNum === 8453 ? base : baseSepolia;
+      const chainMap: Record<number, Chain> = {
+        [base.id]: base, [baseSepolia.id]: baseSepolia,
+      };
+      const chain = chainMap[chainIdNum] || baseSepolia;
       const client = createPublicClient({ chain, transport: http() });
       const svgString = await client.readContract({
         address: booaContract as `0x${string}`,
@@ -107,9 +109,7 @@ export async function GET(
 
   // Add registrations[] if agent was registered on Identity Registry
   if (registryData?.agentId !== undefined) {
-    const registryAddr = chainIdNum === 8453
-      ? IDENTITY_REGISTRY_MAINNET
-      : IDENTITY_REGISTRY_TESTNET;
+    const registryAddr = getRegistryAddress(chainIdNum);
     registration.registrations = [{
       agentId: registryData.agentId,
       agentRegistry: `eip155:${chainIdNum}:${registryAddr}`,

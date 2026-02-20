@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search } from 'lucide-react';
 import Image from 'next/image';
 import { useChainId, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
@@ -278,6 +278,12 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const chainSlug = isMainnet ? 'base' : 'base-sepolia';
   const onchainCheckerUrl = `https://onchainchecker.xyz/collection/${chainSlug}/${contract}/${tokenId}`;
 
+  const scan8004Url = registryAgentId !== null
+    ? isMainnet
+      ? `https://www.8004scan.io/agents/base/${registryAgentId.toString()}`
+      : `https://testnet.8004scan.io/agents/base-sepolia/${registryAgentId.toString()}`
+    : null;
+
   // Extract key traits from on-chain data (public for everyone)
   const name = traits.find(t => t.trait_type === 'Name')?.value;
   const description = traits.find(t => t.trait_type === 'Description')?.value;
@@ -343,8 +349,19 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 className={iconBtn}
                 title="OnchainChecker"
               >
-                <ShieldCheck className="w-3.5 h-3.5 dark:text-white" />
+                <Image src="/onchainchecker.svg" alt="OnchainChecker" width={14} height={14} className="dark:invert" />
               </a>
+              {scan8004Url && (
+                <a
+                  href={scan8004Url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={iconBtn}
+                  title="8004scan"
+                >
+                  <Image src="/8004scan.svg" alt="8004scan" width={14} height={14} className="dark:invert" />
+                </a>
+              )}
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { pixelateImage } from '@/utils/pixelator';
 import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
 import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { sanitizeSvgBytes, validateSvgForContract } from '@/utils/helpers/svgMinifier';
+import { validateBitmapForContract, encodeBitmap, BITMAP_SIZE } from '@/utils/helpers/bitmapEncoder';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
@@ -167,7 +167,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep SVG/traits bytes in ref for retry
-  const pendingSvgBytes = useRef<Uint8Array | null>(null);
+  const pendingBitmapBytes = useRef<Uint8Array | null>(null);
   const pendingTraitsBytes = useRef<Uint8Array | null>(null);
 
   const commitReveal = useCommitReveal();
@@ -186,8 +186,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (parsed.agentName) setAgentName(parsed.agentName);
         if (parsed.agentDescription) setAgentDescription(parsed.agentDescription);
         if (parsed.mode) setMode(parsed.mode);
-        if (parsed.pendingSvgHex) {
-          pendingSvgBytes.current = sanitizeSvgBytes(hexToBytes(parsed.pendingSvgHex));
+        if (parsed.pendingBitmapHex) {
+          const loaded = hexToBytes(parsed.pendingBitmapHex);
+          // Bitmap format: exactly 2048 bytes. Anything else is stale SVG data.
+          if (loaded.length === BITMAP_SIZE) {
+            pendingBitmapBytes.current = loaded;
+          }
+          // else: stale legacy data — ignore, user will regenerate
         }
         if (parsed.pendingTraitsHex) {
           pendingTraitsBytes.current = hexToBytes(parsed.pendingTraitsHex);
@@ -205,8 +210,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         agent, generatedImage, pixelatedImage, currentStep,
         agentName, agentDescription, mode,
       };
-      if (pendingSvgBytes.current) {
-        data.pendingSvgHex = bytesToHex(pendingSvgBytes.current);
+      if (pendingBitmapBytes.current) {
+        data.pendingBitmapHex = bytesToHex(pendingBitmapBytes.current);
       }
       if (pendingTraitsBytes.current) {
         data.pendingTraitsHex = bytesToHex(pendingTraitsBytes.current);
@@ -255,7 +260,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('complete');
       setLoading(false);
       isFlowActive.current = false;
-      pendingSvgBytes.current = null;
+      pendingBitmapBytes.current = null;
       pendingTraitsBytes.current = null;
       commitReveal.refetchSupply();
       if (commitReveal.address && commitReveal.slotIndex !== null) {
@@ -307,7 +312,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
             setCurrentStep('complete');
             setLoading(false);
             isFlowActive.current = false;
-            pendingSvgBytes.current = null;
+            pendingBitmapBytes.current = null;
             pendingTraitsBytes.current = null;
             commitReveal.refetchSupply();
           } else {
@@ -366,7 +371,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       !isFlowActive.current &&
       currentStep === 'input' &&
       commitReveal.slotIndex !== null &&
-      pendingSvgBytes.current
+      pendingBitmapBytes.current
     ) {
       setCurrentStep('reveal_failed');
       setError('You have a pending reveal from a previous session. Retry or generate a new image.');
@@ -383,14 +388,18 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       !isFlowActive.current &&
       currentStep === 'input' &&
       commitReveal.slotIndex !== null &&
-      !pendingSvgBytes.current &&
+      !pendingBitmapBytes.current &&
       commitReveal.address
     ) {
       loadPendingRevealFromAPI(
         commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
       ).then(result => {
         if (result) {
-          pendingSvgBytes.current = sanitizeSvgBytes(hexToBytes(result.svg));
+          const loaded = hexToBytes(result.svg);
+          if (loaded.length === BITMAP_SIZE) {
+            pendingBitmapBytes.current = loaded;
+          }
+          // else: stale legacy SVG — user must regenerate
           pendingTraitsBytes.current = hexToBytes(result.traits);
           setCurrentStep('reveal_failed');
           setError('You have a pending reveal recovered from the server. Retry or generate a new image.');
@@ -505,20 +514,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       const pixelResult = await pixelateImage(imageUrl);
       setPixelatedImage(pixelResult);
 
-      // Prepare SVG + traits
+      // Encode bitmap for on-chain storage (2,048 bytes)
       const imageToUse = pixelResult;
-      const { convertToSVG } = await import('@/utils/helpers/svgConverter');
-      const { minifySVG, svgToBytes, svgByteSize, SSTORE2_MAX_BYTES } = await import('@/utils/helpers/svgMinifier');
-
-      const svgString = await convertToSVG(imageToUse);
-      const minified = minifySVG(svgString);
-      const byteSize = svgByteSize(minified);
-
-      if (byteSize > SSTORE2_MAX_BYTES) {
-        throw new Error(`SVG too large: ${(byteSize / 1024).toFixed(1)}KB (max 24KB)`);
-      }
-
-      const svgBytes = svgToBytes(minified);
+      const bitmapBytes = await encodeBitmap(imageToUse);
 
       const attributes: Array<{ trait_type: string; value: string }> = [];
       // Use agentData (AI-generated) for name/description — React state may not have flushed yet
@@ -546,14 +544,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
 
       // Save bytes for retry
-      pendingSvgBytes.current = svgBytes;
+      pendingBitmapBytes.current = bitmapBytes;
       pendingTraitsBytes.current = traitsBytes;
 
       // Save to API for cross-session recovery (fire-and-forget)
       if (commitReveal.address && commitReveal.slotIndex !== null) {
         savePendingRevealToAPI(
           commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex),
-          bytesToHex(svgBytes), bytesToHex(traitsBytes),
+          bytesToHex(bitmapBytes), bytesToHex(traitsBytes),
         );
       }
 
@@ -607,13 +605,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // ── User clicks REVEAL in the modal ──
   const triggerReveal = useCallback(() => {
-    if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
+    if (!pendingBitmapBytes.current || !pendingTraitsBytes.current) {
       setError('No pending reveal data');
       return;
     }
-    const svgError = validateSvgForContract(pendingSvgBytes.current);
-    if (svgError) {
-      setError(svgError);
+    const bitmapError = validateBitmapForContract(pendingBitmapBytes.current);
+    if (bitmapError) {
+      setError(bitmapError);
       setCurrentStep('reveal_failed');
       return;
     }
@@ -622,7 +620,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setCurrentStep('revealing');
     isFlowActive.current = true;
     try {
-      commitReveal.reveal(pendingSvgBytes.current, pendingTraitsBytes.current);
+      commitReveal.reveal(pendingBitmapBytes.current, pendingTraitsBytes.current);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initiate reveal');
       setCurrentStep('reveal_failed');
@@ -632,13 +630,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // ── Retry reveal (after reject/cancel) ──
   const retryReveal = useCallback(async () => {
-    if (!pendingSvgBytes.current || !pendingTraitsBytes.current) {
+    if (!pendingBitmapBytes.current || !pendingTraitsBytes.current) {
       setError('No pending reveal data — use Regenerate to create a new image');
       return;
     }
-    const svgError = validateSvgForContract(pendingSvgBytes.current);
-    if (svgError) {
-      setError(svgError);
+    const bitmapError = validateBitmapForContract(pendingBitmapBytes.current);
+    if (bitmapError) {
+      setError(bitmapError);
       setCurrentStep('reveal_failed');
       return;
     }
@@ -672,7 +670,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           setCurrentStep('complete');
           setLoading(false);
           isFlowActive.current = false;
-          pendingSvgBytes.current = null;
+          pendingBitmapBytes.current = null;
           pendingTraitsBytes.current = null;
           commitReveal.refetchSupply();
           return;
@@ -682,16 +680,16 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const svgData = pendingSvgBytes.current;
+    const bitmapData = pendingBitmapBytes.current;
     const traitsData = pendingTraitsBytes.current;
-    if (!svgData || !traitsData) return;
+    if (!bitmapData || !traitsData) return;
 
     setError(null);
     setLoading(true);
     setCurrentStep('revealing');
     isFlowActive.current = true;
     try {
-      commitReveal.reveal(svgData, traitsData);
+      commitReveal.reveal(bitmapData, traitsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to retry reveal');
       setCurrentStep('reveal_failed');
@@ -877,7 +875,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setIsModalOpen(true);
 
     commitReveal.reset();
-    pendingSvgBytes.current = null;
+    pendingBitmapBytes.current = null;
     pendingTraitsBytes.current = null;
 
     try {
@@ -904,7 +902,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   const reset = useCallback(() => {
     localStorage.removeItem('khoraGeneratorData');
-    pendingSvgBytes.current = null;
+    pendingBitmapBytes.current = null;
     pendingTraitsBytes.current = null;
     setAgent(null);
     setLoading(false);
@@ -955,7 +953,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         downloadBlob(pngBlob, `${fileName}.png`);
       } else if (format === 'svg') {
         if (!imageToUse) return;
-        const { createSVGBlob } = await import('@/utils/helpers/svgConverter');
+        const { createSVGBlob } = await import('@/utils/helpers/bitmapEncoder');
         const svgBlob = await createSVGBlob(imageToUse);
         downloadBlob(svgBlob, `${fileName}.svg`);
       } else if (format === 'erc8004') {
@@ -1033,7 +1031,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     selectedDomains, setSelectedDomains,
     importedRegistryTokenId, setImportedRegistryTokenId,
     registryAgentId, registerTxHash,
-    hasRevealData: !!(pendingSvgBytes.current && pendingTraitsBytes.current),
+    hasRevealData: !!(pendingBitmapBytes.current && pendingTraitsBytes.current),
     isModalOpen,
     mintAndGenerate, triggerReveal, retryReveal, regenerateForReveal, registerAgent, downloadAgent, reset, closeModal, openModal,
   };
