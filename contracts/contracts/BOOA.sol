@@ -10,20 +10,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 
 /// @title BOOA by Khora — Bitmap Edition
-/// @notice On-chain AI agent PFPs stored as 64×64 4-bit bitmaps.
-///         SVG is reconstructed on-chain at read time (tokenURI).
-///
-/// Bitmap format:
-///   2,048 bytes = 4,096 nibbles = 64×64 pixels
-///   Each nibble (4 bits) = C64 palette index (0-15)
-///   Byte layout: high nibble = even pixel, low nibble = odd pixel
-///   Row-major order: row 0 = bytes 0-31, row 1 = bytes 32-63, ...
-///
-/// Security model:
-///   - No SVG validation needed (contract generates SVG itself)
-///   - No palette bypass possible (4-bit = 0-15 = C64 palette)
-///   - No tag/style injection possible (no user strings in SVG output)
-///   - Validation = require(length == 2048). That's it.
+
 contract BOOA is ERC721Enumerable, ERC2981, Ownable {
     using Strings for uint256;
 
