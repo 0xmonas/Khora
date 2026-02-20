@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { validateInput } from '@/lib/api/api-helpers';
 import { generateImageSchema } from '@/lib/validation/schemas';
-import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
@@ -34,6 +34,18 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders(rl) },
       );
     }
+    // Per-wallet generation quota
+    const walletAddress = request.headers.get('x-siwe-address');
+    if (walletAddress) {
+      const quota = await checkGenerationQuota(walletAddress);
+      if (!quota.allowed) {
+        return NextResponse.json(
+          { error: `Generation limit reached (${GEN_QUOTA_MAX} per mint session). Complete your reveal or wait for expiry.` },
+          { status: 429 },
+        );
+      }
+    }
+
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY is not configured' },
@@ -65,6 +77,9 @@ export async function POST(request: NextRequest) {
       if (part.inlineData) {
         const { mimeType, data } = part.inlineData;
         const image = `data:${mimeType};base64,${data}`;
+        if (walletAddress) {
+          await incrementGenerationCount(walletAddress);
+        }
         return NextResponse.json({ image });
       }
     }

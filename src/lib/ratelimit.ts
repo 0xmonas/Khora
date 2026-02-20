@@ -55,3 +55,30 @@ export function rateLimitHeaders(result: { limit: number; remaining: number; res
     'X-RateLimit-Reset': result.reset.toString(),
   };
 }
+
+/**
+ * Per-wallet AI generation quota.
+ * Prevents a single wallet from generating unlimited images after committing.
+ */
+const GEN_QUOTA_PREFIX = 'gen:wallet:';
+export const GEN_QUOTA_MAX = 5;
+const GEN_QUOTA_TTL = 8 * 24 * 60 * 60; // 8 days (commit deadline + buffer)
+
+export async function checkGenerationQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
+  const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
+  const count = (await redis.get<number>(key)) ?? 0;
+  return { allowed: count < GEN_QUOTA_MAX, remaining: Math.max(0, GEN_QUOTA_MAX - count) };
+}
+
+export async function incrementGenerationCount(address: string): Promise<void> {
+  const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
+  const newCount = await redis.incr(key);
+  if (newCount === 1) {
+    await redis.expire(key, GEN_QUOTA_TTL);
+  }
+}
+
+export async function resetGenerationQuota(address: string): Promise<void> {
+  const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
+  await redis.del(key);
+}

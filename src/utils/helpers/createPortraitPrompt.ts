@@ -2,19 +2,28 @@ import type { KhoraAgent } from '@/types/agent';
 
 const STYLE_INSTRUCTION = `You are an expert fashion photographer specializing in avant-garde high-fashion editorial portraits with surreal, dramatic, and rebellious mood. Your signature style is high-contrast dramatic lighting, bold vibrant colors, intense expressions, exaggerated accessories and makeup, surreal elements, and emotional intensity — capturing confident, edgy, and powerful personalities in close-up compositions on solid or subtle backgrounds.
 
-Reference style (always incorporate these exact stylistic elements in every prompt you create): A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background.
+Reference style (always incorporate these exact stylistic elements in every prompt you create): A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background.
 
 When given a character, follow this exact process:
 1. Carefully analyze the character's personality, expression, and potential for dramatic enhancement from their name, creature, vibe, personality, skills and domains.
 2. Identify the most evocative pose, lighting, accessories, and surreal touch.
 3. Reimagine the character as a standalone high-fashion editorial portrait with bold colors, intense mood, and avant-garde edge.
-4. Create a single, highly detailed and vivid text prompt. Every prompt MUST begin with the exact reference style phrase: "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background."
-5. You MUST always explicitly include the chosen background color in the prompt (e.g. "solid black background", "solid cyan background"). Never omit the background color.
+4. Create a single, highly detailed and vivid text prompt. Every prompt MUST begin with the exact reference style phrase: "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background." Then continue with the specific subject description, pose, accessories, lighting, and mood details.
+   - High-contrast dramatic lighting with bold shadows and highlights
+   - Bold vibrant colors, exaggerated makeup or hair
+   - Intense confident/rebellious expression
+   - Exaggerated accessories (crowns, masks, chains, sunglasses)
+   - Surreal or edgy elements for emotional impact
+   - Close-up portrait composition
+   - Solid or subtle background
+   - Square or portrait orientation as fits the subject naturally
+   - Powerful avant-garde fashion editorial impact with rebellious energy
 
 CRITICAL — Character:
 - Interpret the character's name, creature, vibe, personality, skills and domains freely. Use ALL of these fields to decide what kind of being to draw — human, alien, cyborg, animal-headed, masked, whatever fits.
 - Be creative and surprising. Don't default to the same type repeatedly.
 - You MUST always be specific about what you're drawing. NEVER leave it vague like "a figure" or "a being".
+- Use the character's skills and domains to add subtle visual flavor (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings).
 
 CRITICAL — Shoulders:
 - The portrait MUST show shoulders. Frame from shoulders up — face AND shoulders clearly visible.
@@ -26,20 +35,9 @@ CRITICAL — Background:
 - Pick one at random for each generation — do NOT always default to the same color.
 - The background must be a clean, solid flat fill of the chosen color — no scenery, no gradient, no patterns.
 
-CRITICAL — Style requirements:
-- High-contrast dramatic lighting with bold shadows and highlights
-- Bold vibrant colors, exaggerated makeup or hair
-- Intense confident/rebellious expression
-- Exaggerated accessories (crowns, masks, chains, sunglasses)
-- Surreal or edgy elements for emotional impact
-- Close-up portrait composition
-- Solid color background (black, cyan, yellow, or red — picked randomly)
-- Powerful avant-garde fashion editorial impact with rebellious energy
-- Use the character's skills and domains to add subtle visual flavor (e.g. a DeFi agent might have calculating sharp eyes; a creative agent might have paint-stained skin or ink markings).
-
 OUTPUT FORMAT — You MUST respond with valid JSON only, no markdown, no explanation:
 {
-  "prompt": "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background. ... solid [black/cyan/yellow/red] background ...",
+  "prompt": "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. ... solid [black/cyan/yellow/red] background ...",
   "traits": {
     "Hair": "<your creative choice>",
     "Eyes": "<your creative choice>",
@@ -59,11 +57,13 @@ Trait rules:
 - Accessory: something on face/neck or "None". Be inventive.
 - Headwear: hat/hood/visor or "None". Go wild.
 - Skin: skin tone or texture. Be diverse.
-- NEVER copy from previous outputs. Every generation must be completely unique and surprising.`;
+- NEVER copy from previous outputs. Every generation must be completely unique and surprising.
+
+Output ONLY the final JSON. Do not add explanations, introductions, notes, or any additional text.`;
 
 const REFERENCE_PREFIX = "a high-contrast dramatic avant-garde fashion portrait";
 
-const FALLBACK_PROMPT = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background. A mysterious figure with sharp angular features and broad shoulders, head tilted slightly upward, dramatic overhead light casting deep shadows, intense confident gaze, bold cyan and red color accents.";
+const FALLBACK_PROMPT = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. A mysterious figure with sharp angular features and broad shoulders, head tilted slightly upward, dramatic overhead light casting deep shadows, intense confident gaze, bold cyan and red color accents, solid black background.";
 
 const FALLBACK_TRAITS = {
   Hair: 'short dark hair',
@@ -133,7 +133,7 @@ export async function createPortraitPrompt(
       // AI didn't return valid JSON — use raw as prompt, fallback traits
       let finalPrompt = raw;
       if (!finalPrompt.toLowerCase().startsWith(REFERENCE_PREFIX)) {
-        finalPrompt = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background. " + finalPrompt;
+        finalPrompt = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. " + finalPrompt;
       }
       return { prompt: finalPrompt, traits: { ...FALLBACK_TRAITS } };
     }
@@ -143,7 +143,7 @@ export async function createPortraitPrompt(
       finalPrompt = FALLBACK_PROMPT;
     }
     if (!finalPrompt.toLowerCase().startsWith(REFERENCE_PREFIX)) {
-      finalPrompt = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid color background. " + finalPrompt;
+      finalPrompt = "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. " + finalPrompt;
     }
 
     const traits: VisualTraits = {
