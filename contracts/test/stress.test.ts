@@ -4,19 +4,22 @@ import type { BOOA } from "../typechain-types";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
- * BOOA Stress Test — 500 wallets, all functions, attack vectors
+ * BOOA Stress Test — Bitmap Edition
+ *
+ * 19 wallets, all functions, attack vectors
  *
  * Simulates a bot swarm scenario:
  * - Mass minting (direct + commit-reveal)
  * - Concurrent operations
  * - Owner function attacks from non-owners
- * - SVG injection attempts at scale
+ * - Bitmap validation at scale
+ * - Traits JSON injection attempts
  * - Reserved funds accounting under load
  * - Enumeration under heavy token count
  * - Transfer chaos
  */
 
-describe("BOOA Stress Test", function () {
+describe("BOOA Stress Test (Bitmap)", function () {
   this.timeout(300_000); // 5 min timeout
 
   let contract: BOOA;
@@ -25,9 +28,15 @@ describe("BOOA Stress Test", function () {
   const mintPrice = ethers.parseEther("0.001");
   const royaltyFee = 500;
 
-  // Valid minimal SVG
-  const validSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges"><path stroke="#0A0A0A" d="M0 0h64"/></svg>';
-  const svgBytes = ethers.toUtf8Bytes(validSVG);
+  // ── Bitmap helpers ──
+
+  /** Create a 2048-byte bitmap filled with a single C64 palette index (0-15). */
+  function makeBitmap(colorIndex: number = 0): Uint8Array {
+    const packed = ((colorIndex & 0xF) << 4) | (colorIndex & 0xF);
+    return new Uint8Array(2048).fill(packed);
+  }
+
+  const bitmapBytes = makeBitmap(0); // all-black
 
   // Valid traits
   const validTraits = JSON.stringify([
@@ -37,43 +46,35 @@ describe("BOOA Stress Test", function () {
   ]);
   const traitsBytes = ethers.toUtf8Bytes(validTraits);
 
-  // Malicious SVGs for injection attempts
-  const MALICIOUS_SVGS = [
-    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><style>.x{fill:red}</style></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><iframe src="evil"></iframe></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><object data="evil"></object></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><embed src="evil"></embed></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><body>hi</body></foreignObject></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><image href="evil"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)">x</a></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><set attributeName="x" to="1"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><animate attributeName="x"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><rect onload="alert(1)"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><rect onerror="alert(1)"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><rect onclick="alert(1)"/></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><ScRiPt>alert(1)</ScRiPt></svg>',
-    '<svg xmlns="http://www.w3.org/2000/svg"><feImage href="evil"/></svg>',
-    // data: URI attack
-    '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="url(data:text/html,evil)"/></svg>',
+  // ── Invalid bitmap data for validation tests ──
+  const INVALID_BITMAPS: { label: string; data: Uint8Array | string }[] = [
+    { label: "empty (0 bytes)", data: new Uint8Array(0) },
+    { label: "1 byte", data: new Uint8Array([0x00]) },
+    { label: "100 bytes", data: new Uint8Array(100) },
+    { label: "1024 bytes (half)", data: new Uint8Array(1024) },
+    { label: "2047 bytes (off by one short)", data: new Uint8Array(2047) },
+    { label: "2049 bytes (off by one long)", data: new Uint8Array(2049) },
+    { label: "4096 bytes (double)", data: new Uint8Array(4096) },
+    { label: "8192 bytes", data: new Uint8Array(8192) },
+    { label: "24576 bytes (old SVG max)", data: new Uint8Array(24576) },
+    { label: "hex 0x (ethers empty)", data: "0x" },
   ];
 
   // Malicious traits for JSON injection
-  // Note: empty traits are valid (optional), and `[...]` with balanced braces is accepted
   const MALICIOUS_TRAITS = [
-    '{"injected": true}',    // not an array (no [ ])
-    '[{"a":"b"}]injected',   // trailing data after ]
-    'not json at all',       // garbage, no [ ]
+    '{"injected": true}',           // not an array (no [ ])
+    '[{"a":"b"}]injected',           // trailing data after ]
+    'not json at all',               // garbage, no [ ]
+    '"},"injected_key":"value","x":{"y":"z',  // JSON breakout attempt
+    '{[}]',                          // malformed
   ];
 
   before(async function () {
-    // Get signers — Hardhat gives us 20 by default, we'll use them all
     const signers = await ethers.getSigners();
     owner = signers[0];
     wallets = signers.slice(1); // 19 wallets from default
 
-    console.log(`    Deploying BOOA with ${wallets.length} test wallets...`);
+    console.log(`    Deploying BOOA (Bitmap) with ${wallets.length} test wallets...`);
 
     const factory = await ethers.getContractFactory("BOOA");
     contract = (await factory.deploy(mintPrice, owner.address, royaltyFee)) as unknown as BOOA;
@@ -91,7 +92,7 @@ describe("BOOA Stress Test", function () {
       console.log(`      Minting ${count} tokens sequentially...`);
 
       for (let i = 0; i < count; i++) {
-        await contract.connect(wallets[i]).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+        await contract.connect(wallets[i]).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
       }
 
       const totalSupply = await contract.totalSupply();
@@ -106,7 +107,7 @@ describe("BOOA Stress Test", function () {
 
       console.log(`      Batch minting ${batchSize} from single wallet...`);
       for (let i = 0; i < batchSize; i++) {
-        await contract.connect(wallet).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+        await contract.connect(wallet).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
       }
 
       const after = await contract.totalSupply();
@@ -118,13 +119,21 @@ describe("BOOA Stress Test", function () {
       console.log(`      Sending ${concurrentCount} concurrent mints...`);
 
       const promises = wallets.map((w) =>
-        contract.connect(w).mintAgent(svgBytes, traitsBytes, { value: mintPrice })
+        contract.connect(w).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice })
       );
 
       const txs = await Promise.all(promises);
       await Promise.all(txs.map((tx) => tx.wait()));
 
       console.log(`      All ${concurrentCount} concurrent mints succeeded`);
+    });
+
+    it("should mint with different palette colors", async function () {
+      const wallet = wallets[0];
+      for (let c = 0; c < 16; c++) {
+        await contract.connect(wallet).mintAgent(makeBitmap(c), traitsBytes, { value: mintPrice });
+      }
+      console.log(`      Minted 16 tokens with all C64 palette colors`);
     });
   });
 
@@ -139,7 +148,6 @@ describe("BOOA Stress Test", function () {
         await contract.connect(w).commitMint({ value: mintPrice });
       }
 
-      // Verify all commitments
       for (const w of wallets) {
         const count = await contract.commitmentCount(w.address);
         expect(count).to.be.gte(1);
@@ -156,8 +164,8 @@ describe("BOOA Stress Test", function () {
         // Find the latest unrevealed commit
         for (let i = Number(count) - 1; i >= 0; i--) {
           const commitment = await contract.getCommitment(w.address, i);
-          if (!commitment.revealed && !commitment.reclaimed) {
-            await contract.connect(w).revealMint(i, svgBytes, traitsBytes);
+          if (!commitment.revealed) {
+            await contract.connect(w).revealMint(i, bitmapBytes, traitsBytes);
             break;
           }
         }
@@ -179,11 +187,11 @@ describe("BOOA Stress Test", function () {
       const count = await contract.commitmentCount(wallet.address);
       expect(count).to.be.gte(numCommits);
 
-      // Reveal all
+      // Reveal all new ones
       for (let i = Number(count) - numCommits; i < Number(count); i++) {
         const c = await contract.getCommitment(wallet.address, i);
-        if (!c.revealed && !c.reclaimed) {
-          await contract.connect(wallet).revealMint(i, svgBytes, traitsBytes);
+        if (!c.revealed) {
+          await contract.connect(wallet).revealMint(i, bitmapBytes, traitsBytes);
         }
       }
     });
@@ -192,10 +200,10 @@ describe("BOOA Stress Test", function () {
       const wallet = wallets[1];
       await contract.connect(wallet).commitMint({ value: mintPrice });
       const idx = Number(await contract.commitmentCount(wallet.address)) - 1;
-      await contract.connect(wallet).revealMint(idx, svgBytes, traitsBytes);
+      await contract.connect(wallet).revealMint(idx, bitmapBytes, traitsBytes);
 
       await expect(
-        contract.connect(wallet).revealMint(idx, svgBytes, traitsBytes)
+        contract.connect(wallet).revealMint(idx, bitmapBytes, traitsBytes)
       ).to.be.reverted;
     });
 
@@ -205,59 +213,72 @@ describe("BOOA Stress Test", function () {
       await contract.connect(w1).commitMint({ value: mintPrice });
       const idx = Number(await contract.commitmentCount(w1.address)) - 1;
 
-      // w2 tries to reveal w1's commitment — will fail because w2 doesn't have that slot
       await expect(
-        contract.connect(w2).revealMint(idx, svgBytes, traitsBytes)
+        contract.connect(w2).revealMint(idx, bitmapBytes, traitsBytes)
       ).to.be.reverted;
+
+      // Clean up
+      await contract.connect(w1).revealMint(idx, bitmapBytes, traitsBytes);
     });
   });
 
   // ═══════════════════════════════════════════════════════════
-  // 3. SVG INJECTION ATTACK SWARM
+  // 3. BITMAP VALIDATION ATTACKS (mass)
   // ═══════════════════════════════════════════════════════════
-  describe("3. SVG Injection Attacks (mass)", function () {
-    it("should reject all malicious SVGs via mintAgent", async function () {
+  describe("3. Bitmap Validation Attacks (mass)", function () {
+    it("should reject all invalid bitmap sizes via mintAgent", async function () {
       let blocked = 0;
 
-      for (const svg of MALICIOUS_SVGS) {
+      for (const { label, data } of INVALID_BITMAPS) {
         try {
           await contract.connect(wallets[0]).mintAgent(
-            ethers.toUtf8Bytes(svg),
+            data,
             traitsBytes,
             { value: mintPrice }
           );
-          console.log(`      WARNING: SVG passed! ${svg.slice(0, 60)}...`);
+          console.log(`      WARNING: Invalid bitmap passed! ${label}`);
         } catch {
           blocked++;
         }
       }
 
-      console.log(`      Blocked ${blocked}/${MALICIOUS_SVGS.length} malicious SVGs`);
-      expect(blocked).to.equal(MALICIOUS_SVGS.length);
+      console.log(`      Blocked ${blocked}/${INVALID_BITMAPS.length} invalid bitmaps`);
+      expect(blocked).to.equal(INVALID_BITMAPS.length);
     });
 
-    it("should reject all malicious SVGs via revealMint", async function () {
+    it("should reject all invalid bitmap sizes via revealMint", async function () {
       let blocked = 0;
 
-      for (const svg of MALICIOUS_SVGS) {
+      for (const { label, data } of INVALID_BITMAPS) {
         const wallet = wallets[0];
         await contract.connect(wallet).commitMint({ value: mintPrice });
         const idx = Number(await contract.commitmentCount(wallet.address)) - 1;
 
         try {
-          await contract.connect(wallet).revealMint(
-            idx,
-            ethers.toUtf8Bytes(svg),
-            traitsBytes
-          );
-          console.log(`      WARNING: SVG passed reveal! ${svg.slice(0, 60)}...`);
+          await contract.connect(wallet).revealMint(idx, data, traitsBytes);
+          console.log(`      WARNING: Invalid bitmap passed reveal! ${label}`);
         } catch {
           blocked++;
         }
       }
 
-      console.log(`      Blocked ${blocked}/${MALICIOUS_SVGS.length} via revealMint`);
-      expect(blocked).to.equal(MALICIOUS_SVGS.length);
+      console.log(`      Blocked ${blocked}/${INVALID_BITMAPS.length} via revealMint`);
+      expect(blocked).to.equal(INVALID_BITMAPS.length);
+    });
+
+    it("should accept valid 2048-byte bitmaps with all byte patterns", async function () {
+      // Test edge-case byte values
+      const edgeCases = [
+        new Uint8Array(2048).fill(0x00), // all zeros (palette 0)
+        new Uint8Array(2048).fill(0xFF), // all 0xFF (palette 15)
+        new Uint8Array(2048).fill(0x01), // high=0, low=1
+        new Uint8Array(2048).fill(0xF0), // high=15, low=0
+      ];
+
+      for (const bitmap of edgeCases) {
+        await contract.connect(wallets[0]).mintAgent(bitmap, traitsBytes, { value: mintPrice });
+      }
+      console.log(`      Accepted ${edgeCases.length} edge-case bitmap patterns`);
     });
 
     it("should reject malicious traits JSON", async function () {
@@ -266,7 +287,7 @@ describe("BOOA Stress Test", function () {
       for (const traits of MALICIOUS_TRAITS) {
         try {
           await contract.connect(wallets[0]).mintAgent(
-            svgBytes,
+            bitmapBytes,
             ethers.toUtf8Bytes(traits),
             { value: mintPrice }
           );
@@ -399,9 +420,7 @@ describe("BOOA Stress Test", function () {
       console.log(`      Balance:  ${ethers.formatEther(contractBalance)} ETH`);
 
       // Owner withdraw should not touch reserved
-      const ownerBefore = await ethers.provider.getBalance(owner.address);
       await contract.connect(owner).withdraw();
-      const ownerAfter = await ethers.provider.getBalance(owner.address);
 
       const balanceAfter = await ethers.provider.getBalance(await contract.getAddress());
       expect(balanceAfter).to.be.gte(reserved);
@@ -412,8 +431,8 @@ describe("BOOA Stress Test", function () {
         const count = await contract.commitmentCount(wallets[i].address);
         for (let j = Number(count) - 1; j >= 0; j--) {
           const c = await contract.getCommitment(wallets[i].address, j);
-          if (!c.revealed && !c.reclaimed) {
-            await contract.connect(wallets[i]).revealMint(j, svgBytes, traitsBytes);
+          if (!c.revealed) {
+            await contract.connect(wallets[i]).revealMint(j, bitmapBytes, traitsBytes);
             break;
           }
         }
@@ -453,7 +472,6 @@ describe("BOOA Stress Test", function () {
   // ═══════════════════════════════════════════════════════════
   describe("6. Supply Cap Enforcement", function () {
     it("should enforce maxSupply under concurrent pressure", async function () {
-      // Deploy a fresh contract with tight supply
       const factory = await ethers.getContractFactory("BOOA");
       const limited = (await factory.deploy(mintPrice, owner.address, royaltyFee)) as unknown as BOOA;
       await limited.waitForDeployment();
@@ -461,13 +479,12 @@ describe("BOOA Stress Test", function () {
       const cap = 10;
       await limited.connect(owner).setMaxSupply(cap);
 
-      // Try to mint more than cap
       let minted = 0;
       let rejected = 0;
 
       for (const w of wallets) {
         try {
-          await limited.connect(w).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+          await limited.connect(w).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
           minted++;
         } catch {
           rejected++;
@@ -493,7 +510,7 @@ describe("BOOA Stress Test", function () {
 
       for (let i = 0; i < 10; i++) {
         try {
-          await limited.connect(wallet).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+          await limited.connect(wallet).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
           minted++;
         } catch {
           rejected++;
@@ -512,11 +529,9 @@ describe("BOOA Stress Test", function () {
       await limited.connect(owner).setMaxPerWallet(2);
 
       const wallet = wallets[0];
-      // Direct mint 2
-      await limited.connect(wallet).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
-      await limited.connect(wallet).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+      await limited.connect(wallet).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
+      await limited.connect(wallet).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
 
-      // commitMint should fail — already at limit
       await expect(
         limited.connect(wallet).commitMint({ value: mintPrice })
       ).to.be.reverted;
@@ -533,14 +548,13 @@ describe("BOOA Stress Test", function () {
       let blocked = 0;
       for (const w of wallets.slice(0, 10)) {
         try {
-          await contract.connect(w).mintAgent(svgBytes, traitsBytes, { value: mintPrice });
+          await contract.connect(w).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
         } catch {
           blocked++;
         }
       }
       expect(blocked).to.equal(10);
 
-      // Also block commitMint
       await expect(
         contract.connect(wallets[0]).commitMint({ value: mintPrice })
       ).to.be.reverted;
@@ -551,22 +565,18 @@ describe("BOOA Stress Test", function () {
     });
 
     it("should block revealMint when paused", async function () {
-      // Commit while unpaused
       const wallet = wallets[6];
       await contract.connect(wallet).commitMint({ value: mintPrice });
       const idx = Number(await contract.commitmentCount(wallet.address)) - 1;
 
-      // Pause
       await contract.connect(owner).setPaused(true);
 
-      // Reveal should fail
       await expect(
-        contract.connect(wallet).revealMint(idx, svgBytes, traitsBytes)
+        contract.connect(wallet).revealMint(idx, bitmapBytes, traitsBytes)
       ).to.be.reverted;
 
-      // Unpause and reveal should work
       await contract.connect(owner).setPaused(false);
-      await contract.connect(wallet).revealMint(idx, svgBytes, traitsBytes);
+      await contract.connect(wallet).revealMint(idx, bitmapBytes, traitsBytes);
     });
   });
 
@@ -578,12 +588,11 @@ describe("BOOA Stress Test", function () {
       const supply = await contract.totalSupply();
       console.log(`      Enumerating ${supply} tokens...`);
 
-      // Check first 20 and last 20
       const checkCount = Math.min(20, Number(supply));
       for (let i = 0; i < checkCount; i++) {
         const tokenId = await contract.tokenByIndex(i);
-        const owner = await contract.ownerOf(tokenId);
-        expect(owner).to.not.equal(ethers.ZeroAddress);
+        const tokenOwner = await contract.ownerOf(tokenId);
+        expect(tokenOwner).to.not.equal(ethers.ZeroAddress);
       }
 
       if (Number(supply) > 20) {
@@ -595,7 +604,7 @@ describe("BOOA Stress Test", function () {
       console.log(`      All enumerated tokens valid`);
     });
 
-    it("should handle tokenURI for all tokens", async function () {
+    it("should handle tokenURI for all tokens (SVG rendered from bitmap)", async function () {
       const supply = Number(await contract.totalSupply());
       const checkCount = Math.min(10, supply);
       console.log(`      Checking tokenURI for ${checkCount} tokens...`);
@@ -603,20 +612,29 @@ describe("BOOA Stress Test", function () {
       for (let i = 0; i < checkCount; i++) {
         const uri = await contract.tokenURI(i);
         expect(uri).to.include("data:application/json;base64,");
+
+        // Decode and verify SVG is rendered
+        const json = Buffer.from(uri.split(",")[1], "base64").toString();
+        const meta = JSON.parse(json);
+        expect(meta.image).to.include("data:image/svg+xml;base64,");
       }
     });
 
-    it("should handle getSVG and getTraits for all tokens", async function () {
+    it("should handle getSVG, getBitmap and getTraits for all tokens", async function () {
       const supply = Number(await contract.totalSupply());
       const checkCount = Math.min(10, supply);
 
       for (let i = 0; i < checkCount; i++) {
         const svg = await contract.getSVG(i);
+        const bitmap = await contract.getBitmap(i);
         const traits = await contract.getTraits(i);
+
         expect(svg).to.include("<svg");
+        expect(svg).to.include("</svg>");
+        expect(ethers.getBytes(bitmap).length).to.equal(2048);
         expect(traits).to.include("trait_type");
       }
-      console.log(`      All ${checkCount} tokens return valid SVG and traits`);
+      console.log(`      All ${checkCount} tokens return valid SVG, bitmap, and traits`);
     });
   });
 
@@ -625,7 +643,6 @@ describe("BOOA Stress Test", function () {
   // ═══════════════════════════════════════════════════════════
   describe("9. Transfer Chaos", function () {
     it("should handle mass transfers between wallets", async function () {
-      // Each wallet transfers their first token to the next wallet
       const transfers = Math.min(10, wallets.length - 1);
       console.log(`      Executing ${transfers} transfers...`);
 
@@ -642,14 +659,33 @@ describe("BOOA Stress Test", function () {
     });
 
     it("should reject transfers from non-owners", async function () {
-      // Find a token that wallets[0] owns
       const balance = await contract.balanceOf(wallets[0].address);
       if (balance > 0n) {
         const tokenId = await contract.tokenOfOwnerByIndex(wallets[0].address, 0);
-        // wallets[5] tries to steal it
         await expect(
           contract.connect(wallets[5]).transferFrom(wallets[0].address, wallets[5].address, tokenId)
         ).to.be.reverted;
+      }
+    });
+
+    it("data persists after transfer", async function () {
+      const from = wallets[0];
+      const to = wallets[1];
+      const balance = await contract.balanceOf(from.address);
+      if (balance > 0n) {
+        const tokenId = await contract.tokenOfOwnerByIndex(from.address, 0);
+
+        // Record data before transfer
+        const svgBefore = await contract.getSVG(tokenId);
+        const bitmapBefore = await contract.getBitmap(tokenId);
+
+        await contract.connect(from).transferFrom(from.address, to.address, tokenId);
+
+        // Verify data unchanged
+        expect(await contract.getSVG(tokenId)).to.equal(svgBefore);
+        expect(await contract.getBitmap(tokenId)).to.equal(bitmapBefore);
+        expect(await contract.ownerOf(tokenId)).to.equal(to.address);
+        console.log(`      Token #${tokenId} data persists after transfer ✓`);
       }
     });
   });
@@ -658,40 +694,18 @@ describe("BOOA Stress Test", function () {
   // 10. EDGE CASES & SIZE LIMITS
   // ═══════════════════════════════════════════════════════════
   describe("10. Edge Cases & Size Limits", function () {
-    it("should reject oversized SVG (>24KB)", async function () {
-      const hugeSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">' +
-        '<path stroke="#0A0A0A" d="' + 'M0 0h1'.repeat(5000) + '"/></svg>';
-      expect(hugeSVG.length).to.be.gt(24576);
-
-      await expect(
-        contract.connect(wallets[0]).mintAgent(ethers.toUtf8Bytes(hugeSVG), traitsBytes, { value: mintPrice })
-      ).to.be.reverted;
-    });
-
     it("should reject oversized traits (>8KB)", async function () {
       const hugeTraits = '[' + Array(500).fill('{"trait_type":"x","value":"' + 'a'.repeat(50) + '"}').join(',') + ']';
       expect(hugeTraits.length).to.be.gt(8192);
 
       await expect(
-        contract.connect(wallets[0]).mintAgent(svgBytes, ethers.toUtf8Bytes(hugeTraits), { value: mintPrice })
+        contract.connect(wallets[0]).mintAgent(bitmapBytes, ethers.toUtf8Bytes(hugeTraits), { value: mintPrice })
       ).to.be.reverted;
     });
 
     it("should reject zero-value mints", async function () {
       await expect(
-        contract.connect(wallets[0]).mintAgent(svgBytes, traitsBytes, { value: 0 })
-      ).to.be.reverted;
-    });
-
-    it("should reject empty SVG", async function () {
-      await expect(
-        contract.connect(wallets[0]).mintAgent(ethers.toUtf8Bytes(""), traitsBytes, { value: mintPrice })
-      ).to.be.reverted;
-    });
-
-    it("should reject non-SVG data", async function () {
-      await expect(
-        contract.connect(wallets[0]).mintAgent(ethers.toUtf8Bytes("<div>not svg</div>"), traitsBytes, { value: mintPrice })
+        contract.connect(wallets[0]).mintAgent(bitmapBytes, traitsBytes, { value: 0 })
       ).to.be.reverted;
     });
 
@@ -708,7 +722,7 @@ describe("BOOA Stress Test", function () {
 
     it("should reject reveal for non-existent slot", async function () {
       await expect(
-        contract.connect(wallets[0]).revealMint(9999, svgBytes, traitsBytes)
+        contract.connect(wallets[0]).revealMint(9999, bitmapBytes, traitsBytes)
       ).to.be.reverted;
     });
 
@@ -722,26 +736,84 @@ describe("BOOA Stress Test", function () {
       ).to.be.reverted;
 
       // Clean up — reveal it
-      await contract.connect(wallet).revealMint(idx, svgBytes, traitsBytes);
+      await contract.connect(wallet).revealMint(idx, bitmapBytes, traitsBytes);
+    });
+
+    it("should accept mint with empty traits", async function () {
+      await contract.connect(wallets[0]).mintAgent(bitmapBytes, "0x", { value: mintPrice });
+      const supply = await contract.totalSupply();
+      const tokenId = Number(supply) - 1;
+      const traits = await contract.getTraits(tokenId);
+      expect(traits).to.equal("");
+    });
+
+    it("should produce valid SVG for every palette-solid bitmap", async function () {
+      const C64_HEX = [
+        "000000", "626262", "898989", "ADADAD", "FFFFFF",
+        "9F4E44", "CB7E75", "6D5412", "A1683C", "C9D487",
+        "9AE29B", "5CAB5E", "6ABFC6", "887ECB", "50459B",
+        "A057A3",
+      ];
+
+      for (let c = 0; c < 16; c++) {
+        await contract.connect(wallets[0]).mintAgent(makeBitmap(c), "0x", { value: mintPrice });
+        const supply = await contract.totalSupply();
+        const tokenId = Number(supply) - 1;
+        const svg = await contract.getSVG(tokenId);
+        expect(svg).to.include(`<rect fill="#${C64_HEX[c]}"`);
+      }
+      console.log(`      All 16 palette colors render correct SVG ✓`);
     });
   });
 
   // ═══════════════════════════════════════════════════════════
-  // 11. FINAL STATS
+  // 11. GAS COMPARISON
   // ═══════════════════════════════════════════════════════════
-  describe("11. Final Stats", function () {
+  describe("11. Gas Usage", function () {
+    it("should log gas for bitmap mint", async function () {
+      const tx = await contract.connect(wallets[0]).mintAgent(bitmapBytes, traitsBytes, { value: mintPrice });
+      const receipt = await tx.wait();
+      console.log(`      Bitmap mint gas:     ${receipt!.gasUsed}`);
+      console.log(`      Bitmap data size:    2,048 bytes (fixed)`);
+      console.log(`      Traits data size:    ${traitsBytes.length} bytes`);
+    });
+
+    it("should log gas for commit + reveal", async function () {
+      const tx1 = await contract.connect(wallets[1]).commitMint({ value: mintPrice });
+      const r1 = await tx1.wait();
+      const idx = Number(await contract.commitmentCount(wallets[1].address)) - 1;
+
+      const tx2 = await contract.connect(wallets[1]).revealMint(idx, bitmapBytes, traitsBytes);
+      const r2 = await tx2.wait();
+
+      console.log(`      commitMint gas:      ${r1!.gasUsed}`);
+      console.log(`      revealMint gas:      ${r2!.gasUsed}`);
+      console.log(`      Total commit+reveal: ${r1!.gasUsed + r2!.gasUsed}`);
+    });
+
+    it("should log gas for getSVG (on-chain rendering)", async function () {
+      const gas = await contract.getSVG.estimateGas(0);
+      console.log(`      getSVG gas (view):   ${gas}`);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 12. FINAL STATS
+  // ═══════════════════════════════════════════════════════════
+  describe("12. Final Stats", function () {
     it("should report final contract state", async function () {
       const supply = await contract.totalSupply();
       const balance = await ethers.provider.getBalance(await contract.getAddress());
       const reserved = await contract.reservedFunds();
 
       console.log(`\n    ═══════════════════════════════════`);
-      console.log(`    FINAL CONTRACT STATE`);
+      console.log(`    FINAL CONTRACT STATE (Bitmap)`);
       console.log(`    ═══════════════════════════════════`);
       console.log(`    Total supply:    ${supply}`);
       console.log(`    Contract ETH:    ${ethers.formatEther(balance)}`);
       console.log(`    Reserved ETH:    ${ethers.formatEther(reserved)}`);
       console.log(`    Withdrawable:    ${ethers.formatEther(balance - reserved)}`);
+      console.log(`    Storage:         ${Number(supply) * 2048} bytes bitmap data`);
       console.log(`    ═══════════════════════════════════\n`);
 
       expect(supply).to.be.gt(0);

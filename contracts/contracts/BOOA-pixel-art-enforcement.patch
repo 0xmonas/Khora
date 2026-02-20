@@ -1,0 +1,191 @@
+--- contracts/BOOA.sol.original	2026-02-18 20:12:45.939167839 +0000
++++ contracts/BOOA.sol	2026-02-18 20:13:56.200167104 +0000
+@@ -46,6 +46,7 @@
+     error UnsafeSVG();
+     error TraitsTooLarge();
+     error UnsafeTraits();
++    error InvalidPixelArt();
+ 
+     constructor(uint256 _mintPrice, address royaltyReceiver, uint96 royaltyFeeNumerator)
+         ERC721("BOOA by Khora", "BOOA")
+@@ -209,6 +210,164 @@
+         return b;
+     }
+ 
++    // ── Pixel Art Format Enforcement ──
++    //
++    // Ensures SVG conforms to BOOA pipeline output:
++    //   • Tags:    only <svg>, <rect>, <path>
++    //   • Colors:  only C64 16-color palette
++    //   • Paths:   only M (moveto) and h (horizontal line) commands
++    //   • Style:   no inline style attributes
++
++    function _validatePixelArt(bytes calldata data) internal pure {
++        uint256 len = data.length;
++        bool inPathData = false;
++
++        for (uint256 i = 0; i < len; ) {
++            uint8 b = uint8(data[i]);
++
++            // Path data mode: only M, h, 0-9, space
++            if (inPathData) {
++                if (b == 0x22) { inPathData = false; ++i; continue; } // closing "
++                if (b == 0x4D || b == 0x68 || (b >= 0x30 && b <= 0x39) || b == 0x20) {
++                    ++i; continue;
++                }
++                revert InvalidPixelArt();
++            }
++
++            // Tag whitelist
++            if (b == 0x3C) { i = _validateTagPA(data, i, len); continue; }
++
++            // Palette color
++            if (b == 0x23) { i = _validateColorPA(data, i, len); continue; }
++
++            // Enter path data on d="
++            if (b == 0x64 && i + 2 < len &&
++                uint8(data[i + 1]) == 0x3D && uint8(data[i + 2]) == 0x22) {
++                inPathData = true; i += 3; continue;
++            }
++
++            // Reject style attribute
++            if ((b == 0x73 || b == 0x53) && _isStyleAttrPA(data, i, len)) {
++                revert InvalidPixelArt();
++            }
++
++            ++i;
++        }
++    }
++
++    function _validateTagPA(bytes calldata data, uint256 pos, uint256 len)
++        internal pure returns (uint256)
++    {
++        uint256 next = pos + 1;
++        if (next >= len) revert InvalidPixelArt();
++        uint8 b = uint8(data[next]);
++
++        // Closing tag </
++        if (b == 0x2F) {
++            next++;
++            if (next >= len) revert InvalidPixelArt();
++            b = _toLower(uint8(data[next]));
++            if (b == 0x73 && _matchTagPA(data, next, len, "svg"))  return next + 3;
++            if (b == 0x72 && _matchTagPA(data, next, len, "rect")) return next + 4;
++            if (b == 0x70 && _matchTagPA(data, next, len, "path")) return next + 4;
++            revert InvalidPixelArt();
++        }
++
++        // Opening tag
++        b = _toLower(b);
++        if (b == 0x73 && _matchTagPA(data, next, len, "svg"))  return next + 3;
++        if (b == 0x72 && _matchTagPA(data, next, len, "rect")) return next + 4;
++        if (b == 0x70 && _matchTagPA(data, next, len, "path")) return next + 4;
++        revert InvalidPixelArt();
++    }
++
++    function _matchTagPA(bytes calldata data, uint256 offset, uint256 len, string memory tag)
++        internal pure returns (bool)
++    {
++        bytes memory t = bytes(tag);
++        uint256 tLen = t.length;
++        if (offset + tLen > len) return false;
++        for (uint256 i = 0; i < tLen; i++) {
++            if (_toLower(uint8(data[offset + i])) != uint8(t[i])) return false;
++        }
++        uint256 end = offset + tLen;
++        if (end >= len) return true;
++        uint8 a = uint8(data[end]);
++        return a == 0x20 || a == 0x3E || a == 0x2F || a == 0x09 || a == 0x0A || a == 0x0D;
++    }
++
++    function _validateColorPA(bytes calldata data, uint256 pos, uint256 len)
++        internal pure returns (uint256)
++    {
++        uint256 hexStart = pos + 1;
++        uint256 hexLen = 0;
++        for (uint256 j = hexStart; j < len && hexLen < 6; j++) {
++            if (_isHexPA(uint8(data[j]))) hexLen++;
++            else break;
++        }
++
++        uint24 color;
++        if (hexLen == 3) {
++            uint8 r = _hexValPA(uint8(data[hexStart]));
++            uint8 g = _hexValPA(uint8(data[hexStart + 1]));
++            uint8 bl = _hexValPA(uint8(data[hexStart + 2]));
++            color = (uint24(r) << 20) | (uint24(r) << 16) |
++                    (uint24(g) << 12) | (uint24(g) << 8) |
++                    (uint24(bl) << 4) | uint24(bl);
++        } else if (hexLen == 6) {
++            color = (uint24(_hexValPA(uint8(data[hexStart])))     << 20) |
++                    (uint24(_hexValPA(uint8(data[hexStart + 1]))) << 16) |
++                    (uint24(_hexValPA(uint8(data[hexStart + 2]))) << 12) |
++                    (uint24(_hexValPA(uint8(data[hexStart + 3]))) << 8)  |
++                    (uint24(_hexValPA(uint8(data[hexStart + 4]))) << 4)  |
++                    uint24(_hexValPA(uint8(data[hexStart + 5])));
++        } else {
++            revert InvalidPixelArt();
++        }
++
++        if (!_isC64Color(color)) revert InvalidPixelArt();
++        return hexStart + hexLen;
++    }
++
++    function _isC64Color(uint24 c) internal pure returns (bool) {
++        return c == 0x000000 || c == 0x626262 || c == 0x898989 || c == 0xADADAD ||
++               c == 0xFFFFFF || c == 0x9F4E44 || c == 0xCB7E75 || c == 0x6D5412 ||
++               c == 0xA1683C || c == 0xC9D487 || c == 0x9AE29B || c == 0x5CAB5E ||
++               c == 0x6ABFC6 || c == 0x887ECB || c == 0x50459B || c == 0xA057A3;
++    }
++
++    function _isStyleAttrPA(bytes calldata data, uint256 pos, uint256 len)
++        internal pure returns (bool)
++    {
++        if (pos == 0) return false;
++        uint8 prev = uint8(data[pos - 1]);
++        if (prev != 0x20 && prev != 0x09 && prev != 0x0A && prev != 0x0D) return false;
++        if (pos + 5 > len) return false;
++        if (_toLower(uint8(data[pos]))     != 0x73) return false;
++        if (_toLower(uint8(data[pos + 1])) != 0x74) return false;
++        if (_toLower(uint8(data[pos + 2])) != 0x79) return false;
++        if (_toLower(uint8(data[pos + 3])) != 0x6C) return false;
++        if (_toLower(uint8(data[pos + 4])) != 0x65) return false;
++        uint256 j = pos + 5;
++        while (j < len) {
++            uint8 c = uint8(data[j]);
++            if (c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D) { j++; continue; }
++            return c == 0x3D;
++        }
++        return false;
++    }
++
++    function _isHexPA(uint8 b) internal pure returns (bool) {
++        return (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66);
++    }
++
++    function _hexValPA(uint8 b) internal pure returns (uint8) {
++        if (b >= 0x30 && b <= 0x39) return b - 0x30;
++        if (b >= 0x41 && b <= 0x46) return b - 0x37;
++        if (b >= 0x61 && b <= 0x66) return b - 0x57;
++        revert InvalidPixelArt();
++    }
++
+     // ── Direct Minting ──
+ 
+     function mintAgent(
+@@ -221,6 +380,7 @@
+         require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
+         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
+         _validateSVG(svgData);
++        _validatePixelArt(svgData);
+         _validateTraits(traitsData);
+ 
+         if (maxSupply > 0) {
+@@ -289,6 +449,7 @@
+         require(svgData.length <= MAX_SVG_SIZE, "SVG exceeds 24KB limit");
+         if (traitsData.length > MAX_TRAITS_SIZE) revert TraitsTooLarge();
+         _validateSVG(svgData);
++        _validatePixelArt(svgData);
+         _validateTraits(traitsData);
+ 
+         if (maxSupply > 0) {

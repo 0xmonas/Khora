@@ -2,15 +2,41 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import type { BOOA } from "../typechain-types";
 
-describe("BOOA", function () {
+describe("BOOA (Bitmap)", function () {
   let contract: BOOA;
   let owner: any;
   let user: any;
   let user2: any;
   const mintPrice = ethers.parseEther("0.0042");
   const royaltyFee = 500;
-  const testSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges"><path stroke="#000" d="M0 0h64"/></svg>';
-  const testSVGBytes = ethers.toUtf8Bytes(testSVG);
+
+  // ── Bitmap helpers ──
+
+  /** Create a 2048-byte bitmap filled with a single C64 palette index (0-15). */
+  function makeBitmap(colorIndex: number = 0): Uint8Array {
+    const packed = ((colorIndex & 0xF) << 4) | (colorIndex & 0xF);
+    return new Uint8Array(2048).fill(packed);
+  }
+
+  /** Create a bitmap with a horizontal stripe of `fgColor` on row `row`. */
+  function makeBitmapWithStripe(bgColor: number, fgColor: number, row: number, startX: number, length: number): Uint8Array {
+    const bitmap = makeBitmap(bgColor);
+    for (let x = startX; x < startX + length; x++) {
+      const byteIdx = row * 32 + (x >> 1);
+      if (x % 2 === 0) {
+        bitmap[byteIdx] = (fgColor << 4) | (bitmap[byteIdx] & 0x0F);
+      } else {
+        bitmap[byteIdx] = (bitmap[byteIdx] & 0xF0) | fgColor;
+      }
+    }
+    return bitmap;
+  }
+
+  // Test data: all-black bitmap (palette 0)
+  const testBitmap = makeBitmap(0);
+  // Test data: bitmap with dark grey stripe (palette 1) on row 5
+  const testBitmapWithStripe = makeBitmapWithStripe(0, 1, 5, 12, 3);
+
   const testTraits = JSON.stringify([
     { trait_type: "Creature", value: "AI familiar" },
     { trait_type: "Vibe", value: "sharp and witty" },
@@ -25,9 +51,13 @@ describe("BOOA", function () {
     await contract.waitForDeployment();
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  MINTING
+  // ════════════════════════════════════════════════════════════
+
   describe("Minting", function () {
-    it("should mint with valid SVG and traits data", async function () {
-      const tx = await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+    it("should mint with valid bitmap and traits data", async function () {
+      const tx = await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const receipt = await tx.wait();
       expect(receipt).to.not.be.null;
       expect(await contract.totalSupply()).to.equal(1);
@@ -35,9 +65,9 @@ describe("BOOA", function () {
     });
 
     it("should produce sequential token IDs", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(3);
       expect(await contract.ownerOf(0)).to.equal(user.address);
       expect(await contract.ownerOf(1)).to.equal(user.address);
@@ -46,40 +76,44 @@ describe("BOOA", function () {
 
     it("should revert with insufficient payment", async function () {
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: 0 })
+        contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: 0 })
       ).to.be.revertedWith("Insufficient payment");
     });
 
-    it("should revert with empty SVG data", async function () {
+    it("should revert with invalid bitmap (wrong size)", async function () {
       await expect(
         contract.connect(user).mintAgent("0x", testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWith("Empty SVG data");
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
     it("should emit AgentMinted event", async function () {
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice })
       ).to.emit(contract, "AgentMinted")
         .withArgs(0, user.address, (value: any) => typeof value === 'string');
     });
 
     it("should track mintCount per wallet", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       expect(await contract.mintCount(user.address)).to.equal(2);
       expect(await contract.mintCount(user2.address)).to.equal(0);
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  TRAITS
+  // ════════════════════════════════════════════════════════════
+
   describe("Traits", function () {
     it("should store and retrieve traits JSON", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const traits = await contract.getTraits(0);
       expect(traits).to.equal(testTraits);
     });
 
     it("should include attributes in tokenURI", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const uri = await contract.tokenURI(0);
       const base64Json = uri.replace("data:application/json;base64,", "");
       const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
@@ -89,7 +123,7 @@ describe("BOOA", function () {
     });
 
     it("should handle empty traits gracefully", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, "0x", { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, "0x", { value: mintPrice });
       const traits = await contract.getTraits(0);
       expect(traits).to.equal("");
       const uri = await contract.tokenURI(0);
@@ -99,9 +133,13 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  TOKEN URI & ON-CHAIN SVG RENDERING
+  // ════════════════════════════════════════════════════════════
+
   describe("Token URI", function () {
     beforeEach(async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
     });
 
     it("should return valid data URI", async function () {
@@ -119,8 +157,8 @@ describe("BOOA", function () {
     });
 
     it("should produce sequential names for multiple tokens", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
 
       for (let i = 0; i < 3; i++) {
         const uri = await contract.tokenURI(i);
@@ -130,13 +168,17 @@ describe("BOOA", function () {
       }
     });
 
-    it("should contain original SVG when fully decoded", async function () {
+    it("should contain valid rendered SVG in tokenURI", async function () {
       const uri = await contract.tokenURI(0);
       const base64Json = uri.replace("data:application/json;base64,", "");
       const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
       const svgBase64 = json.image.replace("data:image/svg+xml;base64,", "");
       const decodedSVG = Buffer.from(svgBase64, "base64").toString();
-      expect(decodedSVG).to.equal(testSVG);
+      // Rendered SVG for all-black bitmap: background rect with #000000
+      expect(decodedSVG).to.include('<svg xmlns="http://www.w3.org/2000/svg"');
+      expect(decodedSVG).to.include('viewBox="0 -0.5 64 64"');
+      expect(decodedSVG).to.include('<rect fill="#000000"');
+      expect(decodedSVG).to.include('</svg>');
     });
 
     it("should revert for non-existent token", async function () {
@@ -144,19 +186,75 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  getSVG — ON-CHAIN RENDERING
+  // ════════════════════════════════════════════════════════════
+
   describe("getSVG", function () {
-    it("should return original SVG string", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+    it("should return rendered SVG for all-black bitmap", async function () {
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const svg = await contract.getSVG(0);
-      expect(svg).to.equal(testSVG);
+      // All-black = single rect, no paths
+      expect(svg).to.include('<svg xmlns="http://www.w3.org/2000/svg"');
+      expect(svg).to.include('<rect fill="#000000" width="64" height="64"/>');
+      expect(svg).to.include('</svg>');
+      expect(svg).to.not.include('<path'); // no non-background pixels
+    });
+
+    it("should render paths for non-background colors", async function () {
+      // Bitmap with dark grey (index 1) stripe at row 5, columns 12-14
+      await contract.connect(user).mintAgent(testBitmapWithStripe, testTraitsBytes, { value: mintPrice });
+      const svg = await contract.getSVG(0);
+      expect(svg).to.include('<rect fill="#000000"'); // background is black
+      expect(svg).to.include('<path stroke="#626262"'); // dark grey path
+      expect(svg).to.include('M12 5h3'); // stripe: start at x=12, y=5, length 3
+    });
+
+    it("should render all 16 C64 palette colors correctly", async function () {
+      const C64_HEX = [
+        "000000", "626262", "898989", "ADADAD", "FFFFFF",
+        "9F4E44", "CB7E75", "6D5412", "A1683C", "C9D487",
+        "9AE29B", "5CAB5E", "6ABFC6", "887ECB", "50459B",
+        "A057A3",
+      ];
+      // For each palette color, mint a solid fill and verify the SVG
+      for (let c = 0; c < 16; c++) {
+        const bitmap = makeBitmap(c);
+        await contract.connect(user).mintAgent(bitmap, "0x", { value: mintPrice });
+        const svg = await contract.getSVG(c);
+        expect(svg).to.include(`<rect fill="#${C64_HEX[c]}"`);
+      }
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  getBitmap — RAW DATA RETRIEVAL
+  // ════════════════════════════════════════════════════════════
+
+  describe("getBitmap", function () {
+    it("should return exact bitmap bytes that were stored", async function () {
+      await contract.connect(user).mintAgent(testBitmapWithStripe, testTraitsBytes, { value: mintPrice });
+      const raw = await contract.getBitmap(0);
+      const returned = ethers.getBytes(raw);
+      expect(returned.length).to.equal(2048);
+      // Verify the stripe pixel
+      expect(returned[5 * 32 + 6]).to.equal(testBitmapWithStripe[5 * 32 + 6]);
+    });
+
+    it("should revert for non-existent token", async function () {
+      await expect(contract.getBitmap(99)).to.be.reverted;
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  ENUMERATION (ERC721Enumerable)
+  // ════════════════════════════════════════════════════════════
+
   describe("Enumeration (ERC721Enumerable)", function () {
     beforeEach(async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
     });
 
     it("should return correct totalSupply", async function () {
@@ -185,9 +283,13 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  ROYALTIES (EIP-2981)
+  // ════════════════════════════════════════════════════════════
+
   describe("Royalties (EIP-2981)", function () {
     it("should return correct default royalty info", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const salePrice = ethers.parseEther("1");
       const [receiver, amount] = await contract.royaltyInfo(0, salePrice);
       expect(receiver).to.equal(owner.address);
@@ -196,7 +298,7 @@ describe("BOOA", function () {
 
     it("should allow owner to update default royalty", async function () {
       await contract.connect(owner).setDefaultRoyalty(user2.address, 1000);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const salePrice = ethers.parseEther("1");
       const [receiver, amount] = await contract.royaltyInfo(0, salePrice);
       expect(receiver).to.equal(user2.address);
@@ -204,7 +306,7 @@ describe("BOOA", function () {
     });
 
     it("should allow owner to set per-token royalty", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await contract.connect(owner).setTokenRoyalty(0, user2.address, 250);
       const salePrice = ethers.parseEther("1");
       const [receiver, amount] = await contract.royaltyInfo(0, salePrice);
@@ -234,47 +336,51 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  SUPPLY AND WALLET LIMITS
+  // ════════════════════════════════════════════════════════════
+
   describe("Supply and wallet limits", function () {
     it("should enforce maxSupply", async function () {
       await contract.connect(owner).setMaxSupply(1);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
-        contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice })
+        contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice })
       ).to.be.revertedWith("Max supply reached");
     });
 
     it("should enforce maxPerWallet", async function () {
       await contract.connect(owner).setMaxPerWallet(1);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice })
       ).to.be.revertedWith("Wallet mint limit reached");
     });
 
     it("should allow different wallets when maxPerWallet is set", async function () {
       await contract.connect(owner).setMaxPerWallet(1);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(2);
     });
 
     it("should allow unlimited minting when limits are 0", async function () {
       for (let i = 0; i < 3; i++) {
-        await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+        await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       }
       expect(await contract.totalSupply()).to.equal(3);
     });
 
     it("should not allow setting maxSupply below current supply", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
         contract.connect(owner).setMaxSupply(1)
       ).to.be.revertedWith("Below current supply");
     });
 
     it("should allow setting maxSupply to 0 (unlimited) after mints", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await contract.connect(owner).setMaxSupply(0);
       expect(await contract.maxSupply()).to.equal(0);
     });
@@ -287,18 +393,22 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  PAUSE
+  // ════════════════════════════════════════════════════════════
+
   describe("Pause", function () {
     it("should prevent minting when paused", async function () {
       await contract.connect(owner).setPaused(true);
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice })
       ).to.be.revertedWith("Minting is paused");
     });
 
     it("should allow minting after unpause", async function () {
       await contract.connect(owner).setPaused(true);
       await contract.connect(owner).setPaused(false);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
 
@@ -316,6 +426,10 @@ describe("BOOA", function () {
     });
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  OWNER FUNCTIONS
+  // ════════════════════════════════════════════════════════════
+
   describe("Owner functions", function () {
     it("should allow owner to set mint price", async function () {
       const newPrice = ethers.parseEther("0.01");
@@ -330,7 +444,7 @@ describe("BOOA", function () {
     });
 
     it("should allow owner to withdraw", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const balanceBefore = await ethers.provider.getBalance(owner.address);
       const tx = await contract.connect(owner).withdraw();
       const receipt = await tx.wait();
@@ -340,7 +454,7 @@ describe("BOOA", function () {
     });
 
     it("should allow owner to withdrawTo", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       const balanceBefore = await ethers.provider.getBalance(user2.address);
       await contract.connect(owner).withdrawTo(user2.address);
       const balanceAfter = await ethers.provider.getBalance(user2.address);
@@ -369,104 +483,82 @@ describe("BOOA", function () {
     });
   });
 
-  describe("Security: SVG Sanitization", function () {
-    it("should accept valid SVG", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+  // ════════════════════════════════════════════════════════════
+  //  SECURITY: BITMAP VALIDATION
+  //  (Replaces all SVG sanitization tests — bitmap format
+  //   makes injection structurally impossible)
+  // ════════════════════════════════════════════════════════════
+
+  describe("Security: Bitmap Validation", function () {
+    it("should accept valid 2048-byte bitmap", async function () {
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
 
-    it("should reject SVG with <script> tag", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert("xss")</script></svg>';
+    it("should reject empty bitmap", async function () {
       await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).mintAgent("0x", testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject SVG with <SCRIPT> tag (case-insensitive)", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>';
+    it("should reject bitmap too short (1 byte)", async function () {
       await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).mintAgent(new Uint8Array([0x00]), testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject SVG with onload handler", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect/></svg>';
+    it("should reject bitmap too short (2047 bytes)", async function () {
       await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).mintAgent(new Uint8Array(2047), testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject SVG with onerror handler", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><image onerror="alert(1)" /></svg>';
+    it("should reject bitmap too long (2049 bytes)", async function () {
       await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).mintAgent(new Uint8Array(2049), testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject SVG with javascript: protocol", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect/></a></svg>';
+    it("should reject bitmap too long (4096 bytes)", async function () {
       await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).mintAgent(new Uint8Array(4096), testTraitsBytes, { value: mintPrice })
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject SVG with <iframe>", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><iframe src="https://evil.com"/></svg>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+    it("should accept bitmap with all 0xFF bytes (palette 15 = magenta)", async function () {
+      const allFF = new Uint8Array(2048).fill(0xFF);
+      await contract.connect(user).mintAgent(allFF, testTraitsBytes, { value: mintPrice });
+      const svg = await contract.getSVG(0);
+      expect(svg).to.include('<rect fill="#A057A3"'); // magenta background
     });
 
-    it("should reject SVG with <foreignObject>", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><body xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></body></foreignObject></svg>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject SVG with <object>", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><object data="evil.swf"/></svg>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject SVG with <embed>", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><embed src="evil.swf"/></svg>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject SVG with data:text/html URI", async function () {
-      const malicious = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:text/html,<script>alert(1)</script>"/></svg>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject data that does not start with <svg", async function () {
-      const malicious = '<html><body>not svg</body></html>';
-      await expect(
-        contract.connect(user).mintAgent(ethers.toUtf8Bytes(malicious), testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWith("SVG must start with <svg");
-    });
-
-    it("should allow SVG with safe onclick in path data (not an attribute)", async function () {
-      const safe = '<svg xmlns="http://www.w3.org/2000/svg"><text>the word onclick is ok here</text></svg>';
-      await contract.connect(user).mintAgent(ethers.toUtf8Bytes(safe), testTraitsBytes, { value: mintPrice });
+    it("should accept bitmap with mixed nibble values", async function () {
+      // Each byte uses different high/low nibbles
+      const mixed = new Uint8Array(2048);
+      for (let i = 0; i < 2048; i++) {
+        mixed[i] = ((i % 16) << 4) | ((i + 1) % 16);
+      }
+      await contract.connect(user).mintAgent(mixed, testTraitsBytes, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
   });
+
+  // ════════════════════════════════════════════════════════════
+  //  SECURITY: INPUT LIMITS
+  // ════════════════════════════════════════════════════════════
 
   describe("Security: Input Limits", function () {
     it("should reject traits exceeding 8KB", async function () {
-      const oversizeTraits = ethers.toUtf8Bytes("x".repeat(8193));
+      const oversizeTraits = ethers.toUtf8Bytes("[" + "x".repeat(8192) + "]");
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, oversizeTraits, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, oversizeTraits, { value: mintPrice })
       ).to.be.revertedWithCustomError(contract, "TraitsTooLarge");
     });
   });
+
+  // ════════════════════════════════════════════════════════════
+  //  COMMIT-REVEAL MINTING
+  // ════════════════════════════════════════════════════════════
 
   describe("Commit-Reveal Minting", function () {
     it("should allow commitMint with correct payment", async function () {
@@ -497,8 +589,7 @@ describe("BOOA", function () {
 
     it("should enforce maxPerWallet on commitMint", async function () {
       await contract.connect(owner).setMaxPerWallet(1);
-      // First do a real mint so mintCount becomes 1
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
         contract.connect(user).commitMint({ value: mintPrice })
       ).to.be.revertedWith("Wallet mint limit reached");
@@ -506,8 +597,7 @@ describe("BOOA", function () {
 
     it("should enforce maxSupply on commitMint", async function () {
       await contract.connect(owner).setMaxSupply(1);
-      // First do a real mint so _nextTokenId becomes 1
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
         contract.connect(user2).commitMint({ value: mintPrice })
       ).to.be.revertedWith("Max supply reached");
@@ -521,14 +611,14 @@ describe("BOOA", function () {
 
     it("should allow revealMint after commit", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       expect(await contract.totalSupply()).to.equal(1);
       expect(await contract.ownerOf(0)).to.equal(user.address);
     });
 
     it("should produce correct tokenURI after revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       const uri = await contract.tokenURI(0);
       const base64Json = uri.replace("data:application/json;base64,", "");
       const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
@@ -539,22 +629,22 @@ describe("BOOA", function () {
     it("should emit AgentMinted event on revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.emit(contract, "AgentMinted")
         .withArgs(0, user.address, (value: any) => typeof value === 'string');
     });
 
     it("should reject revealMint for already-revealed slot", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Already revealed");
     });
 
     it("should reject revealMint for invalid slot", async function () {
       await expect(
-        contract.connect(user).revealMint(99, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(99, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Invalid slot");
     });
 
@@ -563,13 +653,13 @@ describe("BOOA", function () {
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Commitment expired");
     });
 
     it("should track mintCount correctly via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       expect(await contract.mintCount(user.address)).to.equal(1);
     });
 
@@ -580,6 +670,10 @@ describe("BOOA", function () {
       expect(revealed).to.be.false;
     });
   });
+
+  // ════════════════════════════════════════════════════════════
+  //  RECLAIM EXPIRED
+  // ════════════════════════════════════════════════════════════
 
   describe("Reclaim Expired", function () {
     it("should allow reclaimExpired after deadline", async function () {
@@ -614,391 +708,155 @@ describe("BOOA", function () {
     });
   });
 
-  describe("Security: SVG Injection via revealMint", function () {
-    it("should reject <script> injection via revealMint", async function () {
+  // ════════════════════════════════════════════════════════════
+  //  SECURITY: BITMAP VALIDATION VIA REVEALM MINT
+  // ════════════════════════════════════════════════════════════
+
+  describe("Security: Bitmap Validation via revealMint", function () {
+    it("should reject invalid bitmap (too short) via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
       await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).revealMint(0, new Uint8Array(100), testTraitsBytes)
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject onload handler via revealMint", async function () {
+    it("should reject invalid bitmap (too long) via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>');
       await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).revealMint(0, new Uint8Array(4096), testTraitsBytes)
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject javascript: protocol via revealMint", async function () {
+    it("should reject empty bitmap via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)">x</a></svg>');
       await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
+        contract.connect(user).revealMint(0, "0x", testTraitsBytes)
+      ).to.be.revertedWithCustomError(contract, "InvalidBitmap");
     });
 
-    it("should reject <iframe> via revealMint", async function () {
+    it("should accept valid bitmap via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><iframe src="https://evil.com"></iframe></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <foreignObject> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><foreignObject></foreignObject></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject data:text/html via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><image href="data:text/html,<script>alert(1)</script>"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject non-SVG data via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<html><body>not svg</body></html>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWith("SVG must start with <svg");
-    });
-
-    it("should accept valid SVG via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       expect(await contract.ownerOf(0)).to.equal(user.address);
-    });
-  });
-
-  describe("Security: Additional Attack Vectors via revealMint", function () {
-    // ── Mixed Case Evasion ──
-    it("should reject mixed-case <ScRiPt> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><ScRiPt>alert(1)</ScRiPt></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject uppercase <SCRIPT> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject mixed-case <IFrame> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><IFrame src="https://evil.com"></IFrame></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject uppercase <OBJECT> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><OBJECT data="evil.swf"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject uppercase <EMBED> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><EMBED src="evil.swf"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject mixed-case <ForeignObject> via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><ForeignObject></ForeignObject></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject mixed-case JAVASCRIPT: protocol via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><a href="JaVaScRiPt:alert(1)">x</a></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject mixed-case DATA:TEXT/HTML via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><image href="Data:Text/Html,<script>alert(1)</script>"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    // ── Event Handler Variants ──
-    it("should reject onerror handler via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><image onerror="alert(1)"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject onmouseover handler via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg" onmouseover="alert(1)"><rect/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject onclick handler via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><rect onclick="alert(1)"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject onfocus handler via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><rect onfocus="alert(1)" tabindex="0"/></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject ONLOAD uppercase handler via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg" ONLOAD="alert(1)"></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    // ── Size Limits via revealMint ──
-    it("should reject oversized SVG (>24KB) via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const bigSvg = '<svg xmlns="http://www.w3.org/2000/svg">' + "x".repeat(24577) + '</svg>';
-      await expect(
-        contract.connect(user).revealMint(0, ethers.toUtf8Bytes(bigSvg), testTraitsBytes)
-      ).to.be.revertedWith("SVG exceeds 24KB limit");
-    });
-
-    it("should reject empty SVG via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      await expect(
-        contract.connect(user).revealMint(0, ethers.toUtf8Bytes(""), testTraitsBytes)
-      ).to.be.revertedWith("Empty SVG data");
     });
 
     it("should reject oversized traits (>8KB) via revealMint", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const bigTraits = ethers.toUtf8Bytes("x".repeat(8193));
+      const bigTraits = ethers.toUtf8Bytes("[" + "x".repeat(8192) + "]");
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, bigTraits)
+        contract.connect(user).revealMint(0, testBitmap, bigTraits)
       ).to.be.revertedWithCustomError(contract, "TraitsTooLarge");
     });
+  });
 
-    // ── Slot Manipulation ──
+  // ════════════════════════════════════════════════════════════
+  //  SECURITY: COMMIT-REVEAL ATTACK VECTORS
+  // ════════════════════════════════════════════════════════════
+
+  describe("Security: Commit-Reveal Attack Vectors", function () {
     it("should reject reveal of another user's slot", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      // user2 has no commitments, so slot 0 does not exist for user2
       await expect(
-        contract.connect(user2).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user2).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Invalid slot");
     });
 
     it("should reject reveal with out-of-bounds slot index", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await expect(
-        contract.connect(user).revealMint(1, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(1, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Invalid slot");
     });
 
     it("should reject double reveal of same slot", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Already revealed");
     });
 
-    // ── Expired Commitment ──
     it("should reject reveal after 7 day deadline", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Commitment expired");
     });
 
-    // ── SVG with BOM (Byte Order Mark) ──
-    it("should handle SVG with UTF-8 BOM via revealMint", async function () {
+    it("should reject reclaimExpired for another user's slot", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-      const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges"><path stroke="#000" d="M0 0h64"/></svg>';
-      const svgBytes = ethers.toUtf8Bytes(svgStr);
-      const combined = new Uint8Array(bom.length + svgBytes.length);
-      combined.set(bom);
-      combined.set(svgBytes, bom.length);
-      // BOM is whitespace-stripped by _validateSVG, should work
-      await contract.connect(user).revealMint(0, combined, testTraitsBytes);
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+      await expect(
+        contract.connect(user2).reclaimExpired(0)
+      ).to.be.revertedWith("Invalid slot");
+    });
+
+    it("should reject reveal after slot was reclaimed", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
+      await ethers.provider.send("evm_mine", []);
+      await contract.connect(user).reclaimExpired(0);
+      await expect(
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
+      ).to.be.revertedWith("Already revealed");
+    });
+
+    it("should allow revealMint with empty traits", async function () {
+      await contract.connect(user).commitMint({ value: mintPrice });
+      await contract.connect(user).revealMint(0, testBitmap, ethers.toUtf8Bytes(""));
       expect(await contract.ownerOf(0)).to.equal(user.address);
+      const uri = await contract.tokenURI(0);
+      const base64Json = uri.replace("data:application/json;base64,", "");
+      const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
+      expect(json.name).to.equal("BOOA #0");
+      expect(json.attributes).to.be.undefined;
     });
 
-    // ── Null Bytes / Binary Injection ──
-    it("should reject pure binary data via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const binary = new Uint8Array([0x00, 0x01, 0x02, 0xFF, 0xFE]);
-      await expect(
-        contract.connect(user).revealMint(0, binary, testTraitsBytes)
-      ).to.be.revertedWith("SVG must start with <svg");
-    });
-
-    // ── Script with whitespace/newline evasion ──
-    it("should reject <script> with newline before tag name via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      // This is <svg...><script> but with tag intact
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg">\n<script>alert(1)</script></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    // ── Multiple script tags ──
-    it("should reject multiple nested dangerous elements via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const malicious = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><g><g><script>alert(1)</script></g></g></svg>');
-      await expect(
-        contract.connect(user).revealMint(0, malicious, testTraitsBytes)
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    // ── Traits JSON injection (try to break tokenURI JSON) ──
     it("should store traits with special JSON characters without breaking tokenURI", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      // Even if traits contain weird JSON, it's stored as-is and tokenURI wraps it
       const weirdTraits = ethers.toUtf8Bytes('[{"trait_type":"test","value":"val"}]');
-      await contract.connect(user).revealMint(0, testSVGBytes, weirdTraits);
+      await contract.connect(user).revealMint(0, testBitmap, weirdTraits);
       const uri = await contract.tokenURI(0);
       const base64Json = uri.replace("data:application/json;base64,", "");
       const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
       expect(json.name).to.equal("BOOA #0");
       expect(json.attributes).to.deep.equal([{ trait_type: "test", value: "val" }]);
     });
-
-    // ── Reclaim: someone else can't reclaim your slot ──
-    it("should reject reclaimExpired for another user's slot", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
-      await ethers.provider.send("evm_mine", []);
-      // user2 has no commitments
-      await expect(
-        contract.connect(user2).reclaimExpired(0)
-      ).to.be.revertedWith("Invalid slot");
-    });
-
-    // ── Reveal after reclaim ──
-    it("should reject reveal after slot was reclaimed", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
-      await ethers.provider.send("evm_mine", []);
-      await contract.connect(user).reclaimExpired(0);
-      // Slot is now marked as revealed, can't reveal again
-      await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
-      ).to.be.revertedWith("Already revealed");
-    });
-
-    // ── Empty traits should work (no traits pointer) ──
-    it("should allow revealMint with empty traits", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user).revealMint(0, testSVGBytes, ethers.toUtf8Bytes(""));
-      expect(await contract.ownerOf(0)).to.equal(user.address);
-      const uri = await contract.tokenURI(0);
-      const base64Json = uri.replace("data:application/json;base64,", "");
-      const json = JSON.parse(Buffer.from(base64Json, "base64").toString());
-      expect(json.name).to.equal("BOOA #0");
-      // No attributes key when traits are empty
-      expect(json.attributes).to.be.undefined;
-    });
-
-    // ── SVG with <use> + xlink:href to external resource ──
-    it("should accept SVG with <use> (no blocked element)", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const svgWithUse = ethers.toUtf8Bytes('<svg xmlns="http://www.w3.org/2000/svg"><use href="#myid"/></svg>');
-      // <use> is not in the blocked list, so this should pass
-      await contract.connect(user).revealMint(0, svgWithUse, testTraitsBytes);
-      expect(await contract.ownerOf(0)).to.equal(user.address);
-    });
-
-    // ── SVG that starts with whitespace ──
-    it("should accept SVG with leading whitespace via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const svgWithSpaces = ethers.toUtf8Bytes('   \n\t<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
-      await contract.connect(user).revealMint(0, svgWithSpaces, testTraitsBytes);
-      expect(await contract.ownerOf(0)).to.equal(user.address);
-    });
-
-    // ── SVG with <SVG (uppercase start) ──
-    it("should accept uppercase <SVG via revealMint", async function () {
-      await contract.connect(user).commitMint({ value: mintPrice });
-      const uppercaseSvg = ethers.toUtf8Bytes('<SVG xmlns="http://www.w3.org/2000/svg"><rect/></SVG>');
-      await contract.connect(user).revealMint(0, uppercaseSvg, testTraitsBytes);
-      expect(await contract.ownerOf(0)).to.equal(user.address);
-    });
   });
 
-  // ══════════════════════════════════════════════════════════
-  // SECURITY AUDIT — Verify Fixes
-  // ══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════
+  //  SECURITY AUDIT — Verify Fixes
+  // ════════════════════════════════════════════════════════════
 
   describe("FIX #1: maxPerWallet enforced in commitMint and revealMint", function () {
     it("should block second commit when maxPerWallet=1 (pending commit counted)", async function () {
       await contract.connect(owner).setMaxPerWallet(1);
       await contract.connect(user).commitMint({ value: mintPrice });
-      // Second commit should fail — pending commit is counted
       await expect(
         contract.connect(user).commitMint({ value: mintPrice })
       ).to.be.revertedWith("Wallet mint limit reached");
     });
 
     it("should block revealMint when mintCount already at maxPerWallet", async function () {
-      // First: direct mint to fill wallet limit
       await contract.connect(owner).setMaxPerWallet(1);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      // Remove limit temporarily so user can commit
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await contract.connect(owner).setMaxPerWallet(0);
       await contract.connect(user).commitMint({ value: mintPrice });
-      // Restore limit
       await contract.connect(owner).setMaxPerWallet(1);
-      // Reveal should fail
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Wallet mint limit reached");
     });
 
     it("should allow commit after expired commit frees up a slot", async function () {
       await contract.connect(owner).setMaxPerWallet(1);
       await contract.connect(user).commitMint({ value: mintPrice });
-
-      // Wait for expiry
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
       await contract.connect(user).reclaimExpired(0);
-
-      // Now user can commit again (expired commit no longer counted as pending)
       await contract.connect(user).commitMint({ value: mintPrice });
       expect(await contract.commitmentCount(user.address)).to.equal(2);
     });
@@ -1008,29 +866,20 @@ describe("BOOA", function () {
     it("should not allow withdrawing commit-reserved funds", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await contract.connect(user2).commitMint({ value: mintPrice });
-
-      // All funds are reserved — withdraw should fail
       await expect(
         contract.connect(owner).withdraw()
       ).to.be.revertedWith("No available funds");
     });
 
     it("should allow withdrawing only unreserved funds", async function () {
-      // Direct mint creates unreserved revenue
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      // Commit creates reserved funds
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await contract.connect(user2).commitMint({ value: mintPrice });
-
       const balBefore = await ethers.provider.getBalance(owner.address);
       const tx = await contract.connect(owner).withdraw();
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
       const balAfter = await ethers.provider.getBalance(owner.address);
-
-      // Only the direct mint revenue is withdrawable
       expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
-
-      // Contract still holds reserved funds
       const contractBal = await ethers.provider.getBalance(await contract.getAddress());
       expect(contractBal).to.equal(mintPrice);
     });
@@ -1038,11 +887,8 @@ describe("BOOA", function () {
     it("should release reserved funds after reveal", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       expect(await contract.reservedFunds()).to.equal(mintPrice);
-
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       expect(await contract.reservedFunds()).to.equal(0);
-
-      // Now owner can withdraw
       await contract.connect(owner).withdraw();
       const contractBal = await ethers.provider.getBalance(await contract.getAddress());
       expect(contractBal).to.equal(0);
@@ -1051,23 +897,18 @@ describe("BOOA", function () {
     it("should release reserved funds after reclaim", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       expect(await contract.reservedFunds()).to.equal(mintPrice);
-
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
       await contract.connect(user).reclaimExpired(0);
-
       expect(await contract.reservedFunds()).to.equal(0);
     });
 
     it("reclaim always succeeds when funds are reserved", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-      // Even with a direct mint revenue withdrawn, commit funds are safe
-      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(owner).withdraw(); // only withdraws unreserved
-
+      await contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(owner).withdraw();
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       const balBefore = await ethers.provider.getBalance(user.address);
       const tx = await contract.connect(user).reclaimExpired(0);
       const receipt = await tx.wait();
@@ -1080,76 +921,55 @@ describe("BOOA", function () {
   describe("FIX #3: reclaimExpired refunds actual paid amount", function () {
     it("should refund original paid amount even after price change", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-
-      // Owner changes the price
-      const newPrice = mintPrice / 2n;
-      await contract.connect(owner).setMintPrice(newPrice);
-
+      await contract.connect(owner).setMintPrice(mintPrice / 2n);
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       const balBefore = await ethers.provider.getBalance(user.address);
       const tx = await contract.connect(user).reclaimExpired(0);
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
       const balAfter = await ethers.provider.getBalance(user.address);
-
-      // User gets back ORIGINAL mintPrice, not the new lower price
-      const refunded = balAfter + gasUsed - balBefore;
-      expect(refunded).to.equal(mintPrice);
+      expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
     });
 
     it("should refund original amount when price is set to 0", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await contract.connect(owner).setMintPrice(0);
-
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       const balBefore = await ethers.provider.getBalance(user.address);
       const tx = await contract.connect(user).reclaimExpired(0);
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
       const balAfter = await ethers.provider.getBalance(user.address);
-
-      // User gets back original paid amount, not 0
       expect(balAfter + gasUsed - balBefore).to.equal(mintPrice);
     });
 
     it("should refund exact overpayment when user sent extra", async function () {
       const overpay = mintPrice * 2n;
       await contract.connect(user).commitMint({ value: overpay });
-
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       const balBefore = await ethers.provider.getBalance(user.address);
       const tx = await contract.connect(user).reclaimExpired(0);
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed * receipt!.gasPrice;
       const balAfter = await ethers.provider.getBalance(user.address);
-
-      // User gets back the FULL amount they paid (including overpayment)
       expect(balAfter + gasUsed - balBefore).to.equal(overpay);
     });
   });
 
-  describe("FIX #4: supply race condition (still possible but reclaim works)", function () {
+  describe("FIX #4: supply race condition", function () {
     it("directMint can exhaust supply before revealMint but reclaim is safe", async function () {
       await contract.connect(owner).setMaxSupply(2);
       await contract.connect(user).commitMint({ value: mintPrice });
-      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-      await contract.connect(user2).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-
-      // user's reveal fails
+      await contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      await contract.connect(user2).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Max supply reached");
-
-      // But user can safely reclaim their funds
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       const balBefore = await ethers.provider.getBalance(user.address);
       const tx = await contract.connect(user).reclaimExpired(0);
       const receipt = await tx.wait();
@@ -1164,7 +984,7 @@ describe("BOOA", function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await contract.connect(owner).setPaused(true);
       await expect(
-        contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes)
+        contract.connect(user).revealMint(0, testBitmap, testTraitsBytes)
       ).to.be.revertedWith("Minting is paused");
     });
 
@@ -1172,93 +992,18 @@ describe("BOOA", function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await contract.connect(owner).setPaused(true);
       await contract.connect(owner).setPaused(false);
-      await contract.connect(user).revealMint(0, testSVGBytes, testTraitsBytes);
+      await contract.connect(user).revealMint(0, testBitmap, testTraitsBytes);
       expect(await contract.ownerOf(0)).to.equal(user.address);
     });
 
     it("reclaimExpired works even when paused", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
       await contract.connect(owner).setPaused(true);
-
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       await contract.connect(user).reclaimExpired(0);
       const [, revealed] = await contract.getCommitment(user.address, 0);
       expect(revealed).to.be.true;
-    });
-  });
-
-  describe("FIX #6: SVG sanitization now blocks dangerous tags", function () {
-    it("should reject <style> tag", async function () {
-      const withStyle = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><style>body{background:red}</style><rect/></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withStyle, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <STYLE> tag (case-insensitive)", async function () {
-      const withStyle = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><STYLE>body{background:red}</STYLE><rect/></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withStyle, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <animate> tag", async function () {
-      const withAnimate = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><rect><animate attributeName="width" from="0" to="100" dur="1s"/></rect></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withAnimate, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <set> tag", async function () {
-      const withSet = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><rect><set attributeName="fill" to="red"/></rect></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withSet, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <image> tag", async function () {
-      const withImage = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.com/track.png"/></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withImage, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <a> tag (phishing)", async function () {
-      const withLink = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://evil.com"><text>Click me</text></a></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withLink, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should reject <feImage> tag", async function () {
-      const withFeImage = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><filter id="f"><feImage href="https://evil.com/exfil"/></filter><rect filter="url(#f)"/></svg>'
-      );
-      await expect(
-        contract.connect(user).mintAgent(withFeImage, testTraitsBytes, { value: mintPrice })
-      ).to.be.revertedWithCustomError(contract, "UnsafeSVG");
-    });
-
-    it("should still allow valid SVG with rect, path, text, g, defs, use", async function () {
-      const safeSvg = ethers.toUtf8Bytes(
-        '<svg xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="c"><rect/></clipPath></defs><g><path stroke="#000" d="M0 0h64"/><text>hello</text><use href="#c"/></g></svg>'
-      );
-      await contract.connect(user).mintAgent(safeSvg, testTraitsBytes, { value: mintPrice });
-      expect(await contract.totalSupply()).to.equal(1);
     });
   });
 
@@ -1268,37 +1013,37 @@ describe("BOOA", function () {
         '"},"injected_key":"injected_value","x":{"y":"z'
       );
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, maliciousTraits, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, maliciousTraits, { value: mintPrice })
       ).to.be.revertedWithCustomError(contract, "UnsafeTraits");
     });
 
     it("should reject traits with unbalanced braces", async function () {
       const badTraits = ethers.toUtf8Bytes('[{"trait_type":"test"}]}');
       await expect(
-        contract.connect(user).mintAgent(testSVGBytes, badTraits, { value: mintPrice })
+        contract.connect(user).mintAgent(testBitmap, badTraits, { value: mintPrice })
       ).to.be.revertedWithCustomError(contract, "UnsafeTraits");
     });
 
     it("should accept valid traits JSON array", async function () {
       const validTraits = ethers.toUtf8Bytes('[{"trait_type":"Creature","value":"Fox"},{"trait_type":"Vibe","value":"chill"}]');
-      await contract.connect(user).mintAgent(testSVGBytes, validTraits, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, validTraits, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
 
     it("should accept empty traits", async function () {
-      await contract.connect(user).mintAgent(testSVGBytes, "0x", { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, "0x", { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
 
     it("should accept empty array traits", async function () {
       const emptyArray = ethers.toUtf8Bytes('[]');
-      await contract.connect(user).mintAgent(testSVGBytes, emptyArray, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, emptyArray, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
 
     it("should allow traits with special characters inside strings", async function () {
       const specialChars = ethers.toUtf8Bytes('[{"trait_type":"test","value":"hello \\"world\\" }]"}]');
-      await contract.connect(user).mintAgent(testSVGBytes, specialChars, { value: mintPrice });
+      await contract.connect(user).mintAgent(testBitmap, specialChars, { value: mintPrice });
       expect(await contract.totalSupply()).to.equal(1);
     });
   });
@@ -1306,15 +1051,11 @@ describe("BOOA", function () {
   describe("AUDIT: reentrancy via reclaimExpired", function () {
     it("state is updated before ETH transfer (CEI pattern)", async function () {
       await contract.connect(user).commitMint({ value: mintPrice });
-
       await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
       await ethers.provider.send("evm_mine", []);
-
       await contract.connect(user).reclaimExpired(0);
-
       const [, revealed] = await contract.getCommitment(user.address, 0);
       expect(revealed).to.be.true;
-
       await expect(
         contract.connect(user).reclaimExpired(0)
       ).to.be.revertedWith("Already revealed");
@@ -1324,12 +1065,10 @@ describe("BOOA", function () {
   describe("AUDIT: maxSupply can be set to 0 after minting (unlimited)", function () {
     it("owner can remove supply cap after mints exist", async function () {
       await contract.connect(owner).setMaxSupply(2);
-      await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
-
+      await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       await contract.connect(owner).setMaxSupply(0);
-
       for (let i = 0; i < 5; i++) {
-        await contract.connect(user).mintAgent(testSVGBytes, testTraitsBytes, { value: mintPrice });
+        await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
       }
       expect(await contract.totalSupply()).to.equal(6);
     });
@@ -1343,6 +1082,26 @@ describe("BOOA", function () {
           value: ethers.parseEther("1"),
         })
       ).to.be.reverted;
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  GAS COMPARISON
+  // ════════════════════════════════════════════════════════════
+
+  describe("Gas Usage", function () {
+    it("should log mint gas for bitmap (2048 bytes)", async function () {
+      const tx = await contract.connect(user).mintAgent(testBitmap, testTraitsBytes, { value: mintPrice });
+      const receipt = await tx.wait();
+      console.log(`        Bitmap mint gas: ${receipt!.gasUsed}`);
+      console.log(`        Bitmap size: 2048 bytes (fixed)`);
+      console.log(`        Traits size: ${testTraitsBytes.length} bytes`);
+    });
+
+    it("should log getSVG gas for on-chain rendering", async function () {
+      await contract.connect(user).mintAgent(testBitmapWithStripe, testTraitsBytes, { value: mintPrice });
+      const gas = await contract.getSVG.estimateGas(0);
+      console.log(`        getSVG gas (view): ${gas}`);
     });
   });
 });

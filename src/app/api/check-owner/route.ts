@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CHAIN_CONFIG, IDENTITY_REGISTRY_ADDRESS } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
+import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 
 const OWNER_OF_ABI = [
   {
@@ -30,8 +31,9 @@ export async function POST(request: NextRequest) {
       transport: fallback(config.rpcUrls.map((url) => http(url))),
     });
 
+    const registryAddress = getRegistryAddress(config.chainId);
     const owner = await client.readContract({
-      address: IDENTITY_REGISTRY_ADDRESS,
+      address: registryAddress,
       abi: OWNER_OF_ABI,
       functionName: 'ownerOf',
       args: [BigInt(agentId)],

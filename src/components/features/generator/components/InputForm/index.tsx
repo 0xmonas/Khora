@@ -84,7 +84,8 @@ export function InputForm() {
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const isWrongNetwork = isConnected && chainId !== base.id && chainId !== baseSepolia.id;
+  const SUPPORTED_CHAIN_IDS = new Set<number>([base.id, baseSepolia.id]);
+  const isWrongNetwork = isConnected && !SUPPORTED_CHAIN_IDS.has(chainId);
 
   // Agent discovery state (local to InputForm)
   const [discoveredAgents, setDiscoveredAgents] = useState<DiscoveredAgent[]>([]);
@@ -631,7 +632,7 @@ export function InputForm() {
           {/* Supply & Price Info */}
           {isWrongNetwork ? (
             <p className="text-xs font-mono text-red-500 mt-2">
-              Switch to Base network to mint
+              Switch to a supported network to mint
             </p>
           ) : contractAddress && mintPrice !== undefined ? (
             <div className="text-xs font-mono mt-2 space-y-1">
