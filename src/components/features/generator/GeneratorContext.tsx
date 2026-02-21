@@ -1,20 +1,16 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { pixelateImage } from '@/utils/pixelator';
-import { createPortraitPrompt } from '@/utils/helpers/createPortraitPrompt';
-import { useCommitReveal, type CommitRevealPhase } from '@/hooks/useCommitReveal';
+import { useMintAgent, type MintPhase } from '@/hooks/useMintAgent';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { validateBitmapForContract, encodeBitmap, BITMAP_SIZE } from '@/utils/helpers/bitmapEncoder';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
-import { BOOA_NFT_ABI } from '@/lib/contracts/booa';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 
 export type Mode = 'create' | 'import';
-export type Step = 'input' | 'committing' | 'generating' | 'ready_to_reveal' | 'revealing' | 'reveal_failed' | 'complete' | 'registering' | 'register_complete';
+export type Step = 'input' | 'generating' | 'confirming' | 'pending' | 'complete' | 'registering' | 'register_complete';
 type GeneratorContextType = {
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -31,18 +27,16 @@ type GeneratorContextType = {
   progress: number;
   error: string | null;
   currentStep: Step;
-  generatedImage: string | null;
   pixelatedImage: string | null;
-  imageLoading: boolean;
   mintedTokenId: bigint | null;
-  // Commit-reveal info
+  // V2 contract info
   mintPrice: bigint | undefined;
   totalSupply: bigint | undefined;
   maxSupply: bigint | undefined;
-  commitRevealPhase: CommitRevealPhase;
-  contractAddress: `0x${string}`;
-  commitTxHash: `0x${string}` | undefined;
-  revealTxHash: `0x${string}` | undefined;
+  mintPhase: MintPhase;
+  booaAddress: `0x${string}`;
+  minterAddress: `0x${string}`;
+  txHash: `0x${string}` | undefined;
   // ERC-8004 config
   erc8004Services: AgentService[];
   setErc8004Services: (s: AgentService[]) => void;
@@ -61,12 +55,8 @@ type GeneratorContextType = {
   registerTxHash: `0x${string}` | null;
   // Modal
   isModalOpen: boolean;
-  hasRevealData: boolean;
   // Actions
   mintAndGenerate: () => void;
-  triggerReveal: () => void;
-  retryReveal: () => void;
-  regenerateForReveal: () => void;
   registerAgent: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
@@ -76,42 +66,81 @@ type GeneratorContextType = {
 
 export const GeneratorContext = createContext<GeneratorContextType | undefined>(undefined);
 
-// ── Pending reveal API helpers ──
+/** Maps raw error messages to user-friendly messages */
+function friendlyError(raw: string): string {
+  const lower = raw.toLowerCase();
 
-async function savePendingRevealToAPI(
-  address: string, chainId: number, slot: number,
-  svgHex: string, traitsHex: string,
-) {
-  try {
-    await fetch('/api/pending-reveal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, chainId, slot, svg: svgHex, traits: traitsHex }),
-    });
-  } catch {}
-}
+  // Rate limiting / quota
+  if (lower.includes('too many requests') || lower.includes('429'))
+    return 'You\'re going too fast! Please wait a moment and try again.';
+  if (lower.includes('generation limit') || lower.includes('quota'))
+    return 'You\'ve reached your generation limit for this session. Mint your current agent to unlock more.';
 
-async function loadPendingRevealFromAPI(
-  address: string, chainId: number, slot: number,
-): Promise<{ svg: string; traits: string } | null> {
-  try {
-    const res = await fetch(
-      `/api/pending-reveal?address=${address}&chainId=${chainId}&slot=${slot}`
-    );
-    const data = await res.json();
-    if (data.found) return { svg: data.svg, traits: data.traits };
-  } catch {}
-  return null;
-}
+  // Auth
+  if (lower.includes('authentication required') || lower.includes('sign in'))
+    return 'Please connect and sign in with your wallet to continue.';
+  if (lower.includes('wallet not connected'))
+    return 'Your wallet is not connected. Please connect your wallet and try again.';
 
-async function deletePendingRevealFromAPI(address: string, chainId: number, slot: number) {
-  try {
-    await fetch('/api/pending-reveal', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, chainId, slot }),
-    });
-  } catch {}
+  // Wallet rejections
+  if (lower.includes('user rejected') || lower.includes('user denied') || lower.includes('rejected the request'))
+    return 'Transaction cancelled — no worries, nothing was charged.';
+
+  // Network / RPC
+  if (lower.includes('network') || lower.includes('chain') || lower.includes('rpc'))
+    return 'Network issue — please check your connection and make sure you\'re on the right network.';
+  if (lower.includes('insufficient funds') || lower.includes('insufficient balance'))
+    return 'Not enough ETH in your wallet for this transaction.';
+  if (lower.includes('nonce'))
+    return 'Transaction conflict — please reset your wallet\'s pending transactions and try again.';
+
+  // Contract errors
+  if (lower.includes('mintingpaused') || lower.includes('minting is paused'))
+    return 'Minting is currently paused. Please check back soon!';
+  if (lower.includes('signatureexpired') || lower.includes('expired'))
+    return 'Your session expired. Please try minting again.';
+  if (lower.includes('mintlimitreached') || lower.includes('mint limit'))
+    return 'You\'ve reached the maximum mints per wallet.';
+  if (lower.includes('maxsupplyreached') || lower.includes('max supply'))
+    return 'All agents have been minted — the collection is complete!';
+  if (lower.includes('invalidsignature') || lower.includes('invalid sig'))
+    return 'Signature verification failed. Please try again.';
+  if (lower.includes('signaturealreadyused'))
+    return 'This mint session was already used. Please generate a new agent.';
+
+  // AI generation
+  if (lower.includes('no agent response') || lower.includes('no image generated') || lower.includes('incomplete agent'))
+    return 'AI had a hiccup generating your agent. Please try again — each attempt is unique!';
+  if (lower.includes('failed to generate'))
+    return 'Something went wrong during generation. Please try again in a moment.';
+
+  // Server errors
+  if (lower.includes('server error') || lower.includes('500') || lower.includes('502') || lower.includes('503'))
+    return 'Our servers are having a moment. Please try again shortly.';
+  if (lower.includes('fetch') || lower.includes('load failed') || lower.includes('failed to fetch'))
+    return 'Could not reach the server. Please check your internet connection and try again.';
+
+  // Registration
+  if (lower.includes('missing mint data'))
+    return 'Mint data not found — please mint your agent first before registering.';
+  if (lower.includes('could not find registered event'))
+    return 'Registration transaction succeeded but confirmation is pending. Check your wallet for details.';
+
+  // Transaction
+  if (lower.includes('transaction failed') || lower.includes('reverted'))
+    return 'Transaction failed on-chain. This can happen if conditions changed — please try again.';
+  if (lower.includes('timeout') || lower.includes('timed out'))
+    return 'Request timed out. The network might be congested — please try again.';
+
+  // Download
+  if (lower.includes('failed to download'))
+    return 'Download failed. Please try again.';
+
+  // Fallback — if it's a long technical message, summarize it
+  if (raw.length > 100)
+    return 'Something unexpected happened. Please try again.';
+
+  return raw;
 }
 
 async function saveAgentMetadataToAPI(
@@ -142,9 +171,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('input');
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [pixelatedImage, setPixelatedImage] = useState<string | null>(null);
-  const [imageLoading, setImageLoading] = useState(false);
   const [mintedTokenId, setMintedTokenId] = useState<bigint | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -162,15 +189,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   const publicClient = usePublicClient();
 
-  // Track whether we're in an active mint-generate flow
-  const isFlowActive = useRef(false);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Keep SVG/traits bytes in ref for retry
-  const pendingBitmapBytes = useRef<Uint8Array | null>(null);
-  const pendingTraitsBytes = useRef<Uint8Array | null>(null);
-
-  const commitReveal = useCommitReveal();
+  // V2 mint hook — single-tx with server-signed data
+  const mint = useMintAgent();
 
   // Restore from localStorage (mount-only)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,23 +202,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(savedData);
         if (parsed.agent) setAgent(parsed.agent);
-        if (parsed.generatedImage) setGeneratedImage(parsed.generatedImage);
         if (parsed.pixelatedImage) setPixelatedImage(parsed.pixelatedImage);
         if (parsed.currentStep === 'complete') setCurrentStep('complete');
         if (parsed.agentName) setAgentName(parsed.agentName);
         if (parsed.agentDescription) setAgentDescription(parsed.agentDescription);
         if (parsed.mode) setMode(parsed.mode);
-        if (parsed.pendingBitmapHex) {
-          const loaded = hexToBytes(parsed.pendingBitmapHex);
-          // Bitmap format: exactly 2048 bytes. Anything else is stale SVG data.
-          if (loaded.length === BITMAP_SIZE) {
-            pendingBitmapBytes.current = loaded;
-          }
-          // else: stale legacy data — ignore, user will regenerate
-        }
-        if (parsed.pendingTraitsHex) {
-          pendingTraitsBytes.current = hexToBytes(parsed.pendingTraitsHex);
-        }
       } catch {
         localStorage.removeItem('khoraGeneratorData');
       }
@@ -205,156 +215,46 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // Persist to localStorage
   useEffect(() => {
-    if (agent || generatedImage) {
+    if (agent || pixelatedImage) {
       const data: Record<string, unknown> = {
-        agent, generatedImage, pixelatedImage, currentStep,
+        agent, pixelatedImage, currentStep,
         agentName, agentDescription, mode,
       };
-      if (pendingBitmapBytes.current) {
-        data.pendingBitmapHex = bytesToHex(pendingBitmapBytes.current);
-      }
-      if (pendingTraitsBytes.current) {
-        data.pendingTraitsHex = bytesToHex(pendingTraitsBytes.current);
-      }
       localStorage.setItem('khoraGeneratorData', JSON.stringify(data));
     }
-  }, [agent, generatedImage, pixelatedImage, currentStep, agentName, agentDescription, mode]);
+  }, [agent, pixelatedImage, currentStep, agentName, agentDescription, mode]);
 
-  // Pixelate when image changes
+  // ── React to mint phase changes ──
+
+  // When mint tx succeeds, finalize
   useEffect(() => {
-    const processImage = async () => {
-      if (!generatedImage) {
-        setPixelatedImage(null);
-        return;
-      }
-      setImageLoading(true);
-      try {
-        const img = new Image();
-        img.src = generatedImage;
-        await new Promise<void>((resolve) => { img.onload = () => resolve(); });
-        const result = await pixelateImage(generatedImage);
-        setPixelatedImage(result);
-      } catch {
-        setPixelatedImage(generatedImage);
-      } finally {
-        setImageLoading(false);
-      }
-    };
-    processImage();
-  }, [generatedImage]);
-
-  // ── React to commit-reveal phase changes ──
-
-  // When commit is confirmed, start AI generation
-  useEffect(() => {
-    if (commitReveal.phase === 'committed' && isFlowActive.current && currentStep === 'committing') {
-      runGeneration();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase]);
-
-  // When reveal succeeds, finalize + cleanup API + save metadata
-  useEffect(() => {
-    if (commitReveal.phase === 'success' && isFlowActive.current) {
-      setMintedTokenId(commitReveal.tokenId);
+    if (mint.phase === 'success' && currentStep === 'pending') {
+      setMintedTokenId(mint.tokenId);
       setCurrentStep('complete');
       setLoading(false);
-      isFlowActive.current = false;
-      pendingBitmapBytes.current = null;
-      pendingTraitsBytes.current = null;
-      commitReveal.refetchSupply();
-      if (commitReveal.address && commitReveal.slotIndex !== null) {
-        deletePendingRevealFromAPI(
-          commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
-        );
-      }
+      mint.refetchSupply();
       // Save full agent metadata to Upstash (permanent, no TTL)
-      if (agent && agent.name && commitReveal.tokenId !== null && commitReveal.address) {
+      if (agent && agent.name && mint.tokenId !== null && mint.address) {
         saveAgentMetadataToAPI(
-          commitReveal.address,
-          commitReveal.chainId,
-          Number(commitReveal.tokenId),
+          mint.address,
+          mint.chainId,
+          Number(mint.tokenId),
           agent,
         );
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase, commitReveal.tokenId]);
+  }, [mint.phase, mint.tokenId]);
 
-  // Handle reveal_failed — also check on-chain if reveal actually succeeded
+  // Handle mint errors
   useEffect(() => {
-    if (commitReveal.phase === 'reveal_failed' && isFlowActive.current) {
-      // Before showing retry, check if the reveal actually succeeded on-chain
-      // (race condition: tx confirmed but frontend missed receipt)
-      if (publicClient && commitReveal.contractAddress && commitReveal.address && commitReveal.slotIndex !== null) {
-        publicClient.readContract({
-          address: commitReveal.contractAddress as `0x${string}`,
-          abi: BOOA_NFT_ABI,
-          functionName: 'getCommitment',
-          args: [commitReveal.address, commitReveal.slotIndex],
-        }).then(async (result) => {
-          const [, revealed] = result as [bigint, boolean];
-          if (revealed) {
-            // Reveal actually succeeded on-chain — recover tokenId via totalSupply
-            try {
-              const supply = await publicClient!.readContract({
-                address: commitReveal.contractAddress as `0x${string}`,
-                abi: BOOA_NFT_ABI,
-                functionName: 'totalSupply',
-              }) as bigint;
-              if (supply > BigInt(0)) {
-                setMintedTokenId(supply - BigInt(1));
-              }
-            } catch {
-              // tokenId recovery failed — registration won't work but mint is safe
-            }
-            setError(null);
-            setCurrentStep('complete');
-            setLoading(false);
-            isFlowActive.current = false;
-            pendingBitmapBytes.current = null;
-            pendingTraitsBytes.current = null;
-            commitReveal.refetchSupply();
-          } else {
-            // Genuinely failed — show retry
-            const errMsg = commitReveal.error instanceof Error
-              ? commitReveal.error.message
-              : 'Reveal transaction failed — you can retry';
-            setError(errMsg.slice(0, 200));
-            setCurrentStep('reveal_failed');
-            setLoading(false);
-          }
-        }).catch(() => {
-          // On-chain check failed, show retry as fallback
-          const errMsg = commitReveal.error instanceof Error
-            ? commitReveal.error.message
-            : 'Reveal transaction failed — you can retry';
-          setError(errMsg.slice(0, 200));
-          setCurrentStep('reveal_failed');
-          setLoading(false);
-        });
-      } else {
-        const errMsg = commitReveal.error instanceof Error
-          ? commitReveal.error.message
-          : 'Reveal transaction failed — you can retry';
-        setError(errMsg.slice(0, 200));
-        setCurrentStep('reveal_failed');
-        setLoading(false);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase]);
-
-  // Handle commit errors
-  useEffect(() => {
-    if (commitReveal.phase === 'error' && isFlowActive.current) {
-      const errMsg = commitReveal.error instanceof Error
-        ? commitReveal.error.message
+    if (mint.phase === 'error' && (currentStep === 'confirming' || currentStep === 'pending')) {
+      const errMsg = mint.error instanceof Error
+        ? mint.error.message
         : 'Transaction failed';
-      setError(errMsg.slice(0, 200));
+      setError(friendlyError(errMsg));
       setCurrentStep('input');
       setLoading(false);
-      isFlowActive.current = false;
       setIsModalOpen(false);
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -362,57 +262,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase]);
-
-  // Recovery: slotIndex + pending SVG in localStorage
-  useEffect(() => {
-    if (
-      commitReveal.phase === 'committed' &&
-      !isFlowActive.current &&
-      currentStep === 'input' &&
-      commitReveal.slotIndex !== null &&
-      pendingBitmapBytes.current
-    ) {
-      setCurrentStep('reveal_failed');
-      setError('You have a pending reveal from a previous session. Retry or generate a new image.');
-      isFlowActive.current = true;
-      setIsModalOpen(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase, commitReveal.slotIndex, currentStep]);
-
-  // Recovery: slotIndex but NO local SVG → try API
-  useEffect(() => {
-    if (
-      commitReveal.phase === 'committed' &&
-      !isFlowActive.current &&
-      currentStep === 'input' &&
-      commitReveal.slotIndex !== null &&
-      !pendingBitmapBytes.current &&
-      commitReveal.address
-    ) {
-      loadPendingRevealFromAPI(
-        commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex)
-      ).then(result => {
-        if (result) {
-          const loaded = hexToBytes(result.svg);
-          if (loaded.length === BITMAP_SIZE) {
-            pendingBitmapBytes.current = loaded;
-          }
-          // else: stale legacy SVG — user must regenerate
-          pendingTraitsBytes.current = hexToBytes(result.traits);
-          setCurrentStep('reveal_failed');
-          setError('You have a pending reveal recovered from the server. Retry or generate a new image.');
-        } else {
-          setCurrentStep('reveal_failed');
-          setError('You have a pending commitment but the image was lost. You can generate a new image or wait for expiry to reclaim.');
-        }
-        isFlowActive.current = true;
-        setIsModalOpen(true);
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commitReveal.phase, commitReveal.slotIndex, currentStep, commitReveal.address]);
+  }, [mint.phase]);
 
   const startProgressBar = () => {
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -435,287 +285,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setProgress(100);
   };
 
-  // API generation — generates but does NOT auto-reveal
-  const runGeneration = async () => {
-    setCurrentStep('generating');
-    startProgressBar();
-
-    try {
-      let agentData: Omit<KhoraAgent, 'image'>;
-
-      if (mode === 'create') {
-        // Fully generative — no user input needed
-        const agentResponse = await fetch('/api/generate-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const agentResult = await agentResponse.json();
-        if (!agentResponse.ok || agentResult.error) throw new Error(agentResult.error || 'Failed to generate agent');
-        agentData = agentResult.agent;
-        // Set name/description from AI-generated agent
-        setAgentName(agentData.name);
-        setAgentDescription(agentData.description);
-      } else {
-        // Import mode: use pre-filled form values (name/desc/skills/domains from selection)
-        // Enrich with AI to generate creature, vibe, emoji, personality, boundaries
-        const enrichResponse = await fetch('/api/enrich-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: agentName.trim(),
-            description: agentDescription.trim(),
-            skills: [...selectedSkills],
-            domains: [...selectedDomains],
-          }),
-        });
-        const enrichResult = await enrichResponse.json();
-        if (!enrichResponse.ok || enrichResult.error) throw new Error(enrichResult.error || 'Failed to enrich agent');
-        agentData = enrichResult.agent;
-        // Keep the user's current services from form (already pre-filled at selection)
-        agentData.services = [...erc8004Services];
-      }
-
-      // Generate PFP + visual traits
-      const { imageUrl, visualTraits } = await generateImageFromAgent(agentData);
-      // Clean services: remove empty endpoints, strip OASF fields from non-OASF
-      const cleanedServices = erc8004Services
-        .filter(s => s.endpoint.trim())
-        .map(s => {
-          if (s.name !== 'OASF') {
-            const { skills: _s, domains: _d, ...rest } = s;
-            return rest;
-          }
-          return s;
-        });
-
-      // If user has set their own skills/domains via ERC-8004 config, use ONLY those.
-      // If user hasn't selected any, use AI-generated ones.
-      const userHasSkills = selectedSkills.length > 0;
-      const userHasDomains = selectedDomains.length > 0;
-      const mergedSkills = userHasSkills ? [...selectedSkills] : [...(agentData.skills || [])];
-      const mergedDomains = userHasDomains ? [...selectedDomains] : [...(agentData.domains || [])];
-      if (!userHasSkills) setSelectedSkills(mergedSkills);
-      if (!userHasDomains) setSelectedDomains(mergedDomains);
-
-      const finalAgent: KhoraAgent = {
-        ...agentData,
-        image: imageUrl,
-        services: cleanedServices,
-        skills: mergedSkills,
-        domains: mergedDomains,
-        x402Support,
-        supportedTrust,
-      };
-      setAgent(finalAgent);
-      stopProgressBar();
-
-      // Pixelate
-      const pixelResult = await pixelateImage(imageUrl);
-      setPixelatedImage(pixelResult);
-
-      // Encode bitmap for on-chain storage (2,048 bytes)
-      const imageToUse = pixelResult;
-      const bitmapBytes = await encodeBitmap(imageToUse);
-
-      const attributes: Array<{ trait_type: string; value: string }> = [];
-      // Use agentData (AI-generated) for name/description — React state may not have flushed yet
-      if (agentData.name) attributes.push({ trait_type: 'Name', value: agentData.name });
-      if (agentData.description) attributes.push({ trait_type: 'Description', value: agentData.description });
-      if (agentData.creature) attributes.push({ trait_type: 'Creature', value: agentData.creature });
-      if (agentData.vibe) attributes.push({ trait_type: 'Vibe', value: agentData.vibe });
-      if (agentData.emoji) attributes.push({ trait_type: 'Emoji', value: agentData.emoji });
-      // Use merged skills/domains (respects user ERC-8004 config)
-      for (const s of mergedSkills) attributes.push({ trait_type: 'Skill', value: s });
-      for (const d of mergedDomains) attributes.push({ trait_type: 'Domain', value: d });
-      for (const p of agentData.personality || []) attributes.push({ trait_type: 'Personality', value: p });
-      for (const b of agentData.boundaries || []) attributes.push({ trait_type: 'Boundary', value: b });
-
-      // Visual traits (Hair, Eyes, Facial Hair, Mouth, Accessory, Headwear, Skin)
-      for (const [traitType, value] of Object.entries(visualTraits)) {
-        if (value && value !== 'None' && value !== 'none') {
-          attributes.push({ trait_type: traitType, value });
-        }
-      }
-
-      // Color palette trait
-      attributes.push({ trait_type: 'Palette', value: 'C64' });
-
-      const traitsBytes = new TextEncoder().encode(JSON.stringify(attributes));
-
-      // Save bytes for retry
-      pendingBitmapBytes.current = bitmapBytes;
-      pendingTraitsBytes.current = traitsBytes;
-
-      // Save to API for cross-session recovery (fire-and-forget)
-      if (commitReveal.address && commitReveal.slotIndex !== null) {
-        savePendingRevealToAPI(
-          commitReveal.address, commitReveal.chainId, Number(commitReveal.slotIndex),
-          bytesToHex(bitmapBytes), bytesToHex(traitsBytes),
-        );
-      }
-
-      // Stop here — user will click REVEAL in the modal
-      setCurrentStep('ready_to_reveal');
-      setLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      setCurrentStep('input');
-      setLoading(false);
-      isFlowActive.current = false;
-      setIsModalOpen(false);
-      stopProgressBar();
-    }
-  };
-
-  const generateImageFromAgent = async (agentData: Omit<KhoraAgent, 'image'>) => {
-    setImageLoading(true);
-    try {
-      const portraitResult = await createPortraitPrompt(agentData);
-
-      // Build enriched prompt: base prompt + explicit trait descriptions for image model
-      const traitLines = Object.entries(portraitResult.traits)
-        .filter(([, v]) => v && v !== 'None' && v !== 'none')
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(', ');
-      const enrichedPrompt = traitLines
-        ? `${portraitResult.prompt} Character details: ${traitLines}.`
-        : portraitResult.prompt;
-
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: enrichedPrompt }),
-      });
-      const responseText = await response.text();
-      let data;
-      try { data = JSON.parse(responseText); }
-      catch { throw new Error('Invalid response format from image API'); }
-
-      if (!response.ok || data.error) {
-        throw new Error(data.error || `Image generation failed: ${response.status}`);
-      }
-      if (!data.image) throw new Error('No image in response');
-      setGeneratedImage(data.image);
-      return { imageUrl: data.image, visualTraits: portraitResult.traits };
-    } finally {
-      setImageLoading(false);
-    }
-  };
-
-  // ── User clicks REVEAL in the modal ──
-  const triggerReveal = useCallback(() => {
-    if (!pendingBitmapBytes.current || !pendingTraitsBytes.current) {
-      setError('No pending reveal data');
-      return;
-    }
-    const bitmapError = validateBitmapForContract(pendingBitmapBytes.current);
-    if (bitmapError) {
-      setError(bitmapError);
-      setCurrentStep('reveal_failed');
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    setCurrentStep('revealing');
-    isFlowActive.current = true;
-    try {
-      commitReveal.reveal(pendingBitmapBytes.current, pendingTraitsBytes.current);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate reveal');
-      setCurrentStep('reveal_failed');
-      setLoading(false);
-    }
-  }, [commitReveal]);
-
-  // ── Retry reveal (after reject/cancel) ──
-  const retryReveal = useCallback(async () => {
-    if (!pendingBitmapBytes.current || !pendingTraitsBytes.current) {
-      setError('No pending reveal data — use Regenerate to create a new image');
-      return;
-    }
-    const bitmapError = validateBitmapForContract(pendingBitmapBytes.current);
-    if (bitmapError) {
-      setError(bitmapError);
-      setCurrentStep('reveal_failed');
-      return;
-    }
-
-    // Check on-chain if this commitment was already revealed
-    // (handles case where reveal tx succeeded but frontend missed the receipt)
-    if (publicClient && commitReveal.contractAddress && commitReveal.address && commitReveal.slotIndex !== null) {
-      try {
-        const [, revealed] = await publicClient.readContract({
-          address: commitReveal.contractAddress as `0x${string}`,
-          abi: BOOA_NFT_ABI,
-          functionName: 'getCommitment',
-          args: [commitReveal.address, commitReveal.slotIndex],
-        }) as [bigint, boolean];
-
-        if (revealed) {
-          // Reveal already succeeded on-chain — recover tokenId and skip to complete
-          try {
-            const supply = await publicClient.readContract({
-              address: commitReveal.contractAddress as `0x${string}`,
-              abi: BOOA_NFT_ABI,
-              functionName: 'totalSupply',
-            }) as bigint;
-            if (supply > BigInt(0)) {
-              setMintedTokenId(supply - BigInt(1));
-            }
-          } catch {
-            // tokenId recovery failed — registration won't work but mint is safe
-          }
-          setError(null);
-          setCurrentStep('complete');
-          setLoading(false);
-          isFlowActive.current = false;
-          pendingBitmapBytes.current = null;
-          pendingTraitsBytes.current = null;
-          commitReveal.refetchSupply();
-          return;
-        }
-      } catch {
-        // On-chain check failed, proceed with retry anyway
-      }
-    }
-
-    const bitmapData = pendingBitmapBytes.current;
-    const traitsData = pendingTraitsBytes.current;
-    if (!bitmapData || !traitsData) return;
-
-    setError(null);
-    setLoading(true);
-    setCurrentStep('revealing');
-    isFlowActive.current = true;
-    try {
-      commitReveal.reveal(bitmapData, traitsData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry reveal');
-      setCurrentStep('reveal_failed');
-      setLoading(false);
-    }
-  }, [commitReveal, publicClient]);
-
-  // ── Regenerate image for existing commit (when reveal data was lost) ──
-  const regenerateForReveal = useCallback(() => {
-    if (!isAuthenticated) {
-      setError('Please sign in with your wallet first');
-      return;
-    }
-    // Create mode is fully generative — no user input check needed
-    setError(null);
-    isFlowActive.current = true;
-    runGeneration();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, mode]);
-
   // ── Register agent on Identity Registry ──
   const { writeContractAsync: writeRegister } = useWriteContract();
 
   const registerAgent = useCallback(async () => {
-    if (!mintedTokenId || !commitReveal.address || !agent) {
-      setError('Missing mint data for registration');
+    if (mintedTokenId === null || mintedTokenId === undefined || !mint.address || !agent) {
+      setError(friendlyError('Missing mint data for registration'));
       return;
     }
 
@@ -723,44 +298,26 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setCurrentStep('registering');
 
     try {
-      const chainId = commitReveal.chainId;
+      const chainId = mint.chainId;
       const registryAddress = getRegistryAddress(chainId);
       const booaTokenId = Number(mintedTokenId);
 
       // Build ERC-8004 registration JSON
       const registration = toERC8004(agent);
 
-      // Fetch on-chain SVG from BOOA NFT and embed as data URI (WA005 fix)
-      if (!publicClient) throw new Error('No public client');
-      const booaContract = (chainId === 8453
-        ? process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS
-        : process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET) as `0x${string}`;
-      if (booaContract) {
-        try {
-          const svgString = await publicClient.readContract({
-            address: booaContract,
-            abi: BOOA_NFT_ABI,
-            functionName: 'getSVG',
-            args: [mintedTokenId],
-          }) as string;
-          if (svgString) {
-            registration.image = `data:image/svg+xml;base64,${btoa(svgString)}`;
-          }
-        } catch {
-          // Fallback: leave image as-is from toERC8004 (base64 pixel art)
-        }
+      // Use pixelated image as SVG data URI for registration
+      if (pixelatedImage) {
+        registration.image = pixelatedImage;
       }
 
-      // Strip empty endpoint field from metadata-only OASF services (WA009 fix)
+      // Strip empty endpoint field from metadata-only OASF services
       for (const svc of registration.services) {
         if (svc.name === 'OASF' && !svc.endpoint.trim()) {
           delete (svc as unknown as Record<string, unknown>).endpoint;
         }
       }
 
-      // Add registrations array for bidirectional linking (IA004 fix)
-      // For import mode, we know the agentId upfront; for create mode, we set it to null
-      // (will be filled after registration when agentId is known)
+      // Add registrations array for bidirectional linking
       const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
       if (mode === 'import' && importedRegistryTokenId) {
         registration.registrations = [{
@@ -769,14 +326,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }];
       }
 
-      // Encode as on-chain data URI — fully self-contained, no API dependency
+      // Encode as on-chain data URI
       const jsonStr = JSON.stringify(registration);
       const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
 
       let hash: `0x${string}`;
 
       if (mode === 'import' && importedRegistryTokenId) {
-        // UPDATE existing agent via setAgentURI
         hash = await writeRegister({
           address: registryAddress,
           abi: IDENTITY_REGISTRY_ABI,
@@ -784,7 +340,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           args: [BigInt(importedRegistryTokenId), agentURI],
         });
       } else {
-        // REGISTER new agent
         hash = await writeRegister({
           address: registryAddress,
           abi: IDENTITY_REGISTRY_ABI,
@@ -795,18 +350,15 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
       setRegisterTxHash(hash);
 
-      // Wait for receipt via publicClient
       if (!publicClient) throw new Error('No public client');
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
       let finalAgentId: number;
 
       if (mode === 'import' && importedRegistryTokenId) {
-        // setAgentURI doesn't mint a new token — use the existing ID
         setRegistryAgentId(BigInt(importedRegistryTokenId));
         finalAgentId = importedRegistryTokenId;
       } else {
-        // Decode Registered event to get agentId
         let registeredAgentId: bigint | null = null;
         for (const log of receipt.logs) {
           try {
@@ -834,11 +386,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
       // Save registry data to backend (best effort)
       try {
-        await fetch(`/api/agent-registry/${chainId}/${booaTokenId}`, {
+        await fetch(`/api/agent-registry/${mint.chainId}/${booaTokenId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            address: commitReveal.address,
+            address: mint.address,
             registryAgentId: finalAgentId,
           }),
         });
@@ -847,47 +399,97 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('register_complete');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
-      // If user rejected, go back to complete (don't show error)
       if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
         setCurrentStep('complete');
         return;
       }
-      setError(msg.slice(0, 200));
+      setError(friendlyError(msg));
       setCurrentStep('complete');
     }
-  }, [mintedTokenId, commitReveal.address, commitReveal.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient]);
+  }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient, pixelatedImage]);
 
   // ── Main action: MINT button ──
-  const mintAndGenerate = useCallback(() => {
-    if (mode === 'create') {
-      // Fully generative — no user input needed for create mode
-    } else {
-      if (!agentId.trim()) { setError('Agent ID is required'); return; }
+  // V2 flow: 1) Server generates agent + signs mint packet  2) User sends single mint tx
+  const mintAndGenerate = useCallback(async () => {
+    if (mode === 'import') {
+      if (!agentId.trim()) { setError('Please enter an Agent ID to continue.'); return; }
       const parsed = parseInt(agentId);
-      if (isNaN(parsed) || parsed <= 0) { setError('Agent ID must be a positive number'); return; }
-      if (!agentName.trim()) { setError('Agent name is required — select an agent or enter a name'); return; }
+      if (isNaN(parsed) || parsed <= 0) { setError('Agent ID should be a positive number.'); return; }
+      if (!agentName.trim()) { setError('Please select an agent or enter a name to continue.'); return; }
+    }
+
+    if (!isAuthenticated) {
+      setError('Please connect and sign in with your wallet to continue.');
+      return;
     }
 
     setError(null);
     setLoading(true);
-    setCurrentStep('committing');
-    isFlowActive.current = true;
+    setCurrentStep('generating');
     setIsModalOpen(true);
-
-    commitReveal.reset();
-    pendingBitmapBytes.current = null;
-    pendingTraitsBytes.current = null;
+    mint.reset();
+    startProgressBar();
 
     try {
-      commitReveal.commit();
+      // Step 1: Server generates AI agent + pixelates + encodes bitmap + signs packet
+      const data = await mint.requestMint();
+
+      if (!data) {
+        // requestMint sets its own error via generateError
+        throw new Error(mint.error?.message || 'Failed to generate agent');
+      }
+
+      // Update local state from server response
+      const agentData = data.agent as unknown as KhoraAgent;
+      setAgentName(agentData.name || '');
+      setAgentDescription(agentData.description || '');
+
+      // Merge skills/domains: user ERC-8004 config takes priority
+      const userHasSkills = selectedSkills.length > 0;
+      const userHasDomains = selectedDomains.length > 0;
+      const mergedSkills = userHasSkills ? [...selectedSkills] : [...(agentData.skills || [])];
+      const mergedDomains = userHasDomains ? [...selectedDomains] : [...(agentData.domains || [])];
+      if (!userHasSkills) setSelectedSkills(mergedSkills);
+      if (!userHasDomains) setSelectedDomains(mergedDomains);
+
+      // Clean services
+      const cleanedServices = erc8004Services
+        .filter(s => s.endpoint.trim())
+        .map(s => {
+          if (s.name !== 'OASF') {
+            return { name: s.name, endpoint: s.endpoint, version: s.version };
+          }
+          return s;
+        });
+
+      const finalAgent: KhoraAgent = {
+        ...agentData,
+        image: data.pixelatedImage,
+        services: cleanedServices,
+        skills: mergedSkills,
+        domains: mergedDomains,
+        x402Support,
+        supportedTrust,
+      };
+      setAgent(finalAgent);
+      setPixelatedImage(data.pixelatedImage);
+      stopProgressBar();
+
+      // Step 2: Send mint tx with signed data
+      setCurrentStep('confirming');
+      mint.sendMintTx(data);
+      // Phase tracking (confirming → pending → success) handled by useMintAgent + useEffects above
+      setCurrentStep('pending');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate transaction');
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(friendlyError(msg));
       setCurrentStep('input');
       setLoading(false);
-      isFlowActive.current = false;
       setIsModalOpen(false);
+      stopProgressBar();
     }
-  }, [mode, agentName, agentId, commitReveal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, agentName, agentId, isAuthenticated, mint, selectedSkills, selectedDomains, erc8004Services, x402Support, supportedTrust]);
 
   // ── Open/Close modal ──
   const openModal = useCallback(() => {
@@ -895,15 +497,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const closeModal = useCallback(() => {
-    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed') {
+    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input') {
       setIsModalOpen(false);
     }
   }, [currentStep]);
 
   const reset = useCallback(() => {
     localStorage.removeItem('khoraGeneratorData');
-    pendingBitmapBytes.current = null;
-    pendingTraitsBytes.current = null;
     setAgent(null);
     setLoading(false);
     setProgress(0);
@@ -912,9 +512,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setAgentDescription('');
     setAgentId('');
     setSelectedChain('ethereum');
-    setGeneratedImage(null);
     setPixelatedImage(null);
-    setImageLoading(false);
     setCurrentStep('input');
     setMode('create');
     setMintedTokenId(null);
@@ -927,16 +525,16 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setImportedRegistryTokenId(null);
     setRegistryAgentId(null);
     setRegisterTxHash(null);
-    commitReveal.reset();
+    mint.reset();
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
     }
-  }, [commitReveal]);
+  }, [mint]);
 
   const downloadAgent = async (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => {
     if (!agent) return;
-    const imageToUse = pixelatedImage || generatedImage;
+    const imageToUse = pixelatedImage;
     const fileName = agent.name.toLowerCase().replace(/\s+/g, '-');
 
     try {
@@ -959,35 +557,17 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       } else if (format === 'erc8004') {
         const { toERC8004 } = await import('@/utils/helpers/exportFormats');
         const registration = toERC8004(agent);
-        // Fetch on-chain SVG for image field (WA005 fix)
-        if (mintedTokenId !== null && publicClient) {
-          const chainId = commitReveal.chainId;
-          const booaContract = (chainId === 8453
-            ? process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS
-            : process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET) as `0x${string}`;
-          if (booaContract) {
-            try {
-              const svgString = await publicClient.readContract({
-                address: booaContract,
-                abi: BOOA_NFT_ABI,
-                functionName: 'getSVG',
-                args: [mintedTokenId],
-              }) as string;
-              if (svgString) {
-                registration.image = `data:image/svg+xml;base64,${btoa(svgString)}`;
-              }
-            } catch { /* fallback: base64 pixel art from agent */ }
-          }
-          // Add registrations if registered (IA004 fix)
-          if (registryAgentId !== null) {
-            const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
-            registration.registrations = [{
-              agentId: Number(registryAgentId),
-              agentRegistry: `eip155:${chainId}:${registryAddr}`,
-            }];
-          }
+        if (pixelatedImage) {
+          registration.image = pixelatedImage;
         }
-        // Strip empty endpoint from OASF (WA009 fix)
+        if (registryAgentId !== null) {
+          const chainId = mint.chainId;
+          const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+          registration.registrations = [{
+            agentId: Number(registryAgentId),
+            agentRegistry: `eip155:${chainId}:${registryAddr}`,
+          }];
+        }
         for (const svc of registration.services) {
           if (svc.name === 'OASF' && !svc.endpoint.trim()) {
             delete (svc as unknown as Record<string, unknown>).endpoint;
@@ -999,31 +579,31 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         const { toOpenClawZip } = await import('@/utils/helpers/exportFormats');
         let openClawImage: string | undefined;
         if (mintedTokenId !== null) {
-          const contractAddr = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
-          if (contractAddr) {
-            openClawImage = `eip155:8453/erc721:${contractAddr}/${mintedTokenId.toString()}`;
+          const booaAddr = mint.booaAddress;
+          if (booaAddr && booaAddr.length > 2) {
+            openClawImage = `eip155:8453/erc721:${booaAddr}/${mintedTokenId.toString()}`;
           }
         }
         const zipBlob = await toOpenClawZip(agent, openClawImage);
         downloadBlob(zipBlob, `${fileName}-openclaw.zip`);
       }
     } catch {
-      setError('Failed to download');
+      setError(friendlyError('Failed to download'));
     }
   };
 
   const value: GeneratorContextType = {
     mode, setMode, agentName, setAgentName, agentDescription, setAgentDescription,
     selectedChain, setSelectedChain, agentId, setAgentId,
-    agent, loading, progress, error, currentStep, generatedImage, pixelatedImage, imageLoading,
+    agent, loading, progress, error, currentStep, pixelatedImage,
     mintedTokenId,
-    mintPrice: commitReveal.mintPrice as bigint | undefined,
-    totalSupply: commitReveal.totalSupply as bigint | undefined,
-    maxSupply: commitReveal.maxSupply as bigint | undefined,
-    commitRevealPhase: commitReveal.phase,
-    contractAddress: commitReveal.contractAddress,
-    commitTxHash: commitReveal.commitTxHash,
-    revealTxHash: commitReveal.revealTxHash,
+    mintPrice: mint.mintPrice as bigint | undefined,
+    totalSupply: mint.totalSupply as bigint | undefined,
+    maxSupply: mint.maxSupply as bigint | undefined,
+    mintPhase: mint.phase,
+    booaAddress: mint.booaAddress,
+    minterAddress: mint.minterAddress,
+    txHash: mint.txHash,
     erc8004Services, setErc8004Services,
     x402Support, setX402Support,
     supportedTrust, setSupportedTrust,
@@ -1031,9 +611,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     selectedDomains, setSelectedDomains,
     importedRegistryTokenId, setImportedRegistryTokenId,
     registryAgentId, registerTxHash,
-    hasRevealData: !!(pendingBitmapBytes.current && pendingTraitsBytes.current),
     isModalOpen,
-    mintAndGenerate, triggerReveal, retryReveal, regenerateForReveal, registerAgent, downloadAgent, reset, closeModal, openModal,
+    mintAndGenerate, registerAgent, downloadAgent, reset, closeModal, openModal,
   };
 
   return (
@@ -1059,16 +638,4 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
 }

@@ -67,8 +67,7 @@ export function InputForm() {
     mintPrice,
     totalSupply,
     maxSupply,
-    contractAddress,
-    openModal,
+    minterAddress,
     erc8004Services,
     setErc8004Services,
     x402Support,
@@ -190,12 +189,12 @@ export function InputForm() {
       .finally(() => setDiscoveryLoading(false));
   }, [mode, isConnected, address, manualMode]);
 
-  const isBusy = currentStep !== 'input' && currentStep !== 'complete' && currentStep !== 'reveal_failed';
+  const isBusy = currentStep !== 'input' && currentStep !== 'complete';
 
   const isMintDisabled = () => {
     if (isBusy) return true;
     if (!isConnected) return true;
-    if (!contractAddress) return true;
+    if (!minterAddress || minterAddress.length <= 2) return true;
     if (mode === 'create') {
       return false; // Fully generative — no user input needed
     } else {
@@ -206,7 +205,6 @@ export function InputForm() {
 
   const getMintLabel = () => {
     if (currentStep === 'complete' || currentStep === 'register_complete') return 'MINT AGAIN';
-    if (currentStep === 'reveal_failed') return 'RESUME MINT';
     if (currentStep === 'registering') return 'REGISTERING...';
     if (currentStep !== 'input') return 'MINTING...';
     return 'MINT';
@@ -622,8 +620,8 @@ export function InputForm() {
         <div>
           <button
             type="button"
-            onClick={currentStep === 'complete' ? reset : currentStep === 'reveal_failed' ? openModal : mintAndGenerate}
-            disabled={currentStep === 'complete' || currentStep === 'reveal_failed' ? false : isMintDisabled()}
+            onClick={currentStep === 'complete' || currentStep === 'register_complete' ? reset : mintAndGenerate}
+            disabled={currentStep === 'complete' || currentStep === 'register_complete' ? false : isMintDisabled()}
             className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {getMintLabel()}
@@ -634,7 +632,7 @@ export function InputForm() {
             <p className="text-xs font-mono text-red-500 mt-2">
               Switch to a supported network to mint
             </p>
-          ) : contractAddress && mintPrice !== undefined ? (
+          ) : minterAddress && minterAddress.length > 2 && mintPrice !== undefined ? (
             <div className="text-xs font-mono mt-2 space-y-1">
               <div className="flex justify-between text-neutral-500">
                 <span>
