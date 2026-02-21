@@ -11,7 +11,7 @@ import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
 import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
-import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
+import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
@@ -21,18 +21,24 @@ interface OnChainTrait {
   value: string;
 }
 
-function useOnChainTraits(tokenId: bigint, contractAddress: `0x${string}`) {
+function useOnChainTraits(tokenId: bigint, storageAddress: `0x${string}`) {
   const { data } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_NFT_ABI,
+    address: storageAddress,
+    abi: BOOA_V2_STORAGE_ABI,
     functionName: 'getTraits',
     args: [tokenId],
-    query: { enabled: !!contractAddress },
+    query: { enabled: !!storageAddress && storageAddress.length > 2 },
   });
 
   if (!data) return [];
   try {
-    return JSON.parse(data as string) as OnChainTrait[];
+    // V2 Storage returns bytes (hex string from viem) — decode to string then parse JSON
+    const hex = data as `0x${string}`;
+    const bytes = new Uint8Array(
+      hex.slice(2).match(/.{1,2}/g)!.map(b => parseInt(b, 16))
+    );
+    const decoded = new TextDecoder().decode(bytes);
+    return JSON.parse(decoded) as OnChainTrait[];
   } catch {
     return [];
   }
@@ -138,10 +144,11 @@ async function downloadFormat(
 
 function TokenDetail({ token }: { token: GalleryToken }) {
   const chainId = useChainId();
-  const contract = getContractAddress(chainId);
+  const contract = getV2Address(chainId);
+  const storage = getV2StorageAddress(chainId);
   const isMainnet = chainId === base.id;
   const tokenId = token.tokenId.toString();
-  const traits = useOnChainTraits(token.tokenId, contract);
+  const traits = useOnChainTraits(token.tokenId, storage);
   // Only fetch full metadata (Upstash) for owned tokens
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);

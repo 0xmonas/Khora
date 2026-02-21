@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
-import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { generalLimiter, writeLimiter, getIP, rateLimitHeaders, resetGenerationQuota } from '@/lib/ratelimit';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -119,6 +119,9 @@ export async function POST(req: NextRequest) {
     _tokenId: tokenIdNum,
     _savedAt: Date.now(),
   });
+
+  // Reset generation quota after successful mint — wallet can generate again
+  await resetGenerationQuota(address);
 
   return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });
 }

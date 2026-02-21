@@ -26,11 +26,11 @@ export const writeLimiter = new Ratelimit({
 });
 
 /**
- * AI generation rate limiter: 15 per 60 seconds per IP.
+ * AI generation rate limiter: 5 per 60 seconds per IP.
  */
 export const generationLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(15, '60 s'),
+  limiter: Ratelimit.slidingWindow(5, '60 s'),
   prefix: 'rl:generation',
 });
 
@@ -62,7 +62,7 @@ export function rateLimitHeaders(result: { limit: number; remaining: number; res
  */
 const GEN_QUOTA_PREFIX = 'gen:wallet:';
 export const GEN_QUOTA_MAX = 5;
-const GEN_QUOTA_TTL = 8 * 24 * 60 * 60; // 8 days (commit deadline + buffer)
+const GEN_QUOTA_TTL = 24 * 60 * 60; // 1 day (no commit deadline in V2, shorter TTL)
 
 export async function checkGenerationQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
   const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;

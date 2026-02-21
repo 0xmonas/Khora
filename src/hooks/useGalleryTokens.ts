@@ -8,7 +8,7 @@ import {
   useChainId,
 } from 'wagmi';
 import { useQueryClient } from '@tanstack/react-query';
-import { BOOA_NFT_ABI, getContractAddress, getContractChainId } from '@/lib/contracts/booa';
+import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
 
 export interface GalleryToken {
   tokenId: bigint;
@@ -16,112 +16,100 @@ export interface GalleryToken {
   isOwned: boolean;
 }
 
+// Parse SVG from tokenURI data (data:application/json;base64,... → .image → data:image/svg+xml;base64,...)
+function extractSvgFromTokenURI(dataUri: string): string | null {
+  try {
+    if (!dataUri.startsWith('data:application/json;base64,')) return null;
+    const json = atob(dataUri.replace('data:application/json;base64,', ''));
+    const metadata = JSON.parse(json);
+    if (metadata.image && metadata.image.startsWith('data:image/svg+xml;base64,')) {
+      return atob(metadata.image.replace('data:image/svg+xml;base64,', ''));
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function useGalleryTokens() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const contractAddress = getContractAddress(chainId);
-  const targetChainId = getContractChainId(chainId);
+  const contractAddress = getV2Address(chainId);
+  const targetChainId = getV2ChainId(chainId);
   const enabled = !!contractAddress && contractAddress.length > 2;
 
   // Step 1: Total supply
   const { data: totalSupply, refetch: refetchSupply } = useReadContract({
     address: contractAddress,
-    abi: BOOA_NFT_ABI,
+    abi: BOOA_V2_ABI,
     functionName: 'totalSupply',
     chainId: targetChainId,
     query: { enabled },
   });
 
-  // Step 2: User's balance
-  const { data: userBalance } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_NFT_ABI,
-    functionName: 'balanceOf',
-    args: [address!],
-    chainId: targetChainId,
-    query: { enabled: enabled && !!address },
-  });
-
-  // Step 3: Batch fetch all token IDs
   const count = totalSupply ? Number(totalSupply) : 0;
-  const tokenIndexCalls = Array.from({ length: count }, (_, i) => ({
+
+  // Step 2: V2 tokens are sequential (0..totalSupply-1) — no tokenByIndex needed
+  const allTokenIds: bigint[] = Array.from({ length: count }, (_, i) => BigInt(i));
+
+  // Step 3: Batch check ownership via ownerOf
+  const ownerCalls = allTokenIds.map((tokenId) => ({
     address: contractAddress,
-    abi: BOOA_NFT_ABI,
-    functionName: 'tokenByIndex' as const,
-    args: [BigInt(i)] as const,
-    chainId: targetChainId,
-  }));
-
-  const { data: tokenIdResults } = useReadContracts({
-    contracts: tokenIndexCalls,
-    query: { enabled: count > 0 },
-  });
-
-  // Step 4: Batch fetch user's owned token IDs
-  const userCount = userBalance ? Number(userBalance) : 0;
-  const userTokenCalls = address
-    ? Array.from({ length: userCount }, (_, i) => ({
-        address: contractAddress,
-        abi: BOOA_NFT_ABI,
-        functionName: 'tokenOfOwnerByIndex' as const,
-        args: [address, BigInt(i)] as const,
-        chainId: targetChainId,
-      }))
-    : [];
-
-  const { data: userTokenResults } = useReadContracts({
-    contracts: userTokenCalls,
-    query: { enabled: userTokenCalls.length > 0 },
-  });
-
-  // Build set of owned token IDs
-  const ownedTokenIds = new Set<string>();
-  userTokenResults?.forEach((result) => {
-    if (result.status === 'success') {
-      ownedTokenIds.add((result.result as bigint).toString());
-    }
-  });
-
-  // Collect all token IDs
-  const allTokenIds: bigint[] = [];
-  tokenIdResults?.forEach((result) => {
-    if (result.status === 'success') {
-      allTokenIds.push(result.result as bigint);
-    }
-  });
-
-  // Step 5: Batch fetch SVGs
-  const svgCalls = allTokenIds.map((tokenId) => ({
-    address: contractAddress,
-    abi: BOOA_NFT_ABI,
-    functionName: 'getSVG' as const,
+    abi: BOOA_V2_ABI,
+    functionName: 'ownerOf' as const,
     args: [tokenId] as const,
     chainId: targetChainId,
   }));
 
-  const { data: svgResults, isLoading: svgsLoading } = useReadContracts({
-    contracts: svgCalls,
-    query: { enabled: svgCalls.length > 0 },
+  const { data: ownerResults } = useReadContracts({
+    contracts: ownerCalls,
+    query: { enabled: count > 0 },
+  });
+
+  // Build set of owned token IDs
+  const ownedTokenIds = new Set<string>();
+  if (address) {
+    ownerResults?.forEach((result, i) => {
+      if (result.status === 'success' && (result.result as string).toLowerCase() === address.toLowerCase()) {
+        ownedTokenIds.add(allTokenIds[i].toString());
+      }
+    });
+  }
+
+  // Step 4: Batch fetch tokenURIs (SVG embedded in on-chain JSON metadata)
+  const tokenURICalls = allTokenIds.map((tokenId) => ({
+    address: contractAddress,
+    abi: BOOA_V2_ABI,
+    functionName: 'tokenURI' as const,
+    args: [tokenId] as const,
+    chainId: targetChainId,
+  }));
+
+  const { data: tokenURIResults, isLoading: uriLoading } = useReadContracts({
+    contracts: tokenURICalls,
+    query: { enabled: count > 0 },
   });
 
   // Assemble token list
-  const tokens: GalleryToken[] = allTokenIds.map((tokenId, i) => ({
-    tokenId,
-    svg: svgResults?.[i]?.status === 'success'
-      ? (svgResults[i].result as string)
-      : null,
-    isOwned: ownedTokenIds.has(tokenId.toString()),
-  }));
+  const tokens: GalleryToken[] = allTokenIds.map((tokenId, i) => {
+    const uriResult = tokenURIResults?.[i];
+    const svg = uriResult?.status === 'success'
+      ? extractSvgFromTokenURI(uriResult.result as string)
+      : null;
 
-  const isLoading = enabled && count > 0 && (!tokenIdResults || svgsLoading);
+    return {
+      tokenId,
+      svg,
+      isOwned: ownedTokenIds.has(tokenId.toString()),
+    };
+  });
+
+  const isLoading = enabled && count > 0 && (!ownerResults || uriLoading);
 
   const queryClient = useQueryClient();
 
   const refetchAll = useCallback(async () => {
-    // Force refetch totalSupply first so count updates
     await refetchSupply();
-    // Remove stale cache + force refetch all contract queries
-    // (tokenByIndex, balanceOf, tokenOfOwnerByIndex, getSVG)
     await queryClient.invalidateQueries({
       predicate: (query) => {
         const key = JSON.stringify(query.queryKey, (_k, v) =>
@@ -131,7 +119,6 @@ export function useGalleryTokens() {
       },
       refetchType: 'all',
     });
-    // Also reset query state to force fresh fetch (bypasses staleTime)
     queryClient.resetQueries({
       predicate: (query) => {
         const key = JSON.stringify(query.queryKey, (_k, v) =>

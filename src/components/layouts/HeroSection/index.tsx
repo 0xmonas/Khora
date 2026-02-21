@@ -6,7 +6,7 @@ import { Github } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { useGalleryTokens } from '@/hooks/useGalleryTokens';
 import { useReadContract, useChainId } from 'wagmi';
-import { BOOA_NFT_ABI, getContractAddress, getContractChainId } from '@/lib/contracts/booa';
+import { BOOA_V2_ABI, BOOA_V2_MINTER_ABI, getV2Address, getV2MinterAddress, getV2ChainId } from '@/lib/contracts/booa-v2';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -14,23 +14,18 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 const CREATE_STEPS = [
   {
     num: '01',
-    title: 'Describe',
-    desc: 'Name your character, pick a creature type, define its personality — or let AI generate everything from a short prompt.',
+    title: 'Mint',
+    desc: 'Hit mint — AI generates a unique identity, pixel art portrait, personality, skills, and boundaries. One click, one transaction.',
   },
   {
     num: '02',
-    title: 'Generate',
-    desc: 'AI creates a unique pixel art portrait and a complete character profile with skills, domains, and boundaries.',
+    title: 'On-chain forever',
+    desc: 'Your agent\'s bitmap art and packed traits are written directly on Base via SSTORE2. No IPFS, no external hosting, no links that break.',
   },
   {
     num: '03',
-    title: 'Mint',
-    desc: 'Commit-reveal minting writes your character\'s SVG and traits directly into the smart contract. No IPFS, no links that break.',
-  },
-  {
-    num: '04',
-    title: 'On-chain forever',
-    desc: 'Your character lives entirely on Base. Anyone can read its traits and render its art — directly from the contract.',
+    title: 'Register',
+    desc: 'Optional — register your agent on the ERC-8004 identity protocol. Makes it discoverable across chains with services, skills, and domains.',
   },
 ];
 
@@ -42,41 +37,37 @@ const IMPORT_STEPS = [
   },
   {
     num: '02',
-    title: 'Fetch',
-    desc: 'Your agent\'s identity is pulled from the on-chain registry: name, creature, vibe, skills, and boundaries.',
+    title: 'Reimagine',
+    desc: 'Select an agent, hit mint — AI generates a brand-new pixel art portrait, preserving its original identity and traits.',
   },
   {
     num: '03',
-    title: 'Reimagine',
-    desc: 'AI generates a brand-new pixel art portrait for your imported agent, preserving its original identity and traits.',
-  },
-  {
-    num: '04',
-    title: 'Mint on Base',
-    desc: 'Your reimagined agent is minted on Base with its new art and original traits — fully on-chain, cross-chain identity.',
+    title: 'Mint & update',
+    desc: 'Mint on Base in one transaction. Then optionally update your ERC-8004 registry entry with the new on-chain art.',
   },
 ];
 
 function LiveStats() {
   const chainId = useChainId();
-  const contractAddress = getContractAddress(chainId);
-  const targetChainId = getContractChainId(chainId);
-  const enabled = !!contractAddress && contractAddress.length > 2;
+  const booaAddress = getV2Address(chainId);
+  const minterAddress = getV2MinterAddress(chainId);
+  const targetChainId = getV2ChainId(chainId);
+  const enabled = !!booaAddress && booaAddress.length > 2;
 
   const { data: totalSupply } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_NFT_ABI,
+    address: booaAddress,
+    abi: BOOA_V2_ABI,
     functionName: 'totalSupply',
     chainId: targetChainId,
     query: { enabled },
   });
 
   const { data: mintPrice } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_NFT_ABI,
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
     functionName: 'mintPrice',
     chainId: targetChainId,
-    query: { enabled },
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
   });
 
   const count = totalSupply !== undefined ? Number(totalSupply) : null;
@@ -264,12 +255,13 @@ function AboutSection() {
           <div>
             <span className="text-sm text-foreground" style={font}>Create mode</span>
             <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-              Start from scratch. Enter a name and description, optionally
-              configure ERC-8004 settings, and mint. AI generates the full
-              agent identity (creature type, personality, vibe) and a unique
-              portrait. After minting, you can optionally register the agent
-              on the ERC-8004 Identity Registry — this is a separate on-chain
-              transaction that makes your agent discoverable.
+              Hit mint — AI generates the full agent identity (creature type,
+              personality, vibe, skills, boundaries) and a unique pixel art
+              portrait in one click. Confirm a single wallet transaction to
+              write the bitmap and traits on-chain. After minting, you can
+              optionally register the agent on the ERC-8004 Identity Registry
+              to make it discoverable, and configure services, skills,
+              and domains for power users.
             </p>
           </div>
           <div>
@@ -278,12 +270,11 @@ function AboutSection() {
               Already have an agent registered on ERC-8004? Connect your
               wallet and we scan 9 chains for your registered agents. Select
               one and its identity is fetched from the on-chain registry —
-              name, description, services, skills, domains. You can edit any
-              field before minting. AI generates a new portrait for the
-              imported identity. After minting, the &quot;Register&quot; button
-              becomes &quot;Update&quot; — it calls setAgentURI to update your
-              existing registry entry with the new on-chain art and any
-              edited metadata.
+              name, description, services, skills, domains. AI generates a
+              new portrait for the imported identity. After minting, the
+              &quot;Register&quot; button becomes &quot;Update&quot; — it calls
+              setAgentURI to update your existing registry entry with the
+              new on-chain art.
             </p>
           </div>
         </div>
@@ -294,12 +285,12 @@ function AboutSection() {
         <h2 className="text-lg text-foreground" style={font}>Fully on-chain</h2>
         <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
           Most NFTs store a link to an image hosted somewhere else.
-          If that server goes down, your NFT is gone. BOOA characters
-          are different — the SVG pixel art and the JSON traits are
-          written directly into the smart contract using SSTORE2.
-          No external dependencies. The contract validates every SVG
-          before storing it, blocking scripts, iframes, and other
-          unsafe elements.
+          If that server goes down, your NFT is gone. BOOA agents
+          are different — the pixel art is stored as a 2,048-byte
+          bitmap and traits are packed into bytes, all written directly
+          into the smart contract via SSTORE2. The Renderer contract
+          converts the bitmap to SVG on-the-fly. No external dependencies,
+          no injection vectors — every nibble maps to a valid C64 color.
         </p>
       </div>
 
@@ -310,9 +301,10 @@ function AboutSection() {
           {[
             ['Chain', 'Base (Ethereum L2)'],
             ['Contract', 'ERC-721 + ERC-2981'],
-            ['Storage', 'SSTORE2 (on-chain)'],
+            ['Storage', 'SSTORE2 bitmap (2KB)'],
+            ['Rendering', 'On-chain SVG'],
             ['Registry', 'ERC-8004'],
-            ['Art', 'AI pixel art → SVG'],
+            ['Art', 'AI pixel art → bitmap'],
             ['Frontend', 'Next.js + wagmi'],
             ['AI', 'Gemini + Replicate'],
             ['Taxonomy', 'OASF v0.8.0'],
@@ -386,16 +378,16 @@ function AboutSection() {
 const FAQ_ITEMS = [
   {
     q: 'Can AI agents use BOOA NFTs as their profile picture?',
-    a: `Yes — this is built into the architecture. When you register an agent on the ERC-8004 Identity Registry, the on-chain SVG from your BOOA NFT is embedded directly into the registration as a data URI. Any framework, protocol, or agent runtime can read this image directly from the contract — no API calls, no IPFS, no broken links.`,
-    code: `// From registerAgent() in GeneratorContext.tsx
-const svgString = await publicClient.readContract({
+    a: `Yes — this is built into the architecture. When you register an agent on the ERC-8004 Identity Registry, the on-chain SVG rendered from your BOOA bitmap is embedded directly into the registration as a data URI. Any framework, protocol, or agent runtime can read this image directly from the contract — no API calls, no IPFS, no broken links.`,
+    code: `// From registerAgent() — on-chain SVG from tokenURI
+const tokenURI = await publicClient.readContract({
   address: booaContract,
-  abi: BOOA_NFT_ABI,
-  functionName: 'getSVG',
+  abi: BOOA_V2_ABI,
+  functionName: 'tokenURI',
   args: [mintedTokenId],
 });
-// Embedded directly into ERC-8004 registration
-registration.image = \`data:image/svg+xml;base64,\${btoa(svgString)}\`;`,
+// tokenURI returns base64 JSON with embedded SVG
+// SVG is rendered on-chain from the stored 2,048-byte bitmap`,
   },
   {
     q: 'Can an AI agent own a BOOA NFT?',
@@ -410,16 +402,16 @@ function safeTransferFrom(
   },
   {
     q: 'Is the art really 100% on-chain? What happens if your servers go down?',
-    a: `Nothing changes. The SVG pixel art and all character traits are stored directly in the smart contract via SSTORE2. The tokenURI function returns a base64-encoded JSON with the embedded SVG — entirely self-contained. No server, no IPFS gateway, no external dependency. Even if khora.fun disappears, your NFT renders from the contract alone.`,
-    code: `// From BOOA.sol — fully on-chain tokenURI
-function tokenURI(uint256 tokenId) public view returns (string memory) {
-    string memory svg = getSVG(tokenId);       // SSTORE2 read
-    string memory traits = getTraits(tokenId); // SSTORE2 read
+    a: `Nothing changes. The bitmap pixel data (2,048 bytes) and packed traits are stored directly in the smart contract via SSTORE2. The Renderer contract converts the bitmap to SVG on-the-fly. The tokenURI returns a base64-encoded JSON with the embedded SVG — entirely self-contained. No server, no IPFS gateway, no external dependency. Even if khora.fun disappears, your NFT renders from the contract alone.`,
+    code: `// V2 modular architecture — fully on-chain rendering
+// BOOAStorage: stores 2,048-byte bitmap via SSTORE2
+// BOOARenderer: converts bitmap → SVG on-chain
+
+function tokenURI(uint256 tokenId) external view returns (string memory) {
+    bytes memory bitmap = storage.getImageData(tokenId);  // SSTORE2 read
+    bytes8 traits = storage.getTraits(tokenId);           // packed traits
+    string memory svg = renderSVG(bitmap);                // bitmap → SVG
     // Returns base64 JSON with embedded SVG — no external URLs
-    return string(abi.encodePacked(
-        "data:application/json;base64,",
-        Base64.encode(json)
-    ));
 }`,
   },
   {
@@ -430,28 +422,31 @@ function tokenURI(uint256 tokenId) public view returns (string memory) {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Agent Name",
   "description": "...",
-  "image": "data:image/svg+xml;base64,...",  // on-chain SVG
+  "image": "data:image/svg+xml;base64,...",  // on-chain SVG from bitmap
   "services": [{ "name": "OASF", "endpoint": "..." }],
   "active": true,
   "x402Support": true
 }`,
   },
   {
-    q: 'How does commit-reveal minting prevent front-running?',
-    a: `Minting happens in two steps. First, you commit — paying the mint price and locking a slot without revealing what you're minting. Then, after the commit is confirmed, you reveal your SVG and traits. This means no one can see your character and front-run you with a copy. If you don't reveal within 7 days, you can reclaim your ETH.`,
-    code: `// From BOOA.sol — two-step mint
-function commitMint() external payable {
-    // Step 1: Pay and reserve a slot (no art revealed yet)
-    require(msg.value >= mintPrice, "Insufficient payment");
-    commitments[msg.sender][slotIndex] = Commitment(block.number, false);
-}
-
-function revealMint(uint256 slot, bytes calldata svg, bytes calldata traits) external {
-    // Step 2: Reveal art after commit is confirmed on-chain
-    require(!c.revealed, "Already revealed");
-    _safeMint(msg.sender, tokenId);
-    _storeSVG(tokenId, svg);     // SSTORE2
-    _storeTraits(tokenId, traits); // SSTORE2
+    q: 'How does server-signed minting work?',
+    a: `Minting happens in one transaction. The server generates the agent identity and pixel art, encodes it as a 2,048-byte bitmap, packs the traits into bytes, and signs everything with EIP-191. You confirm a single wallet transaction that writes the bitmap and traits on-chain in one step. The signature ensures only server-approved data can be minted — no front-running, no invalid data.`,
+    code: `// From BOOAMinter.sol — server-signed single-tx mint
+function mint(
+    bytes calldata imageData,   // 2,048-byte bitmap
+    bytes calldata traitsData,  // packed trait bytes
+    uint256 deadline,           // signature expiry
+    bytes calldata signature    // EIP-191 server signature
+) external payable {
+    // Verify server signature
+    bytes32 hash = keccak256(abi.encodePacked(
+        imageData, traitsData, msg.sender, deadline
+    ));
+    require(_recoverSigner(hash, signature) == signer, "Invalid sig");
+    // Mint + store in one tx
+    booa.mint(msg.sender, tokenId);
+    storage.setImageData(tokenId, imageData);
+    storage.setTraits(tokenId, traitsData);
 }`,
   },
   {
@@ -475,17 +470,18 @@ const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432';`,
   },
   {
     q: 'Why pixel art? Why not high-resolution AI portraits?',
-    a: `On-chain storage is expensive. A high-res PNG would cost thousands of dollars in gas. Pixel art at 64x64 with a C64 16-color palette produces compact SVGs under 24KB — small enough to store entirely via SSTORE2 in a single transaction. The aesthetic isn't a limitation, it's the solution: every pixel is permanent, verifiable, and costs a fraction of a cent to store.`,
-    code: `// From pixelator.ts — the full pixel art pipeline
-const size = 64;   // 64x64 resolution
-const scale = 16;  // 64 * 16 = 1024px output
+    a: `On-chain storage is expensive. A high-res PNG would cost thousands of dollars in gas. Pixel art at 64x64 with a C64 16-color palette encodes into a fixed 2,048-byte bitmap — each pixel is a 4-bit palette index, two pixels per byte. The Renderer contract converts this bitmap to SVG on-chain. The aesthetic isn't a limitation, it's the solution: every pixel is permanent, verifiable, and costs a fraction of a cent to store.`,
+    code: `// Bitmap format: 64x64 pixels × 4 bits = 2,048 bytes (fixed)
+// Each nibble = C64 palette index (0-15)
+// High nibble = even column, low nibble = odd column
 
-// Pipeline: downscale → stretch → quantize → upscale
-const stretched = applyPixelStretch(imageData);  // scan-line feel
-const quantized = quantizeToPalette(stretched);  // C64 16-color
+// From bitmapEncoder.ts
+const bitmap = new Uint8Array(2048);  // always exactly 2,048 bytes
+bitmap[y * 32 + (x >> 1)] = (idx0 << 4) | idx1;
 
-// From BOOA.sol — enforced size limit
-uint256 constant SSTORE2_MAX_BYTES = 24_576;  // 24KB max per SVG`,
+// BOOARenderer.sol converts bitmap → SVG on-chain
+// Background rect + one <path> per non-background color
+// Run-length encoding: M{x} {y}h{len}`,
   },
   {
     q: 'Can I import an agent from another chain and give it a BOOA PFP?',
@@ -511,7 +507,7 @@ const agentURI = \`data:application/json;base64,\${btoa(JSON.stringify({
   name: "Agent Name",
   description: "What it does",
   services: [{ name: "OASF", endpoint: "https://..." }],
-  image: "data:image/svg+xml;base64,...",  // BOOA on-chain SVG
+  image: "data:image/svg+xml;base64,...",  // on-chain SVG from bitmap
   active: true,
   supportedTrust: ["ethereum-attestation-service"]
 }))}\`;
@@ -519,10 +515,10 @@ const agentURI = \`data:application/json;base64,\${btoa(JSON.stringify({
   },
   {
     q: 'What export formats are available? Can I use my agent in other frameworks?',
-    a: `Khôra exports to 5 formats: PNG (pixel art with embedded JSON metadata), SVG (on-chain vector), ERC-8004 JSON (full registration spec), OpenClaw ZIP (IDENTITY.md + SOUL.md for agent frameworks), and raw JSON. The OpenClaw format is specifically designed for agent runtimes like Eliza and ZerePy — your character's personality, boundaries, and skills travel with it.`,
+    a: `Khôra exports to 5 formats: PNG (pixel art with embedded JSON metadata), SVG (reconstructed from on-chain bitmap), ERC-8004 JSON (full registration spec), OpenClaw ZIP (IDENTITY.md + SOUL.md for agent frameworks), and raw JSON. The OpenClaw format is specifically designed for agent runtimes like Eliza and ZerePy — your character's personality, boundaries, and skills travel with it.`,
     code: `// 5 export formats from downloadAgent()
 'png'      // Pixel art with embedded JSON (pngEncoder)
-'svg'      // On-chain vector art (svgConverter)
+'svg'      // On-chain vector art (from bitmap)
 'erc8004'  // Full ERC-8004 registration JSON
 'openclaw' // ZIP: IDENTITY.md + SOUL.md (agent frameworks)
 'json'     // Raw KhoraAgent object
@@ -534,17 +530,17 @@ const agentURI = \`data:application/json;base64,\${btoa(JSON.stringify({
   },
   {
     q: 'Are BOOA NFTs and ERC-8004 agents rare? Can someone copy mine?',
-    a: `Every BOOA NFT is uniquely generated by AI — the portrait is created once and never reproduced. Even with the same prompt, AI generates a different image every time. Once minted, the SVG is written immutably into the contract via SSTORE2 — it cannot be changed, deleted, or overwritten. Your ERC-8004 registration is equally permanent: only you (the owner) can call setAgentURI to update it. As long as you don't change it, your agent's identity and art are frozen on-chain forever. No one can mint the same art or claim the same agent ID.`,
-    code: `// From BOOA.sol — SVG is immutable after mint
-function revealMint(uint256 slot, bytes calldata svgData, ...) external {
-    _storeSVG(tokenId, svgData);  // SSTORE2 write — permanent, no update function
+    a: `Every BOOA NFT is uniquely generated by AI — the portrait is created once and never reproduced. Even with the same prompt, AI generates a different image every time. Once minted, the bitmap is written immutably into the contract via SSTORE2 — it cannot be changed, deleted, or overwritten. Your ERC-8004 registration is equally permanent: only you (the owner) can call setAgentURI to update it. As long as you don't change it, your agent's identity and art are frozen on-chain forever. No one can mint the same art or claim the same agent ID.`,
+    code: `// From BOOAStorage.sol — bitmap is immutable after mint
+function setImageData(uint256 tokenId, bytes calldata data) external onlyWriter {
+    require(data.length == BITMAP_SIZE, "Invalid bitmap");
+    _bitmapPointers[tokenId] = SSTORE2.write(data);  // permanent
 }
-// There is NO updateSVG or setSVG function — once stored, it's final.
+// Only authorized writers (BOOAMinter) can call — and only at mint time.
 
 // From ERC-8004 Identity Registry — only owner can update
 function setAgentURI(uint256 agentId, string calldata newURI) external {
     require(ownerOf(agentId) == msg.sender, "Not owner");
-    // Only the token owner can change the URI
     // If you never call this, your identity is frozen on-chain forever
 }`,
   },

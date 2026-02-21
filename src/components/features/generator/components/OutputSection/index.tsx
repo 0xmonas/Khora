@@ -11,11 +11,9 @@ function StatusDisplay() {
 
   const getMessage = () => {
     switch (currentStep) {
-      case 'committing': return 'Confirm in wallet...';
       case 'generating': return 'Generating...';
-      case 'ready_to_reveal': return 'Ready — check modal';
-      case 'revealing': return 'Finalizing on-chain...';
-      case 'reveal_failed': return 'Reveal failed — check modal';
+      case 'confirming': return 'Confirm in wallet...';
+      case 'pending': return 'Confirming on-chain...';
       default: return 'Loading...';
     }
   };
@@ -47,7 +45,6 @@ export function OutputSection() {
     mode,
     loading,
     downloadAgent,
-    imageLoading,
     pixelatedImage,
     currentStep,
     reset,
@@ -85,29 +82,22 @@ export function OutputSection() {
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">01</span>
                       <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Commit</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Pick a background color, hit mint & confirm the commit transaction</p>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Mint</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Hit mint — AI generates a unique identity, pixel art portrait, and personality in one click</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">02</span>
                       <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Generate</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">AI creates a unique identity — name, personality, skills — and a pixel art portrait</p>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">On-chain forever</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm one transaction — art & traits written directly on Base via SSTORE2. No IPFS, no links that break</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">03</span>
                       <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reveal</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm the reveal transaction to write SVG art & traits directly into the contract</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <span className="text-neutral-400 flex-shrink-0">04</span>
-                      <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">On-chain forever</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Your agent lives entirely on Base — no IPFS, no links that break</p>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Register</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Optional — register on the ERC-8004 agent protocol to make your agent discoverable across chains</p>
                       </div>
                     </div>
                   </>
@@ -123,22 +113,15 @@ export function OutputSection() {
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">02</span>
                       <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Commit</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Select an agent, hit mint & confirm the commit transaction</p>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reimagine</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Select an agent, hit mint — AI generates a new pixel art portrait for your agent</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
                       <span className="text-neutral-400 flex-shrink-0">03</span>
                       <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reimagine</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">AI generates a new pixel art portrait preserving your agent&apos;s identity and traits</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <span className="text-neutral-400 flex-shrink-0">04</span>
-                      <div>
-                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Reveal on Base</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm the reveal to mint on Base — art & traits written on-chain via SSTORE2</p>
+                        <p className="text-neutral-700 dark:text-neutral-300 font-medium">Mint & update</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Mint on Base in one tx — then optionally update your ERC-8004 registry with the new art</p>
                       </div>
                     </div>
                   </>
@@ -148,7 +131,7 @@ export function OutputSection() {
           ) : (
             <>
               <div className="w-full h-full flex items-center justify-center">
-                {loading || imageLoading ? (
+                {loading ? (
                   <StatusDisplay />
                 ) : imageToShow ? (
                   <div

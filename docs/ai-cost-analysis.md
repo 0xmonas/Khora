@@ -1,180 +1,190 @@
-# AI API Cost Analysis — BOOA Agent Generator
+# AI API Cost Analysis — BOOA Agent Generator (V2)
 
 ## Overview
 
-Each agent generation triggers **3 sequential Gemini API calls** (Create mode) or **4 calls** (Import mode). This document breaks down the exact models, token estimates, and costs based on actual prompt analysis.
+V2'de tüm AI pipeline tek bir API çağrısında çalışır: `POST /api/mint-request`. Server tarafında **3 Gemini çağrısı** yapılır, ardından bitmap encode + EIP-191 imzalama gerçekleşir. Kullanıcı AI üretiminden sonra cüzdanla onay verir.
+
+**Kritik:** AI maliyeti üretim anında oluşur, kullanıcı mint'i onaylamasa bile.
 
 ---
 
-## API Call Breakdown (Create Mode)
+## API Call Breakdown — `POST /api/mint-request`
 
-### Call 1: Generate Agent Identity (`/api/generate-agent`)
-
-| Field | Value |
-|-------|-------|
-| **Model** | `gemini-3-flash-preview` |
-| **System Instruction** | ~180 tokens (agent identity designer prompt + JSON schema) |
-| **User Input** | ~30-80 tokens (name + description, user-provided) |
-| **Total Input** | ~210-260 tokens |
-| **Output** | ~300-500 tokens (JSON with arrays: personality, boundaries, skills, domains) |
-| **Thinking Tokens** | ~200-800 tokens (model reasoning, billed as output) |
-| **Temperature** | 0.8 |
-
-### Call 2: Generate Portrait Prompt (`/api/generate-prompt`)
+### Call 1: Generate Agent Identity
 
 | Field | Value |
 |-------|-------|
 | **Model** | `gemini-3-flash-preview` |
-| **System Instruction** | ~120 tokens (pixel art NFT style guide from `STYLES[0]`) |
-| **User Input** | ~350-500 tokens (8-point instruction + full agent JSON from `createPortraitPrompt`) |
-| **Total Input** | ~470-620 tokens |
-| **Output** | ~100-200 tokens (refined visual prompt, max 150 words) |
+| **System Instruction** | ~250 tokens (agent identity designer prompt + JSON schema) |
+| **User Input** | ~20 tokens (fixed: "Generate a completely random, unique AI agent identity. Surprise me.") |
+| **Total Input** | ~270 tokens |
+| **Output** | ~300-500 tokens (JSON: name, description, creature, vibe, emoji, personality[], boundaries[], skills[], domains[]) |
+| **Thinking Tokens** | ~200-800 tokens (billed as output) |
+| **Temperature** | 1.0 |
+
+### Call 2: Generate Portrait Prompt + Visual Traits
+
+| Field | Value |
+|-------|-------|
+| **Model** | `gemini-3-flash-preview` |
+| **System Instruction** | ~600 tokens (avant-garde fashion portrait style guide, critical rules, JSON schema) |
+| **User Input** | ~200-400 tokens (agent JSON: name, creature, vibe, personality, skills, domains) |
+| **Total Input** | ~800-1000 tokens |
+| **Output** | ~150-300 tokens (JSON: prompt string + traits {Hair, Eyes, Facial Hair, Mouth, Accessory, Headwear, Skin}) |
 | **Thinking Tokens** | ~200-600 tokens (billed as output) |
 | **Temperature** | 0.7 |
 
-### Call 3: Generate Image (`/api/generate-image`)
+### Call 3: Generate Image
 
 | Field | Value |
 |-------|-------|
 | **Model** | `gemini-2.5-flash-image` |
-| **Input** | ~100-200 tokens (portrait prompt text only) |
-| **Output** | 1 image (up to 1024x1024 = 1290 output tokens) |
-| **Pricing** | Flat $0.039 per output image |
-
-### Import Mode — Additional Call (`/api/enrich-agent`)
-
-| Field | Value |
-|-------|-------|
-| **Model** | `gemini-3-flash-preview` |
-| **System Instruction** | ~200 tokens (enricher prompt + JSON schema) |
-| **User Input** | ~50-150 tokens (name + description + skills[] + domains[]) |
-| **Total Input** | ~250-350 tokens |
-| **Output** | ~300-500 tokens (enriched agent JSON) |
-| **Thinking Tokens** | ~200-800 tokens (billed as output) |
-| **Temperature** | 0.7 |
+| **Input** | ~200-400 tokens (enriched portrait prompt with trait details) |
+| **Output** | 1 image (1024x1024, ~1290 output tokens) |
+| **Pricing** | Flat **$0.039** per output image |
 
 ---
 
-## Per-Generation Cost (Paid Tier)
+## Cost Per Generation
 
-### Pricing Reference
+### Pricing Reference (Paid Tier, Feb 2026)
 
 | Model | Input (per 1M tokens) | Output incl. thinking (per 1M tokens) | Image Output |
 |-------|----------------------|---------------------------------------|-------------|
 | `gemini-3-flash-preview` | $0.50 | $3.00 | N/A |
-| `gemini-2.5-flash-image` | $0.30 | N/A | $0.039/image |
+| `imagen-4.0-fast-generate-001` | N/A | N/A | $0.02/image |
 
-### Text Calls — Create Mode (gemini-3-flash-preview)
+### Text Calls (gemini-3-flash-preview)
 
-| Call | Input Tokens | Output + Thinking Tokens | Input Cost | Output Cost | Total |
-|------|-------------|--------------------------|------------|-------------|-------|
-| generate-agent | ~250 | ~800 (400 output + 400 thinking) | $0.000125 | $0.0024 | **$0.0025** |
-| generate-prompt | ~550 | ~600 (200 output + 400 thinking) | $0.000275 | $0.0018 | **$0.0021** |
-| **Text subtotal** | **~800** | **~1,400** | **$0.0004** | **$0.0042** | **$0.0046** |
+| Call | Input Tokens | Output + Thinking | Input Cost | Output Cost | Total |
+|------|-------------|-------------------|------------|-------------|-------|
+| Agent identity | ~270 | ~800 | $0.000135 | $0.0024 | **$0.0025** |
+| Portrait prompt | ~900 | ~600 | $0.000450 | $0.0018 | **$0.0023** |
+| **Text subtotal** | **~1,170** | **~1,400** | **$0.000585** | **$0.0042** | **$0.0048** |
 
-### Image Call (gemini-2.5-flash-image)
+### Image Call (imagen-4.0-fast-generate-001)
 
 | Call | Input | Output | Cost |
 |------|-------|--------|------|
-| generate-image | ~150 tokens text ($0.000045) | 1 image (1290 tokens) | **$0.039** |
+| Generate image | prompt text | 1 image (1024x1024) | **$0.02** |
 
 ### Total Per Generation
 
-| Mode | Text Cost | Image Cost | **Total** |
-|------|-----------|------------|-----------|
-| **Create** (2 text + 1 image) | $0.0046 | $0.039 | **~$0.044** |
-| **Import** (3 text + 1 image) | $0.0071 | $0.039 | **~$0.046** |
-
-> **Note:** Thinking tokens can vary significantly. Worst case, each text call could produce ~1,500 thinking tokens, pushing text cost to ~$0.01. Even then, image generation dominates at ~80-90% of total cost.
-
----
-
-## Scale Projections
-
-| Scenario | Total Generates | Text Cost | Image Cost | **Total Cost** |
-|----------|----------------|-----------|------------|----------------|
-| 100 users × 3/day | 300 | $1.38 | $11.70 | **$13.08** |
-| 1,000 users × 3/day | 3,000 | $13.80 | $117.00 | **$130.80** |
-| 1,000 users × 5/day | 5,000 | $23.00 | $195.00 | **$218.00** |
-| 10,000 users × 3/day | 30,000 | $138.00 | $1,170.00 | **$1,308.00** |
-| **10,000 users × 5/day** | **50,000** | **$230.00** | **$1,950.00** | **$2,180.00** |
-| 50,000 users × 5/day | 250,000 | $1,150.00 | $9,750.00 | **$10,900.00** |
-
-> **Key insight:** ~89% of cost comes from image generation ($0.039/image). Text calls including thinking tokens are ~$0.0046 per generation.
+| Component | Cost | % of Total |
+|-----------|------|------------|
+| Text (2 calls) | $0.0048 | 19% |
+| Image (1 call) | $0.02 | 81% |
+| **Total** | **~$0.025** | 100% |
 
 ---
 
-## Alternative Image Model Comparison
+## Spam / Abuse Cost Analysis
 
-| Image Model | Cost/Image | 50K generates | vs Current | Notes |
-|-------------|-----------|---------------|-----------|-------|
-| `gemini-2.5-flash-image` (current) | $0.039 | $1,950 | baseline | Good quality, fast |
-| `gemini-2.0-flash` (image mode) | $0.039 | $1,950 | same | Same generation, same price |
-| `gemini-3-pro-image-preview` | $0.134 | $6,700 | **3.4x more** | Best quality, very expensive |
-| `imagen-4-fast` | $0.02 | $1,000 | **49% cheaper** | Dedicated image model, fast |
-| `imagen-4-standard` | $0.04 | $2,000 | ~same | Better quality than fast |
+### Current Protection
+
+| Protection | Setting |
+|------------|---------|
+| SIWE auth | Wallet connected + signed in required |
+| IP rate limit | 5 requests per 60 seconds |
+| Per-wallet quota | **5 generations** per 24h (resets after mint) |
+| Wallet quota TTL | 24 hours |
+
+### Worst-Case Spam Scenarios
+
+**Scenario 1: Single spammer (1 wallet)**
+
+| | Value |
+|---|---|
+| Max generations | 5 (quota limit) |
+| Cost | 5 × $0.025 = **$0.125** |
+| Recovery | $0 (if they don't mint) |
+| Net loss | **$0.125** |
+
+**Scenario 2: Spammer with 10 wallets**
+
+| | Value |
+|---|---|
+| Max generations | 10 × 5 = 50 |
+| Cost | 50 × $0.025 = **$1.25** |
+| IP rate limit blocks | After 5/min per IP, slowed down |
+| Net loss | **$1.25** (max per 24h per IP) |
+
+**Scenario 3: Distributed spam (100 wallets, multiple IPs)**
+
+| | Value |
+|---|---|
+| Max generations | 100 × 5 = 500 |
+| Cost | 500 × $0.025 = **$12.50** |
+| Likelihood | Very low (each needs unique wallet + SIWE) |
+
+### Revenue Recovery
+
+| Mint price | Revenue per mint | Generations covered |
+|------------|-----------------|---------------------|
+| 0.00015 ETH (~$0.30) | $0.30 | 12 generations |
+| 0.001 ETH (~$2.00) | $2.00 | 80 generations |
+| 0.005 ETH (~$10.00) | $10.00 | 400 generations |
+
+> **Current mint price (0.00015 ETH ≈ $0.30):** Her mint, ~12 üretimin maliyetini karşılıyor. Kullanıcı 5 deneyip 1 mint yaparsa → $0.125 maliyet, $0.30 gelir = **net kâr**.
 
 ---
 
-## Free Tier Availability
+## Scale Projections (Legitimate Usage)
 
-| Model | Free Tier | Limitation |
-|-------|-----------|-----------|
-| `gemini-3-flash-preview` (text) | Yes, free | 10 RPM, data used to improve products |
-| `gemini-2.5-flash-image` | **Not available** | Paid tier only for image output |
-| `imagen-4-fast` | **Not available** | Paid tier only |
+| Scenario | Generates/day | Text Cost | Image Cost | **Daily Cost** | **Monthly Cost** |
+|----------|--------------|-----------|------------|----------------|------------------|
+| 50 users × 2/day | 100 | $0.48 | $2.00 | **$2.48** | **$74** |
+| 200 users × 3/day | 600 | $2.88 | $12.00 | **$14.88** | **$446** |
+| 1,000 users × 3/day | 3,000 | $14.40 | $60.00 | **$74.40** | **$2,232** |
+| 5,000 users × 3/day | 15,000 | $72.00 | $300.00 | **$372.00** | **$11,160** |
+| 10,000 users × 3/day | 30,000 | $144.00 | $600.00 | **$744.00** | **$22,320** |
 
-> You are currently on paid tier (image generation wouldn't work on free tier).
+### With Mint Revenue (assuming 40% mint rate)
+
+| Scenario | Generates | Mints (40%) | AI Cost | Revenue (0.00015 ETH) | **Net** |
+|----------|----------|-------------|---------|----------------------|---------|
+| 100/day | 100 | 40 | $2.48 | $12.00 | **+$9.52** |
+| 600/day | 600 | 240 | $14.88 | $72.00 | **+$57.12** |
+| 3,000/day | 3,000 | 1,200 | $74.40 | $360.00 | **+$285.60** |
+| 15,000/day | 15,000 | 6,000 | $372.00 | $1,800.00 | **+$1,428** |
+
+> **Break-even mint rate:** Her kullanıcı ortalama 5 generate × $0.025 = $0.125 harcar. 1 mint = $0.30 gelir. 1 mint / 5 generate = %8.3 mint rate ile break-even.
 
 ---
 
-## Actual Flow Summary
+## Alternative Image Models
+
+| Image Model | Cost/Image | vs Current | Notes |
+|-------------|-----------|-----------|-------|
+| `imagen-4.0-fast-generate-001` (current) | $0.02 | baseline | Fast, cheap |
+| `imagen-4-standard` | $0.04 | 2x more | Better quality |
+| `imagen-4-ultra` | $0.06 | 3x more | Best quality |
+| `gemini-2.5-flash-image` (previous) | $0.039 | 95% more | Good quality but expensive |
+
+---
+
+## Actual Flow
 
 ```
-User clicks "Generate"
+User clicks MINT
   │
-  ├─[1] POST /api/generate-agent ──── gemini-3-flash-preview ──── ~$0.0025
-  │     (name + desc → agent JSON)
+  POST /api/mint-request (single API call, server-side)
   │
-  ├─[2] POST /api/generate-prompt ─── gemini-3-flash-preview ──── ~$0.0021
-  │     (agent JSON → visual prompt)
+  ├─[1] gemini-3-flash-preview ────────── agent identity ──── ~$0.0025
   │
-  └─[3] POST /api/generate-image ──── gemini-2.5-flash-image ──── ~$0.039
-        (visual prompt → pixel art PNG)
-                                                          TOTAL: ~$0.044
+  ├─[2] gemini-3-flash-preview ────────── portrait prompt ─── ~$0.0023
+  │
+  ├─[3] imagen-4.0-fast-generate-001 ──── generate image ──── ~$0.02
+  │
+  ├─[4] Server: pixelate + encode bitmap (no API cost)
+  │
+  ├─[5] Server: build traits JSON (no API cost)
+  │
+  └─[6] Server: EIP-191 sign packet (no API cost)
+  │
+  └─ Response → wallet popup → user confirms or rejects
+                                              TOTAL: ~$0.025
 ```
 
----
-
-## Recommendations
-
-### Option A: Rate Limit per Wallet (Simple)
-- 3-5 generates per wallet per day via server-side tracking
-- **Max daily exposure** (10K wallets × 5): ~$2,180/day
-- Pro: Easy, fast to implement
-- Con: Multiple wallets bypass it, cost not recovered
-
-### Option B: Mint-Gated Generation (Zero Loss)
-- User signs mint tx first → tx confirms → API generates
-- Set mint price ≥ $0.05 to cover API cost + margin
-- Pro: Every generate is paid for, zero abuse
-- Con: User pays before seeing result
-
-### Option C: Free First + Paid Regenerate (Best UX)
-- 1st generate per wallet: **free** (costs you ~$0.044)
-- Regenerate or new agent: requires on-chain payment first
-- Pro: User sees result before committing money
-- Con: First generate is subsidized
-
-### Option D: Switch Image Model (Cost Optimization)
-- `gemini-2.5-flash-image` → `imagen-4-fast-generate-001`
-- Per-generate cost: $0.044 → ~$0.025 (**43% total reduction**)
-- Combine with any rate limiting option above
-- Note: Different API, may need code changes for Imagen 4
-
-### Option E: Hybrid — Rate Limit + Imagen 4 Fast (Recommended)
-- Switch to `imagen-4-fast` ($0.02/image)
-- Rate limit: 3 free generates per wallet per day
-- After limit: require on-chain payment to continue
-- **Cost per generate: ~$0.025**
-- **Max daily exposure** (10K wallets × 3): ~$750/day
+**Kullanıcı reject ederse:** $0.025 kayıp, ama quota 1 azalır (5 → 4).
+**Kullanıcı mint ederse:** $0.025 maliyet, $0.30 gelir, quota sıfırlanır.

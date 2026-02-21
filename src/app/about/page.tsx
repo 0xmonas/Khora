@@ -7,17 +7,15 @@ import { Footer } from '@/components/layouts/Footer';
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 const CREATE_STEPS = [
-  { num: '01', title: 'Describe', desc: 'Describe your character — name, creature type, vibe, personality traits, skills, and boundaries. Or let AI generate one from a simple prompt.' },
-  { num: '02', title: 'Generate', desc: 'AI generates a unique pixel art portrait and a complete character profile. The image is converted to a compact on-chain SVG — no external hosting, no IPFS, no links that can break.' },
-  { num: '03', title: 'Mint', desc: 'Mint your character using a commit-reveal pattern. First you commit (reserves your slot), then reveal (writes the SVG and traits on-chain). This prevents front-running.' },
-  { num: '04', title: 'On-chain forever', desc: 'Your character is now permanently on-chain. Anyone can read its traits, render its art, and verify its authenticity — directly from the contract, forever.' },
+  { num: '01', title: 'Mint', desc: 'Hit mint — AI generates a unique identity, pixel art portrait, personality, skills, and boundaries. One click, one transaction.' },
+  { num: '02', title: 'On-chain forever', desc: 'Your agent\'s bitmap art and packed traits are written directly on Base via SSTORE2. No IPFS, no external hosting, no links that break.' },
+  { num: '03', title: 'Register', desc: 'Optional — register your agent on the ERC-8004 identity protocol. Configure services, skills, and domains to make it discoverable across chains.' },
 ];
 
 const IMPORT_STEPS = [
   { num: '01', title: 'Connect', desc: 'Connect your wallet. We scan 9 chains for your registered ERC-8004 agents — or enter a token ID manually.' },
-  { num: '02', title: 'Fetch', desc: 'Your agent\'s identity is pulled from the on-chain registry: name, creature, vibe, skills, and boundaries.' },
-  { num: '03', title: 'Reimagine', desc: 'AI generates a brand-new pixel art portrait for your imported agent, preserving its original identity and traits.' },
-  { num: '04', title: 'Mint on Base', desc: 'Your reimagined agent is minted on Base with its new art and original traits — fully on-chain, cross-chain identity.' },
+  { num: '02', title: 'Reimagine', desc: 'Select an agent, hit mint — AI generates a brand-new pixel art portrait, preserving its original identity and traits.' },
+  { num: '03', title: 'Mint & update', desc: 'Mint on Base in one transaction. Then optionally update your ERC-8004 registry entry with the new on-chain art.' },
 ];
 
 function AboutHowItWorks() {
@@ -158,12 +156,13 @@ export default function AboutPage() {
                     <div>
                       <span className="text-sm text-foreground" style={font}>Create mode</span>
                       <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-                        Start from scratch. Enter a name and description, optionally
-                        configure ERC-8004 settings, and mint. AI generates the full
-                        agent identity (creature type, personality, vibe) and a unique
-                        portrait. After minting, you can optionally register the agent
-                        on the ERC-8004 Identity Registry — this is a separate on-chain
-                        transaction that makes your agent discoverable.
+                        Hit mint — AI generates the full agent identity (creature type,
+                        personality, vibe, skills, boundaries) and a unique pixel art
+                        portrait in one click. Confirm a single wallet transaction to
+                        write the bitmap and traits on-chain. After minting, you can
+                        optionally register the agent on the ERC-8004 Identity Registry
+                        to make it discoverable, and configure services, skills,
+                        and domains for power users.
                       </p>
                     </div>
                     <div>
@@ -172,12 +171,11 @@ export default function AboutPage() {
                         Already have an agent registered on ERC-8004? Connect your
                         wallet and we scan 9 chains for your registered agents. Select
                         one and its identity is fetched from the on-chain registry —
-                        name, description, services, skills, domains. You can edit any
-                        field before minting. AI generates a new portrait for the
-                        imported identity. After minting, the &quot;Register&quot; button
-                        becomes &quot;Update&quot; — it calls setAgentURI to update your
-                        existing registry entry with the new on-chain art and any
-                        edited metadata.
+                        name, description, services, skills, domains. AI generates a
+                        new portrait for the imported identity. After minting, the
+                        &quot;Register&quot; button becomes &quot;Update&quot; — it calls
+                        setAgentURI to update your existing registry entry with the
+                        new on-chain art.
                       </p>
                     </div>
                   </div>
@@ -193,12 +191,12 @@ export default function AboutPage() {
                   </h2>
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
                     Most NFTs store a link to an image hosted somewhere else.
-                    If that server goes down, your NFT is gone. BOOA characters
-                    are different — the SVG pixel art and the JSON traits are
-                    written directly into the smart contract using SSTORE2.
-                    No external dependencies. The contract validates every SVG
-                    before storing it, blocking scripts, iframes, and other
-                    unsafe elements.
+                    If that server goes down, your NFT is gone. BOOA agents
+                    are different — the pixel art is stored as a 2,048-byte
+                    bitmap and traits are packed into bytes, all written directly
+                    into the smart contract via SSTORE2. The Renderer contract
+                    converts the bitmap to SVG on-the-fly. No external dependencies,
+                    no injection vectors — every nibble maps to a valid C64 color.
                   </p>
                 </div>
 
@@ -214,9 +212,10 @@ export default function AboutPage() {
                     {[
                       ['Chain', 'Base (Ethereum L2)'],
                       ['Contract', 'ERC-721 + ERC-2981'],
-                      ['Storage', 'SSTORE2 (on-chain)'],
+                      ['Storage', 'SSTORE2 bitmap (2KB)'],
+                      ['Rendering', 'On-chain SVG'],
                       ['Registry', 'ERC-8004'],
-                      ['Art', 'AI pixel art → SVG'],
+                      ['Art', 'AI pixel art → bitmap'],
                       ['Frontend', 'Next.js + wagmi'],
                       ['AI', 'Gemini + Replicate'],
                       ['Taxonomy', 'OASF v0.8.0'],

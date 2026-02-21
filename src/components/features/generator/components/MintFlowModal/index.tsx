@@ -17,9 +17,8 @@ import { cn } from '@/lib/utils';
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
 
 const STEPS = [
-  { label: 'Commit', desc: 'Pay mint price' },
   { label: 'Generate', desc: 'AI creates your agent' },
-  { label: 'Reveal', desc: 'Put SVG on-chain' },
+  { label: 'Mint', desc: 'Confirm transaction' },
   { label: 'Complete', desc: 'NFT minted' },
 ] as const;
 
@@ -27,22 +26,18 @@ function getStepStatuses(
   currentStep: string,
 ): StepStatus[] {
   switch (currentStep) {
-    case 'committing':
-      return ['active', 'pending', 'pending', 'pending'];
     case 'generating':
-      return ['done', 'active', 'pending', 'pending'];
-    case 'ready_to_reveal':
-      return ['done', 'done', 'pending', 'pending'];
-    case 'revealing':
-      return ['done', 'done', 'active', 'pending'];
-    case 'reveal_failed':
-      return ['done', 'done', 'error', 'pending'];
+      return ['active', 'pending', 'pending'];
+    case 'confirming':
+      return ['done', 'active', 'pending'];
+    case 'pending':
+      return ['done', 'active', 'pending'];
     case 'complete':
     case 'registering':
     case 'register_complete':
-      return ['done', 'done', 'done', 'done'];
+      return ['done', 'done', 'done'];
     default:
-      return ['pending', 'pending', 'pending', 'pending'];
+      return ['pending', 'pending', 'pending'];
   }
 }
 
@@ -118,52 +113,23 @@ function StepContent() {
     progress,
     mintPrice,
     pixelatedImage,
-    generatedImage,
     mintedTokenId,
-    triggerReveal,
-    retryReveal,
-    regenerateForReveal,
     registerAgent,
     registryAgentId,
     registerTxHash,
-    hasRevealData,
-    error,
-    commitTxHash,
-    revealTxHash,
+    txHash,
     mode,
     importedRegistryTokenId,
   } = useGenerator();
 
-  const imageToShow = pixelatedImage || generatedImage;
+  const imageToShow = pixelatedImage;
 
-  // Step 1: Committing
-  if (currentStep === 'committing') {
-    return (
-      <div className="space-y-3">
-        <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
-          Confirm the commit transaction in your wallet.
-        </p>
-        {mintPrice !== undefined && (
-          <div className="flex justify-between font-mono text-xs">
-            <span className="text-neutral-500">Price:</span>
-            <span className="dark:text-white">{formatEther(mintPrice)} ETH</span>
-          </div>
-        )}
-        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
-          <span className="font-mono text-xs text-neutral-500">Waiting for wallet...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Step 2: Generating
+  // Step 1: Generating (server AI pipeline)
   if (currentStep === 'generating') {
     return (
       <div className="space-y-3">
         <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
-          AI is generating your agent portrait.
+          AI is generating your agent identity and portrait.
         </p>
         <div className="w-full h-2 border-2 border-neutral-700 dark:border-neutral-200">
           <div
@@ -181,8 +147,8 @@ function StepContent() {
     );
   }
 
-  // Step 3: Ready to reveal
-  if (currentStep === 'ready_to_reveal') {
+  // Step 2: Confirming (waiting for wallet)
+  if (currentStep === 'confirming') {
     return (
       <div className="space-y-3">
         {imageToShow && (
@@ -195,38 +161,15 @@ function StepContent() {
             />
           </div>
         )}
-        <button
-          onClick={triggerReveal}
-          className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
-        >
-          REVEAL
-        </button>
-        <p className="font-mono text-[10px] text-neutral-500 text-center">
-          This will open your wallet to put the SVG on-chain
-        </p>
-      </div>
-    );
-  }
-
-  // Step 3 active: Revealing
-  if (currentStep === 'revealing') {
-    return (
-      <div className="space-y-3">
-        {imageToShow && (
-          <div className="w-full aspect-square max-h-48 border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-white dark:bg-neutral-900">
-            <img
-              src={imageToShow}
-              alt="Generated agent"
-              className="max-w-full max-h-full object-contain"
-              style={{ imageRendering: 'pixelated' }}
-            />
-          </div>
-        )}
-        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
-        {revealTxHash && <TxHashLink hash={revealTxHash} label="Reveal tx" />}
         <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
-          Confirm the reveal transaction in your wallet.
+          Confirm the mint transaction in your wallet.
         </p>
+        {mintPrice !== undefined && (
+          <div className="flex justify-between font-mono text-xs">
+            <span className="text-neutral-500">Price:</span>
+            <span className="dark:text-white">{formatEther(mintPrice)} ETH</span>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
           <span className="font-mono text-xs text-neutral-500">Waiting for wallet...</span>
@@ -235,8 +178,8 @@ function StepContent() {
     );
   }
 
-  // Step 3 failed: Reveal failed
-  if (currentStep === 'reveal_failed') {
+  // Step 2 active: Pending (tx submitted, waiting for confirmation)
+  if (currentStep === 'pending') {
     return (
       <div className="space-y-3">
         {imageToShow && (
@@ -249,31 +192,19 @@ function StepContent() {
             />
           </div>
         )}
-        {error && (
-          <div className="border-2 border-red-500 p-3">
-            <p className="font-mono text-xs text-red-500">{error}</p>
-          </div>
-        )}
-        {hasRevealData ? (
-          <button
-            onClick={retryReveal}
-            className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
-          >
-            RETRY REVEAL
-          </button>
-        ) : (
-          <button
-            onClick={regenerateForReveal}
-            className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
-          >
-            REGENERATE IMAGE
-          </button>
-        )}
+        {txHash && <TxHashLink hash={txHash} label="Mint tx" />}
+        <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+          Transaction submitted — waiting for confirmation.
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
+          <span className="font-mono text-xs text-neutral-500">Confirming on-chain...</span>
+        </div>
       </div>
     );
   }
 
-  // Step 4: Complete — with optional registration
+  // Step 3: Complete — with optional registration
   if (currentStep === 'complete') {
     return (
       <div className="space-y-3">
@@ -293,8 +224,7 @@ function StepContent() {
             <span className="dark:text-white">#{mintedTokenId.toString()}</span>
           </div>
         )}
-        {commitTxHash && <TxHashLink hash={commitTxHash} label="Commit tx" />}
-        {revealTxHash && <TxHashLink hash={revealTxHash} label="Reveal tx" />}
+        {txHash && <TxHashLink hash={txHash} label="Mint tx" />}
         <p className="font-mono text-xs text-green-600 dark:text-green-400">
           Agent minted successfully.
         </p>
@@ -432,7 +362,7 @@ export function MintFlowModal() {
   const statuses = getStepStatuses(currentStep);
 
   // Modal can only be closed in safe states
-  const canClose = currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input' || currentStep === 'ready_to_reveal' || currentStep === 'reveal_failed';
+  const canClose = currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input';
 
   const handleOpenChange = (open: boolean) => {
     if (!open && canClose) {
@@ -440,16 +370,12 @@ export function MintFlowModal() {
     }
   };
 
-  // Non-modal during reveal_failed so overlay doesn't block header (wallet/chain switcher)
-  const isNonModal = currentStep === 'reveal_failed';
-
   return (
-    <Dialog open={isModalOpen} onOpenChange={handleOpenChange} modal={!isNonModal}>
+    <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         onPointerDownOutside={(e) => { if (!canClose) e.preventDefault(); }}
         onEscapeKeyDown={(e) => { if (!canClose) e.preventDefault(); }}
         onInteractOutside={(e) => { if (!canClose) e.preventDefault(); }}
-        showOverlay={!isNonModal}
         className="p-0"
       >
         <DialogHeader>
@@ -494,8 +420,8 @@ export function MintFlowModal() {
             </p>
           )}
 
-          {/* Error display (only for non-reveal errors, reveal errors shown in StepContent) */}
-          {error && currentStep !== 'reveal_failed' && (
+          {/* Error display */}
+          {error && (
             <div className="border-2 border-red-500 p-3">
               <p className="font-mono text-xs text-red-500">{error}</p>
             </div>
