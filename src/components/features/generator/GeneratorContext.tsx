@@ -7,10 +7,11 @@ import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 
 export type Mode = 'create' | 'import';
-export type Step = 'input' | 'generating' | 'confirming' | 'pending' | 'complete' | 'registering' | 'register_complete';
+export type Step = 'input' | 'generating' | 'confirming' | 'pending' | 'complete' | 'registering' | 'register_complete' | 'updating' | 'update_complete';
 type GeneratorContextType = {
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -51,13 +52,17 @@ type GeneratorContextType = {
   // Agent registration (ERC-8004 Identity Registry)
   importedRegistryTokenId: number | null;
   setImportedRegistryTokenId: (id: number | null) => void;
+  importedImageURI: string | null;
+  setImportedImageURI: (uri: string | null) => void;
   registryAgentId: bigint | null;
   registerTxHash: `0x${string}` | null;
+  updateTxHash: `0x${string}` | null;
   // Modal
   isModalOpen: boolean;
   // Actions
   mintAndGenerate: () => void;
   registerAgent: () => void;
+  updateAgentOnly: () => void;
   downloadAgent: (format: 'png' | 'svg' | 'erc8004' | 'openclaw' | 'json') => Promise<void>;
   reset: () => void;
   closeModal: () => void;
@@ -68,6 +73,7 @@ export const GeneratorContext = createContext<GeneratorContextType | undefined>(
 
 /** Maps raw error messages to user-friendly messages */
 function friendlyError(raw: string): string {
+  console.warn('[friendlyError] raw:', raw);
   const lower = raw.toLowerCase();
 
   // Rate limiting / quota
@@ -86,12 +92,12 @@ function friendlyError(raw: string): string {
   if (lower.includes('user rejected') || lower.includes('user denied') || lower.includes('rejected the request'))
     return 'Transaction cancelled — no worries, nothing was charged.';
 
-  // Network / RPC
-  if (lower.includes('network') || lower.includes('chain') || lower.includes('rpc'))
+  // Network / RPC — only match very specific network errors
+  if (lower.includes('network request failed') || lower.includes('wrong network') || lower.includes('chain mismatch'))
     return 'Network issue — please check your connection and make sure you\'re on the right network.';
   if (lower.includes('insufficient funds') || lower.includes('insufficient balance'))
     return 'Not enough ETH in your wallet for this transaction.';
-  if (lower.includes('nonce'))
+  if (lower.includes('nonce too'))
     return 'Transaction conflict — please reset your wallet\'s pending transactions and try again.';
 
   // Contract errors
@@ -115,9 +121,9 @@ function friendlyError(raw: string): string {
     return 'Something went wrong during generation. Please try again in a moment.';
 
   // Server errors
-  if (lower.includes('server error') || lower.includes('500') || lower.includes('502') || lower.includes('503'))
+  if (lower.includes('server error') || lower.includes('502') || lower.includes('503'))
     return 'Our servers are having a moment. Please try again shortly.';
-  if (lower.includes('fetch') || lower.includes('load failed') || lower.includes('failed to fetch'))
+  if (lower.includes('load failed') || lower.includes('failed to fetch'))
     return 'Could not reach the server. Please check your internet connection and try again.';
 
   // Registration
@@ -127,7 +133,9 @@ function friendlyError(raw: string): string {
     return 'Registration transaction succeeded but confirmation is pending. Check your wallet for details.';
 
   // Transaction
-  if (lower.includes('transaction failed') || lower.includes('reverted'))
+  if (lower.includes('execution reverted') || lower.includes('reverted'))
+    return 'Transaction reverted on-chain. Please try again.';
+  if (lower.includes('transaction failed'))
     return 'Transaction failed on-chain. This can happen if conditions changed — please try again.';
   if (lower.includes('timeout') || lower.includes('timed out'))
     return 'Request timed out. The network might be congested — please try again.';
@@ -137,7 +145,7 @@ function friendlyError(raw: string): string {
     return 'Download failed. Please try again.';
 
   // Fallback — if it's a long technical message, summarize it
-  if (raw.length > 100)
+  if (raw.length > 200)
     return 'Something unexpected happened. Please try again.';
 
   return raw;
@@ -156,6 +164,61 @@ async function saveAgentMetadataToAPI(
   } catch {}
 }
 
+/** Extract SVG image data URI from BOOA on-chain tokenURI metadata */
+async function fetchBOOAImageURI(
+  publicClient: ReturnType<typeof usePublicClient>,
+  chainId: number,
+  tokenId: bigint,
+): Promise<string> {
+  if (!publicClient) return '';
+  try {
+    const booaAddress = getV2Address(chainId);
+    const tokenURIResult = await publicClient.readContract({
+      address: booaAddress,
+      abi: BOOA_V2_ABI,
+      functionName: 'tokenURI',
+      args: [tokenId],
+    });
+    const uri = tokenURIResult as string;
+    if (!uri) return '';
+    // tokenURI returns data:application/json;base64,... — decode and extract image
+    if (uri.startsWith('data:')) {
+      const base64 = uri.split(',')[1];
+      const json = JSON.parse(atob(base64));
+      return json.image || '';
+    }
+    return '';
+  } catch (err) {
+    console.error('fetchBOOAImageURI error:', err);
+    return '';
+  }
+}
+
+/** Ensure image data URI is small enough for on-chain storage.
+ *  SVG data URIs (~6KB) pass through. Large PNG data URIs (>50KB) get downscaled to 64x64. */
+function ensureSmallImageURI(dataURI: string): Promise<string> {
+  // Non-data URIs (https://, ipfs://, ar://) are fine — just a reference string
+  if (!dataURI.startsWith('data:')) return Promise.resolve(dataURI);
+  // SVG data URIs are already small
+  if (dataURI.startsWith('data:image/svg+xml')) return Promise.resolve(dataURI);
+  // Small enough (<50KB) — pass through
+  if (dataURI.length < 50_000) return Promise.resolve(dataURI);
+  // Large PNG/other — downscale to 64x64 thumbnail
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, 64, 64);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve('');
+    img.src = dataURI;
+  });
+}
 
 export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const siweStatus = useSiweStatus();
@@ -184,8 +247,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // Agent registration state (Identity Registry)
   const [importedRegistryTokenId, setImportedRegistryTokenId] = useState<number | null>(null);
+  const [importedImageURI, setImportedImageURI] = useState<string | null>(null);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
   const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
+  const [updateTxHash, setUpdateTxHash] = useState<`0x${string}` | null>(null);
 
   const publicClient = usePublicClient();
 
@@ -305,9 +370,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       // Build ERC-8004 registration JSON
       const registration = toERC8004(agent);
 
-      // Use pixelated image as SVG data URI for registration
-      if (pixelatedImage) {
-        registration.image = pixelatedImage;
+      // Fetch the on-chain SVG from BOOA tokenURI (same image the NFT uses)
+      const onChainImage = await fetchBOOAImageURI(publicClient, chainId, mintedTokenId);
+      if (onChainImage) {
+        registration.image = onChainImage;
       }
 
       // Strip empty endpoint field from metadata-only OASF services
@@ -398,6 +464,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
       setCurrentStep('register_complete');
     } catch (err) {
+      console.error('registerAgent error:', err);
       const msg = err instanceof Error ? err.message : 'Registration failed';
       if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
         setCurrentStep('complete');
@@ -407,6 +474,116 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('complete');
     }
   }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient, pixelatedImage]);
+
+  // ── UPDATE ONLY: update registry without minting ──
+  const updateAgentOnly = useCallback(async () => {
+    if (!importedRegistryTokenId || !mint.address) {
+      setError(friendlyError('Missing agent data for update'));
+      return;
+    }
+    if (!isAuthenticated) {
+      setError('Please connect and sign in with your wallet to continue.');
+      return;
+    }
+
+    setError(null);
+    setCurrentStep('updating');
+    setIsModalOpen(true);
+
+    try {
+      const chainId = mint.chainId;
+      const registryAddress = getRegistryAddress(chainId);
+      const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+
+      // Build ERC-8004 registration from current form state
+      const cleanedServices = erc8004Services
+        .filter(s => s.endpoint.trim() || s.name === 'OASF')
+        .map(s => {
+          if (s.name !== 'OASF') {
+            return { name: s.name, endpoint: s.endpoint, version: s.version };
+          }
+          return s;
+        });
+
+      // Merge skills/domains into OASF service
+      let hasOASF = false;
+      const enrichedServices = cleanedServices.map(s => {
+        if (s.name === 'OASF') {
+          hasOASF = true;
+          return {
+            ...s,
+            skills: Array.from(new Set([...(s.skills || []), ...selectedSkills])),
+            domains: Array.from(new Set([...(s.domains || []), ...selectedDomains])),
+          };
+        }
+        return s;
+      });
+      if (!hasOASF && (selectedSkills.length || selectedDomains.length)) {
+        enrichedServices.push({
+          name: 'OASF',
+          endpoint: '',
+          version: '0.8.0',
+          skills: selectedSkills,
+          domains: selectedDomains,
+        });
+      }
+
+      // Strip empty OASF endpoints
+      for (const svc of enrichedServices) {
+        if (svc.name === 'OASF' && !svc.endpoint.trim()) {
+          delete (svc as unknown as Record<string, unknown>).endpoint;
+        }
+      }
+
+      // Ensure image is small enough for on-chain storage (SVG pass-through, large PNG → 64x64 thumbnail)
+      const imageForRegistration = await ensureSmallImageURI(importedImageURI || '');
+
+      const registration = {
+        type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1' as const,
+        name: agentName,
+        description: agentDescription,
+        image: imageForRegistration,
+        services: enrichedServices,
+        active: enrichedServices.some(s => s.endpoint?.trim() !== ''),
+        x402Support,
+        supportedTrust: supportedTrust.length ? supportedTrust : undefined,
+        updatedAt: Math.floor(Date.now() / 1000),
+        registrations: [{
+          agentId: importedRegistryTokenId,
+          agentRegistry: `eip155:${chainId}:${registryAddr}`,
+        }],
+      };
+
+      const jsonStr = JSON.stringify(registration);
+      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+
+      const hash = await writeRegister({
+        address: registryAddress,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'setAgentURI',
+        args: [BigInt(importedRegistryTokenId), agentURI],
+      });
+
+      setUpdateTxHash(hash);
+      setRegistryAgentId(BigInt(importedRegistryTokenId));
+
+      if (!publicClient) throw new Error('No public client');
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      setCurrentStep('update_complete');
+    } catch (err) {
+      console.error('updateAgentOnly error:', err);
+      const msg = err instanceof Error ? err.message : 'Update failed';
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setCurrentStep('input');
+        setIsModalOpen(false);
+        return;
+      }
+      setError(friendlyError(msg));
+      setCurrentStep('input');
+      setIsModalOpen(false);
+    }
+  }, [importedRegistryTokenId, mint.address, mint.chainId, isAuthenticated, agentName, agentDescription, importedImageURI, erc8004Services, selectedSkills, selectedDomains, x402Support, supportedTrust, writeRegister, publicClient]);
 
   // ── Main action: MINT button ──
   // V2 flow: 1) Server generates agent + signs mint packet  2) User sends single mint tx
@@ -497,7 +674,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const closeModal = useCallback(() => {
-    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input') {
+    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete' || currentStep === 'input') {
       setIsModalOpen(false);
     }
   }, [currentStep]);
@@ -523,8 +700,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setSelectedSkills([]);
     setSelectedDomains([]);
     setImportedRegistryTokenId(null);
+    setImportedImageURI(null);
     setRegistryAgentId(null);
     setRegisterTxHash(null);
+    setUpdateTxHash(null);
     mint.reset();
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -610,9 +789,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     selectedSkills, setSelectedSkills,
     selectedDomains, setSelectedDomains,
     importedRegistryTokenId, setImportedRegistryTokenId,
-    registryAgentId, registerTxHash,
+    importedImageURI, setImportedImageURI,
+    registryAgentId, registerTxHash, updateTxHash,
     isModalOpen,
-    mintAndGenerate, registerAgent, downloadAgent, reset, closeModal, openModal,
+    mintAndGenerate, registerAgent, updateAgentOnly, downloadAgent, reset, closeModal, openModal,
   };
 
   return (

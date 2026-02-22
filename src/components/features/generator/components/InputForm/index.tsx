@@ -32,6 +32,15 @@ function isValidEndpoint(type: string, endpoint: string): boolean {
   try { new URL(endpoint.trim()); return true; } catch { return false; }
 }
 
+function isValidImageURI(uri: string): boolean {
+  if (!uri.trim()) return true; // empty = keep current
+  if (uri.startsWith('data:image/')) return true;
+  if (uri.startsWith('ipfs://')) return true;
+  if (uri.startsWith('ar://')) return true;
+  try { const u = new URL(uri); return u.protocol === 'https:' || u.protocol === 'http:'; }
+  catch { return false; }
+}
+
 const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = [
   { value: 'ethereum', label: 'Ethereum' },
   { value: 'base', label: 'Base' },
@@ -79,6 +88,9 @@ export function InputForm() {
     selectedDomains,
     setSelectedDomains,
     setImportedRegistryTokenId,
+    importedImageURI,
+    setImportedImageURI,
+    updateAgentOnly,
   } = useGenerator();
 
   const { address, isConnected } = useAccount();
@@ -93,6 +105,7 @@ export function InputForm() {
   const [manualMode, setManualMode] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [showErc8004, setShowErc8004] = useState(false);
+  const [imageURIInput, setImageURIInput] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const [domainSearch, setDomainSearch] = useState('');
   const [openSkillCats, setOpenSkillCats] = useState<Set<string>>(new Set());
@@ -189,7 +202,7 @@ export function InputForm() {
       .finally(() => setDiscoveryLoading(false));
   }, [mode, isConnected, address, manualMode]);
 
-  const isBusy = currentStep !== 'input' && currentStep !== 'complete';
+  const isBusy = currentStep !== 'input' && currentStep !== 'complete' && currentStep !== 'update_complete';
 
   const isMintDisabled = () => {
     if (isBusy) return true;
@@ -204,10 +217,11 @@ export function InputForm() {
   };
 
   const getMintLabel = () => {
-    if (currentStep === 'complete' || currentStep === 'register_complete') return 'MINT AGAIN';
+    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete') return 'MINT AGAIN';
     if (currentStep === 'registering') return 'REGISTERING...';
+    if (currentStep === 'updating') return 'UPDATING...';
     if (currentStep !== 'input') return 'MINTING...';
-    return 'MINT';
+    return mode === 'import' && selectedValue ? 'MINT & REGISTER' : 'MINT';
   };
 
   // Handle agent selection from discovery dropdown — fetch 8004 data and pre-fill form
@@ -231,6 +245,10 @@ export function InputForm() {
         const reg = data.registration;
         setAgentName(reg.name || '');
         setAgentDescription(reg.description || '');
+        if (reg.image) {
+          setImportedImageURI(reg.image);
+          setImageURIInput(reg.image);
+        }
 
         const services: AgentService[] = (reg.services || []).map((s: AgentService) => ({
           name: s.name || 'web',
@@ -454,6 +472,47 @@ export function InputForm() {
                     />
                   </div>
                 </div>
+
+                {/* Image URI (for UPDATE ONLY — off-chain URL/IPFS) */}
+                <div>
+                  <h3 className="text-sm font-mono mb-1 dark:text-white">Image</h3>
+                  {importedImageURI && (
+                    <div className="mb-1.5 flex items-center gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={importedImageURI.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${importedImageURI.slice(7)}` : importedImageURI}
+                        alt="Current agent"
+                        className="w-8 h-8 border border-neutral-300 dark:border-neutral-600 object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <span className="text-[10px] font-mono text-neutral-400 truncate max-w-[200px]">
+                        {importedImageURI}
+                      </span>
+                    </div>
+                  )}
+                  <div className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm ${
+                    imageURIInput && !isValidImageURI(imageURIInput) ? 'ring-1 ring-red-500/50' : ''
+                  } ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input
+                      type="text"
+                      value={imageURIInput}
+                      onChange={(e) => {
+                        if (!isBusy) {
+                          setImageURIInput(e.target.value);
+                          setImportedImageURI(e.target.value || null);
+                        }
+                      }}
+                      className="w-full bg-transparent outline-none"
+                      placeholder="https:// or ipfs:// (leave empty to keep current)"
+                      disabled={isBusy}
+                    />
+                  </div>
+                  {imageURIInput && !isValidImageURI(imageURIInput) && (
+                    <p className="text-[10px] font-mono text-red-500 mt-0.5">
+                      Invalid URI — use https://, ipfs://, ar://, or data:image/
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -616,16 +675,30 @@ export function InputForm() {
           )}
         </div>
 
-        {/* Mint Button */}
+        {/* Action Buttons */}
         <div>
-          <button
-            type="button"
-            onClick={currentStep === 'complete' || currentStep === 'register_complete' ? reset : mintAndGenerate}
-            disabled={currentStep === 'complete' || currentStep === 'register_complete' ? false : isMintDisabled()}
-            className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {getMintLabel()}
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete' ? reset : mintAndGenerate}
+              disabled={currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete' ? false : isMintDisabled()}
+              className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-sm hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {getMintLabel()}
+            </button>
+
+            {/* UPDATE ONLY — import mode with agent selected */}
+            {mode === 'import' && selectedValue && currentStep === 'input' && (
+              <button
+                type="button"
+                onClick={updateAgentOnly}
+                disabled={!agentName.trim() || !isConnected || (imageURIInput !== '' && !isValidImageURI(imageURIInput))}
+                className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-sm hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                UPDATE ONLY
+              </button>
+            )}
+          </div>
 
           {/* Supply & Price Info */}
           {isWrongNetwork ? (

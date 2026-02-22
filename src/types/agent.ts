@@ -35,6 +35,7 @@ export interface ERC8004Registration {
   x402Support?: boolean;
   registrations?: { agentId: number; agentRegistry: string }[];
   supportedTrust?: string[];
+  updatedAt?: number;
 }
 
 // Supported chains for ERC-8004 Identity Registry
