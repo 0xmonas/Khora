@@ -66,9 +66,14 @@ contract DeployV2 is Script {
         booa.setRenderer(address(renderer));
         console.log("BOOAv2: minter authorized, renderer set");
 
-        // BOOAStorage: authorize minter as writer
+        // BOOAStorage: authorize minter + booa as writers
         dataStore.setWriter(address(minter), true);
-        console.log("BOOAStorage: minter authorized as writer");
+        dataStore.setWriter(address(booa), true);
+        console.log("BOOAStorage: minter + booa authorized as writers");
+
+        // BOOAv2: set dataStore reference (for updateMetadata)
+        booa.setDataStore(address(dataStore));
+        console.log("BOOAv2: dataStore set");
 
         vm.stopBroadcast();
 
