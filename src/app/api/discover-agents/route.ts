@@ -128,28 +128,60 @@ async function findMaxTokenId(client: any, registryAddress: `0x${string}`): Prom
   return maxId;
 }
 
-/** Extract agent name from a data URI or by fetching an HTTP agentURI. */
-function extractNameFromDataURI(uri: string): string | null {
-  if (!uri.startsWith('data:')) return null;
+interface AgentMeta {
+  name: string | null;
+  image: string | null;
+  description: string | null;
+}
+
+/** Extract agent metadata from a data URI. */
+function extractMetaFromDataURI(uri: string): AgentMeta {
+  if (!uri.startsWith('data:')) return { name: null, image: null, description: null };
   try {
     const base64 = uri.split(',')[1];
     const json = Buffer.from(base64, 'base64').toString('utf-8');
-    return JSON.parse(json).name || null;
+    const parsed = JSON.parse(json);
+    return {
+      name: parsed.name || null,
+      image: parsed.image || null,
+      description: parsed.description || null,
+    };
   } catch {
-    return null;
+    return { name: null, image: null, description: null };
   }
 }
 
-/** Fetch agent name from an HTTP agentURI (ERC-8004 registration JSON). */
-async function fetchNameFromHTTP(uri: string): Promise<string | null> {
-  if (!uri.startsWith('http://') && !uri.startsWith('https://')) return null;
+/** Block SSRF: only allow safe external HTTPS URLs */
+function isSafeURL(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' ||
+      hostname.startsWith('10.') || hostname.startsWith('172.') || hostname.startsWith('192.168.') ||
+      hostname === '169.254.169.254' ||
+      hostname.endsWith('.internal') || hostname.endsWith('.local') || hostname === '[::1]'
+    ) return false;
+    return true;
+  } catch { return false; }
+}
+
+/** Fetch agent metadata from an HTTP agentURI (ERC-8004 registration JSON). */
+async function fetchMetaFromHTTP(uri: string): Promise<AgentMeta> {
+  if (!uri.startsWith('http://') && !uri.startsWith('https://')) return { name: null, image: null, description: null };
+  if (!isSafeURL(uri)) return { name: null, image: null, description: null };
   try {
     const res = await fetch(uri, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.name || null;
+    if (!res.ok) return { name: null, image: null, description: null };
+    const parsed = await res.json();
+    return {
+      name: parsed.name || null,
+      image: parsed.image || null,
+      description: parsed.description || null,
+    };
   } catch {
-    return null;
+    return { name: null, image: null, description: null };
   }
 }
 
@@ -272,12 +304,23 @@ async function discoverOnChain(
           const uri = (result.result as string) || '';
           const hasMetadata = !!uri;
           // Try data URI first, then HTTP fetch
-          const name = uri
-            ? (extractNameFromDataURI(uri) ?? await fetchNameFromHTTP(uri))
-            : null;
-          return { chain, chainName: config.name, tokenId, name, hasMetadata };
+          const meta: AgentMeta = uri
+            ? (() => {
+                const dataMeta = extractMetaFromDataURI(uri);
+                if (dataMeta.name) return dataMeta;
+                return { name: null, image: null, description: null }; // will try HTTP below
+              })()
+            : { name: null, image: null, description: null };
+
+          // If data URI didn't yield results, try HTTP
+          if (!meta.name && uri && !uri.startsWith('data:')) {
+            const httpMeta = await fetchMetaFromHTTP(uri);
+            if (httpMeta.name) Object.assign(meta, httpMeta);
+          }
+
+          return { chain, chainName: config.name, tokenId, name: meta.name, image: meta.image, description: meta.description, hasMetadata };
         }
-        return { chain, chainName: config.name, tokenId, name: null, hasMetadata: false };
+        return { chain, chainName: config.name, tokenId, name: null, image: null, description: null, hasMetadata: false };
       }),
     );
 
@@ -298,9 +341,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const chains = Object.keys(CHAIN_CONFIG) as SupportedChain[];
+  // Chain parameter is required — prevents DoS from scanning all chains at once
+  const chainParam = request.nextUrl.searchParams.get('chain') as SupportedChain | null;
+  if (!chainParam || !CHAIN_CONFIG[chainParam]) {
+    return NextResponse.json(
+      { error: 'Missing or invalid chain parameter' },
+      { status: 400 },
+    );
+  }
+  const chains = [chainParam];
 
-  // Query all chains in parallel
+  // Query chains in parallel
   const results = await Promise.allSettled(
     chains.map((chain) => discoverOnChain(chain, address)),
   );

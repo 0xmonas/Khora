@@ -53,16 +53,13 @@ export function SiweProvider({ children }: { children: ReactNode }) {
     () =>
       createAuthenticationAdapter({
         getNonce: async () => {
-          console.log('[SIWE] getNonce called');
           const res = await fetch('/api/auth/nonce');
           const data = await res.json();
-          console.log('[SIWE] nonce received:', data.nonce?.slice(0, 8) + '...');
           return data.nonce;
         },
 
         createMessage: ({ nonce, address, chainId }) => {
-          console.log('[SIWE] createMessage', { address: address?.slice(0, 10), chainId, nonce: nonce?.slice(0, 8) });
-          const msg = createSiweMessage({
+          return createSiweMessage({
             address: address as `0x${string}`,
             chainId,
             domain: window.location.host,
@@ -71,19 +68,15 @@ export function SiweProvider({ children }: { children: ReactNode }) {
             version: '1',
             statement: 'Sign in to Khora Agent.',
           });
-          console.log('[SIWE] message created, length:', msg.length);
-          return msg;
         },
 
         verify: async ({ message, signature }) => {
-          console.log('[SIWE] verify called, sig:', (signature as string)?.slice(0, 10) + '...');
           const res = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, signature }),
           });
-          const data = await res.json();
-          console.log('[SIWE] verify response:', res.status, data);
+          await res.json();
 
           if (res.ok) {
             setStatus('authenticated');
@@ -94,17 +87,12 @@ export function SiweProvider({ children }: { children: ReactNode }) {
         },
 
         signOut: async () => {
-          console.log('[SIWE] signOut called');
           await fetch('/api/auth/logout', { method: 'POST' });
           setStatus('unauthenticated');
         },
       }),
     [],
   );
-
-  useEffect(() => {
-    console.log('[SIWE] status:', status, '| isConnected:', isConnected);
-  }, [status, isConnected]);
 
   return (
     <SiweStatusContext.Provider value={status}>

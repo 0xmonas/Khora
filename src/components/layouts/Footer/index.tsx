@@ -60,6 +60,13 @@ export function Footer() {
                   X
                 </a>
                 <Link
+                  href="/bridge"
+                  className={linkClass}
+                  style={footerFont}
+                >
+                  Bridge
+                </Link>
+                <Link
                   href="/about"
                   className={linkClass}
                   style={footerFont}
