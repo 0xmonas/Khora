@@ -5,4 +5,5 @@ interface IBOOA {
     function mint(address to) external returns (uint256 tokenId);
     function totalSupply() external view returns (uint256);
     function ownerOf(uint256 tokenId) external view returns (address);
+    function updateMetadata(uint256 tokenId, bytes calldata imageData, bytes calldata traitsData) external;
 }

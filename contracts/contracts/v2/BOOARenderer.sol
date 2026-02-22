@@ -17,7 +17,7 @@ contract BOOARenderer is IBOOARenderer, Ownable {
     IBOOAStorage public dataStore;
 
     // C64 16-color palette (RGB, 48 bytes)
-    bytes private constant PALETTE =
+    bytes internal constant PALETTE =
         hex"000000626262898989ADADADFFFFFF"
         hex"9F4E44CB7E756D5412A1683CC9D487"
         hex"9AE29B5CAB5E6ABFC6887ECB50459B"

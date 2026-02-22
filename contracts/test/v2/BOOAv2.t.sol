@@ -40,7 +40,9 @@ contract BOOAv2Test is Test {
 
         booa.setMinter(address(minter), true);
         booa.setRenderer(address(renderer));
+        booa.setDataStore(address(store));
         store.setWriter(address(minter), true);
+        store.setWriter(address(booa), true);
 
         validBitmap = _makeBitmap(0);
         bitmapWithStripe = _makeBitmapWithStripe(0, 1, 5, 12, 3);
@@ -75,7 +77,7 @@ contract BOOAv2Test is Test {
     }
 
     function _signMint(bytes memory imageData, bytes memory traitsData, address who, uint256 deadline) internal view returns (bytes memory) {
-        bytes32 hash = keccak256(abi.encodePacked(imageData, traitsData, who, deadline));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, who, deadline, block.chainid));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         return abi.encodePacked(r, s, v);
@@ -230,7 +232,7 @@ contract BOOAv2Test is Test {
     function test_sig_rejectWrongSigner() public {
         uint256 wrongKey = 0xBAD;
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encodePacked(validBitmap, validTraits, user, deadline));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethHash);
         vm.prank(user);
@@ -303,7 +305,7 @@ contract BOOAv2Test is Test {
         minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, oldSig);
 
         // New signer accepted
-        bytes32 hash = keccak256(abi.encodePacked(validBitmap, validTraits, user, deadline));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, ethHash);
         vm.prank(user);
@@ -800,6 +802,188 @@ contract BOOAv2Test is Test {
         uint256 g = gasleft();
         booa.tokenURI(0);
         emit log_named_uint("V2 tokenURI gas", g - gasleft());
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  14. BURN
+    // ═══════════════════════════════════════════════════
+
+    function test_burn_ownerCanBurn() public {
+        uint256 tokenId = _mintAsUser(user);
+        vm.prank(user);
+        booa.burn(tokenId);
+        vm.expectRevert();
+        booa.ownerOf(tokenId);
+    }
+
+    function test_burn_updatesSupply() public {
+        _mintAsUser(user);
+        _mintAsUser(user);
+        assertEq(booa.totalSupply(), 2);
+        vm.prank(user);
+        booa.burn(0);
+        assertEq(booa.totalSupply(), 1);
+        assertEq(booa.totalMinted(), 2);
+        assertEq(booa.totalBurned(), 1);
+    }
+
+    function test_burn_nonOwnerReverts() public {
+        _mintAsUser(user);
+        vm.prank(user2);
+        vm.expectRevert(BOOAv2.NotTokenOwner.selector);
+        booa.burn(0);
+    }
+
+    function test_burn_doubleReverts() public {
+        _mintAsUser(user);
+        vm.prank(user);
+        booa.burn(0);
+        vm.prank(user);
+        vm.expectRevert();
+        booa.burn(0);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  15. EIP-4906 METADATA UPDATE
+    // ═══════════════════════════════════════════════════
+
+    function test_eip4906_supportsInterface() public view {
+        assertTrue(booa.supportsInterface(bytes4(0x49064906)));
+    }
+
+    function test_eip4906_emitsBatchOnRendererUpdate() public {
+        _mintAsUser(user);
+        _mintAsUser(user);
+        BOOARenderer newRenderer = new BOOARenderer(address(store));
+        vm.expectEmit(false, false, false, true);
+        emit BOOAv2.BatchMetadataUpdate(0, 1);
+        booa.setRenderer(address(newRenderer));
+    }
+
+    function test_eip4906_noEmitWhenNoTokens() public {
+        BOOARenderer newRenderer = new BOOARenderer(address(store));
+        // Should not revert when totalMinted == 0
+        booa.setRenderer(address(newRenderer));
+    }
+
+    function test_updateMetadata_imageOnly() public {
+        _mintAsUser(user);
+        bytes memory newBitmap = _makeBitmap(4); // white
+        vm.expectEmit(false, false, false, true);
+        emit BOOAv2.MetadataUpdate(0);
+        booa.updateMetadata(0, newBitmap, "");
+
+        // Verify image actually changed
+        bytes memory stored = store.getImageData(0);
+        assertEq(uint8(stored[0]) >> 4, 4); // white pixel
+    }
+
+    function test_updateMetadata_traitsOnly() public {
+        _mintAsUser(user);
+        bytes memory newTraits = bytes('[{"trait_type":"Creature","value":"Updated"}]');
+        vm.expectEmit(false, false, false, true);
+        emit BOOAv2.MetadataUpdate(0);
+        booa.updateMetadata(0, "", newTraits);
+
+        bytes memory stored = store.getTraits(0);
+        assertTrue(stored.length > 0);
+    }
+
+    function test_updateMetadata_both() public {
+        _mintAsUser(user);
+        bytes memory newBitmap = _makeBitmap(5); // green
+        bytes memory newTraits = bytes('[{"trait_type":"Creature","value":"New"}]');
+        booa.updateMetadata(0, newBitmap, newTraits);
+
+        bytes memory storedBmp = store.getImageData(0);
+        assertEq(uint8(storedBmp[0]) >> 4, 5);
+        bytes memory storedTraits = store.getTraits(0);
+        assertGt(storedTraits.length, 0);
+    }
+
+    function test_updateMetadata_nonOwnerReverts() public {
+        _mintAsUser(user);
+        bytes memory newBitmap = _makeBitmap(4);
+        vm.prank(user);
+        vm.expectRevert();
+        booa.updateMetadata(0, newBitmap, "");
+    }
+
+    function test_updateMetadata_nonExistentReverts() public {
+        bytes memory newBitmap = _makeBitmap(4);
+        vm.expectRevert();
+        booa.updateMetadata(999, newBitmap, "");
+    }
+
+    function test_updateMetadata_tokenURIChanges() public {
+        _mintAsUser(user);
+
+        string memory uriBefore = booa.tokenURI(0);
+
+        bytes memory newBitmap = _makeBitmap(4); // white instead of black
+        booa.updateMetadata(0, newBitmap, "");
+
+        string memory uriAfter = booa.tokenURI(0);
+        // tokenURI should differ because bitmap changed → different SVG
+        assertFalse(keccak256(bytes(uriBefore)) == keccak256(bytes(uriAfter)));
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  16. OWNER WRITER ACCESS (BOOAStorage)
+    // ═══════════════════════════════════════════════════
+
+    function test_storage_ownerCanWrite() public {
+        // Owner should be able to write without being an authorized writer
+        store.setImageData(0, validBitmap);
+        assertTrue(store.hasBitmap(0));
+    }
+
+    function test_storage_ownerCanWriteTraits() public {
+        store.setTraits(0, validTraits);
+        bytes memory stored = store.getTraits(0);
+        assertGt(stored.length, 0);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  17. CROSS-CHAIN REPLAY PROTECTION
+    // ═══════════════════════════════════════════════════
+
+    function test_sig_rejectCrossChainReplay() public {
+        uint256 deadline = block.timestamp + 1 hours;
+        // Sign on a different chain ID
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(999)));
+        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
+        vm.prank(user);
+        vm.expectRevert(BOOAMinter.InvalidSignature.selector);
+        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  18. REALISTIC TRAIT GAS BENCHMARKS
+    // ═══════════════════════════════════════════════════
+
+    function test_gas_realisticTraits() public {
+        bytes memory realisticTraits = bytes(
+            '[{"trait_type":"Name","value":"Void Serpent"},{"trait_type":"Description","value":"A shadowy data wraith that slithers through encrypted networks"},'
+            '{"trait_type":"Creature","value":"Data Wraith"},{"trait_type":"Vibe","value":"Dark and methodical"},'
+            '{"trait_type":"Emoji","value":"\\ud83d\\udc0d"},{"trait_type":"Skill","value":"Network infiltration"},'
+            '{"trait_type":"Skill","value":"Cipher breaking"},{"trait_type":"Skill","value":"Data exfiltration"},'
+            '{"trait_type":"Domain","value":"Cryptography"},{"trait_type":"Domain","value":"Network security"},'
+            '{"trait_type":"Personality","value":"Patient and calculating"},{"trait_type":"Hair","value":"None - smooth scales"},'
+            '{"trait_type":"Eyes","value":"Glowing green slits"},{"trait_type":"Skin","value":"Obsidian scales"},'
+            '{"trait_type":"Accessory","value":"Neural jack"},{"trait_type":"Palette","value":"C64"}]'
+        );
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes32 hash = keccak256(abi.encode(validBitmap, realisticTraits, user, deadline, block.chainid));
+        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
+
+        uint256 g = gasleft();
+        vm.prank(user);
+        minter.mint{value: MINT_PRICE}(validBitmap, realisticTraits, deadline, abi.encodePacked(r, s, v));
+        emit log_named_uint("V2 mint (realistic traits ~800B) gas", g - gasleft());
     }
 
     // ═══════════════════════════════════════════════════

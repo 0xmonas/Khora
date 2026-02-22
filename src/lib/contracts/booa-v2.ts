@@ -93,6 +93,41 @@ export const BOOA_V2_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Write functions
+  {
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    name: 'burn',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tokenId', type: 'uint256' },
+      { name: 'imageData', type: 'bytes' },
+      { name: 'traitsData', type: 'bytes' },
+    ],
+    name: 'updateMetadata',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // Read: totalBurned
+  {
+    inputs: [],
+    name: 'totalBurned',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Read: totalMinted
+  {
+    inputs: [],
+    name: 'totalMinted',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
   // Events
   {
     type: 'event',
@@ -101,6 +136,21 @@ export const BOOA_V2_ABI = [
       { type: 'address', name: 'from', indexed: true },
       { type: 'address', name: 'to', indexed: true },
       { type: 'uint256', name: 'tokenId', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'MetadataUpdate',
+    inputs: [
+      { type: 'uint256', name: '_tokenId', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'BatchMetadataUpdate',
+    inputs: [
+      { type: 'uint256', name: '_fromTokenId', indexed: false },
+      { type: 'uint256', name: '_toTokenId', indexed: false },
     ],
   },
 ] as const;
