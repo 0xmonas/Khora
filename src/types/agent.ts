@@ -72,5 +72,7 @@ export interface DiscoveredAgent {
   chainName: string;
   tokenId: number;
   name: string | null;
+  image: string | null;
+  description: string | null;
   hasMetadata: boolean;
 }

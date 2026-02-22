@@ -41,6 +41,34 @@ async function callTokenURI(chain: SupportedChain, agentId: number): Promise<str
   return agentURI as string;
 }
 
+/** Block SSRF: only allow https://, ipfs:// gateway, and ar:// gateway URLs */
+function isSafeURL(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Only HTTPS allowed
+    if (parsed.protocol !== 'https:') return false;
+    // Block internal/private IPs and metadata endpoints
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('172.') ||
+      hostname.startsWith('192.168.') ||
+      hostname === '169.254.169.254' ||       // AWS metadata
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.local') ||
+      hostname === '[::1]'
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function fetchRegistration(agentURI: string) {
   let registration;
 
@@ -54,6 +82,14 @@ async function fetchRegistration(agentURI: string) {
     let url = agentURI;
     if (url.startsWith('ipfs://')) {
       url = `https://ipfs.io/ipfs/${url.slice(7)}`;
+    }
+    if (url.startsWith('ar://')) {
+      url = `https://arweave.net/${url.slice(5)}`;
+    }
+
+    // SSRF protection: only fetch safe external URLs
+    if (!isSafeURL(url)) {
+      throw new Error('Blocked: URI points to a disallowed destination');
     }
 
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });

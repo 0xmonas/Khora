@@ -9,10 +9,23 @@ vi.mock('iron-session', () => ({
   getIronSession: vi.fn(async () => mockSession),
 }));
 
+// Mock rate limiter so tests don't hit real Upstash Redis
+const mockRateLimitResult = { success: true, limit: 60, remaining: 59, reset: Date.now() + 60000 };
+vi.mock('@/lib/ratelimit', () => ({
+  generalLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
+  writeLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
+  getIP: vi.fn(() => '127.0.0.1'),
+  rateLimitHeaders: vi.fn((r: { limit: number; remaining: number; reset: number }) => ({
+    'X-RateLimit-Limit': r.limit.toString(),
+    'X-RateLimit-Remaining': r.remaining.toString(),
+    'X-RateLimit-Reset': r.reset.toString(),
+  })),
+}));
+
 // ── Helpers ──
 
-function makeRequest(pathname: string) {
-  return new NextRequest(new URL(pathname, 'http://localhost:3000'));
+function makeRequest(pathname: string, method = 'GET') {
+  return new NextRequest(new URL(pathname, 'http://localhost:3000'), { method });
 }
 
 // ── Tests ──
@@ -112,5 +125,62 @@ describe('Middleware', () => {
   it('should export correct matcher config', async () => {
     const { config } = await import('@/middleware');
     expect(config.matcher).toBe('/api/:path*');
+  });
+
+  // ── Public read paths (no auth required) ──
+
+  it('should allow /api/fetch-nfts without session (public read path)', async () => {
+    const { middleware } = await import('@/middleware');
+
+    const response = await middleware(makeRequest('/api/fetch-nfts'));
+    expect(response.status).toBe(200);
+  });
+
+  it('should allow /api/discover-agents without session (public read path)', async () => {
+    const { middleware } = await import('@/middleware');
+
+    const response = await middleware(makeRequest('/api/discover-agents'));
+    expect(response.status).toBe(200);
+  });
+
+  it('should allow /api/fetch-agent without session (public read path)', async () => {
+    const { middleware } = await import('@/middleware');
+
+    const response = await middleware(makeRequest('/api/fetch-agent'));
+    expect(response.status).toBe(200);
+  });
+
+  // ── Rate limiting ──
+
+  it('should return 429 when rate limited', async () => {
+    const ratelimit = await import('@/lib/ratelimit');
+    const blockedResult = { success: false, limit: 60, remaining: 0, reset: Date.now() + 60000 };
+    vi.mocked(ratelimit.generalLimiter.limit).mockResolvedValueOnce(blockedResult);
+
+    const { middleware } = await import('@/middleware');
+
+    const response = await middleware(makeRequest('/api/fetch-nfts'));
+    expect(response.status).toBe(429);
+    const body = await response.json();
+    expect(body.error).toContain('Too many requests');
+  });
+
+  it('should use writeLimiter for POST requests', async () => {
+    const ratelimit = await import('@/lib/ratelimit');
+
+    const { middleware } = await import('@/middleware');
+
+    await middleware(makeRequest('/api/fetch-agent', 'POST'));
+    expect(ratelimit.writeLimiter.limit).toHaveBeenCalled();
+    expect(ratelimit.generalLimiter.limit).not.toHaveBeenCalled();
+  });
+
+  it('should use generalLimiter for GET requests', async () => {
+    const ratelimit = await import('@/lib/ratelimit');
+
+    const { middleware } = await import('@/middleware');
+
+    await middleware(makeRequest('/api/fetch-nfts'));
+    expect(ratelimit.generalLimiter.limit).toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/session';
+import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 // Routes that skip session entirely (no auth needed, no headers injected)
 const SKIP_PATHS = [
@@ -17,11 +18,34 @@ const SOFT_AUTH_PATHS = [
   '/api/pending-reveal',
 ];
 
+// Public read-only routes — no auth required, rate-limited
+const PUBLIC_READ_PATHS = [
+  '/api/fetch-nfts',
+  '/api/discover-agents',
+  '/api/fetch-agent',
+];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip auth routes entirely
   if (SKIP_PATHS.some((path) => pathname === path)) {
+    return NextResponse.next();
+  }
+
+  // ── Rate limiting (applied to all API routes) ──
+  const ip = getIP(request);
+  const isWrite = request.method !== 'GET';
+  const rl = await (isWrite ? writeLimiter : generalLimiter).limit(ip);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
+
+  // Public read-only routes — skip auth, already rate-limited above
+  if (PUBLIC_READ_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'))) {
     return NextResponse.next();
   }
 

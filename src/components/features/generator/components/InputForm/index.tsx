@@ -864,6 +864,23 @@ function TaxonomyPicker({
         )}
       </div>
 
+      {/* Selected items (shown at top of picker) */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5 p-1.5 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
+          {selected.map(item => (
+            <button
+              key={`sel-${item}`}
+              type="button"
+              onClick={() => onToggle(item)}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 font-mono text-[9px] bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 border border-neutral-700 dark:border-neutral-200 hover:opacity-80 transition-opacity"
+            >
+              {item}
+              <XIcon className="w-2 h-2 ml-0.5" />
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search */}
       <div className="bg-neutral-700 dark:bg-neutral-200 font-mono text-[10px] mb-1.5">
         <input

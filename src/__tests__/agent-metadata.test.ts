@@ -31,6 +31,7 @@ vi.mock('@/lib/ratelimit', () => ({
     'X-RateLimit-Remaining': result.remaining.toString(),
     'X-RateLimit-Reset': result.reset.toString(),
   }),
+  resetGenerationQuota: vi.fn(),
 }));
 
 // ── Helpers ──
