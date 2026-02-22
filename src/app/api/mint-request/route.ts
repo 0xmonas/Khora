@@ -244,9 +244,10 @@ export async function POST(request: NextRequest) {
     const imageDataHex = toHex(bitmapBytes);
     const traitsDataHex = toHex(traitsBytes);
     const minterAddress = walletAddress as Hex;
-    const deadline = createDeadline(300); // 5 minutes
+    const deadline = createDeadline(); // 10 minutes (default in signer.ts)
+    const chainId = BigInt(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || '84532'); // Base Sepolia default
 
-    const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline);
+    const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline, chainId);
 
     // ── Increment quota after successful generation ──
     await incrementGenerationCount(walletAddress);

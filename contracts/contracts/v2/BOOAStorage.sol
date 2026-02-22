@@ -22,7 +22,7 @@ contract BOOAStorage is IBOOAStorage, Ownable {
     event WriterUpdated(address indexed writer, bool authorized);
 
     modifier onlyWriter() {
-        if (!authorizedWriters[msg.sender]) revert NotAuthorized();
+        if (!authorizedWriters[msg.sender] && msg.sender != owner()) revert NotAuthorized();
         _;
     }
 

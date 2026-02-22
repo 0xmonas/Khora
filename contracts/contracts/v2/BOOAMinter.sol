@@ -56,7 +56,7 @@ contract BOOAMinter is Ownable {
     /// @param imageData  2048-byte bitmap (64x64, 4-bit C64 palette)
     /// @param traitsData Traits JSON (SSTORE2)
     /// @param deadline   Signature expiry (unix timestamp)
-    /// @param signature  EIP-191 signature over (imageData, traitsData, msg.sender, deadline)
+    /// @param signature  EIP-191 signature over abi.encode(imageData, traitsData, msg.sender, deadline, chainId)
     function mint(
         bytes calldata imageData,
         bytes calldata traitsData,
@@ -69,7 +69,7 @@ contract BOOAMinter is Ownable {
         if (maxPerWallet > 0 && mintCount[msg.sender] >= maxPerWallet) revert MintLimitReached();
         if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
 
-        bytes32 hash = keccak256(abi.encodePacked(imageData, traitsData, msg.sender, deadline));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid));
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         if (_usedSignatures[ethSignedHash]) revert SignatureAlreadyUsed();

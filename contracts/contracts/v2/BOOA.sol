@@ -5,6 +5,7 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBOOARenderer} from "./interfaces/IBOOARenderer.sol";
+import {IBOOAStorage} from "./interfaces/IBOOAStorage.sol";
 
 //
 //    ██████╗  ██████╗  ██████╗  █████╗
@@ -21,15 +22,22 @@ import {IBOOARenderer} from "./interfaces/IBOOARenderer.sol";
 /// @title BOOAv2
 /// @notice Minimal ERC721. Minting delegated to authorized contracts.
 contract BOOAv2 is ERC721, ERC2981, Ownable {
+    /// @dev EIP-4906 metadata update events
+    event MetadataUpdate(uint256 _tokenId);
+    event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
+
     uint256 public nextTokenId;
     uint256 public totalMinted;
+    uint256 public totalBurned;
     bool public paused;
 
     IBOOARenderer public renderer;
+    IBOOAStorage public dataStore;
     mapping(address => bool) public authorizedMinters;
 
     error NotAuthorizedMinter();
     error MintingPaused();
+    error NotTokenOwner();
 
     event MinterUpdated(address indexed minter, bool authorized);
     event RendererUpdated(address indexed renderer);
@@ -51,7 +59,7 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
         if (paused) revert MintingPaused();
         tokenId = nextTokenId++;
         totalMinted++;
-        _safeMint(to, tokenId);
+        _mint(to, tokenId);
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
@@ -60,7 +68,13 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
     }
 
     function totalSupply() public view returns (uint256) {
-        return totalMinted;
+        return totalMinted - totalBurned;
+    }
+
+    function burn(uint256 tokenId) external {
+        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        totalBurned++;
+        _burn(tokenId);
     }
 
     function setMinter(address minter, bool authorized) external onlyOwner {
@@ -71,6 +85,29 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
     function setRenderer(address _renderer) external onlyOwner {
         renderer = IBOOARenderer(_renderer);
         emit RendererUpdated(_renderer);
+        if (totalMinted > 0) {
+            emit BatchMetadataUpdate(0, nextTokenId - 1);
+        }
+    }
+
+    function setDataStore(address _dataStore) external onlyOwner {
+        dataStore = IBOOAStorage(_dataStore);
+    }
+
+    /// @notice Owner can update a token's bitmap and/or traits, emits MetadataUpdate
+    function updateMetadata(
+        uint256 tokenId,
+        bytes calldata imageData,
+        bytes calldata traitsData
+    ) external onlyOwner {
+        _requireOwned(tokenId);
+        if (imageData.length > 0) {
+            dataStore.setImageData(tokenId, imageData);
+        }
+        if (traitsData.length > 0) {
+            dataStore.setTraits(tokenId, traitsData);
+        }
+        emit MetadataUpdate(tokenId);
     }
 
     function setPaused(bool _paused) external onlyOwner {
@@ -98,6 +135,8 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
+        // EIP-4906
+        if (interfaceId == bytes4(0x49064906)) return true;
         return super.supportsInterface(interfaceId);
     }
 }
