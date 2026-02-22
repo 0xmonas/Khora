@@ -9,7 +9,7 @@ import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
 export const maxDuration = 120; // AI pipeline can take ~60s
 
 const MODEL_TEXT = 'gemini-3-flash-preview';
-const MODEL_IMAGE = 'imagen-4.0-fast-generate-001';
+const MODEL_IMAGE = 'gemini-2.5-flash-image';
 
 // ── Agent generation system prompt ──
 
@@ -18,8 +18,8 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
 {
   "name": "string (creative, memorable agent name — can be abstract, sci-fi, mythological, playful, or edgy)",
   "description": "string (1-2 sentences describing what this agent does and its personality)",
-  "creature": "string (what kind of entity: AI familiar, digital ghost, neural construct, void walker, data wraith, etc.)",
-  "vibe": "string (communication style: sharp and witty, calm and methodical, chaotic and creative, etc.)",
+  "creature": "string (what kind of entity — MUST vary wildly: human woman, human man, cyborg child, robotic cat, alien jellyfish, crystalline bird, neon fox, plasma dragon, sentient flower, mechanical octopus, holographic deer, cosmic whale, fungal golem, etc.)",
+  "vibe": "string (communication style: sharp and witty, calm and methodical, chaotic and creative, warm and nurturing, playful and silly, mysterious and poetic, etc.)",
   "emoji": "string (single emoji that represents this agent)",
   "personality": ["string array of 4-6 core behavior principles"],
   "boundaries": ["string array of 3-5 things this agent refuses to do"],
@@ -27,60 +27,64 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
   "domains": ["string array of 3-6 areas of expertise"],
   "services": []
 }
-Be wildly creative. Every agent should feel completely unique — vary the creature type, vibe, skills, domains, and personality drastically each time. Mix genres: cyberpunk, fantasy, noir, cosmic horror, solarpunk, etc.`;
+CRITICAL DIVERSITY RULES:
+- Creature type MUST rotate between: humans (all genders/ages/ethnicities), animals, aliens, robots, mythological beings, plants, abstract entities. NEVER repeat the same category twice in a row.
+- Do NOT default to dark/gothic/void/wraith/shadow themes. Vary between: cute, fierce, elegant, goofy, serene, punk, regal, primal, cosmic, organic, mechanical, ethereal.
+- Mix genres wildly: solarpunk, cottagecore, afrofuturism, vaporwave, art deco, tribal, kawaii, brutalist, baroque, cyberpunk, fantasy, etc.`;
 
 // ── Portrait prompt system instruction ──
 
-const PORTRAIT_SYSTEM_PROMPT = `You are an expert fashion photographer specializing in avant-garde high-fashion editorial portraits with surreal, dramatic, and rebellious mood. Your signature style is high-contrast dramatic lighting, bold vibrant colors, intense expressions, exaggerated accessories and makeup, surreal elements, and emotional intensity — capturing confident, edgy, and powerful personalities in close-up compositions on solid or subtle backgrounds.
+const PORTRAIT_SYSTEM_PROMPT = `You are an avant-garde fashion portrait photographer. You create high-contrast dramatic editorial portraits with bold vibrant colors, surreal elements, and solid color backgrounds.
 
-Reference style (always incorporate these exact stylistic elements in every prompt you create): A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background.
+Given a character's data (name, creature, vibe, personality, skills, domains), write a detailed image prompt for a portrait that authentically represents that character.
 
-When given a character, follow this exact process:
-1. Carefully analyze the character's personality, expression, and potential for dramatic enhancement from their name, creature, vibe, personality, skills and domains.
-2. Identify the most evocative pose, lighting, accessories, and surreal touch.
-3. Reimagine the character as a standalone high-fashion editorial portrait with bold colors, intense mood, and avant-garde edge.
-4. Create a single, highly detailed and vivid text prompt. Every prompt MUST begin with the exact reference style phrase: "A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background." Then continue with the specific subject description, pose, accessories, lighting, and mood details.
-   - High-contrast dramatic lighting with bold shadows and highlights
-   - Bold vibrant colors, exaggerated makeup or hair
-   - Intense confident/rebellious expression
-   - Exaggerated accessories (crowns, masks, chains, sunglasses)
-   - Surreal or edgy elements for emotional impact
-   - Close-up portrait composition
-   - Solid or subtle background
-   - Square or portrait orientation as fits the subject naturally
-   - Powerful avant-garde fashion editorial impact with rebellious energy
+STYLE:
+- High-contrast dramatic lighting, bold SATURATED vibrant colors, exaggerated makeup or accessories
+- Shoulders-up composition — face AND shoulders clearly visible, NEVER crop at neck
+- Avant-garde fashion editorial energy
+- The character's COLOR PALETTE must be BRIGHT, VIVID, and SATURATED — think fashion magazine covers, pop art, Warhol prints
 
-CRITICAL — Character:
-- Interpret the character's name, creature, vibe, personality, skills and domains freely. Use ALL of these fields to decide what kind of being to draw — human, alien, cyborg, animal-headed, masked, whatever fits.
-- Be creative and surprising. Don't default to the same type repeatedly.
-- You MUST always be specific about what you're drawing. NEVER leave it vague like "a figure" or "a being".
-- Use the character's skills and domains to add subtle visual flavor.
+ABSOLUTELY FORBIDDEN — never include any of these:
+- Dark/black/charred/scorched/obsidian skin tones or textures
+- Glass reflections, liquid chrome, melting/dripping effects
+- Overall dark or moody color palettes — NO all-black, all-grey, all-brown characters
+- Glowing cracks/fissures/veins on dark surfaces
+- "Void", "shadow", "ash", "smoke", "charred" aesthetics
+- Monochrome dark portraits
 
-CRITICAL — Shoulders:
-- The portrait MUST show shoulders. Frame from shoulders up — face AND shoulders clearly visible.
-- NEVER crop at the neck. The image must include the upper chest/shoulder area.
+REQUIRED COLOR APPROACH:
+- Every character must have at LEAST 2-3 vivid colors on their face/body (not just accessories)
+- Skin/surface can be: pastel pink, electric blue, golden, coral, lavender, mint green, warm copper, pearl white, tangerine, magenta, turquoise, candy red — ALWAYS bright and saturated
+- Metallic finishes (gold, silver, rose gold, copper) ARE allowed — but must be SHINY and bright, not dark
+- Even "dark" themed characters must be rendered in bright vivid colors — a shadow creature should be electric purple and neon blue, NOT black and grey
 
-CRITICAL — Background:
-- The background MUST be a single solid color chosen randomly from ONLY these four options: black, cyan, yellow, red.
-- The background must be a clean, solid flat fill — no scenery, no gradient, no patterns.
+CHARACTER INTERPRETATION:
+- Derive EVERYTHING from the character data. The name, creature type, vibe, personality, skills, and domains should drive every visual decision.
+- The character's mood and expression must match their personality and vibe — a playful trickster should look mischievous, a stoic guardian should look calm and steady, a chaotic entity should look wild. Do NOT default to angry/intense for every character.
+- Be specific about what you're drawing. NEVER say "a figure" or "a being" — describe the actual creature/entity.
+- Vary wildly between characters. Different creature types, body features, colors, accessories, expressions.
+- Characters can be: human (any gender, age, ethnicity), animal, alien, robot, mythological being, hybrid, etc.
 
-OUTPUT FORMAT — You MUST respond with valid JSON only:
+BACKGROUND:
+- Do NOT mention any background color in your prompt. The background will be added separately.
+- Do NOT let any background color influence the character's appearance.
+
+OUTPUT FORMAT — Respond with valid JSON only, no markdown:
 {
-  "prompt": "A high-contrast dramatic avant-garde fashion portrait...",
+  "prompt": "<your portrait prompt here>",
   "traits": {
-    "Hair": "<creative choice>",
-    "Eyes": "<creative choice>",
-    "Facial Hair": "<creative choice or None>",
-    "Mouth": "<creative choice>",
-    "Accessory": "<creative choice or None>",
-    "Headwear": "<creative choice or None>",
-    "Skin": "<creative choice>"
+    "Hair": "<derived from character>",
+    "Eyes": "<derived from character>",
+    "Facial Hair": "<derived from character or None>",
+    "Mouth": "<derived from character>",
+    "Accessory": "<derived from character or None>",
+    "Headwear": "<derived from character or None>",
+    "Skin": "<derived from character — MUST be a bright/vivid color, NEVER dark/black/charred>"
   }
 }
 
-Output ONLY the final JSON. Do not add explanations or additional text.`;
-
-const REFERENCE_PREFIX = 'a high-contrast dramatic avant-garde fashion portrait';
+All trait values must be derived from the character's data. Do NOT use generic defaults. Every generation must be unique.
+Output ONLY JSON.`;
 
 // ── Route handler ──
 
@@ -172,36 +176,48 @@ export async function POST(request: NextRequest) {
     }
 
     if (!portraitPrompt || portraitPrompt.length < 10) {
-      portraitPrompt = `A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. A ${agent.creature} named ${agent.name} with ${agent.vibe} energy.`;
+      portraitPrompt = `High-contrast dramatic portrait of a ${agent.creature} named ${agent.name} with ${agent.vibe} energy, bold vibrant colors.`;
     }
-    if (!portraitPrompt.toLowerCase().startsWith(REFERENCE_PREFIX)) {
-      portraitPrompt = 'A high-contrast dramatic avant-garde fashion portrait with bold vibrant colors, intense expression, exaggerated accessories or makeup, surreal rebellious elements, powerful emotional intensity, and solid or subtle background. ' + portraitPrompt;
-    }
+
+    // Strip any background mentions the AI may have added
+    portraitPrompt = portraitPrompt.replace(/\b(solid|flat|plain|pure)?\s*(black|red|yellow|green|white|grey|gray|blue|navy|dark)\s*background\b/gi, '').trim();
 
     // Enrich with trait details
     const traitLines = Object.entries(visualTraits)
       .filter(([, v]) => v && v !== 'None' && v !== 'none')
       .map(([k, v]) => `${k}: ${v}`)
       .join(', ');
-    const enrichedPrompt = traitLines ? `${portraitPrompt} Character details: ${traitLines}.` : portraitPrompt;
+    let enrichedPrompt = traitLines ? `${portraitPrompt} Character details: ${traitLines}.` : portraitPrompt;
+
+    // Append background color — chosen server-side so AI never sees it during character design
+    const bgColors = ['black', 'red', 'yellow', 'green'];
+    const bg = bgColors[Math.floor(Math.random() * bgColors.length)];
+    enrichedPrompt += ` Solid ${bg} background, no gradient, no scenery.`;
 
     // ══════════════════════════════════════════════════
     //  STEP 3: Generate image
     // ══════════════════════════════════════════════════
 
-    const imageResponse = await ai.models.generateImages({
+    const imageResponse = await ai.models.generateContent({
       model: MODEL_IMAGE,
-      prompt: enrichedPrompt,
+      contents: [{ role: 'user', parts: [{ text: enrichedPrompt }] }],
       config: {
-        numberOfImages: 1,
+        responseModalities: ['image', 'text'],
+        // @ts-expect-error aspectRatio exists at runtime but missing from SDK types
         aspectRatio: '1:1',
       },
     });
 
     let base64Image: string | null = null;
-    const generated = imageResponse.generatedImages;
-    if (generated?.[0]?.image?.imageBytes) {
-      base64Image = `data:image/png;base64,${generated[0].image.imageBytes}`;
+    const candidates = imageResponse.candidates;
+    if (candidates?.[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          const { mimeType, data } = part.inlineData;
+          base64Image = `data:${mimeType};base64,${data}`;
+          break;
+        }
+      }
     }
     if (!base64Image) throw new Error('No image generated');
 
