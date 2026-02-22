@@ -88,8 +88,10 @@ export function InputForm() {
     selectedDomains,
     setSelectedDomains,
     setImportedRegistryTokenId,
+    setImportedAgentChain,
     importedImageURI,
     setImportedImageURI,
+    isImportedAgentOwner,
     updateAgentOnly,
   } = useGenerator();
 
@@ -231,6 +233,7 @@ export function InputForm() {
     setSelectedChain(chain as SupportedChain);
     setAgentId(tokenId);
     setImportedRegistryTokenId(parseInt(tokenId));
+    setImportedAgentChain(chain as SupportedChain);
 
     // Fetch 8004 registration data and pre-fill form
     setImportLoading(true);
@@ -400,7 +403,7 @@ export function InputForm() {
                   <div className={`w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <select
                       value={selectedChain}
-                      onChange={(e) => setSelectedChain(e.target.value as SupportedChain)}
+                      onChange={(e) => { setSelectedChain(e.target.value as SupportedChain); setImportedAgentChain(e.target.value as SupportedChain); }}
                       disabled={isBusy}
                       className="w-full bg-transparent outline-none cursor-pointer"
                     >
@@ -687,16 +690,23 @@ export function InputForm() {
               {getMintLabel()}
             </button>
 
-            {/* UPDATE ONLY — import mode with agent selected */}
+            {/* UPDATE ONLY — import mode with agent selected, only for owner */}
             {mode === 'import' && selectedValue && currentStep === 'input' && (
-              <button
-                type="button"
-                onClick={updateAgentOnly}
-                disabled={!agentName.trim() || !isConnected || (imageURIInput !== '' && !isValidImageURI(imageURIInput))}
-                className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-sm hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                UPDATE ONLY
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={updateAgentOnly}
+                  disabled={!agentName.trim() || !isConnected || isImportedAgentOwner === false || (imageURIInput !== '' && !isValidImageURI(imageURIInput))}
+                  className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-sm hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  UPDATE ONLY
+                </button>
+                {isImportedAgentOwner === false && (
+                  <p className="text-xs font-mono text-red-500 mt-1">
+                    You are not the owner of this agent
+                  </p>
+                )}
+              </>
             )}
           </div>
 

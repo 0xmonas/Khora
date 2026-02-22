@@ -6,6 +6,7 @@ import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
@@ -52,8 +53,12 @@ type GeneratorContextType = {
   // Agent registration (ERC-8004 Identity Registry)
   importedRegistryTokenId: number | null;
   setImportedRegistryTokenId: (id: number | null) => void;
+  importedAgentChain: SupportedChain | null;
+  setImportedAgentChain: (chain: SupportedChain | null) => void;
   importedImageURI: string | null;
   setImportedImageURI: (uri: string | null) => void;
+  isImportedAgentOwner: boolean | null;  // null = not checked yet, true/false = ownership result
+  setIsImportedAgentOwner: (v: boolean | null) => void;
   registryAgentId: bigint | null;
   registerTxHash: `0x${string}` | null;
   updateTxHash: `0x${string}` | null;
@@ -247,7 +252,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // Agent registration state (Identity Registry)
   const [importedRegistryTokenId, setImportedRegistryTokenId] = useState<number | null>(null);
+  const [importedAgentChain, setImportedAgentChain] = useState<SupportedChain | null>(null);
   const [importedImageURI, setImportedImageURI] = useState<string | null>(null);
+  const [isImportedAgentOwner, setIsImportedAgentOwner] = useState<boolean | null>(null);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
   const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
   const [updateTxHash, setUpdateTxHash] = useState<`0x${string}` | null>(null);
@@ -288,6 +295,39 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('khoraGeneratorData', JSON.stringify(data));
     }
   }, [agent, pixelatedImage, currentStep, agentName, agentDescription, mode]);
+
+  // ── Check ownership when an imported agent ID changes ──
+  // Uses the agent's original chain, not the wallet's current chain
+  useEffect(() => {
+    if (!importedRegistryTokenId || !mint.address || !importedAgentChain) {
+      setIsImportedAgentOwner(null);
+      return;
+    }
+    let cancelled = false;
+    const agentChainId = CHAIN_CONFIG[importedAgentChain].chainId;
+    const registryAddress = getRegistryAddress(agentChainId);
+
+    // Use viem directly to read from the agent's chain (wallet may be on a different chain)
+    const rpcUrl = CHAIN_CONFIG[importedAgentChain].rpcUrl;
+    import('viem').then(({ createPublicClient, http }) => {
+      const client = createPublicClient({ transport: http(rpcUrl) });
+      client.readContract({
+        address: registryAddress,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'ownerOf',
+        args: [BigInt(importedRegistryTokenId)],
+      }).then((owner) => {
+        if (!cancelled) {
+          setIsImportedAgentOwner(
+            (owner as string).toLowerCase() === mint.address!.toLowerCase()
+          );
+        }
+      }).catch(() => {
+        if (!cancelled) setIsImportedAgentOwner(false);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [importedRegistryTokenId, importedAgentChain, mint.address]);
 
   // ── React to mint phase changes ──
 
@@ -477,7 +517,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   // ── UPDATE ONLY: update registry without minting ──
   const updateAgentOnly = useCallback(async () => {
-    if (!importedRegistryTokenId || !mint.address) {
+    if (!importedRegistryTokenId || !mint.address || !importedAgentChain) {
       setError(friendlyError('Missing agent data for update'));
       return;
     }
@@ -486,14 +526,28 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Use the agent's original chain, not the wallet's current chain
+    const agentChainId = CHAIN_CONFIG[importedAgentChain].chainId;
+    const registryAddress = getRegistryAddress(agentChainId);
+
+    // Ownership was already checked by the effect, but double-check here
+    if (isImportedAgentOwner === false) {
+      setError('You are not the owner of this agent. Only the original registrant can update it.');
+      return;
+    }
+
+    // Wallet must be on the same chain as the agent's registry
+    if (mint.chainId !== agentChainId) {
+      setError(`Please switch your wallet to ${importedAgentChain === 'base' ? 'Base' : CHAIN_CONFIG[importedAgentChain].name} to update this agent.`);
+      return;
+    }
+
     setError(null);
     setCurrentStep('updating');
     setIsModalOpen(true);
 
     try {
-      const chainId = mint.chainId;
-      const registryAddress = getRegistryAddress(chainId);
-      const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryAddr = agentChainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
 
       // Build ERC-8004 registration from current form state
       const cleanedServices = erc8004Services
@@ -550,7 +604,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         updatedAt: Math.floor(Date.now() / 1000),
         registrations: [{
           agentId: importedRegistryTokenId,
-          agentRegistry: `eip155:${chainId}:${registryAddr}`,
+          agentRegistry: `eip155:${agentChainId}:${registryAddr}`,
         }],
       };
 
@@ -583,7 +637,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setCurrentStep('input');
       setIsModalOpen(false);
     }
-  }, [importedRegistryTokenId, mint.address, mint.chainId, isAuthenticated, agentName, agentDescription, importedImageURI, erc8004Services, selectedSkills, selectedDomains, x402Support, supportedTrust, writeRegister, publicClient]);
+  }, [importedRegistryTokenId, importedAgentChain, isImportedAgentOwner, mint.address, mint.chainId, isAuthenticated, agentName, agentDescription, importedImageURI, erc8004Services, selectedSkills, selectedDomains, x402Support, supportedTrust, writeRegister, publicClient]);
 
   // ── Main action: MINT button ──
   // V2 flow: 1) Server generates agent + signs mint packet  2) User sends single mint tx
@@ -700,7 +754,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setSelectedSkills([]);
     setSelectedDomains([]);
     setImportedRegistryTokenId(null);
+    setImportedAgentChain(null);
     setImportedImageURI(null);
+    setIsImportedAgentOwner(null);
     setRegistryAgentId(null);
     setRegisterTxHash(null);
     setUpdateTxHash(null);
@@ -789,7 +845,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     selectedSkills, setSelectedSkills,
     selectedDomains, setSelectedDomains,
     importedRegistryTokenId, setImportedRegistryTokenId,
+    importedAgentChain, setImportedAgentChain,
     importedImageURI, setImportedImageURI,
+    isImportedAgentOwner, setIsImportedAgentOwner,
     registryAgentId, registerTxHash, updateTxHash,
     isModalOpen,
     mintAndGenerate, registerAgent, updateAgentOnly, downloadAgent, reset, closeModal, openModal,
