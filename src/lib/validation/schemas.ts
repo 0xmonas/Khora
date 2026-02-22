@@ -1,26 +1,5 @@
 import { z } from 'zod';
 
-export const generatePromptSchema = z.object({
-  prompt: z
-    .string()
-    .trim()
-    .min(1, 'Prompt is required')
-    .max(5000, 'Prompt is too long (max 5000 characters)'),
-  systemInstruction: z
-    .string()
-    .trim()
-    .max(10000, 'System instruction is too long')
-    .optional(),
-});
-
-export const generateImageSchema = z.object({
-  prompt: z
-    .string()
-    .trim()
-    .min(1, 'Prompt is required')
-    .max(5000, 'Prompt is too long (max 5000 characters)'),
-});
-
 export const generateAgentSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
   description: z.string().trim().min(1, 'Description is required').max(1000, 'Description is too long'),

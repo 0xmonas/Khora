@@ -1,14 +1,9 @@
 'use client';
 
-import { useCallback } from 'react';
-import {
-  useReadContract,
-  useReadContracts,
-  useAccount,
-  useChainId,
-} from 'wagmi';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAccount, useChainId, useReadContracts } from 'wagmi';
 import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { base } from 'wagmi/chains';
 
 export interface GalleryToken {
   tokenId: bigint;
@@ -16,21 +11,10 @@ export interface GalleryToken {
   isOwned: boolean;
 }
 
-// Parse SVG from tokenURI data (data:application/json;base64,... → .image → data:image/svg+xml;base64,...)
-function extractSvgFromTokenURI(dataUri: string): string | null {
-  try {
-    if (!dataUri.startsWith('data:application/json;base64,')) return null;
-    const json = atob(dataUri.replace('data:application/json;base64,', ''));
-    const metadata = JSON.parse(json);
-    if (metadata.image && metadata.image.startsWith('data:image/svg+xml;base64,')) {
-      return atob(metadata.image.replace('data:image/svg+xml;base64,', ''));
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
+/**
+ * Fetches gallery tokens via /api/gallery (Alchemy getNFTsForContract) for metadata/SVG,
+ * and uses on-chain ownerOf calls for accurate ownership detection.
+ */
 export function useGalleryTokens() {
   const { address } = useAccount();
   const chainId = useChainId();
@@ -38,21 +22,61 @@ export function useGalleryTokens() {
   const targetChainId = getV2ChainId(chainId);
   const enabled = !!contractAddress && contractAddress.length > 2;
 
-  // Step 1: Total supply
-  const { data: totalSupply, refetch: refetchSupply } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_V2_ABI,
-    functionName: 'totalSupply',
-    chainId: targetChainId,
-    query: { enabled },
-  });
+  const [galleryData, setGalleryData] = useState<{ tokenId: string; svg: string | null }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
-  const count = totalSupply ? Number(totalSupply) : 0;
+  const chain = chainId === base.id ? 'base' : 'base-sepolia';
 
-  // Step 2: V2 tokens are sequential (0..totalSupply-1) — no tokenByIndex needed
-  const allTokenIds: bigint[] = Array.from({ length: count }, (_, i) => BigInt(i));
+  // Step 1: Fetch all tokens (metadata + SVG) via Alchemy API
+  const fetchGallery = useCallback(async () => {
+    if (!enabled) return;
 
-  // Step 3: Batch check ownership via ownerOf
+    setIsLoading(true);
+    try {
+      const allTokens: { tokenId: string; svg: string | null }[] = [];
+      let startToken: string | undefined;
+
+      do {
+        const url = new URL('/api/gallery', window.location.origin);
+        url.searchParams.set('contract', contractAddress);
+        url.searchParams.set('chain', chain);
+        if (startToken) url.searchParams.set('startToken', startToken);
+
+        const res = await fetch(url.toString());
+        if (!res.ok) break;
+
+        const data = await res.json();
+
+        for (const token of data.tokens || []) {
+          allTokens.push({
+            tokenId: token.tokenId,
+            svg: token.svg || null,
+          });
+        }
+
+        startToken = data.nextToken || undefined;
+      } while (startToken);
+
+      setGalleryData(allTokens);
+    } catch {
+      // Keep existing data on error
+    } finally {
+      setIsLoading(false);
+    }
+  }, [enabled, contractAddress, chain]);
+
+  // Initial fetch
+  useEffect(() => {
+    if (!fetchedRef.current && enabled) {
+      fetchedRef.current = true;
+      fetchGallery();
+    }
+  }, [enabled, fetchGallery]);
+
+  // Step 2: On-chain ownerOf batch — this is lightweight (just address returns, not SVG data)
+  const allTokenIds = galleryData.map((t) => BigInt(t.tokenId));
+
   const ownerCalls = allTokenIds.map((tokenId) => ({
     address: contractAddress,
     abi: BOOA_V2_ABI,
@@ -63,76 +87,34 @@ export function useGalleryTokens() {
 
   const { data: ownerResults } = useReadContracts({
     contracts: ownerCalls,
-    query: { enabled: count > 0 },
+    query: { enabled: galleryData.length > 0 },
   });
 
-  // Build set of owned token IDs
-  const ownedTokenIds = new Set<string>();
-  if (address) {
-    ownerResults?.forEach((result, i) => {
+  // Build final token list with accurate ownership
+  const ownedSet = new Set<string>();
+  if (address && ownerResults) {
+    ownerResults.forEach((result, i) => {
       if (result.status === 'success' && (result.result as string).toLowerCase() === address.toLowerCase()) {
-        ownedTokenIds.add(allTokenIds[i].toString());
+        ownedSet.add(allTokenIds[i].toString());
       }
     });
   }
 
-  // Step 4: Batch fetch tokenURIs (SVG embedded in on-chain JSON metadata)
-  const tokenURICalls = allTokenIds.map((tokenId) => ({
-    address: contractAddress,
-    abi: BOOA_V2_ABI,
-    functionName: 'tokenURI' as const,
-    args: [tokenId] as const,
-    chainId: targetChainId,
+  const tokens: GalleryToken[] = galleryData.map((t) => ({
+    tokenId: BigInt(t.tokenId),
+    svg: t.svg,
+    isOwned: ownedSet.has(t.tokenId),
   }));
 
-  const { data: tokenURIResults, isLoading: uriLoading } = useReadContracts({
-    contracts: tokenURICalls,
-    query: { enabled: count > 0 },
-  });
-
-  // Assemble token list
-  const tokens: GalleryToken[] = allTokenIds.map((tokenId, i) => {
-    const uriResult = tokenURIResults?.[i];
-    const svg = uriResult?.status === 'success'
-      ? extractSvgFromTokenURI(uriResult.result as string)
-      : null;
-
-    return {
-      tokenId,
-      svg,
-      isOwned: ownedTokenIds.has(tokenId.toString()),
-    };
-  });
-
-  const isLoading = enabled && count > 0 && (!ownerResults || uriLoading);
-
-  const queryClient = useQueryClient();
-
-  const refetchAll = useCallback(async () => {
-    await refetchSupply();
-    await queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = JSON.stringify(query.queryKey, (_k, v) =>
-          typeof v === 'bigint' ? v.toString() : v,
-        );
-        return key.includes(contractAddress);
-      },
-      refetchType: 'all',
-    });
-    queryClient.resetQueries({
-      predicate: (query) => {
-        const key = JSON.stringify(query.queryKey, (_k, v) =>
-          typeof v === 'bigint' ? v.toString() : v,
-        );
-        return key.includes(contractAddress);
-      },
-    });
-  }, [queryClient, contractAddress, refetchSupply]);
+  const refetch = useCallback(async () => {
+    fetchedRef.current = false;
+    await fetchGallery();
+  }, [fetchGallery]);
 
   return {
     tokens,
-    totalSupply: count,
-    isLoading,
-    refetch: refetchAll,
+    totalSupply: galleryData.length,
+    isLoading: isLoading || (galleryData.length > 0 && !ownerResults),
+    refetch,
   };
 }
