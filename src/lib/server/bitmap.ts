@@ -53,6 +53,39 @@ function nearestPaletteIndex(r: number, g: number, b: number): number {
 }
 
 const GRID_SIZE = 64;
+const PREVIEW_SCALE = 16; // 64 * 16 = 1024 (matches client-side pixelator.ts)
+
+/** Vertical pixel stretch — averages 2-row blocks for a scan-line feel (matches client-side) */
+function applyPixelStretch(data: Buffer, w: number, h: number, channels: number): void {
+  const stretchY = 2;
+  const src = Buffer.from(data); // snapshot before mutation
+
+  for (let y = 0; y < h; y += stretchY) {
+    for (let x = 0; x < w; x++) {
+      const endY = Math.min(y + stretchY, h);
+      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+
+      for (let by = y; by < endY; by++) {
+        const idx = (by * w + x) * channels;
+        rSum += src[idx];
+        gSum += src[idx + 1];
+        bSum += src[idx + 2];
+        count++;
+      }
+
+      const avgR = Math.round(rSum / count);
+      const avgG = Math.round(gSum / count);
+      const avgB = Math.round(bSum / count);
+
+      for (let by = y; by < endY; by++) {
+        const idx = (by * w + x) * channels;
+        data[idx] = avgR;
+        data[idx + 1] = avgG;
+        data[idx + 2] = avgB;
+      }
+    }
+  }
+}
 
 /**
  * Encode a base64 image into a 2,048-byte bitmap (server-side).
@@ -72,6 +105,10 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  // Apply pixel stretch (matches client-side pixelator.ts)
+  const stretched = Buffer.from(data);
+  applyPixelStretch(stretched, GRID_SIZE, GRID_SIZE, 3);
+
   // Pack into 4-bit nibbles
   const bytesPerRow = GRID_SIZE / 2;
   const bitmap = new Uint8Array(GRID_SIZE * bytesPerRow);
@@ -81,8 +118,8 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
       const i0 = (y * GRID_SIZE + x) * 3;
       const i1 = (y * GRID_SIZE + x + 1) * 3;
 
-      const idx0 = nearestPaletteIndex(data[i0], data[i0 + 1], data[i0 + 2]);
-      const idx1 = nearestPaletteIndex(data[i1], data[i1 + 1], data[i1 + 2]);
+      const idx0 = nearestPaletteIndex(stretched[i0], stretched[i0 + 1], stretched[i0 + 2]);
+      const idx1 = nearestPaletteIndex(stretched[i1], stretched[i1 + 1], stretched[i1 + 2]);
 
       bitmap[y * bytesPerRow + (x >> 1)] = (idx0 << 4) | idx1;
     }
@@ -106,19 +143,24 @@ export async function pixelateImageServer(base64Image: string): Promise<string> 
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  // Apply pixel stretch (matches client-side pixelator.ts)
+  const stretched = Buffer.from(data);
+  applyPixelStretch(stretched, GRID_SIZE, GRID_SIZE, 3);
+
   // Quantize to C64 palette
   const quantized = Buffer.alloc(GRID_SIZE * GRID_SIZE * 3);
   for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
-    const idx = nearestPaletteIndex(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+    const idx = nearestPaletteIndex(stretched[i * 3], stretched[i * 3 + 1], stretched[i * 3 + 2]);
     const c = C64_PALETTE[idx];
     quantized[i * 3] = c.r;
     quantized[i * 3 + 1] = c.g;
     quantized[i * 3 + 2] = c.b;
   }
 
-  // Scale up to 512x512 for preview
+  // Scale up to 1024x1024 with nearest-neighbor (matches client-side)
+  const outputSize = GRID_SIZE * PREVIEW_SCALE;
   const png = await sharp(quantized, { raw: { width: GRID_SIZE, height: GRID_SIZE, channels: 3 } })
-    .resize(512, 512, { kernel: 'nearest' })
+    .resize(outputSize, outputSize, { kernel: 'nearest' })
     .png()
     .toBuffer();
 

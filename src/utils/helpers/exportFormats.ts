@@ -45,6 +45,7 @@ export function toERC8004(agent: KhoraAgent): ERC8004Registration {
     active: enrichedServices.some(s => s.endpoint.trim() !== ''),
     x402Support: agent.x402Support ?? false,
     supportedTrust: agent.supportedTrust?.length ? agent.supportedTrust : undefined,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 }
 

@@ -16,10 +16,15 @@ import { cn } from '@/lib/utils';
 
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
 
-const STEPS = [
+const MINT_STEPS = [
   { label: 'Generate', desc: 'AI creates your agent' },
   { label: 'Mint', desc: 'Confirm transaction' },
   { label: 'Complete', desc: 'NFT minted' },
+] as const;
+
+const UPDATE_STEPS = [
+  { label: 'Update', desc: 'Confirm transaction' },
+  { label: 'Complete', desc: 'Agent updated' },
 ] as const;
 
 function getStepStatuses(
@@ -36,6 +41,10 @@ function getStepStatuses(
     case 'registering':
     case 'register_complete':
       return ['done', 'done', 'done'];
+    case 'updating':
+      return ['active', 'pending'];
+    case 'update_complete':
+      return ['done', 'done'];
     default:
       return ['pending', 'pending', 'pending'];
   }
@@ -117,6 +126,7 @@ function StepContent() {
     registerAgent,
     registryAgentId,
     registerTxHash,
+    updateTxHash,
     txHash,
     mode,
     importedRegistryTokenId,
@@ -318,6 +328,43 @@ function StepContent() {
     );
   }
 
+  // UPDATE ONLY: updating (waiting for wallet + tx confirmation)
+  if (currentStep === 'updating') {
+    return (
+      <div className="space-y-3">
+        <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+          Updating agent metadata on Identity Registry...
+        </p>
+        {updateTxHash && <TxHashLink hash={updateTxHash} label="Update tx" />}
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
+          <span className="font-mono text-xs text-neutral-500">Waiting for confirmation...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // UPDATE ONLY: complete
+  if (currentStep === 'update_complete') {
+    return (
+      <div className="space-y-3">
+        {importedRegistryTokenId !== null && (
+          <div className="flex justify-between font-mono text-xs">
+            <span className="text-neutral-500">Registry ID:</span>
+            <span className="dark:text-white">#{importedRegistryTokenId}</span>
+          </div>
+        )}
+        {updateTxHash && <TxHashLink hash={updateTxHash} label="Update tx" />}
+        <p className="font-mono text-xs text-green-600 dark:text-green-400">
+          Agent metadata updated on ERC-8004 protocol.
+        </p>
+        <p className="font-mono text-[10px] text-neutral-400">
+          Your agent parameters have been updated on-chain without minting a new NFT.
+        </p>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -330,7 +377,7 @@ export function MintFlowModal() {
 
   // Auto-close countdown only after registration/update is complete
   useEffect(() => {
-    if (currentStep === 'register_complete' && isModalOpen) {
+    if ((currentStep === 'register_complete' || currentStep === 'update_complete') && isModalOpen) {
       setCountdown(AUTO_CLOSE_SECONDS);
       timerRef.current = setInterval(() => {
         setCountdown(prev => {
@@ -354,15 +401,17 @@ export function MintFlowModal() {
 
   // Close modal when countdown reaches 0
   useEffect(() => {
-    if (countdown === 0 && currentStep === 'register_complete' && isModalOpen) {
+    if (countdown === 0 && (currentStep === 'register_complete' || currentStep === 'update_complete') && isModalOpen) {
       closeModal();
     }
   }, [countdown, currentStep, isModalOpen, closeModal]);
 
+  const isUpdateFlow = currentStep === 'updating' || currentStep === 'update_complete';
+  const steps = isUpdateFlow ? UPDATE_STEPS : MINT_STEPS;
   const statuses = getStepStatuses(currentStep);
 
   // Modal can only be closed in safe states
-  const canClose = currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'input';
+  const canClose = currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete' || currentStep === 'input';
 
   const handleOpenChange = (open: boolean) => {
     if (!open && canClose) {
@@ -379,7 +428,7 @@ export function MintFlowModal() {
         className="p-0"
       >
         <DialogHeader>
-          <DialogTitle>mint_flow</DialogTitle>
+          <DialogTitle>{isUpdateFlow ? 'update_flow' : 'mint_flow'}</DialogTitle>
           {canClose && currentStep !== 'input' && (
             <button
               onClick={closeModal}
@@ -396,7 +445,7 @@ export function MintFlowModal() {
         <div className="p-4 space-y-4">
           {/* Step indicators */}
           <div className="space-y-2">
-            {STEPS.map((step, i) => (
+            {steps.map((step, i) => (
               <StepIndicator
                 key={step.label}
                 number={i + 1}
@@ -414,7 +463,7 @@ export function MintFlowModal() {
           <StepContent />
 
           {/* Auto-close countdown */}
-          {currentStep === 'register_complete' && countdown > 0 && (
+          {(currentStep === 'register_complete' || currentStep === 'update_complete') && countdown > 0 && (
             <p className="font-mono text-[10px] text-neutral-400 text-center">
               closing in {countdown}s
             </p>

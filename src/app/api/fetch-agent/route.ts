@@ -42,25 +42,35 @@ async function callTokenURI(chain: SupportedChain, agentId: number): Promise<str
 }
 
 async function fetchRegistration(agentURI: string) {
+  let registration;
+
   // Handle data URIs
   if (agentURI.startsWith('data:')) {
     const base64 = agentURI.split(',')[1];
     const json = Buffer.from(base64, 'base64').toString('utf-8');
-    return JSON.parse(json);
+    registration = JSON.parse(json);
+  } else {
+    // Handle IPFS URIs
+    let url = agentURI;
+    if (url.startsWith('ipfs://')) {
+      url = `https://ipfs.io/ipfs/${url.slice(7)}`;
+    }
+
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch registration: ${response.status}`);
+    }
+
+    registration = await response.json();
   }
 
-  // Handle IPFS URIs
-  let url = agentURI;
-  if (url.startsWith('ipfs://')) {
-    url = `https://ipfs.io/ipfs/${url.slice(7)}`;
+  // endpoints → services migration (ERC-8004 Jan 2026)
+  if (registration.endpoints && !registration.services) {
+    registration.services = registration.endpoints;
+    delete registration.endpoints;
   }
 
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch registration: ${response.status}`);
-  }
-
-  return response.json();
+  return registration;
 }
 
 export async function POST(request: NextRequest) {

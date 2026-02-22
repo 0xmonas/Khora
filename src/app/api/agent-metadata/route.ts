@@ -101,23 +101,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Agent metadata too large' }, { status: 400 });
   }
 
-  // Overwrite protection: only allow first write per tokenId
+  // Overwrite protection: only the original minter can update
   const key = makeKey(Number(chainId), tokenIdNum);
-  const existing = await redis.exists(key);
+  const existing = await redis.get<Record<string, unknown>>(key);
   if (existing) {
-    return NextResponse.json(
-      { error: 'Metadata already exists for this token' },
-      { status: 409 },
-    );
+    const originalMinter = (existing._minter as string) || '';
+    if (originalMinter && address.toLowerCase() !== originalMinter.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Only the original minter can update metadata' },
+        { status: 403 },
+      );
+    }
   }
 
-  // Store permanently (no TTL)
+  // Store permanently (no TTL) — upsert for same minter
   await redis.set(key, {
     ...agent,
     _minter: address.toLowerCase(),
     _chainId: Number(chainId),
     _tokenId: tokenIdNum,
-    _savedAt: Date.now(),
+    _savedAt: existing ? (existing._savedAt as number) : Date.now(),
+    _updatedAt: Date.now(),
   });
 
   // Reset generation quota after successful mint — wallet can generate again
