@@ -18,7 +18,8 @@ export function Footer() {
       <div className="p-4 md:p-8 lg:p-12">
         <div className="w-full lg:grid lg:grid-cols-12">
           <div className="hidden lg:block lg:col-span-1" />
-          <div className="lg:col-span-10 space-y-4">
+          <div className="lg:col-span-10 space-y-6">
+
             {/* NFT Collection row */}
             {NFT_CONTRACT && (
               <div className="flex flex-wrap items-center gap-3">
@@ -44,12 +45,18 @@ export function Footer() {
               </div>
             )}
 
-            {/* Main footer row */}
-            <div className="flex flex-row items-center justify-between">
+            {/* Links row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <p className="text-sm text-neutral-500" style={footerFont}>
                 &copy; 2025 KHORA.FUN
               </p>
-              <div className="flex flex-row items-center gap-6">
+              <div className="flex flex-wrap items-center gap-6">
+                <Link href="/booa" className={linkClass} style={footerFont}>
+                  BOOA
+                </Link>
+                <Link href="/bridge" className={linkClass} style={footerFont}>
+                  Bridge
+                </Link>
                 <a
                   href="https://x.com/khorafun"
                   target="_blank"
@@ -59,20 +66,6 @@ export function Footer() {
                 >
                   X
                 </a>
-                <Link
-                  href="/booa"
-                  className={linkClass}
-                  style={footerFont}
-                >
-                  BOOA
-                </Link>
-                <Link
-                  href="/bridge"
-                  className={linkClass}
-                  style={footerFont}
-                >
-                  Bridge
-                </Link>
                 <a
                   href="https://github.com/0xmonas/Khora"
                   target="_blank"
@@ -84,6 +77,7 @@ export function Footer() {
                 </a>
               </div>
             </div>
+
           </div>
           <div className="hidden lg:block lg:col-span-1" />
         </div>

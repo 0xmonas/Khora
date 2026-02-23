@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Github, ArrowRight } from 'lucide-react';
@@ -5,40 +7,36 @@ import { useTheme } from '@/components/providers/theme-provider';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
+const micro = 'text-[9px] uppercase tracking-[0.2em]';
+
+/* ═══════════════════════════════════════
+   DATA — reflects the full Khora ecosystem
+   ═══════════════════════════════════════ */
 
 const PRODUCTS = [
   {
     name: 'BOOA',
     tagline: 'Born On-chain Owned Agents',
-    desc: 'Fully on-chain AI character NFTs on Base. AI generates unique pixel art portraits, personalities, skills, and boundaries — stored permanently in the smart contract via SSTORE2.',
+    desc: 'Fully on-chain AI character NFTs on Base. AI generates unique pixel art portraits, personalities, and skills — stored permanently via SSTORE2.',
     href: '/booa',
     cta: 'Explore BOOA',
-    features: ['AI-generated pixel art', 'On-chain bitmap storage', 'ERC-8004 registration', 'C64 palette / 2KB per agent'],
   },
   {
     name: 'Bridge',
-    tagline: 'NFT to ERC-8004 Converter',
-    desc: 'Turn any existing NFT into an ERC-8004 registered agent. Connect your wallet, select an NFT from any chain, configure its agent identity, and register it on the Identity Registry.',
+    tagline: 'NFT to Agent Converter',
+    desc: 'Turn any existing NFT into an on-chain agent. Connect your wallet, select an NFT from any chain, configure its identity, and register it.',
     href: '/bridge',
     cta: 'Open Bridge',
-    features: ['Multi-chain NFT scanning', 'Metadata auto-mapping', 'On-chain registration', 'Alchemy-powered indexing'],
   },
 ];
 
-const PILLARS = [
-  {
-    title: 'On-chain identity',
-    desc: 'Every agent gets a verifiable, decentralized identity via ERC-8004 — name, description, services, skills, and domains stored as a data URI directly on-chain.',
-  },
-  {
-    title: 'Multi-chain discovery',
-    desc: 'The ERC-8004 Identity Registry is deployed on 10 chains via deterministic CREATE2. Khora scans all of them in parallel to discover agents across the ecosystem.',
-  },
-  {
-    title: 'Fully open source',
-    desc: 'Smart contracts, frontend, AI pipeline — everything is public. Fork it, extend it, or build on top of it.',
-  },
+const CAPABILITIES = [
+  { label: 'Agents', desc: 'Create, register, and discover autonomous AI agents with verifiable on-chain identities.' },
+  { label: 'NFTs', desc: 'Mint fully on-chain generative NFTs or bridge existing collections into the agent ecosystem.' },
+  { label: 'Tools', desc: 'Open-source developer tools for building agent-native applications and protocols.' },
+  { label: 'Games', desc: 'Coming soon.' },
 ];
+
 
 
 export function HeroSection() {
@@ -46,154 +44,171 @@ export function HeroSection() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="p-4 md:p-8 lg:p-12">
+
+      {/* Logo */}
+      <div className="px-4 md:px-6 lg:px-8 py-16 md:py-24 lg:py-32">
+        <div className="w-full max-w-[1400px] mx-auto aspect-[5/2] relative">
+          <Image
+            src={theme === 'dark' ? '/khoradark.png' : '/khoralogo.png'}
+            alt="Khora Logo"
+            fill
+            loading="eager"
+            sizes="100vw"
+            className="object-contain invisible"
+            priority
+          />
+          <ShaderLogo />
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          TAGLINE
+         ══════════════════════════════════════ */}
+      <div className="px-4 md:px-8 lg:px-12 mt-20 md:mt-28">
+        <div className="w-full lg:grid lg:grid-cols-12">
+          <div className="hidden lg:block lg:col-span-1" />
+          <div className="lg:col-span-10 flex flex-col items-center">
+            <p className="text-lg sm:text-xl text-foreground max-w-3xl text-center leading-relaxed" style={font}>
+              Open-source studio building tools for autonomous agents,
+              generative NFTs, on-chain games, and decentralized infrastructure.
+            </p>
+            <p className="text-sm text-muted-foreground/60 max-w-xl text-center mt-4" style={font}>
+              Everything we build is fully open source.
+            </p>
+          </div>
+          <div className="hidden lg:block lg:col-span-1" />
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          CAPABILITIES — 4-column grid
+         ══════════════════════════════════════ */}
+      <div className="px-4 md:px-8 lg:px-12 mt-20 md:mt-24">
+        <div className="w-full lg:grid lg:grid-cols-12">
+          <div className="hidden lg:block lg:col-span-1" />
+          <div className="lg:col-span-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border border-neutral-200 dark:border-neutral-800">
+              {CAPABILITIES.map((cap, i) => (
+                <div
+                  key={cap.label}
+                  className={`p-5 md:p-6 ${
+                    i > 0 ? 'border-t sm:border-t-0 sm:border-l border-neutral-200 dark:border-neutral-800' : ''
+                  } ${i >= 2 ? 'lg:border-t-0 sm:border-t border-neutral-200 dark:border-neutral-800' : ''}`}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[9px] text-muted-foreground/30 tabular-nums" style={font}>
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <span className="text-sm text-foreground" style={font}>{cap.label}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 leading-relaxed" style={font}>
+                    {cap.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="hidden lg:block lg:col-span-1" />
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          PRODUCTS
+         ══════════════════════════════════════ */}
+      <div className="px-4 md:px-8 lg:px-12 mt-20 md:mt-24">
         <div className="w-full lg:grid lg:grid-cols-12">
           <div className="hidden lg:block lg:col-span-1" />
           <div className="lg:col-span-10">
 
-            {/* Hero */}
-            <div className="flex flex-col items-center">
-              <div className="w-full max-w-[1200px] mx-auto aspect-[5/2] relative">
-                <Image
-                  src={theme === 'dark' ? '/khoradark.png' : '/khoralogo.png'}
-                  alt="Khora Logo"
-                  fill
-                  loading="eager"
-                  sizes="(max-width: 768px) 100vw, 1200px"
-                  className="object-contain invisible"
-                  priority
-                />
-                <ShaderLogo />
-              </div>
-              <p
-                className="text-lg sm:text-xl text-muted-foreground max-w-2xl text-center mt-12"
-                style={font}
-              >
-                Infrastructure for AI agents that live on-chain.
-              </p>
-              <p
-                className="text-sm text-muted-foreground/70 max-w-xl text-center mt-4"
-                style={font}
-              >
-                Khora builds tools for creating, registering, and discovering autonomous agents
-                with verifiable on-chain identities.
-              </p>
-            </div>
+            <p className={`${micro} text-muted-foreground/50 mb-6`} style={font}>Products</p>
 
-            {/* Products */}
-            <div className="mt-24 space-y-6">
-              <p className="text-[10px] text-muted-foreground uppercase text-center" style={font}>
-                products
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {PRODUCTS.map((product) => (
-                  <Link
-                    key={product.name}
-                    href={product.href}
-                    className="group border border-neutral-200 dark:border-neutral-700 p-6 space-y-4 hover:border-foreground transition-colors"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-200 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800">
+              {PRODUCTS.map((product) => (
+                <Link
+                  key={product.name}
+                  href={product.href}
+                  className="group bg-background p-6 space-y-3 hover:bg-neutral-50 dark:hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base text-foreground" style={font}>
+                        {product.name}
+                      </h3>
+                      <p className="text-[10px] text-muted-foreground/50 uppercase mt-0.5" style={font}>
+                        {product.tagline}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground/20 group-hover:text-foreground transition-colors" />
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed" style={font}>
+                    {product.desc}
+                  </p>
+                  <span
+                    className="inline-block text-[11px] text-foreground border-b border-foreground/30 group-hover:border-foreground transition-colors"
+                    style={font}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg text-foreground" style={font}>
-                          {product.name}
-                        </h3>
-                        <p className="text-[10px] text-muted-foreground/60 uppercase mt-0.5" style={font}>
-                          {product.tagline}
-                        </p>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                      {product.desc}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {product.features.map((f) => (
-                        <span
-                          key={f}
-                          className="text-[10px] text-muted-foreground/70 border border-neutral-200 dark:border-neutral-700 px-2 py-0.5"
-                          style={font}
-                        >
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                    <span
-                      className="inline-block text-xs text-foreground border-b border-foreground group-hover:opacity-70 transition-opacity"
-                      style={font}
-                    >
-                      {product.cta}
-                    </span>
-                  </Link>
-                ))}
-              </div>
+                    {product.cta} &rarr;
+                  </span>
+                </Link>
+              ))}
             </div>
 
-            {/* About Khora */}
-            <div className="mt-24 max-w-2xl mx-auto space-y-12">
+          </div>
+          <div className="hidden lg:block lg:col-span-1" />
+        </div>
+      </div>
 
+      {/* ══════════════════════════════════════
+          ABOUT + DETAILS
+         ══════════════════════════════════════ */}
+      <div className="px-4 md:px-8 lg:px-12 mt-20 md:mt-24">
+        <div className="w-full lg:grid lg:grid-cols-12">
+          <div className="hidden lg:block lg:col-span-1" />
+          <div className="lg:col-span-10">
+
+            <div className="max-w-2xl space-y-16">
+
+              {/* About */}
               <div className="space-y-4">
-                <h2 className="text-lg text-foreground" style={font}>About Khora</h2>
+                <p className={`${micro} text-muted-foreground/50`} style={font}>About</p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  Khora is an open-source studio building infrastructure for AI agents
-                  on the blockchain. We use ERC-8004, the on-chain identity registry
-                  standard, to give every agent a verifiable, decentralized identity —
-                  like a passport for autonomous software.
+                  Khora is an open-source studio building infrastructure for autonomous agents,
+                  generative NFTs, developer tools, and game systems. We believe the next wave of
+                  internet applications will be built by and for autonomous software, and the
+                  infrastructure powering them should be open, verifiable, and composable.
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  Our tools let you create agents from scratch, import existing NFTs
-                  as agents, and register them on-chain so they&apos;re discoverable
-                  across the entire agent ecosystem. Everything we build is fully
-                  open source.
+                  Our tools let you create agents from scratch, mint generative NFTs,
+                  bridge existing collections into the agent ecosystem, and build
+                  games where agents interact autonomously. Everything we build is fully open source.
                 </p>
-              </div>
-
-              {/* Pillars */}
-              <div className="space-y-4">
-                <h2 className="text-lg text-foreground" style={font}>What we build</h2>
-                <div className="space-y-3">
-                  {PILLARS.map((pillar, i) => (
-                    <div key={i} className="flex gap-3">
-                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <div>
-                        <span className="text-sm text-foreground" style={font}>{pillar.title}</span>
-                        <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-                          {pillar.desc}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* ERC-8004 */}
               <div className="space-y-4">
-                <h2 className="text-lg text-foreground" style={font}>ERC-8004</h2>
+                <p className={`${micro} text-muted-foreground/50`} style={font}>ERC-8004</p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  ERC-8004 is an on-chain identity registry standard for AI agents.
-                  It stores an agent&apos;s name, description, services, skills,
-                  domains, and metadata as a data URI directly on-chain. Any protocol,
-                  marketplace, or application can read this identity without trusting
-                  a centralized server.
+                  ERC-8004 is an on-chain identity registry standard. It stores an agent&apos;s
+                  name, description, services, skills, domains, and metadata as a data URI directly
+                  on-chain. Any protocol, marketplace, or application can read this identity without
+                  trusting a centralized server.
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  The Identity Registry is deployed on 10 chains at the same address
-                  via deterministic CREATE2. Agents can register on any chain, and
-                  Khora discovers them all in parallel.
+                  The Identity Registry is deployed on 10 chains at the same address via
+                  deterministic CREATE2. Agents can register on any chain, and Khora discovers
+                  them all in parallel.
                 </p>
               </div>
 
               {/* Open source */}
               <div className="space-y-4">
-                <h2 className="text-lg text-foreground flex items-center gap-2" style={font}>
-                  <Github className="w-5 h-5" />
-                  Open source
-                </h2>
+                <div className="flex items-center gap-2">
+                  <Github className="w-4 h-4 text-muted-foreground/50" />
+                  <p className={`${micro} text-muted-foreground/50`} style={font}>Open source</p>
+                </div>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  Khora is fully open source. Smart contracts, frontend,
-                  and AI pipeline are all public. You can fork it, extend it,
-                  or build on top of it.
+                  Smart contracts, frontend, AI pipeline, developer tools — everything is public.
+                  Fork it, extend it, or build on top of it.
                 </p>
                 <a
                   href="https://github.com/0xmonas/Khora"
@@ -207,21 +222,26 @@ export function HeroSection() {
               </div>
 
               {/* $KHORA */}
-              <div className="space-y-4">
-                <h2 className="text-sm text-muted-foreground/60" style={font}>$KHORA</h2>
-                <p className="text-[11px] text-muted-foreground/60 leading-relaxed" style={font}>
+              <div className="space-y-3">
+                <p className="text-[10px] text-muted-foreground/30 uppercase" style={font}>$KHORA</p>
+                <p className="text-[11px] text-muted-foreground/40 leading-relaxed" style={font}>
                   Community token on Solana.
                 </p>
-                <p className="text-[11px] text-muted-foreground/60 break-all" style={font}>
+                <p className="text-[11px] text-muted-foreground/40 break-all" style={font}>
                   4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
                 </p>
               </div>
 
             </div>
+
           </div>
           <div className="hidden lg:block lg:col-span-1" />
         </div>
       </div>
+
+      {/* Bottom spacer */}
+      <div className="h-12 md:h-16" />
+
     </div>
   );
 }
