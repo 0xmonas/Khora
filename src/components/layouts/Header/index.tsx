@@ -7,6 +7,8 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { base, baseSepolia } from 'wagmi/chains';
 
+const walletFont = { fontFamily: 'var(--font-departure-mono)' };
+
 function WalletButton() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ConnectButton, setConnectButton] = useState<any>(null);
@@ -20,7 +22,8 @@ function WalletButton() {
   if (!ConnectButton) {
     return (
       <button
-        className="h-10 sm:h-12 px-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-sm dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+        className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
+        style={walletFont}
       >
         Connect
       </button>
@@ -44,7 +47,8 @@ function WalletButton() {
           return (
             <button
               onClick={openConnectModal}
-              className="h-10 sm:h-12 px-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-sm dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+              className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
+              style={walletFont}
             >
               Connect
             </button>
@@ -79,10 +83,11 @@ function WalletButton() {
             {/* Network Switcher */}
             <button
               onClick={handleChainClick}
-              className={`h-10 sm:h-12 px-3 border-2 font-mono text-xs flex items-center gap-2 transition-colors ${
+              style={walletFont}
+              className={`h-10 sm:h-12 px-3 text-xs flex items-center gap-2 transition-opacity ${
                 isSupported
-                  ? 'border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
-                  : 'border-red-500 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900'
+                  ? 'bg-transparent text-foreground hover:opacity-70'
+                  : 'bg-transparent text-red-600 dark:text-red-400 hover:opacity-70'
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${dotColor}`} />
@@ -92,7 +97,8 @@ function WalletButton() {
             {/* Account Button */}
             <button
               onClick={handleAccountClick}
-              className="h-10 sm:h-12 px-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-sm dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+              className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
+              style={walletFont}
             >
               {account.displayName}
             </button>
