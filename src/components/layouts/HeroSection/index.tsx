@@ -40,14 +40,6 @@ const PILLARS = [
   },
 ];
 
-const TECH_STACK = [
-  ['Identity', 'ERC-8004'],
-  ['Chains', '10 chains (CREATE2)'],
-  ['Taxonomy', 'OASF v0.8.0'],
-  ['Protocol', 'x402 payments'],
-  ['Frontend', 'Next.js + wagmi'],
-  ['AI', 'Gemini + Replicate'],
-];
 
 export function HeroSection() {
   const { theme } = useTheme();
@@ -190,23 +182,6 @@ export function HeroSection() {
                   via deterministic CREATE2. Agents can register on any chain, and
                   Khora discovers them all in parallel.
                 </p>
-              </div>
-
-              {/* Stack */}
-              <div className="space-y-4">
-                <h2 className="text-lg text-foreground" style={font}>Stack</h2>
-                <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-                  {TECH_STACK.map(([label, value]) => (
-                    <div key={label} className="flex flex-col">
-                      <span className="text-[10px] text-muted-foreground uppercase" style={font}>
-                        {label}
-                      </span>
-                      <span className="text-xs text-foreground" style={font}>
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* Open source */}
