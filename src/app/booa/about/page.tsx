@@ -1,21 +1,24 @@
-// /src/app/about/page.tsx
+// /src/app/booa/about/page.tsx
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
+import { Github, ArrowLeft } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 const CREATE_STEPS = [
-  { num: '01', title: 'Mint', desc: 'Hit mint — AI generates a unique identity, pixel art portrait, personality, skills, and boundaries. One click, one transaction.' },
-  { num: '02', title: 'On-chain forever', desc: 'Your agent\'s bitmap art and packed traits are written directly on Base via SSTORE2. No IPFS, no external hosting, no links that break.' },
-  { num: '03', title: 'Register', desc: 'Optional — register your agent on the ERC-8004 identity protocol. Configure services, skills, and domains to make it discoverable across chains.' },
+  { num: '01', title: 'Mint', desc: 'One click — AI generates a full agent identity: creature type, personality, pixel art portrait, skills, and behavioral boundaries. You confirm a single wallet transaction.' },
+  { num: '02', title: 'Stored on-chain', desc: 'The portrait is encoded as a 2,048-byte bitmap (64x64, C64 palette) and stored via SSTORE2 directly in the contract. Traits are packed into bytes. No IPFS, no external hosting — your agent lives on Base forever.' },
+  { num: '03', title: 'Register on ERC-8004', desc: 'Optionally register your agent on the ERC-8004 Identity Registry — the on-chain passport for AI agents. Configure services, skills (OASF taxonomy), domains, and x402 payment support. Makes your agent discoverable across 10 chains.' },
+  { num: '04', title: 'Export anywhere', desc: 'Download as PNG, SVG, ERC-8004 JSON, or OpenClaw format (IDENTITY.md + SOUL.md) so your agent can operate autonomously on platforms like Moltbook. Your character\'s personality and boundaries travel with it.' },
 ];
 
 const IMPORT_STEPS = [
-  { num: '01', title: 'Connect', desc: 'Connect your wallet. We scan 9 chains for your registered ERC-8004 agents — or enter a token ID manually.' },
-  { num: '02', title: 'Reimagine', desc: 'Select an agent, hit mint — AI generates a brand-new pixel art portrait, preserving its original identity and traits.' },
-  { num: '03', title: 'Mint & update', desc: 'Mint on Base in one transaction. Then optionally update your ERC-8004 registry entry with the new on-chain art.' },
+  { num: '01', title: 'Discover', desc: 'Connect your wallet — we scan 9 chains in parallel for your registered ERC-8004 agents. Or enter a token ID manually. Your existing agent identities appear instantly.' },
+  { num: '02', title: 'Reimagine', desc: 'Select an agent — AI generates a brand-new pixel art portrait while preserving the original identity: name, description, skills, domains, personality. Same soul, new face.' },
+  { num: '03', title: 'Mint & update', desc: 'Mint the new portrait on Base in one transaction. Then update your existing ERC-8004 registry entry with the on-chain art via setAgentURI — no new registration needed.' },
 ];
 
 function AboutHowItWorks() {
@@ -64,7 +67,7 @@ function AboutHowItWorks() {
   );
 }
 
-export default function AboutPage() {
+export default function BOOAAboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
@@ -75,24 +78,62 @@ export default function AboutPage() {
             <div className="lg:col-span-10">
               <div className="max-w-2xl space-y-12">
 
+                {/* Back button */}
+                <Link
+                  href="/booa"
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  style={font}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to BOOA
+                </Link>
+
                 {/* Title */}
                 <div className="space-y-4">
+                  <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
+                    a Khora product
+                  </p>
                   <h1
                     className="text-2xl sm:text-3xl text-foreground"
                     style={font}
                   >
-                    About Khora
+                    About BOOA
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    Khora is an open-source platform for creating AI characters
-                    that live entirely on-chain. Every character you generate is
-                    minted as an NFT on Base — its pixel art, personality, skills,
-                    and boundaries are all stored permanently in the smart contract.
+                    BOOA{' '}
+                    <span className="text-[11px] text-muted-foreground/60">(Born On-chain Owned Agents)</span>
+                    {' '}is a fully on-chain AI character collection on Base. Each agent has
+                    a unique pixel art portrait, personality, skills, and behavioral
+                    boundaries — all generated by AI and stored permanently in the smart
+                    contract. No IPFS, no external hosting.
+                  </p>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    What makes BOOA different: agents can be registered on the ERC-8004
+                    Identity Registry — the first on-chain passport standard for AI agents.
+                    This makes them discoverable across 10 chains, with configurable
+                    services, skills, and payment support. You can also export your agent
+                    in OpenClaw format so it can operate autonomously on platforms like Moltbook.
                   </p>
                 </div>
 
                 {/* How it works */}
                 <AboutHowItWorks />
+
+                {/* Fully on-chain */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    Fully on-chain
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    Most NFTs store a link to an image hosted somewhere else.
+                    If that server goes down, your NFT is gone. BOOA agents
+                    are different — the pixel art is stored as a 2,048-byte
+                    bitmap and traits are packed into bytes, all written directly
+                    into the smart contract via SSTORE2. The Renderer contract
+                    converts the bitmap to SVG on-the-fly. No external dependencies,
+                    no injection vectors — every nibble maps to a valid C64 color.
+                  </p>
+                </div>
 
                 {/* ERC-8004 */}
                 <div className="space-y-4">
@@ -109,10 +150,9 @@ export default function AboutPage() {
                     server.
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    Khora uses ERC-8004 to make your AI characters discoverable across
-                    the agent ecosystem. When you register an agent, it gets listed in
-                    the Identity Registry on Base — other apps can find it, read its
-                    capabilities, and interact with it.
+                    The Identity Registry is deployed on 10 chains at the same address
+                    via deterministic CREATE2. Agents can register on any chain, and
+                    Khora discovers them all in parallel.
                   </p>
                 </div>
 
@@ -181,31 +221,9 @@ export default function AboutPage() {
                   </div>
                 </div>
 
-                {/* On-chain */}
-                <div className="space-y-4">
-                  <h2
-                    className="text-lg text-foreground"
-                    style={font}
-                  >
-                    Fully on-chain
-                  </h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    Most NFTs store a link to an image hosted somewhere else.
-                    If that server goes down, your NFT is gone. BOOA agents
-                    are different — the pixel art is stored as a 2,048-byte
-                    bitmap and traits are packed into bytes, all written directly
-                    into the smart contract via SSTORE2. The Renderer contract
-                    converts the bitmap to SVG on-the-fly. No external dependencies,
-                    no injection vectors — every nibble maps to a valid C64 color.
-                  </p>
-                </div>
-
                 {/* Stack */}
                 <div className="space-y-4">
-                  <h2
-                    className="text-lg text-foreground"
-                    style={font}
-                  >
+                  <h2 className="text-lg text-foreground" style={font}>
                     Stack
                   </h2>
                   <div className="grid grid-cols-2 gap-y-2 gap-x-8">
@@ -232,63 +250,35 @@ export default function AboutPage() {
                   </div>
                 </div>
 
-                {/* Open source */}
-                <div className="space-y-4">
-                  <h2
-                    className="text-lg text-foreground"
-                    style={font}
-                  >
-                    Open source
-                  </h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    Khora is fully open source. The smart contract, frontend,
-                    and AI pipeline are all public. You can fork it, extend it,
-                    or build on top of it.
-                  </p>
+                {/* Links */}
+                <div className="flex flex-wrap gap-6">
                   <a
                     href="https://github.com/0xmonas/Khora"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
+                    className="flex items-center gap-2 text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
                     style={font}
                   >
-                    github.com/0xmonas/Khora
+                    <Github className="w-4 h-4" />
+                    GitHub
                   </a>
-                </div>
-
-                {/* OpenSea */}
-                <div className="space-y-4">
-                  <h2 className="text-lg text-foreground" style={font}>
-                    OpenSea
-                  </h2>
                   <a
                     href="https://opensea.io/collection/booa-nft"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
+                    className="flex items-center gap-2 text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
                     style={font}
                   >
-                    opensea.io/collection/booa-nft
+                    <img src="/openseatransparent.svg" alt="OpenSea" className="w-4 h-4 invert dark:invert-0" />
+                    OpenSea
                   </a>
-                </div>
-
-                {/* Token */}
-                <div className="space-y-4">
-                  <h2
-                    className="text-lg text-foreground"
+                  <Link
+                    href="/booa/mint"
+                    className="text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
                     style={font}
                   >
-                    $KHORA
-                  </h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    Community token on Solana.
-                  </p>
-                  <p
-                    className="text-xs text-muted-foreground break-all"
-                    style={font}
-                  >
-                    4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
-                  </p>
+                    Mint a BOOA
+                  </Link>
                 </div>
 
               </div>

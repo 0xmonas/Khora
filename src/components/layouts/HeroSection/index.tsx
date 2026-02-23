@@ -1,598 +1,56 @@
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Github } from 'lucide-react';
+import { Github, ArrowRight } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
-import { useGalleryTokens } from '@/hooks/useGalleryTokens';
-import { useReadContract, useChainId } from 'wagmi';
-import { BOOA_V2_ABI, BOOA_V2_MINTER_ABI, getV2Address, getV2MinterAddress, getV2ChainId } from '@/lib/contracts/booa-v2';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
-const CREATE_STEPS = [
+const PRODUCTS = [
   {
-    num: '01',
-    title: 'Mint',
-    desc: 'Hit mint — AI generates a unique identity, pixel art portrait, personality, skills, and boundaries. One click, one transaction.',
+    name: 'BOOA',
+    tagline: 'Born On-chain Owned Agents',
+    desc: 'Fully on-chain AI character NFTs on Base. AI generates unique pixel art portraits, personalities, skills, and boundaries — stored permanently in the smart contract via SSTORE2.',
+    href: '/booa',
+    cta: 'Explore BOOA',
+    features: ['AI-generated pixel art', 'On-chain bitmap storage', 'ERC-8004 registration', 'C64 palette / 2KB per agent'],
   },
   {
-    num: '02',
-    title: 'On-chain forever',
-    desc: 'Your agent\'s bitmap art and packed traits are written directly on Base via SSTORE2. No IPFS, no external hosting, no links that break.',
-  },
-  {
-    num: '03',
-    title: 'Register',
-    desc: 'Optional — register your agent on the ERC-8004 identity protocol. Makes it discoverable across chains with services, skills, and domains.',
-  },
-];
-
-const IMPORT_STEPS = [
-  {
-    num: '01',
-    title: 'Connect',
-    desc: 'Connect your wallet. We scan 9 chains for your registered ERC-8004 agents — or enter a token ID manually.',
-  },
-  {
-    num: '02',
-    title: 'Reimagine',
-    desc: 'Select an agent, hit mint — AI generates a brand-new pixel art portrait, preserving its original identity and traits.',
-  },
-  {
-    num: '03',
-    title: 'Mint & update',
-    desc: 'Mint on Base in one transaction. Then optionally update your ERC-8004 registry entry with the new on-chain art.',
+    name: 'Bridge',
+    tagline: 'NFT to ERC-8004 Converter',
+    desc: 'Turn any existing NFT into an ERC-8004 registered agent. Connect your wallet, select an NFT from any chain, configure its agent identity, and register it on the Identity Registry.',
+    href: '/bridge',
+    cta: 'Open Bridge',
+    features: ['Multi-chain NFT scanning', 'Metadata auto-mapping', 'On-chain registration', 'Alchemy-powered indexing'],
   },
 ];
 
-function LiveStats() {
-  const chainId = useChainId();
-  const booaAddress = getV2Address(chainId);
-  const minterAddress = getV2MinterAddress(chainId);
-  const targetChainId = getV2ChainId(chainId);
-  const enabled = !!booaAddress && booaAddress.length > 2;
-
-  const { data: totalSupply } = useReadContract({
-    address: booaAddress,
-    abi: BOOA_V2_ABI,
-    functionName: 'totalSupply',
-    chainId: targetChainId,
-    query: { enabled },
-  });
-
-  const { data: mintPrice } = useReadContract({
-    address: minterAddress,
-    abi: BOOA_V2_MINTER_ABI,
-    functionName: 'mintPrice',
-    chainId: targetChainId,
-    query: { enabled: !!minterAddress && minterAddress.length > 2 },
-  });
-
-  const count = totalSupply !== undefined ? Number(totalSupply) : null;
-  const price = mintPrice !== undefined ? Number(mintPrice) / 1e18 : null;
-
-  if (!enabled) return null;
-
-  return (
-    <div className="flex flex-wrap justify-center gap-8 sm:gap-12">
-      {count !== null && (
-        <div className="text-center">
-          <p className="text-2xl sm:text-3xl text-foreground" style={font}>{count}</p>
-          <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>agents minted</p>
-        </div>
-      )}
-      {price !== null && (
-        <div className="text-center">
-          <p className="text-2xl sm:text-3xl text-foreground" style={font}>
-            {price === 0 ? 'FREE' : `${price} ETH`}
-          </p>
-          <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>mint price</p>
-        </div>
-      )}
-      <div className="text-center">
-        <p className="text-2xl sm:text-3xl text-foreground" style={font}>100%</p>
-        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>on-chain</p>
-      </div>
-    </div>
-  );
-}
-
-function RecentMints() {
-  const { tokens, isLoading } = useGalleryTokens();
-
-  const recent = [...tokens]
-    .sort((a, b) => Number(b.tokenId - a.tokenId))
-    .slice(0, 8)
-    .filter(t => t.svg);
-
-  if (isLoading || recent.length === 0) return null;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-[10px] text-muted-foreground uppercase text-center" style={font}>
-        recent mints
-      </p>
-      <div className="flex justify-center gap-3 flex-wrap">
-        {recent.map((token) => (
-          <Link
-            key={token.tokenId.toString()}
-            href="/mint"
-            className="group"
-          >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 overflow-hidden transition-transform duration-200 group-hover:scale-110">
-              <img
-                src={`data:image/svg+xml,${encodeURIComponent(token.svg!)}`}
-                alt={`Agent #${token.tokenId.toString()}`}
-                className="w-full h-full object-contain"
-                style={{ imageRendering: 'pixelated' }}
-              />
-            </div>
-            <p className="text-[9px] text-muted-foreground text-center mt-1" style={font}>
-              #{token.tokenId.toString()}
-            </p>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AboutSection() {
-  const [activeMode, setActiveMode] = useState<'create' | 'import'>('create');
-  const steps = activeMode === 'create' ? CREATE_STEPS : IMPORT_STEPS;
-
-  return (
-    <div className="mt-20 max-w-2xl mx-auto space-y-12">
-
-      {/* About BOOA */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>About BOOA</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          BOOA{' '}
-          <span className="text-[11px] text-muted-foreground/60">(Born On-chain Owned Agents)</span>
-          {' '}is a fully on-chain NFT collection by Khora. The name is
-          inspired by ERC-8004, the on-chain identity standard that powers it.
-          Each BOOA is an AI-generated character with its own pixel art
-          portrait, personality, skills, and boundaries, minted as an NFT on
-          Base. The art and traits are stored directly in the smart contract
-          via SSTORE2. No IPFS, no external hosting, no links that can break.
-        </p>
-      </div>
-
-      {/* How it works */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg text-foreground" style={font}>How it works</h2>
-          <div className="flex gap-2">
-            {(['create', 'import'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setActiveMode(m)}
-                className={`px-2 py-0.5 font-mono text-[10px] border transition-colors ${
-                  activeMode === m
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground'
-                }`}
-                style={font}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-3">
-          {steps.map((step) => (
-            <div key={step.num} className="flex gap-3">
-              <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>
-                {step.num}
-              </span>
-              <div>
-                <span className="text-sm text-foreground" style={font}>{step.title}</span>
-                <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-                  {step.desc}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ERC-8004 */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>What is ERC-8004?</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          ERC-8004 is an on-chain identity registry standard for AI agents.
-          It gives every agent a verifiable, decentralized identity — like a
-          passport for autonomous software. The registry stores the agent&apos;s
-          name, description, services, skills, domains, and metadata as a
-          data URI directly on-chain. Any protocol, marketplace, or
-          application can read this identity without trusting a centralized
-          server.
-        </p>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          Khora uses ERC-8004 to make your AI characters discoverable across
-          the agent ecosystem. When you register an agent, it gets listed in
-          the Identity Registry on Base — other apps can find it, read its
-          capabilities, and interact with it.
-        </p>
-      </div>
-
-      {/* ERC-8004 Config */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>ERC-8004 Config</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          When creating or importing an agent, you can configure its on-chain
-          identity through the ERC-8004 Config panel:
-        </p>
-        <div className="space-y-3 pl-2 border-l border-border">
-          {[
-            ['Services', 'Declare how your agent can be reached. Add service endpoints like A2A (Agent-to-Agent), MCP, or web URLs. Each service entry includes a protocol type and an endpoint URL.'],
-            ['Skills (OASF)', 'Tag your agent with capabilities from the OASF taxonomy — text-generation, image-creation, swap-execution, summarization, etc. Skills tell other agents what yours can do.'],
-            ['Domains (OASF)', 'Categorize your agent into domains like DeFi, gaming, social, healthcare, etc. Domains help with discovery and filtering.'],
-            ['x402 Payment', 'Enable or disable x402 protocol support. When enabled, your agent signals that it can accept HTTP 402 micropayments for its services.'],
-            ['Supported Trust', 'Declare which trust mechanisms your agent supports — reputation, crypto-economic staking, or TEE (Trusted Execution Environment).'],
-          ].map(([label, desc]) => (
-            <div key={label}>
-              <span className="text-sm text-foreground" style={font}>{label}</span>
-              <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-                {desc}
-              </p>
-            </div>
-          ))}
-        </div>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          All config fields are optional. You can mint a character with no
-          8004 config and register it later from the Collection page.
-        </p>
-      </div>
-
-      {/* Create vs Import */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>Create vs Import</h2>
-        <div className="space-y-3">
-          <div>
-            <span className="text-sm text-foreground" style={font}>Create mode</span>
-            <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-              Hit mint — AI generates the full agent identity (creature type,
-              personality, vibe, skills, boundaries) and a unique pixel art
-              portrait in one click. Confirm a single wallet transaction to
-              write the bitmap and traits on-chain. After minting, you can
-              optionally register the agent on the ERC-8004 Identity Registry
-              to make it discoverable, and configure services, skills,
-              and domains for power users.
-            </p>
-          </div>
-          <div>
-            <span className="text-sm text-foreground" style={font}>Import mode</span>
-            <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-              Already have an agent registered on ERC-8004? Connect your
-              wallet and we scan 9 chains for your registered agents. Select
-              one and its identity is fetched from the on-chain registry —
-              name, description, services, skills, domains. AI generates a
-              new portrait for the imported identity. After minting, the
-              &quot;Register&quot; button becomes &quot;Update&quot; — it calls
-              setAgentURI to update your existing registry entry with the
-              new on-chain art.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Fully on-chain */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>Fully on-chain</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          Most NFTs store a link to an image hosted somewhere else.
-          If that server goes down, your NFT is gone. BOOA agents
-          are different — the pixel art is stored as a 2,048-byte
-          bitmap and traits are packed into bytes, all written directly
-          into the smart contract via SSTORE2. The Renderer contract
-          converts the bitmap to SVG on-the-fly. No external dependencies,
-          no injection vectors — every nibble maps to a valid C64 color.
-        </p>
-      </div>
-
-      {/* Stack */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground" style={font}>Stack</h2>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-          {[
-            ['Chain', 'Base (Ethereum L2)'],
-            ['Contract', 'ERC-721 + ERC-2981'],
-            ['Storage', 'SSTORE2 bitmap (2KB)'],
-            ['Rendering', 'On-chain SVG'],
-            ['Registry', 'ERC-8004'],
-            ['Art', 'AI pixel art → bitmap'],
-            ['Frontend', 'Next.js + wagmi'],
-            ['AI', 'Gemini + Replicate'],
-            ['Taxonomy', 'OASF v0.8.0'],
-          ].map(([label, value]) => (
-            <div key={label} className="flex flex-col">
-              <span className="text-[10px] text-muted-foreground uppercase" style={font}>
-                {label}
-              </span>
-              <span className="text-xs text-foreground" style={font}>
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Open source */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground flex items-center gap-2" style={font}>
-          <Github className="w-5 h-5" />
-          Open source
-        </h2>
-        <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-          Khora is fully open source. The smart contract, frontend,
-          and AI pipeline are all public. You can fork it, extend it,
-          or build on top of it.
-        </p>
-        <a
-          href="https://github.com/0xmonas/Khora"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
-          style={font}
-        >
-          github.com/0xmonas/Khora
-        </a>
-      </div>
-
-      {/* OpenSea */}
-      <div className="space-y-4">
-        <h2 className="text-lg text-foreground flex items-center gap-2" style={font}>
-          <img src="/openseatransparent.svg" alt="OpenSea" className="w-5 h-5" />
-          OpenSea
-        </h2>
-        <a
-          href="https://opensea.io/collection/booa-nft"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
-          style={font}
-        >
-          opensea.io/collection/booa-nft
-        </a>
-      </div>
-
-      {/* $KHORA */}
-      <div className="space-y-4">
-        <h2 className="text-sm text-muted-foreground/60" style={font}>$KHORA</h2>
-        <p className="text-[11px] text-muted-foreground/60 leading-relaxed" style={font}>
-          Community token on Solana.
-        </p>
-        <p className="text-[11px] text-muted-foreground/60 break-all" style={font}>
-          4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
-        </p>
-      </div>
-
-    </div>
-  );
-}
-
-const FAQ_ITEMS = [
+const PILLARS = [
   {
-    q: 'Can AI agents use BOOA NFTs as their profile picture?',
-    a: `Yes — this is built into the architecture. When you register an agent on the ERC-8004 Identity Registry, the on-chain SVG rendered from your BOOA bitmap is embedded directly into the registration as a data URI. Any framework, protocol, or agent runtime can read this image directly from the contract — no API calls, no IPFS, no broken links.`,
-    code: `// From registerAgent() — on-chain SVG from tokenURI
-const tokenURI = await publicClient.readContract({
-  address: booaContract,
-  abi: BOOA_V2_ABI,
-  functionName: 'tokenURI',
-  args: [mintedTokenId],
-});
-// tokenURI returns base64 JSON with embedded SVG
-// SVG is rendered on-chain from the stored 2,048-byte bitmap`,
+    title: 'On-chain identity',
+    desc: 'Every agent gets a verifiable, decentralized identity via ERC-8004 — name, description, services, skills, and domains stored as a data URI directly on-chain.',
   },
   {
-    q: 'Can an AI agent own a BOOA NFT?',
-    a: `Yes. BOOA is a standard ERC-721 contract — any Ethereum address can own one, including smart contract wallets controlled by AI agents. There is no restriction that limits ownership to EOAs (externally owned accounts). An agent with a wallet can receive, hold, and transfer BOOA NFTs autonomously.`,
-    code: `// From BOOA.sol — standard ERC-721 transfer
-// Any address (EOA or contract) can receive
-function safeTransferFrom(
-    address from,
-    address to,  // can be an agent's smart wallet
-    uint256 tokenId
-) public override { ... }`,
+    title: 'Multi-chain discovery',
+    desc: 'The ERC-8004 Identity Registry is deployed on 10 chains via deterministic CREATE2. Khora scans all of them in parallel to discover agents across the ecosystem.',
   },
   {
-    q: 'Is the art really 100% on-chain? What happens if your servers go down?',
-    a: `Nothing changes. The bitmap pixel data (2,048 bytes) and packed traits are stored directly in the smart contract via SSTORE2. The Renderer contract converts the bitmap to SVG on-the-fly. The tokenURI returns a base64-encoded JSON with the embedded SVG — entirely self-contained. No server, no IPFS gateway, no external dependency. Even if khora.fun disappears, your NFT renders from the contract alone.`,
-    code: `// V2 modular architecture — fully on-chain rendering
-// BOOAStorage: stores 2,048-byte bitmap via SSTORE2
-// BOOARenderer: converts bitmap → SVG on-chain
-
-function tokenURI(uint256 tokenId) external view returns (string memory) {
-    bytes memory bitmap = storage.getImageData(tokenId);  // SSTORE2 read
-    bytes8 traits = storage.getTraits(tokenId);           // packed traits
-    string memory svg = renderSVG(bitmap);                // bitmap → SVG
-    // Returns base64 JSON with embedded SVG — no external URLs
-}`,
-  },
-  {
-    q: 'What is ERC-8004 and why does it matter for AI agents?',
-    a: `ERC-8004 is an on-chain identity standard for AI agents — like a passport for autonomous software. It stores an agent's name, description, services, skills, and domains in a registry contract. This makes agents discoverable and verifiable across any platform. Khôra is the first project to combine ERC-8004 registration with fully on-chain generative PFP art.`,
-    code: `// ERC-8004 registration structure
-{
-  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-  "name": "Agent Name",
-  "description": "...",
-  "image": "data:image/svg+xml;base64,...",  // on-chain SVG from bitmap
-  "services": [{ "name": "OASF", "endpoint": "..." }],
-  "active": true,
-  "x402Support": true
-}`,
-  },
-  {
-    q: 'How does server-signed minting work?',
-    a: `Minting happens in one transaction. The server generates the agent identity and pixel art, encodes it as a 2,048-byte bitmap, packs the traits into bytes, and signs everything with EIP-191. You confirm a single wallet transaction that writes the bitmap and traits on-chain in one step. The signature ensures only server-approved data can be minted — no front-running, no invalid data.`,
-    code: `// From BOOAMinter.sol — server-signed single-tx mint
-function mint(
-    bytes calldata imageData,   // 2,048-byte bitmap
-    bytes calldata traitsData,  // packed trait bytes
-    uint256 deadline,           // signature expiry
-    bytes calldata signature    // EIP-191 server signature
-) external payable {
-    // Verify server signature
-    bytes32 hash = keccak256(abi.encodePacked(
-        imageData, traitsData, msg.sender, deadline
-    ));
-    require(_recoverSigner(hash, signature) == signer, "Invalid sig");
-    // Mint + store in one tx
-    booa.mint(msg.sender, tokenId);
-    storage.setImageData(tokenId, imageData);
-    storage.setTraits(tokenId, traitsData);
-}`,
-  },
-  {
-    q: 'What happens when billions of AI agents need identity? Can BOOA scale?',
-    a: `BOOA's supply is configurable by the contract owner — it can be capped for scarcity or left open for scale. But the real scalability layer is ERC-8004: the Identity Registry is deployed on 10 chains via deterministic CREATE2 (same address everywhere). Agents can register on any chain, and Khôra discovers them all in parallel.`,
-    code: `// 10 chains scanned in parallel for agent discovery
-const CHAIN_CONFIG: Record<SupportedChain, ChainConfig> = {
-  ethereum:      { chainId: 1,      rpcUrls: [...] },
-  base:          { chainId: 8453,   rpcUrls: [...] },
-  polygon:       { chainId: 137,    rpcUrls: [...] },
-  arbitrum:      { chainId: 42161,  rpcUrls: [...] },
-  celo:          { chainId: 42220,  rpcUrls: [...] },
-  gnosis:        { chainId: 100,    rpcUrls: [...] },
-  scroll:        { chainId: 534352, rpcUrls: [...] },
-  taiko:         { chainId: 167000, rpcUrls: [...] },
-  bsc:           { chainId: 56,     rpcUrls: [...] },
-  'base-sepolia': { chainId: 84532, rpcUrls: [...] },
-};
-// Same registry address on ALL chains (CREATE2)
-const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432';`,
-  },
-  {
-    q: 'Why pixel art? Why not high-resolution AI portraits?',
-    a: `On-chain storage is expensive. A high-res PNG would cost thousands of dollars in gas. Pixel art at 64x64 with a C64 16-color palette encodes into a fixed 2,048-byte bitmap — each pixel is a 4-bit palette index, two pixels per byte. The Renderer contract converts this bitmap to SVG on-chain. The aesthetic isn't a limitation, it's the solution: every pixel is permanent, verifiable, and costs a fraction of a cent to store.`,
-    code: `// Bitmap format: 64x64 pixels × 4 bits = 2,048 bytes (fixed)
-// Each nibble = C64 palette index (0-15)
-// High nibble = even column, low nibble = odd column
-
-// From bitmapEncoder.ts
-const bitmap = new Uint8Array(2048);  // always exactly 2,048 bytes
-bitmap[y * 32 + (x >> 1)] = (idx0 << 4) | idx1;
-
-// BOOARenderer.sol converts bitmap → SVG on-chain
-// Background rect + one <path> per non-background color
-// Run-length encoding: M{x} {y}h{len}`,
-  },
-  {
-    q: 'Can I import an agent from another chain and give it a BOOA PFP?',
-    a: `Yes — that's Import Mode. Connect your wallet and Khôra scans 10 chains for your ERC-8004 registered agents. Select one, and AI generates a new pixel art portrait while preserving the original identity (name, skills, domains, personality). The result is minted as a BOOA NFT on Base, and your existing registry entry is updated with the new art via setAgentURI.`,
-    code: `// From discover-agents API — parallel 10-chain scan
-const results = await Promise.all(
-  chainNames.map(chain => scanChain(chain, address))
-);
-
-// After mint — update existing registry entry (no new token)
-await writeRegister({
-  address: registryAddress,
-  abi: IDENTITY_REGISTRY_ABI,
-  functionName: 'setAgentURI',   // update, not register
-  args: [BigInt(existingAgentId), newAgentURI],
-});`,
-  },
-  {
-    q: 'Do you use ENS or other naming systems? How does identity work?',
-    a: `Khôra uses ERC-8004 for identity, which is complementary to ENS — not a replacement. ENS resolves human-readable names to addresses. ERC-8004 stores structured agent metadata (personality, skills, services, boundaries) on-chain. An agent can have both an ENS name and an ERC-8004 registration. BOOA NFTs add a visual layer: the on-chain PFP that travels with the agent's identity.`,
-    code: `// ERC-8004 stores structured identity, not just a name
-const agentURI = \`data:application/json;base64,\${btoa(JSON.stringify({
-  name: "Agent Name",
-  description: "What it does",
-  services: [{ name: "OASF", endpoint: "https://..." }],
-  image: "data:image/svg+xml;base64,...",  // on-chain SVG from bitmap
-  active: true,
-  supportedTrust: ["ethereum-attestation-service"]
-}))}\`;
-// Stored entirely on-chain — no external resolution needed`,
-  },
-  {
-    q: 'What export formats are available? Can I use my agent in other frameworks?',
-    a: `Khôra exports to 5 formats: PNG (pixel art with embedded JSON metadata), SVG (reconstructed from on-chain bitmap), ERC-8004 JSON (full registration spec), OpenClaw ZIP (IDENTITY.md + SOUL.md for agent frameworks), and raw JSON. The OpenClaw format is specifically designed for agent runtimes like Eliza and ZerePy — your character's personality, boundaries, and skills travel with it.`,
-    code: `// 5 export formats from downloadAgent()
-'png'      // Pixel art with embedded JSON (pngEncoder)
-'svg'      // On-chain vector art (from bitmap)
-'erc8004'  // Full ERC-8004 registration JSON
-'openclaw' // ZIP: IDENTITY.md + SOUL.md (agent frameworks)
-'json'     // Raw KhoraAgent object
-
-// OpenClaw SOUL.md example output
-// # Soul of {name}
-// ## Personality: curious, direct, minimal...
-// ## Boundaries: never lies about sources...`,
-  },
-  {
-    q: 'Are BOOA NFTs and ERC-8004 agents rare? Can someone copy mine?',
-    a: `Every BOOA NFT is uniquely generated by AI — the portrait is created once and never reproduced. Even with the same prompt, AI generates a different image every time. Once minted, the bitmap is written immutably into the contract via SSTORE2 — it cannot be changed, deleted, or overwritten. Your ERC-8004 registration is equally permanent: only you (the owner) can call setAgentURI to update it. As long as you don't change it, your agent's identity and art are frozen on-chain forever. No one can mint the same art or claim the same agent ID.`,
-    code: `// From BOOAStorage.sol — bitmap is immutable after mint
-function setImageData(uint256 tokenId, bytes calldata data) external onlyWriter {
-    require(data.length == BITMAP_SIZE, "Invalid bitmap");
-    _bitmapPointers[tokenId] = SSTORE2.write(data);  // permanent
-}
-// Only authorized writers (BOOAMinter) can call — and only at mint time.
-
-// From ERC-8004 Identity Registry — only owner can update
-function setAgentURI(uint256 agentId, string calldata newURI) external {
-    require(ownerOf(agentId) == msg.sender, "Not owner");
-    // If you never call this, your identity is frozen on-chain forever
-}`,
+    title: 'Fully open source',
+    desc: 'Smart contracts, frontend, AI pipeline — everything is public. Fork it, extend it, or build on top of it.',
   },
 ];
 
-function FAQ() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-
-  return (
-    <div className="mt-20">
-      <p className="text-[10px] text-muted-foreground uppercase text-center mb-8" style={font}>
-        faq
-      </p>
-      <div className="max-w-3xl mx-auto space-y-2">
-        {FAQ_ITEMS.map((item, i) => (
-          <div
-            key={i}
-            className="border border-neutral-200 dark:border-neutral-700"
-          >
-            <button
-              onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="w-full text-left p-4 flex justify-between items-start gap-4"
-            >
-              <span className="text-xs text-foreground leading-relaxed" style={font}>
-                {item.q}
-              </span>
-              <span className="text-xs text-muted-foreground flex-shrink-0 mt-0.5" style={font}>
-                {openIndex === i ? '\u2212' : '+'}
-              </span>
-            </button>
-            {openIndex === i && (
-              <div className="px-4 pb-4 space-y-3">
-                <p className="text-xs text-muted-foreground leading-relaxed" style={font}>
-                  {item.a}
-                </p>
-                {item.code && (
-                  <pre className="text-[10px] text-muted-foreground bg-neutral-100 dark:bg-neutral-800 p-3 overflow-x-auto leading-relaxed border border-neutral-200 dark:border-neutral-700">
-                    <code>{item.code}</code>
-                  </pre>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const TECH_STACK = [
+  ['Identity', 'ERC-8004'],
+  ['Chains', '10 chains (CREATE2)'],
+  ['Taxonomy', 'OASF v0.8.0'],
+  ['Protocol', 'x402 payments'],
+  ['Frontend', 'Next.js + wagmi'],
+  ['AI', 'Gemini + Replicate'],
+];
 
 export function HeroSection() {
   const { theme } = useTheme();
-  const router = useRouter();
 
   return (
     <div className="flex-1 flex flex-col">
@@ -600,7 +58,8 @@ export function HeroSection() {
         <div className="w-full lg:grid lg:grid-cols-12">
           <div className="hidden lg:block lg:col-span-1" />
           <div className="lg:col-span-10">
-            {/* Hero Section */}
+
+            {/* Hero */}
             <div className="flex flex-col items-center">
               <div className="w-full max-w-[1200px] mx-auto aspect-[5/2] relative">
                 <Image
@@ -618,38 +77,172 @@ export function HeroSection() {
                 className="text-lg sm:text-xl text-muted-foreground max-w-2xl text-center mt-12"
                 style={font}
               >
-                We&apos;ve reimagined how AI characters come to life—so you can shape yours effortlessly.
+                Infrastructure for AI agents that live on-chain.
               </p>
-              <div className="flex gap-4 mt-8">
-                <button
-                  onClick={() => router.replace('/mint')}
-                  className="h-10 sm:h-12 px-6 border-2 border-primary bg-background text-foreground hover:bg-accent transition-colors w-fit"
-                  style={font}
-                >
-                  Mint a BOOA
-                </button>
-                <Link
-                  href="/about"
-                  className="h-10 sm:h-12 px-6 border border-neutral-300 dark:border-neutral-600 bg-background text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center"
-                  style={font}
-                >
-                  Learn more
-                </Link>
+              <p
+                className="text-sm text-muted-foreground/70 max-w-xl text-center mt-4"
+                style={font}
+              >
+                Khora builds tools for creating, registering, and discovering autonomous agents
+                with verifiable on-chain identities.
+              </p>
+            </div>
+
+            {/* Products */}
+            <div className="mt-24 space-y-6">
+              <p className="text-[10px] text-muted-foreground uppercase text-center" style={font}>
+                products
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                {PRODUCTS.map((product) => (
+                  <Link
+                    key={product.name}
+                    href={product.href}
+                    className="group border border-neutral-200 dark:border-neutral-700 p-6 space-y-4 hover:border-foreground transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg text-foreground" style={font}>
+                          {product.name}
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground/60 uppercase mt-0.5" style={font}>
+                          {product.tagline}
+                        </p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                      {product.desc}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.features.map((f) => (
+                        <span
+                          key={f}
+                          className="text-[10px] text-muted-foreground/70 border border-neutral-200 dark:border-neutral-700 px-2 py-0.5"
+                          style={font}
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                    <span
+                      className="inline-block text-xs text-foreground border-b border-foreground group-hover:opacity-70 transition-opacity"
+                      style={font}
+                    >
+                      {product.cta}
+                    </span>
+                  </Link>
+                ))}
               </div>
             </div>
 
-            {/* Live Stats + Recent Mints */}
-            <div className="mt-20 space-y-8">
-              <LiveStats />
-              <RecentMints />
+            {/* About Khora */}
+            <div className="mt-24 max-w-2xl mx-auto space-y-12">
+
+              <div className="space-y-4">
+                <h2 className="text-lg text-foreground" style={font}>About Khora</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                  Khora is an open-source studio building infrastructure for AI agents
+                  on the blockchain. We use ERC-8004, the on-chain identity registry
+                  standard, to give every agent a verifiable, decentralized identity —
+                  like a passport for autonomous software.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                  Our tools let you create agents from scratch, import existing NFTs
+                  as agents, and register them on-chain so they&apos;re discoverable
+                  across the entire agent ecosystem. Everything we build is fully
+                  open source.
+                </p>
+              </div>
+
+              {/* Pillars */}
+              <div className="space-y-4">
+                <h2 className="text-lg text-foreground" style={font}>What we build</h2>
+                <div className="space-y-3">
+                  {PILLARS.map((pillar, i) => (
+                    <div key={i} className="flex gap-3">
+                      <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <div>
+                        <span className="text-sm text-foreground" style={font}>{pillar.title}</span>
+                        <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
+                          {pillar.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ERC-8004 */}
+              <div className="space-y-4">
+                <h2 className="text-lg text-foreground" style={font}>ERC-8004</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                  ERC-8004 is an on-chain identity registry standard for AI agents.
+                  It stores an agent&apos;s name, description, services, skills,
+                  domains, and metadata as a data URI directly on-chain. Any protocol,
+                  marketplace, or application can read this identity without trusting
+                  a centralized server.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                  The Identity Registry is deployed on 10 chains at the same address
+                  via deterministic CREATE2. Agents can register on any chain, and
+                  Khora discovers them all in parallel.
+                </p>
+              </div>
+
+              {/* Stack */}
+              <div className="space-y-4">
+                <h2 className="text-lg text-foreground" style={font}>Stack</h2>
+                <div className="grid grid-cols-2 gap-y-2 gap-x-8">
+                  {TECH_STACK.map(([label, value]) => (
+                    <div key={label} className="flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase" style={font}>
+                        {label}
+                      </span>
+                      <span className="text-xs text-foreground" style={font}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Open source */}
+              <div className="space-y-4">
+                <h2 className="text-lg text-foreground flex items-center gap-2" style={font}>
+                  <Github className="w-5 h-5" />
+                  Open source
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                  Khora is fully open source. Smart contracts, frontend,
+                  and AI pipeline are all public. You can fork it, extend it,
+                  or build on top of it.
+                </p>
+                <a
+                  href="https://github.com/0xmonas/Khora"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
+                  style={font}
+                >
+                  github.com/0xmonas/Khora
+                </a>
+              </div>
+
+              {/* $KHORA */}
+              <div className="space-y-4">
+                <h2 className="text-sm text-muted-foreground/60" style={font}>$KHORA</h2>
+                <p className="text-[11px] text-muted-foreground/60 leading-relaxed" style={font}>
+                  Community token on Solana.
+                </p>
+                <p className="text-[11px] text-muted-foreground/60 break-all" style={font}>
+                  4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
+                </p>
+              </div>
+
             </div>
-
-            {/* About BOOA */}
-            <AboutSection />
-
-            {/* FAQ */}
-            <FAQ />
-
           </div>
           <div className="hidden lg:block lg:col-span-1" />
         </div>

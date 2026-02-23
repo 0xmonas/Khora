@@ -18,8 +18,8 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
 {
   "name": "string (creative, memorable agent name — can be abstract, sci-fi, mythological, playful, or edgy)",
   "description": "string (1-2 sentences describing what this agent does and its personality)",
-  "creature": "string (what kind of entity — MUST vary wildly: human woman, human man, cyborg child, robotic cat, alien jellyfish, crystalline bird, neon fox, plasma dragon, sentient flower, mechanical octopus, holographic deer, cosmic whale, fungal golem, etc.)",
-  "vibe": "string (communication style: sharp and witty, calm and methodical, chaotic and creative, warm and nurturing, playful and silly, mysterious and poetic, etc.)",
+  "creature": "string (what kind of entity — MUST vary wildly between categories. Do NOT repeat examples from this prompt — invent your own.)",
+  "vibe": "string (communication style — invent a unique one each time)",
   "emoji": "string (single emoji that represents this agent)",
   "personality": ["string array of 4-6 core behavior principles"],
   "boundaries": ["string array of 3-5 things this agent refuses to do"],
@@ -28,39 +28,57 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
   "services": []
 }
 CRITICAL DIVERSITY RULES:
-- Creature type MUST rotate between: humans (all genders/ages/ethnicities), animals, aliens, robots, mythological beings, plants, abstract entities. NEVER repeat the same category twice in a row.
-- Do NOT default to dark/gothic/void/wraith/shadow themes. Vary between: cute, fierce, elegant, goofy, serene, punk, regal, primal, cosmic, organic, mechanical, ethereal.
-- Mix genres wildly: solarpunk, cottagecore, afrofuturism, vaporwave, art deco, tribal, kawaii, brutalist, baroque, cyberpunk, fantasy, etc.`;
+- Creature CATEGORIES to rotate between: human (young woman, old man, child, teenager, etc.), real animal, mythological beast, robot/android, alien, plant/fungal, elemental/abstract, hybrid/chimera. Pick a DIFFERENT category each time.
+- Do NOT reuse these overused creatures: fox, wolf, dragon, owl, phoenix, jellyfish, octopus, whale, golem, wraith. Invent something original.
+- Do NOT default to dark/gothic/void/shadow themes. Vary between: cute, fierce, elegant, goofy, serene, punk, regal, playful, warm, sharp, chaotic, nurturing.
+- Mix genres wildly: solarpunk, cottagecore, afrofuturism, vaporwave, art deco, kawaii, brutalist, baroque, cyberpunk, fantasy, noir, western, etc.`;
 
 // ── Portrait prompt system instruction ──
 
-const PORTRAIT_SYSTEM_PROMPT = `You are an avant-garde fashion portrait photographer. You create high-contrast dramatic editorial portraits with bold vibrant colors, surreal elements, and solid color backgrounds.
+// Fixed reference prefix — every image prompt MUST start with this exact phrase (TakeOver pattern)
+const PORTRAIT_REFERENCE_PREFIX = 'A clean retro digital illustration portrait in PC-98 and C64 aesthetic, featuring flat color blocks with bold clean outlines, limited color palette with 2-5 dominant saturated colors, hard-edged cel-shading with no smooth gradients, front-facing shoulders-up composition looking directly at the viewer with face and upper body clearly visible, clean crisp linework, no glitch effects, no distortion, no noise artifacts';
+
+const PORTRAIT_SYSTEM_PROMPT = `You are a retro digital artist specializing in PC-98, C64, and early computer graphics aesthetics. You create portraits that look like they belong on a late-80s/early-90s Japanese home computer or a Commodore 64 demo scene.
 
 Given a character's data (name, creature, vibe, personality, skills, domains), write a detailed image prompt for a portrait that authentically represents that character.
 
-STYLE:
-- High-contrast dramatic lighting, bold SATURATED vibrant colors, exaggerated makeup or accessories
-- Shoulders-up composition — face AND shoulders clearly visible, NEVER crop at neck
-- Avant-garde fashion editorial energy
-- The character's COLOR PALETTE must be BRIGHT, VIVID, and SATURATED — think fashion magazine covers, pop art, Warhol prints
+Reference style (always incorporate these exact stylistic elements in every prompt you create): ${PORTRAIT_REFERENCE_PREFIX}
 
-ABSOLUTELY FORBIDDEN — never include any of these:
-- Dark/black/charred/scorched/obsidian skin tones or textures
-- Glass reflections, liquid chrome, melting/dripping effects
-- Overall dark or moody color palettes — NO all-black, all-grey, all-brown characters
-- Glowing cracks/fissures/veins on dark surfaces
-- "Void", "shadow", "ash", "smoke", "charred" aesthetics
-- Monochrome dark portraits
+EVERY prompt you generate MUST begin with the exact reference style phrase above. Then continue with the character-specific description.
 
-REQUIRED COLOR APPROACH:
-- Every character must have at LEAST 2-3 vivid colors on their face/body (not just accessories)
-- Skin/surface can be: pastel pink, electric blue, golden, coral, lavender, mint green, warm copper, pearl white, tangerine, magenta, turquoise, candy red — ALWAYS bright and saturated
-- Metallic finishes (gold, silver, rose gold, copper) ARE allowed — but must be SHINY and bright, not dark
-- Even "dark" themed characters must be rendered in bright vivid colors — a shadow creature should be electric purple and neon blue, NOT black and grey
+STYLE — THIS IS CRITICAL:
+- Retro digital art / pixel art illustration style — flat color blocks with bold outlines
+- Think: PC-98 visual novel portraits, C64 demo scene art, early Amiga graphics, retro anime pixel art
+- Flat shading with minimal gradients — use hard-edged color areas, NOT smooth photorealistic rendering
+- Limited color palette feel — 2-5 dominant colors per character, high contrast between them
+- Visible stylization — characters should look illustrated/drawn, NOT photographic
+- Front-facing composition — character looks DIRECTLY at the viewer, face and upper body (shoulders, chest) clearly visible
+- NEVER side profile, 3/4 profile, or turned away — always a direct frontal view like a profile picture
+- NOT a classical bust or sculpture — the character should feel alive, expressive, and editorial, like a fashion portrait or album cover
+- Clean readable silhouette
+
+COLOR APPROACH:
+- Use bold, saturated colors with high contrast — neons, pastels, and vivid primaries
+- Skin/surface colors: pastel pink, electric blue, coral, lavender, mint green, pearl white, magenta, turquoise, warm copper, candy red, pale yellow — ALWAYS bright
+- Allow monochrome or duo-tone palettes IF they are stylistically intentional (like the PC-98 aesthetic) — but never muddy or dull
+- Dark backgrounds are fine — the CHARACTER must pop with vivid color against it
+- Even "dark" themed characters must have vivid color accents — electric purple, neon cyan, hot pink
+
+ABSOLUTELY FORBIDDEN:
+- Photorealistic rendering or photography-like images
+- Smooth gradient shading, airbrushed skin, soft-focus effects
+- 3D rendered look or CGI aesthetic
+- Muddy, dull, or desaturated color palettes
+- Overly detailed textures — keep surfaces flat and graphic
+- Glitch effects, VHS artifacts, scan lines, static noise, distortion
+- Vaporwave aesthetic, chromatic aberration, data corruption effects
+- Any visual noise, grain, or degradation — the image must be CLEAN and CRISP
+- Side profile, 3/4 profile, back view, or turned-away poses — ALWAYS front-facing direct view
+- Classical bust or sculpture look — character must feel alive and expressive, NOT like a marble statue
 
 CHARACTER INTERPRETATION:
 - Derive EVERYTHING from the character data. The name, creature type, vibe, personality, skills, and domains should drive every visual decision.
-- The character's mood and expression must match their personality and vibe — a playful trickster should look mischievous, a stoic guardian should look calm and steady, a chaotic entity should look wild. Do NOT default to angry/intense for every character.
+- The character's mood and expression must match their personality and vibe — a playful trickster should look mischievous, a stoic guardian should look calm and steady, a chaotic entity should look wild.
 - Be specific about what you're drawing. NEVER say "a figure" or "a being" — describe the actual creature/entity.
 - Vary wildly between characters. Different creature types, body features, colors, accessories, expressions.
 - Characters can be: human (any gender, age, ethnicity), animal, alien, robot, mythological being, hybrid, etc.
@@ -71,7 +89,7 @@ BACKGROUND:
 
 OUTPUT FORMAT — Respond with valid JSON only, no markdown:
 {
-  "prompt": "<your portrait prompt here>",
+  "prompt": "<MUST start with the exact reference style phrase, then continue with character-specific description>",
   "traits": {
     "Hair": "<derived from character>",
     "Eyes": "<derived from character>",
@@ -176,7 +194,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!portraitPrompt || portraitPrompt.length < 10) {
-      portraitPrompt = `High-contrast dramatic portrait of a ${agent.creature} named ${agent.name} with ${agent.vibe} energy, bold vibrant colors.`;
+      portraitPrompt = `${PORTRAIT_REFERENCE_PREFIX}, depicting a ${agent.creature} named ${agent.name} with ${agent.vibe} energy.`;
+    }
+
+    // Ensure the reference prefix is always present (Gemini may skip it)
+    if (!portraitPrompt.includes('retro digital illustration portrait')) {
+      portraitPrompt = `${PORTRAIT_REFERENCE_PREFIX}. ${portraitPrompt}`;
     }
 
     // Strip any background mentions the AI may have added
@@ -190,7 +213,7 @@ export async function POST(request: NextRequest) {
     let enrichedPrompt = traitLines ? `${portraitPrompt} Character details: ${traitLines}.` : portraitPrompt;
 
     // Append background color — chosen server-side so AI never sees it during character design
-    const bgColors = ['black', 'red', 'yellow', 'green'];
+    const bgColors = ['grey', 'black', 'yellow', 'green', 'blue', 'white'];
     const bg = bgColors[Math.floor(Math.random() * bgColors.length)];
     enrichedPrompt += ` Solid ${bg} background, no gradient, no scenery.`;
 
