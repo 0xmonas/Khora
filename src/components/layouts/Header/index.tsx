@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
@@ -118,7 +119,7 @@ export function Header() {
       <div className="w-full lg:grid lg:grid-cols-12">
         <div className="hidden lg:block lg:col-span-1" />
         <div className="lg:col-span-10">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between relative">
             <div
               style={{ width: '48px', height: '48px', position: 'relative' }}
               onClick={() => router.replace('/')}
@@ -133,6 +134,14 @@ export function Header() {
                 className="object-contain bg-[#30f] dark:bg-background"
               />
             </div>
+            <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">
+              <Link href="/booa" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
+                BOOA
+              </Link>
+              <Link href="/bridge" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
+                Bridge
+              </Link>
+            </nav>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}

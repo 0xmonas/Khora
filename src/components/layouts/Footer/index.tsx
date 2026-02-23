@@ -73,13 +73,6 @@ export function Footer() {
                 >
                   Bridge
                 </Link>
-                <Link
-                  href="/booa/about"
-                  className={linkClass}
-                  style={footerFont}
-                >
-                  About
-                </Link>
                 <a
                   href="https://github.com/0xmonas/Khora"
                   target="_blank"
