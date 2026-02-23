@@ -53,6 +53,8 @@ interface BridgeContextType {
   setSelectedDomains: (d: string[]) => void;
   x402Support: boolean;
   setX402Support: (v: boolean) => void;
+  supportedTrust: string[];
+  setSupportedTrust: (t: string[]) => void;
 
   // Registration / Update
   step: BridgeStep;
@@ -102,6 +104,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
   const [x402Support, setX402Support] = useState(false);
+  const [supportedTrust, setSupportedTrust] = useState<string[]>([]);
 
   // Registration
   const [step, setStep] = useState<BridgeStep>('select');
@@ -202,6 +205,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
           if (allSkills.length) setSelectedSkills(Array.from(new Set(allSkills)));
           if (allDomains.length) setSelectedDomains(Array.from(new Set(allDomains)));
           if (reg.x402Support !== undefined) setX402Support(!!reg.x402Support);
+          if (reg.supportedTrust?.length) setSupportedTrust(reg.supportedTrust);
         }
       } catch { /* silent — basic info already set */ }
       finally { setConfigLoading(false); }
@@ -219,6 +223,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setSelectedDomains(attrs.filter(a => domainTypes.has(a.trait_type.toLowerCase())).map(a => a.value));
       setErc8004Services([]);
       setX402Support(false);
+      setSupportedTrust([]);
       setConfigLoading(false);
       setStep('configure');
     }
@@ -235,6 +240,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     setSelectedSkills([]);
     setSelectedDomains([]);
     setX402Support(false);
+    setSupportedTrust([]);
     setError(null);
     setStep('select');
   }, []);
@@ -282,9 +288,10 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       services: enrichedServices,
       active: enrichedServices.some(s => s.endpoint?.trim() !== ''),
       x402Support,
+      supportedTrust: supportedTrust.length ? supportedTrust : undefined,
       updatedAt: Math.floor(Date.now() / 1000),
     };
-  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support]);
+  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust]);
 
   // Register NEW agent on Identity Registry
   const register = useCallback(async () => {
@@ -441,6 +448,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       erc8004Services, setErc8004Services,
       selectedSkills, setSelectedSkills, selectedDomains, setSelectedDomains,
       x402Support, setX402Support,
+      supportedTrust, setSupportedTrust,
       step, registryAgentId, registerTxHash, error, register, updateAgent, reset,
       isModalOpen, closeModal,
     }}>
