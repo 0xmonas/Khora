@@ -7,6 +7,7 @@ import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASF
 import type { AgentService } from '@/types/agent';
 
 const SERVICE_TYPES = ['web', 'A2A', 'MCP', 'OASF', 'ENS', 'DID', 'email'] as const;
+const TRUST_OPTIONS = ['reputation', 'crypto-economic', 'tee-attestation'] as const;
 
 const SERVICE_PLACEHOLDERS: Record<string, string> = {
   web: 'https://myagent.com/',
@@ -36,6 +37,7 @@ export function ConfigPanel() {
     selectedSkills, setSelectedSkills,
     selectedDomains, setSelectedDomains,
     x402Support, setX402Support,
+    supportedTrust, setSupportedTrust,
     register, updateAgent, error, step,
   } = useBridge();
 
@@ -79,6 +81,13 @@ export function ConfigPanel() {
       selectedDomains.includes(d)
         ? selectedDomains.filter(v => v !== d)
         : [...selectedDomains, d]
+    );
+  };
+  const toggleTrust = (t: string) => {
+    setSupportedTrust(
+      supportedTrust.includes(t)
+        ? supportedTrust.filter(v => v !== t)
+        : [...supportedTrust, t]
     );
   };
   const toggleCat = (cat: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) => {
@@ -290,6 +299,27 @@ export function ConfigPanel() {
                       }`}
                     >
                       {val ? 'on' : 'off'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Supported Trust */}
+              <div>
+                <h3 className="text-xs font-mono mb-1.5 text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Supported Trust</h3>
+                <div className="flex flex-wrap gap-1">
+                  {TRUST_OPTIONS.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => toggleTrust(t)}
+                      className={`px-2 py-1 font-mono text-[10px] border transition-colors ${
+                        supportedTrust.includes(t)
+                          ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 border-neutral-700 dark:border-neutral-200'
+                          : 'bg-transparent text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-500'
+                      }`}
+                    >
+                      {t}
                     </button>
                   ))}
                 </div>
