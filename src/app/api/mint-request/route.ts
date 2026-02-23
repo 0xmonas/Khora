@@ -212,10 +212,8 @@ export async function POST(request: NextRequest) {
       .join(', ');
     let enrichedPrompt = traitLines ? `${portraitPrompt} Character details: ${traitLines}.` : portraitPrompt;
 
-    // Append background color — chosen server-side so AI never sees it during character design
-    const bgColors = ['grey', 'black', 'yellow', 'green', 'blue', 'white'];
-    const bg = bgColors[Math.floor(Math.random() * bgColors.length)];
-    enrichedPrompt += ` Solid ${bg} background, no gradient, no scenery.`;
+    // Force black background — always
+    enrichedPrompt += ` Solid black background, no gradient, no scenery.`;
 
     // ══════════════════════════════════════════════════
     //  STEP 3: Generate image
