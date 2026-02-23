@@ -3,6 +3,7 @@ import sharp from 'sharp';
 /**
  * Server-side bitmap encoding for BOOA V2.
  * Uses sharp instead of canvas (no DOM dependency).
+ * Applies Bayer 8x8 ordered dithering before C64 palette quantization.
  */
 
 interface RGBColor { r: number; g: number; b: number }
@@ -52,40 +53,46 @@ function nearestPaletteIndex(r: number, g: number, b: number): number {
   return bestIdx;
 }
 
-const GRID_SIZE = 64;
-const PREVIEW_SCALE = 16; // 64 * 16 = 1024 (matches client-side pixelator.ts)
+// ── Bayer 4x4 ordered dithering matrix ──
+const BAYER_MATRIX_4X4 = [
+  [ 0,  8,  2, 10],
+  [12,  4, 14,  6],
+  [ 3, 11,  1,  9],
+  [15,  7, 13,  5],
+];
 
-/** Vertical pixel stretch — averages 2-row blocks for a scan-line feel (matches client-side) */
-function applyPixelStretch(data: Buffer, w: number, h: number, channels: number): void {
-  const stretchY = 2;
-  const src = Buffer.from(data); // snapshot before mutation
+// Dithering parameters (matching takeover project defaults)
+const DITHERING_STRENGTH = 10; // 0-100 scale (takeover default: 10)
+const CONTRAST = 100;          // 100 = neutral (takeover default)
+const BRIGHTNESS = 100;        // 100 = neutral (takeover default)
 
-  for (let y = 0; y < h; y += stretchY) {
+/**
+ * Apply Bayer 4x4 ordered dithering to raw pixel data.
+ * Algorithm matches takeover-nextjs/src/lib/dt1/image-processor.ts BAYER_4X4 path.
+ */
+function applyBayer4x4Dither(data: Buffer, w: number, h: number, channels: number): void {
+  const contrastFactor = CONTRAST / 100;
+  const brightnessFactor = BRIGHTNESS / 100;
+  const ditherStrength = DITHERING_STRENGTH / 100;
+
+  for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const endY = Math.min(y + stretchY, h);
-      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+      const i = (y * w + x) * channels;
+      const bayerValue = BAYER_MATRIX_4X4[y % 4][x % 4] / 16;
 
-      for (let by = y; by < endY; by++) {
-        const idx = (by * w + x) * channels;
-        rSum += src[idx];
-        gSum += src[idx + 1];
-        bSum += src[idx + 2];
-        count++;
-      }
-
-      const avgR = Math.round(rSum / count);
-      const avgG = Math.round(gSum / count);
-      const avgB = Math.round(bSum / count);
-
-      for (let by = y; by < endY; by++) {
-        const idx = (by * w + x) * channels;
-        data[idx] = avgR;
-        data[idx + 1] = avgG;
-        data[idx + 2] = avgB;
+      for (let c = 0; c < 3; c++) {
+        let value = data[i + c] / 255;
+        value = (value - 0.5) * contrastFactor + 0.5;
+        value = value * brightnessFactor;
+        value = value + (bayerValue - 0.5) * ditherStrength;
+        data[i + c] = Math.max(0, Math.min(255, Math.round(value * 255)));
       }
     }
   }
 }
+
+const GRID_SIZE = 64;
+const PREVIEW_SCALE = 16; // 64 * 16 = 1024
 
 /**
  * Encode a base64 image into a 2,048-byte bitmap (server-side).
@@ -94,7 +101,6 @@ function applyPixelStretch(data: Buffer, w: number, h: number, channels: number)
  * @returns Uint8Array of exactly 2,048 bytes
  */
 export async function encodeBitmapServer(base64Image: string): Promise<Uint8Array> {
-  // Strip data URI prefix if present
   const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   const imageBuffer = Buffer.from(raw, 'base64');
 
@@ -105,11 +111,11 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Apply pixel stretch (matches client-side pixelator.ts)
-  const stretched = Buffer.from(data);
-  applyPixelStretch(stretched, GRID_SIZE, GRID_SIZE, 3);
+  // Apply Bayer 8x8 dithering (replaces pixel stretch)
+  const dithered = Buffer.from(data);
+  applyBayer4x4Dither(dithered, GRID_SIZE, GRID_SIZE, 3);
 
-  // Pack into 4-bit nibbles
+  // Pack into 4-bit nibbles (C64 palette indices)
   const bytesPerRow = GRID_SIZE / 2;
   const bitmap = new Uint8Array(GRID_SIZE * bytesPerRow);
 
@@ -118,8 +124,8 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
       const i0 = (y * GRID_SIZE + x) * 3;
       const i1 = (y * GRID_SIZE + x + 1) * 3;
 
-      const idx0 = nearestPaletteIndex(stretched[i0], stretched[i0 + 1], stretched[i0 + 2]);
-      const idx1 = nearestPaletteIndex(stretched[i1], stretched[i1 + 1], stretched[i1 + 2]);
+      const idx0 = nearestPaletteIndex(dithered[i0], dithered[i0 + 1], dithered[i0 + 2]);
+      const idx1 = nearestPaletteIndex(dithered[i1], dithered[i1 + 1], dithered[i1 + 2]);
 
       bitmap[y * bytesPerRow + (x >> 1)] = (idx0 << 4) | idx1;
     }
@@ -129,7 +135,7 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
 }
 
 /**
- * Pixelate an image to 64x64 with C64 palette quantization (server-side).
+ * Pixelate an image to 64x64 with Bayer 8x8 dither + C64 palette quantization (server-side).
  * Returns base64 PNG for preview.
  */
 export async function pixelateImageServer(base64Image: string): Promise<string> {
@@ -143,21 +149,21 @@ export async function pixelateImageServer(base64Image: string): Promise<string> 
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Apply pixel stretch (matches client-side pixelator.ts)
-  const stretched = Buffer.from(data);
-  applyPixelStretch(stretched, GRID_SIZE, GRID_SIZE, 3);
+  // Apply Bayer 8x8 dithering (replaces pixel stretch)
+  const dithered = Buffer.from(data);
+  applyBayer4x4Dither(dithered, GRID_SIZE, GRID_SIZE, 3);
 
   // Quantize to C64 palette
   const quantized = Buffer.alloc(GRID_SIZE * GRID_SIZE * 3);
   for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
-    const idx = nearestPaletteIndex(stretched[i * 3], stretched[i * 3 + 1], stretched[i * 3 + 2]);
+    const idx = nearestPaletteIndex(dithered[i * 3], dithered[i * 3 + 1], dithered[i * 3 + 2]);
     const c = C64_PALETTE[idx];
     quantized[i * 3] = c.r;
     quantized[i * 3 + 1] = c.g;
     quantized[i * 3 + 2] = c.b;
   }
 
-  // Scale up to 1024x1024 with nearest-neighbor (matches client-side)
+  // Scale up to 1024x1024 with nearest-neighbor
   const outputSize = GRID_SIZE * PREVIEW_SCALE;
   const png = await sharp(quantized, { raw: { width: GRID_SIZE, height: GRID_SIZE, channels: 3 } })
     .resize(outputSize, outputSize, { kernel: 'nearest' })
