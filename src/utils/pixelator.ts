@@ -24,12 +24,6 @@ const PALETTE: RGBColor[] = [
   { r: 0xA0, g: 0x57, b: 0xA3 }, // #A057A3
 ];
 
-// ── 2-color duotone palette — disabled ──
-// const PALETTE_DUOTONE: RGBColor[] = [
-//   { r: 0x0A, g: 0x0A, b: 0x0A }, // #0a0a0a
-//   { r: 0xF5, g: 0xF5, b: 0xF5 }, // #f5f5f5
-// ];
-
 const loadImage = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -44,66 +38,35 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   });
 };
 
-// 4x4 Bayer ordered dithering matrix
+// Bayer 4x4 ordered dithering matrix
 const BAYER_4X4 = [
   [ 0,  8,  2, 10],
   [12,  4, 14,  6],
   [ 3, 11,  1,  9],
-  [15,  7, 13,  5]
+  [15,  7, 13,  5],
 ];
 
-const DITHER_STRENGTH = 0.5;
+// Dithering parameters (matching takeover project defaults & server-side bitmap.ts)
+const DITHER_STRENGTH = 0.1;  // 10/100 (takeover default)
+const CONTRAST = 1.0;         // 100/100 = neutral (takeover default)
+const BRIGHTNESS = 1.0;       // 100/100 = neutral (takeover default)
 
-const applyBayerDither = (imageData: ImageData): ImageData => {
-  const data = imageData.data;
-  const w = imageData.width;
-
-  for (let y = 0; y < imageData.height; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const bayerNorm = BAYER_4X4[y % 4][x % 4] / 16;
-
-      for (let c = 0; c < 3; c++) {
-        let v = data[i + c] / 255;
-        v = v + (bayerNorm - 0.5) * DITHER_STRENGTH;
-        data[i + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
-      }
-    }
-  }
-
-  return imageData;
-};
-
-/** Slight vertical pixel stretch — averages small vertical blocks for a scan-line feel */
-const applyPixelStretch = (imageData: ImageData): ImageData => {
+const applyBayer4x4Dither = (imageData: ImageData): ImageData => {
   const data = imageData.data;
   const w = imageData.width;
   const h = imageData.height;
-  const stretchY = 2; // stretch 2 rows into 1 averaged block
-  const tempData = new Uint8ClampedArray(data);
 
-  for (let y = 0; y < h; y += stretchY) {
+  for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const endY = Math.min(y + stretchY, h);
-      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+      const i = (y * w + x) * 4;
+      const bayerValue = BAYER_4X4[y % 4][x % 4] / 16;
 
-      for (let by = y; by < endY; by++) {
-        const idx = (by * w + x) * 4;
-        rSum += tempData[idx];
-        gSum += tempData[idx + 1];
-        bSum += tempData[idx + 2];
-        count++;
-      }
-
-      const avgR = Math.round(rSum / count);
-      const avgG = Math.round(gSum / count);
-      const avgB = Math.round(bSum / count);
-
-      for (let by = y; by < endY; by++) {
-        const idx = (by * w + x) * 4;
-        data[idx] = avgR;
-        data[idx + 1] = avgG;
-        data[idx + 2] = avgB;
+      for (let c = 0; c < 3; c++) {
+        let v = data[i + c] / 255;
+        v = (v - 0.5) * CONTRAST + 0.5;
+        v = v * BRIGHTNESS;
+        v = v + (bayerValue - 0.5) * DITHER_STRENGTH;
+        data[i + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
       }
     }
   }
@@ -152,12 +115,9 @@ export const pixelateImage = async (imageUrl: string): Promise<string> => {
   sCtx.imageSmoothingEnabled = false;
   sCtx.drawImage(img, 0, 0, size, size);
 
-  // Bayer dither (disabled)
-  // const dithered = applyBayerDither(sCtx.getImageData(0, 0, size, size));
-  // sCtx.putImageData(dithered, 0, 0);
-
-  const stretched = applyPixelStretch(sCtx.getImageData(0, 0, size, size));
-  const quantized = quantizeToPalette(stretched);
+  // Bayer 8x8 dither → C64 palette quantization
+  const dithered = applyBayer4x4Dither(sCtx.getImageData(0, 0, size, size));
+  const quantized = quantizeToPalette(dithered);
   sCtx.putImageData(quantized, 0, 0);
 
   // Scale up to 1024x1024 with nearest-neighbor
