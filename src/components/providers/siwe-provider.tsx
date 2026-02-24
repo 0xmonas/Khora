@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, type ReactNode, useEffect, useMemo, useState, useRef } from 'react';
 import {
   createAuthenticationAdapter,
   RainbowKitAuthenticationProvider,
@@ -13,24 +13,43 @@ const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated')
 export function useSiweStatus() { return useContext(SiweStatusContext); }
 
 export function SiweProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthenticationStatus>('unauthenticated');
-  const { isConnected } = useAccount();
+  const [status, setStatus] = useState<AuthenticationStatus>('loading');
+  const { isConnected, address } = useAccount();
+  const prevConnected = useRef(isConnected);
 
-  // Check session when wallet is connected
+  // Check session when wallet connects or address changes
   useEffect(() => {
     if (!isConnected) {
+      // Wallet not connected — if we were previously authenticated, logout server session
+      if (prevConnected.current) {
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      }
       setStatus('unauthenticated');
+      prevConnected.current = false;
       return;
     }
 
-    // Wallet connected — check if we have an active SIWE session
+    prevConnected.current = true;
+
+    // Wallet connected — verify SIWE session matches current address
     let cancelled = false;
+    setStatus('loading');
+
     (async () => {
       try {
         const res = await fetch('/api/auth/session');
         const data = await res.json();
-        if (!cancelled) {
-          setStatus(data.address ? 'authenticated' : 'unauthenticated');
+        if (cancelled) return;
+
+        if (data.address && address && data.address.toLowerCase() === address.toLowerCase()) {
+          // Session matches connected wallet
+          setStatus('authenticated');
+        } else if (data.address) {
+          // Session exists but for a different address — clear it
+          await fetch('/api/auth/logout', { method: 'POST' });
+          if (!cancelled) setStatus('unauthenticated');
+        } else {
+          setStatus('unauthenticated');
         }
       } catch {
         if (!cancelled) setStatus('unauthenticated');
@@ -38,16 +57,7 @@ export function SiweProvider({ children }: { children: ReactNode }) {
     })();
 
     return () => { cancelled = true; };
-  }, [isConnected]);
-
-  // Auto-logout when wallet disconnects
-  useEffect(() => {
-    if (!isConnected && status === 'authenticated') {
-      fetch('/api/auth/logout', { method: 'POST' }).then(() => {
-        setStatus('unauthenticated');
-      });
-    }
-  }, [isConnected, status]);
+  }, [isConnected, address]);
 
   const adapter = useMemo(
     () =>
@@ -58,9 +68,9 @@ export function SiweProvider({ children }: { children: ReactNode }) {
           return data.nonce;
         },
 
-        createMessage: ({ nonce, address, chainId }) => {
+        createMessage: ({ nonce, address: addr, chainId }) => {
           return createSiweMessage({
-            address: address as `0x${string}`,
+            address: addr as `0x${string}`,
             chainId,
             domain: window.location.host,
             nonce,
