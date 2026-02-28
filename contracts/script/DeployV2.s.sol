@@ -29,8 +29,10 @@ contract DeployV2 is Script {
         address deployer = vm.addr(deployerKey);
 
         // ── Config ──
-        uint256 allowlistPrice = 0.0042 ether;
-        uint256 publicPrice = 0.0069 ether;
+        // NOTE: Testnet prices (10x cheaper for testing).
+        //       Mainnet prices: allowlist = 0.0042 ether, public = 0.0069 ether
+        uint256 allowlistPrice = 0.00042 ether;
+        uint256 publicPrice = 0.00069 ether;
         address royaltyReceiver = deployer;
         uint96 royaltyBps = 500; // 5%
 
@@ -78,10 +80,16 @@ contract DeployV2 is Script {
         booa.setDataStore(address(dataStore));
         console.log("BOOAv2: dataStore set");
 
-        // BOOAMinter: set supply limits (starts in Closed phase)
+        // BOOAMinter: set supply limits
         minter.setMaxPerWallet(10);
         minter.setMaxSupply(3333);
-        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333, phase=Closed");
+        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333");
+
+        // NOTE: Phase starts as Closed (0) by default.
+        // Do NOT auto-open any phase here. Phase changes (Allowlist/Public)
+        // must be done manually via cast send after deploy verification.
+        // See docs/guide.md §4 and §15 for the full launch checklist.
+        console.log("BOOAMinter: phase=Closed (awaiting manual phase change)");
 
         vm.stopBroadcast();
 
