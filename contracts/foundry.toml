@@ -11,4 +11,5 @@ test = "test"
 remappings = [
     "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
     "solady/=node_modules/solady/",
+    "murky/=lib/murky/",
 ]

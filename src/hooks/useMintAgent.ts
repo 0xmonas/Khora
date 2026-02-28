@@ -17,13 +17,20 @@ import {
   getV2MinterAddress,
 } from '@/lib/contracts/booa-v2';
 
-export type MintPhase =
+/** Contract-level mint phase enum: 0=Closed, 1=Allowlist, 2=Public */
+export type ContractMintPhase = 0 | 1 | 2;
+
+/** UI flow phase (renamed from MintPhase to avoid collision with contract enum) */
+export type MintFlowPhase =
   | 'idle'
   | 'generating'   // Server is running AI pipeline + signing
   | 'confirming'    // Waiting for wallet signature
   | 'pending'       // TX submitted, waiting for confirmation
   | 'success'       // TX confirmed, NFT minted
   | 'error';
+
+// Keep old name as alias for backward compat with GeneratorContext
+export type MintPhase = MintFlowPhase;
 
 export interface MintRequestData {
   imageData: Hex;
@@ -54,6 +61,27 @@ export function useMintAgent() {
     query: { enabled: !!minterAddress && minterAddress.length > 2 },
   });
 
+  const { data: currentPhase } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'currentPhase',
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
+  const { data: allowlistPrice } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'allowlistPrice',
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
+  const { data: publicPrice } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'publicPrice',
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
   const { data: totalSupply, refetch: refetchSupply } = useReadContract({
     address: booaAddress,
     abi: BOOA_V2_ABI,
@@ -66,6 +94,21 @@ export function useMintAgent() {
     abi: BOOA_V2_MINTER_ABI,
     functionName: 'maxSupply',
     query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
+  const { data: maxPerWallet } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'maxPerWallet',
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
+  const { data: userMintCount } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'mintCount',
+    args: address ? [address] : undefined,
+    query: { enabled: !!minterAddress && minterAddress.length > 2 && !!address },
   });
 
   // Write contract (single tx mint)
@@ -149,7 +192,7 @@ export function useMintAgent() {
   }, [isConnected, address]);
 
   // Step 2: Send mint tx with signed data
-  const sendMintTx = useCallback((data?: MintRequestData) => {
+  const sendMintTx = useCallback((data?: MintRequestData, merkleProof?: Hex[]) => {
     const packet = data || mintRequestData;
     if (!packet) {
       throw new Error('Mint session not ready. Please try generating again.');
@@ -167,13 +210,14 @@ export function useMintAgent() {
         packet.traitsData,
         BigInt(packet.deadline),
         packet.signature,
+        (merkleProof || []) as readonly Hex[],
       ],
       value: mintPrice ?? BigInt(0),
     });
   }, [isConnected, address, minterAddress, mintPrice, mintRequestData, writeContract]);
 
   // Determine phase
-  const phase: MintPhase = isSuccess
+  const phase: MintFlowPhase = isSuccess
     ? 'success'
     : isConfirming
     ? 'pending'
@@ -201,9 +245,16 @@ export function useMintAgent() {
     mintRequestData,
     tokenId,
     txHash,
+    // Contract reads
     mintPrice,
+    currentPhase: (currentPhase ?? 0) as ContractMintPhase,
+    allowlistPrice,
+    publicPrice,
     totalSupply,
     maxSupply,
+    maxPerWallet,
+    userMintCount,
+    // Connection
     isConnected,
     address,
     booaAddress,

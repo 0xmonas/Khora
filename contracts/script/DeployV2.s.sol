@@ -29,13 +29,15 @@ contract DeployV2 is Script {
         address deployer = vm.addr(deployerKey);
 
         // ── Config ──
-        uint256 mintPrice = 0; // Free mint for testnet
+        uint256 allowlistPrice = 0.0042 ether;
+        uint256 publicPrice = 0.0069 ether;
         address royaltyReceiver = deployer;
         uint96 royaltyBps = 500; // 5%
 
         console.log("Deployer:", deployer);
         console.log("Signer:", signer);
-        console.log("Mint price:", mintPrice);
+        console.log("Allowlist price:", allowlistPrice);
+        console.log("Public price:", publicPrice);
 
         vm.startBroadcast(deployerKey);
 
@@ -51,12 +53,13 @@ contract DeployV2 is Script {
         BOOAv2 booa = new BOOAv2(royaltyReceiver, royaltyBps);
         console.log("BOOAv2:", address(booa));
 
-        // 4. BOOAMinter (needs booa + storage + signer)
+        // 4. BOOAMinter (needs booa + storage + signer + prices)
         BOOAMinter minter = new BOOAMinter(
             address(booa),
             address(dataStore),
             signer,
-            mintPrice
+            allowlistPrice,
+            publicPrice
         );
         console.log("BOOAMinter:", address(minter));
 
@@ -74,6 +77,11 @@ contract DeployV2 is Script {
         // BOOAv2: set dataStore reference (for updateMetadata)
         booa.setDataStore(address(dataStore));
         console.log("BOOAv2: dataStore set");
+
+        // BOOAMinter: set supply limits (starts in Closed phase)
+        minter.setMaxPerWallet(10);
+        minter.setMaxSupply(3333);
+        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333, phase=Closed");
 
         vm.stopBroadcast();
 

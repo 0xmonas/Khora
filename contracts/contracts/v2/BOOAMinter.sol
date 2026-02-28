@@ -4,68 +4,101 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {IBOOA} from "./interfaces/IBOOA.sol";
 import {IBOOAStorage} from "./interfaces/IBOOAStorage.sol";
 
 /// @title BOOAMinter
-/// @notice Server-signed single-tx mint. The server generates bitmap + traits
-///         off-chain and signs the packet with EIP-191.
+/// @notice Server-signed single-tx mint with Merkle allowlist + public phases.
 contract BOOAMinter is Ownable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
+
+    enum MintPhase { Closed, Allowlist, Public }
 
     IBOOA public booa;
     IBOOAStorage public dataStore;
 
     address public signer;
-    uint256 public mintPrice;
+    uint256 public allowlistPrice;
+    uint256 public publicPrice;
     uint256 public maxSupply;
     uint256 public maxPerWallet;
-    bool public paused;
+    MintPhase public currentPhase;
+    bytes32 public merkleRoot;
 
     mapping(address => uint256) public mintCount;
+    mapping(address => uint256) public allowlistMintCount;
     mapping(bytes32 => bool) private _usedSignatures;
 
     event AgentMinted(uint256 indexed tokenId, address indexed minter);
     event SignerUpdated(address indexed newSigner);
-    event MintPriceUpdated(uint256 newPrice);
+    event AllowlistPriceUpdated(uint256 newPrice);
+    event PublicPriceUpdated(uint256 newPrice);
     event MaxSupplyUpdated(uint256 newMaxSupply);
     event MaxPerWalletUpdated(uint256 newMaxPerWallet);
-    event Paused(bool isPaused);
+    event PhaseUpdated(MintPhase newPhase);
+    event MerkleRootUpdated(bytes32 newRoot);
 
-    error MintingPaused();
+    error MintingClosed();
     error SignatureExpired();
     error InsufficientPayment();
     error MintLimitReached();
     error MaxSupplyReached();
     error InvalidSignature();
     error SignatureAlreadyUsed();
+    error NotAllowlisted();
+    error SoldOut();
 
     constructor(
         address _booa,
         address _dataStore,
         address _signer,
-        uint256 _mintPrice
+        uint256 _allowlistPrice,
+        uint256 _publicPrice
     ) Ownable(msg.sender) {
         booa = IBOOA(_booa);
         dataStore = IBOOAStorage(_dataStore);
         signer = _signer;
-        mintPrice = _mintPrice;
+        allowlistPrice = _allowlistPrice;
+        publicPrice = _publicPrice;
+        // currentPhase defaults to Closed (0)
     }
 
-    /// @param imageData  2048-byte bitmap (64x64, 4-bit C64 palette)
-    /// @param traitsData Traits JSON (SSTORE2)
-    /// @param deadline   Signature expiry (unix timestamp)
-    /// @param signature  EIP-191 signature over abi.encode(imageData, traitsData, msg.sender, deadline, chainId)
+    /// @notice Returns the effective mint price for the current phase.
+    function mintPrice() external view returns (uint256) {
+        if (currentPhase == MintPhase.Allowlist) return allowlistPrice;
+        if (currentPhase == MintPhase.Public) return publicPrice;
+        return 0;
+    }
+
+    /// @param imageData    2048-byte bitmap (64x64, 4-bit C64 palette)
+    /// @param traitsData   Traits JSON (SSTORE2)
+    /// @param deadline     Signature expiry (unix timestamp)
+    /// @param signature    EIP-191 signature over abi.encode(imageData, traitsData, msg.sender, deadline, chainId)
+    /// @param merkleProof  Merkle proof for allowlist verification (empty array for public phase)
     function mint(
         bytes calldata imageData,
         bytes calldata traitsData,
         uint256 deadline,
-        bytes calldata signature
+        bytes calldata signature,
+        bytes32[] calldata merkleProof
     ) external payable returns (uint256 tokenId) {
-        if (paused) revert MintingPaused();
+        if (currentPhase == MintPhase.Closed) revert MintingClosed();
         if (block.timestamp > deadline) revert SignatureExpired();
-        if (msg.value < mintPrice) revert InsufficientPayment();
+
+        // Phase-based price and allowlist check
+        uint256 price;
+        if (currentPhase == MintPhase.Allowlist) {
+            bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender))));
+            if (!MerkleProof.verifyCalldata(merkleProof, merkleRoot, leaf)) revert NotAllowlisted();
+            price = allowlistPrice;
+            allowlistMintCount[msg.sender]++;
+        } else {
+            price = publicPrice;
+        }
+
+        if (msg.value < price) revert InsufficientPayment();
         if (maxPerWallet > 0 && mintCount[msg.sender] >= maxPerWallet) revert MintLimitReached();
         if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
 
@@ -86,19 +119,45 @@ contract BOOAMinter is Ownable {
         emit AgentMinted(tokenId, msg.sender);
     }
 
+    // ═══════════════════════════════════════
+    //  Admin functions
+    // ═══════════════════════════════════════
+
     function setSigner(address _signer) external onlyOwner {
         signer = _signer;
         emit SignerUpdated(_signer);
     }
 
-    function setMintPrice(uint256 _price) external onlyOwner {
-        mintPrice = _price;
-        emit MintPriceUpdated(_price);
+    function setPhase(MintPhase _phase) external onlyOwner {
+        if (_phase == MintPhase.Allowlist && merkleRoot == bytes32(0)) revert NotAllowlisted();
+        currentPhase = _phase;
+        emit PhaseUpdated(_phase);
+    }
+
+    function setMerkleRoot(bytes32 _root) external onlyOwner {
+        merkleRoot = _root;
+        emit MerkleRootUpdated(_root);
+    }
+
+    function setAllowlistPrice(uint256 _price) external onlyOwner {
+        allowlistPrice = _price;
+        emit AllowlistPriceUpdated(_price);
+    }
+
+    function setPublicPrice(uint256 _price) external onlyOwner {
+        publicPrice = _price;
+        emit PublicPriceUpdated(_price);
     }
 
     function setMaxSupply(uint256 _maxSupply) external onlyOwner {
-        if (_maxSupply > 0 && _maxSupply < booa.totalSupply()) {
+        uint256 currentTotal = booa.totalSupply();
+        // Cannot reduce below current supply
+        if (_maxSupply > 0 && _maxSupply < currentTotal) {
             revert MaxSupplyReached();
+        }
+        // Cannot change once sold out
+        if (maxSupply > 0 && currentTotal >= maxSupply) {
+            revert SoldOut();
         }
         maxSupply = _maxSupply;
         emit MaxSupplyUpdated(_maxSupply);
@@ -107,11 +166,6 @@ contract BOOAMinter is Ownable {
     function setMaxPerWallet(uint256 _max) external onlyOwner {
         maxPerWallet = _max;
         emit MaxPerWalletUpdated(_max);
-    }
-
-    function setPaused(bool _paused) external onlyOwner {
-        paused = _paused;
-        emit Paused(_paused);
     }
 
     function withdraw() external onlyOwner {

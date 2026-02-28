@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { useMintAgent, type MintPhase } from '@/hooks/useMintAgent';
+import { useMintAgent, type MintPhase, type ContractMintPhase } from '@/hooks/useMintAgent';
+import { getAllowlistProof, isAllowlisted as checkAllowlisted } from '@/lib/allowlist';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
@@ -37,6 +38,12 @@ type GeneratorContextType = {
   mintPrice: bigint | undefined;
   totalSupply: bigint | undefined;
   maxSupply: bigint | undefined;
+  maxPerWallet: bigint | undefined;
+  userMintCount: bigint | undefined;
+  currentPhase: ContractMintPhase;
+  allowlistPrice: bigint | undefined;
+  publicPrice: bigint | undefined;
+  isUserAllowlisted: boolean | null;
   mintPhase: MintPhase;
   booaAddress: `0x${string}`;
   minterAddress: `0x${string}`;
@@ -163,8 +170,34 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Allowlist state
+  const [isUserAllowlisted, setIsUserAllowlisted] = useState<boolean | null>(null);
+  const [allowlistProof, setAllowlistProof] = useState<`0x${string}`[] | null>(null);
+
   // V2 mint hook — single-tx with server-signed data
   const mint = useMintAgent();
+
+  // Check allowlist status when address or contract phase changes
+  useEffect(() => {
+    if (!mint.address || mint.currentPhase !== 1) {
+      setIsUserAllowlisted(null);
+      setAllowlistProof(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const proof = await getAllowlistProof(mint.address!);
+      if (cancelled) return;
+      if (proof) {
+        setIsUserAllowlisted(true);
+        setAllowlistProof(proof);
+      } else {
+        setIsUserAllowlisted(false);
+        setAllowlistProof(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mint.address, mint.currentPhase]);
 
   // Restore from localStorage (mount-only)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -606,9 +639,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setPixelatedImage(data.pixelatedImage);
       stopProgressBar();
 
-      // Step 2: Send mint tx with signed data
+      // Step 2: Send mint tx with signed data (pass Merkle proof if in allowlist phase)
       setCurrentStep('confirming');
-      mint.sendMintTx(data);
+      mint.sendMintTx(data, allowlistProof ?? undefined);
       // Phase tracking (confirming → pending → success) handled by useMintAgent + useEffects above
       setCurrentStep('pending');
     } catch (err) {
@@ -735,6 +768,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     mintPrice: mint.mintPrice as bigint | undefined,
     totalSupply: mint.totalSupply as bigint | undefined,
     maxSupply: mint.maxSupply as bigint | undefined,
+    maxPerWallet: mint.maxPerWallet as bigint | undefined,
+    userMintCount: mint.userMintCount as bigint | undefined,
+    currentPhase: mint.currentPhase,
+    allowlistPrice: mint.allowlistPrice as bigint | undefined,
+    publicPrice: mint.publicPrice as bigint | undefined,
+    isUserAllowlisted,
     mintPhase: mint.phase,
     booaAddress: mint.booaAddress,
     minterAddress: mint.minterAddress,
