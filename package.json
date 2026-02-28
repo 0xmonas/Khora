@@ -71,6 +71,9 @@
     "@paulmillr/qr": "npm:qr@^0.5.0",
     "glob": "^13.0.0",
     "rimraf": "^6.0.0",
-    "inflight": "npm:noop3@*"
+    "inflight": "npm:noop3@*",
+    "minimatch": ">=10.2.1",
+    "bn.js": ">=5.2.3",
+    "hono": ">=4.11.10"
   }
 }
