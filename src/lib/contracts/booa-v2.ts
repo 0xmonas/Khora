@@ -163,6 +163,7 @@ export const BOOA_V2_MINTER_ABI = [
       { name: 'traitsData', type: 'bytes' },
       { name: 'deadline', type: 'uint256' },
       { name: 'signature', type: 'bytes' },
+      { name: 'merkleProof', type: 'bytes32[]' },
     ],
     name: 'mint',
     outputs: [{ name: 'tokenId', type: 'uint256' }],
@@ -173,6 +174,34 @@ export const BOOA_V2_MINTER_ABI = [
     inputs: [],
     name: 'mintPrice',
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'currentPhase',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'allowlistPrice',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'publicPrice',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'merkleRoot',
+    outputs: [{ name: '', type: 'bytes32' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -198,9 +227,9 @@ export const BOOA_V2_MINTER_ABI = [
     type: 'function',
   },
   {
-    inputs: [],
-    name: 'paused',
-    outputs: [{ name: '', type: 'bool' }],
+    inputs: [{ name: 'addr', type: 'address' }],
+    name: 'allowlistMintCount',
+    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -211,6 +240,34 @@ export const BOOA_V2_MINTER_ABI = [
     inputs: [
       { type: 'uint256', name: 'tokenId', indexed: true },
       { type: 'address', name: 'minter', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'PhaseUpdated',
+    inputs: [
+      { type: 'uint8', name: 'newPhase', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'MerkleRootUpdated',
+    inputs: [
+      { type: 'bytes32', name: 'newRoot', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'AllowlistPriceUpdated',
+    inputs: [
+      { type: 'uint256', name: 'newPrice', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'PublicPriceUpdated',
+    inputs: [
+      { type: 'uint256', name: 'newPrice', indexed: false },
     ],
   },
 ] as const;

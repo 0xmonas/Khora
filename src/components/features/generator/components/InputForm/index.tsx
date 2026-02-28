@@ -76,6 +76,10 @@ export function InputForm() {
     mintPrice,
     totalSupply,
     maxSupply,
+    maxPerWallet,
+    userMintCount,
+    currentPhase,
+    isUserAllowlisted,
     minterAddress,
     erc8004Services,
     setErc8004Services,
@@ -206,10 +210,17 @@ export function InputForm() {
 
   const isBusy = currentStep !== 'input' && currentStep !== 'complete' && currentStep !== 'update_complete';
 
+  const isSoldOut = maxSupply !== undefined && maxSupply > BigInt(0) && totalSupply !== undefined && totalSupply >= maxSupply;
+  const isLimitReached = maxPerWallet !== undefined && maxPerWallet > BigInt(0) && userMintCount !== undefined && userMintCount >= maxPerWallet;
+
   const isMintDisabled = () => {
     if (isBusy) return true;
     if (!isConnected) return true;
     if (!minterAddress || minterAddress.length <= 2) return true;
+    if (currentPhase === 0) return true; // Closed
+    if (isSoldOut) return true;
+    if (isLimitReached) return true;
+    if (currentPhase === 1 && isUserAllowlisted === false) return true; // Allowlist phase, not allowlisted
     if (mode === 'create') {
       return false; // Fully generative — no user input needed
     } else {
@@ -716,7 +727,23 @@ export function InputForm() {
               Switch to a supported network to mint
             </p>
           ) : minterAddress && minterAddress.length > 2 && mintPrice !== undefined ? (
-            <div className="text-xs font-mono mt-2 space-y-1">
+            <div className="text-xs font-mono mt-2 space-y-1.5">
+              {/* Phase badge */}
+              <div className="flex items-center gap-2">
+                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${
+                  currentPhase === 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                  currentPhase === 1 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                }`}>
+                  {currentPhase === 0 ? 'CLOSED' : currentPhase === 1 ? 'ALLOWLIST' : 'PUBLIC'}
+                </span>
+                {currentPhase === 1 && isUserAllowlisted !== null && (
+                  <span className={`text-[10px] ${isUserAllowlisted ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                    {isUserAllowlisted ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+                  </span>
+                )}
+              </div>
+              {/* Supply + Price */}
               <div className="flex justify-between text-neutral-500">
                 <span>
                   {totalSupply !== undefined ? totalSupply.toString() : '...'} minted
@@ -724,6 +751,20 @@ export function InputForm() {
                 </span>
                 <span>{formatEther(mintPrice)} ETH</span>
               </div>
+              {/* Mint count per wallet */}
+              {maxPerWallet !== undefined && maxPerWallet > BigInt(0) && (
+                <div className="flex justify-between text-neutral-500">
+                  <span>your mints</span>
+                  <span>{userMintCount !== undefined ? userMintCount.toString() : '0'} / {maxPerWallet.toString()}</span>
+                </div>
+              )}
+              {/* Status messages */}
+              {isSoldOut && (
+                <p className="text-red-500 font-mono text-[10px] uppercase">sold out</p>
+              )}
+              {isLimitReached && !isSoldOut && (
+                <p className="text-yellow-600 dark:text-yellow-500 font-mono text-[10px]">wallet limit reached</p>
+              )}
               {chainId === baseSepolia.id && (
                 <p className="text-yellow-600 dark:text-yellow-500">
                   Testnet — Base Sepolia

@@ -36,14 +36,16 @@ contract ReentrantMinter {
         savedTraitsData = traitsData;
         savedDeadline = deadline;
         savedSig = sig;
-        minter.mint{value: msg.value}(imageData, traitsData, deadline, sig);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        minter.mint{value: msg.value}(imageData, traitsData, deadline, sig, emptyProof);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
         if (attackCount < 1) {
             attackCount++;
+            bytes32[] memory emptyProof = new bytes32[](0);
             try minter.mint{value: address(this).balance}(
-                savedImageData, savedTraitsData, savedDeadline, savedSig
+                savedImageData, savedTraitsData, savedDeadline, savedSig, emptyProof
             ) {} catch {}
         }
         return this.onERC721Received.selector;
@@ -119,7 +121,8 @@ contract CallerProxy {
         uint256 deadline,
         bytes calldata sig
     ) external payable returns (uint256) {
-        return _minter.mint{value: msg.value}(imageData, traitsData, deadline, sig);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        return _minter.mint{value: msg.value}(imageData, traitsData, deadline, sig, emptyProof);
     }
 }
 
@@ -140,7 +143,8 @@ contract BOOAv2DeepSecurityTest is Test {
     uint256 signerKey = 0xA11CE;
     address signerAddr;
 
-    uint256 constant MINT_PRICE = 0.00015 ether;
+    uint256 constant ALLOWLIST_PRICE = 0.0042 ether;
+    uint256 constant PUBLIC_PRICE = 0.0069 ether;
 
     bytes validBitmap;
     bytes validTraits;
@@ -154,13 +158,15 @@ contract BOOAv2DeepSecurityTest is Test {
         store = new BOOAStorage();
         renderer = new BOOARenderer(address(store));
         booa = new BOOAv2(owner, 500);
-        minter = new BOOAMinter(address(booa), address(store), signerAddr, MINT_PRICE);
+        minter = new BOOAMinter(address(booa), address(store), signerAddr, ALLOWLIST_PRICE, PUBLIC_PRICE);
 
         booa.setMinter(address(minter), true);
         booa.setRenderer(address(renderer));
         booa.setDataStore(address(store));
         store.setWriter(address(minter), true);
         store.setWriter(address(booa), true);
+
+        minter.setPhase(BOOAMinter.MintPhase.Public);
 
         validBitmap = _makeBitmap(0);
         validTraits = bytes('[{"trait_type":"Creature","value":"Test"}]');
@@ -189,8 +195,9 @@ contract BOOAv2DeepSecurityTest is Test {
     function _mintAsUser(address who) internal returns (uint256) {
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, who, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
         vm.prank(who);
-        return minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        return minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -230,15 +237,16 @@ contract BOOAv2DeepSecurityTest is Test {
         // Sign for pair 1 — uses abi.encode internally
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(img1, traits1, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Pair 2 with same sig should fail with InvalidSignature (different hash)
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(img2, traits2, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(img2, traits2, deadline, sig, emptyProof);
 
         // Pair 1 works
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(img1, traits1, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(img1, traits1, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1);
     }
 
@@ -282,14 +290,15 @@ contract BOOAv2DeepSecurityTest is Test {
         // Verify via actual mint: sign for pair 1, pair 2 fails
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(img1, traits1, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(img1, traits1, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(img1, traits1, deadline, sig, emptyProof);
 
         // Pair 2 — different abi.encode hash → InvalidSignature (not SignatureAlreadyUsed)
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(img2, traits2, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(img2, traits2, deadline, sig, emptyProof);
     }
 
     /// @dev Document the difference between abi.encode and abi.encodePacked
@@ -349,6 +358,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // Verify: a signature for a different message format doesn't pass.
 
         uint256 deadline = block.timestamp + 1 hours;
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Sign a completely different message with the same key
         bytes32 differentHash = keccak256("Transfer 100 ETH to attacker");
@@ -357,7 +367,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v), emptyProof);
     }
 
     /// @dev Signature from a different private key with same address (impossible but verify)
@@ -369,10 +379,11 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeKey, ethHash);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v), emptyProof);
     }
 
     /// @dev Signature malleability — secp256k1 allows (r, s) and (r, n-s)
@@ -382,10 +393,11 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Normal signature works
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v), emptyProof);
 
         // Now try the malleable form for a new mint
         uint256 deadline2 = block.timestamp + 2 hours;
@@ -400,7 +412,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         vm.prank(user);
         vm.expectRevert(); // OZ ECDSA rejects high-s
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline2, abi.encodePacked(r2, highS, flippedV));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline2, abi.encodePacked(r2, highS, flippedV), emptyProof);
     }
 
     /// @dev Signature with v=0 or v=1 (compact signature format)
@@ -410,20 +422,22 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Use v=0 instead of 27
         uint8 badV = v - 27; // 0 or 1
         vm.prank(user);
         vm.expectRevert();
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, badV));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, badV), emptyProof);
     }
 
     /// @dev Zero-length signature should not pass
     function test_sig_zeroLengthReverts() public {
         uint256 deadline = block.timestamp + 1 hours;
+        bytes32[] memory emptyProof = new bytes32[](0);
         vm.prank(user);
         vm.expectRevert();
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, "");
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, "", emptyProof);
     }
 
     /// @dev Exactly 64-byte signature (EIP-2098 compact) — verify handling
@@ -442,12 +456,13 @@ contract BOOAv2DeepSecurityTest is Test {
         }
         bytes memory compactSig = abi.encodePacked(r, compactS);
         assertEq(compactSig.length, 64);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // OZ ECDSA.recover supports 64-byte compact signatures
         // This should actually work with OZ >= 4.7
         // Whether it passes or fails, both are acceptable — we just verify no panic
         vm.prank(user);
-        try minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, compactSig) {
+        try minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, compactSig, emptyProof) {
             // If it works with compact sig, the signature is valid
             assertEq(booa.totalSupply(), 1);
         } catch {
@@ -468,21 +483,23 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32 hashBase = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(8453)));
         bytes32 ethHashBase = hashBase.toEthSignedMessageHash();
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signerKey, ethHashBase);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Neither should work on foundry (chainid=31337)
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r1, s1, v1));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r1, s1, v1), emptyProof);
 
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r2, s2, v2));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r2, s2, v2), emptyProof);
     }
 
     /// @dev Signer rotation — old signer's signatures become invalid immediately
     function test_sig_signerRotation_immediateInvalidation() public {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Rotate signer before user uses the signature
         uint256 newKey = 0xB0B;
@@ -492,14 +509,14 @@ contract BOOAv2DeepSecurityTest is Test {
         // Old signature is now invalid
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // New signer's signature works
         bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, ethHash);
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v), emptyProof);
     }
 
     /// @dev _usedSignatures is keyed on ethSignedHash, not raw hash.
@@ -507,15 +524,16 @@ contract BOOAv2DeepSecurityTest is Test {
     function test_sig_replayProtection_ethSignedHashConsistency() public {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // First mint succeeds
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // The ethSignedHash is deterministic for the same data, so replay fails
         vm.prank(user);
         vm.expectRevert(BOOAMinter.SignatureAlreadyUsed.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -535,6 +553,7 @@ contract BOOAv2DeepSecurityTest is Test {
     function test_cei_signatureBurnedOnRevert() public {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Pause BOOA (not minter) — the mint call to booa.mint() will revert
         booa.setPaused(true);
@@ -542,7 +561,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // The mint fails because booa.mint reverts
         vm.prank(user);
         vm.expectRevert(BOOAv2.MintingPaused.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // Unpause — try again with same sig
         booa.setPaused(false);
@@ -552,7 +571,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // But since the ENTIRE transaction reverts (including state changes),
         // the signature should still be valid.
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1, "Signature should still be valid after revert");
     }
 
@@ -562,13 +581,14 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Make booa.mint revert
         booa.setPaused(true);
 
         vm.prank(user);
         vm.expectRevert(BOOAv2.MintingPaused.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // mintCount should NOT have incremented
         assertEq(minter.mintCount(user), 0, "mintCount must rollback on revert");
@@ -576,7 +596,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // Unpause and mint
         booa.setPaused(false);
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(minter.mintCount(user), 1);
     }
 
@@ -630,9 +650,10 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, maxTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, maxTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, maxTraits, deadline, sig, emptyProof);
 
         // Read back and verify
         bytes memory readTraits = store.getTraits(0);
@@ -646,10 +667,11 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, oversized, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
         vm.expectRevert(BOOAStorage.TraitsTooLarge.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, oversized, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, oversized, deadline, sig, emptyProof);
     }
 
     /// @dev hasBitmap returns false for unminted token, true after mint
@@ -673,9 +695,10 @@ contract BOOAv2DeepSecurityTest is Test {
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory emptyTraits = bytes("");
         bytes memory sig = _signMint(validBitmap, emptyTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, emptyTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, emptyTraits, deadline, sig, emptyProof);
 
         bytes memory readTraits = store.getTraits(0);
         assertEq(readTraits.length, 0);
@@ -696,9 +719,10 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, maliciousTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, maliciousTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, maliciousTraits, deadline, sig, emptyProof);
 
         // tokenURI won't revert — it just produces potentially malformed JSON
         string memory uri = booa.tokenURI(0);
@@ -712,9 +736,10 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes memory maxColorBitmap = _makeBitmap(15);
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(maxColorBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(maxColorBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(maxColorBitmap, validTraits, deadline, sig, emptyProof);
 
         string memory uri = booa.tokenURI(0);
         assertTrue(bytes(uri).length > 0);
@@ -727,9 +752,10 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(mixedBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(mixedBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(mixedBitmap, validTraits, deadline, sig, emptyProof);
 
         string memory uri = booa.tokenURI(0);
         assertTrue(bytes(uri).length > 0);
@@ -748,9 +774,10 @@ contract BOOAv2DeepSecurityTest is Test {
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(allColorBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(allColorBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(allColorBitmap, validTraits, deadline, sig, emptyProof);
 
         // Render should succeed for all 16 colors
         string memory svg = renderer.renderSVG(allColorBitmap);
@@ -822,45 +849,49 @@ contract BOOAv2DeepSecurityTest is Test {
         assertEq(booa.nextTokenId(), 1);
     }
 
-    /// @dev mintPrice at uint256 max — should require msg.value >= type(uint256).max
+    /// @dev publicPrice at uint256 max — should require msg.value >= type(uint256).max
     function test_int_maxMintPrice() public {
-        minter.setMintPrice(type(uint256).max);
+        minter.setPublicPrice(type(uint256).max);
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Can't send uint256.max ETH
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InsufficientPayment.selector);
-        minter.mint{value: 100 ether}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: 100 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
     /// @dev deadline at exact block.timestamp — boundary test
     function test_int_deadlineExactTimestamp() public {
         uint256 deadline = block.timestamp; // block.timestamp > deadline is false
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1);
     }
 
     /// @dev deadline = 0 — always expired (block.timestamp > 0)
     function test_int_deadlineZero() public {
         bytes memory sig = _signMint(validBitmap, validTraits, user, 0);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
         vm.expectRevert(BOOAMinter.SignatureExpired.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, 0, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, 0, sig, emptyProof);
     }
 
     /// @dev deadline = type(uint256).max — never expires
     function test_int_deadlineMaxUint256() public {
         uint256 deadline = type(uint256).max;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1);
     }
 
@@ -963,7 +994,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         // user2 can admin minter
         vm.prank(user2);
-        minter.setMintPrice(0);
+        minter.setPublicPrice(0);
 
         // But can't admin BOOA
         vm.prank(user2);
@@ -1041,14 +1072,15 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes memory sig1 = _signMint(validBitmap, validTraits, user, d1);
         bytes memory sig2 = _signMint(validBitmap, validTraits, user, d2);
         bytes memory sig3 = _signMint(validBitmap, validTraits, user2, d3);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // All in same block
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, d1, sig1);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, d1, sig1, emptyProof);
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, d2, sig2);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, d2, sig2, emptyProof);
         vm.prank(user2);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, d3, sig3);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, d3, sig3, emptyProof);
 
         assertEq(booa.totalSupply(), 3);
         assertEq(booa.ownerOf(0), user);
@@ -1080,7 +1112,7 @@ contract BOOAv2DeepSecurityTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, address(proxy), deadline);
 
-        proxy.proxiedMint{value: MINT_PRICE}(minter, validBitmap, validTraits, deadline, sig);
+        proxy.proxiedMint{value: PUBLIC_PRICE}(minter, validBitmap, validTraits, deadline, sig);
         assertEq(booa.ownerOf(0), address(proxy));
 
         // Signature for user doesn't work through proxy
@@ -1088,7 +1120,7 @@ contract BOOAv2DeepSecurityTest is Test {
         uint256 deadline2 = block.timestamp + 2 hours;
         bytes memory sigUser = _signMint(validBitmap, validTraits, user, deadline2);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        proxy.proxiedMint{value: MINT_PRICE}(minter, validBitmap, validTraits, deadline2, sigUser);
+        proxy.proxiedMint{value: PUBLIC_PRICE}(minter, validBitmap, validTraits, deadline2, sigUser);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1099,10 +1131,11 @@ contract BOOAv2DeepSecurityTest is Test {
     function test_eth_overpayment() public {
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         uint256 balBefore = address(minter).balance;
         vm.prank(user);
-        minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // Excess stays in minter — no refund!
         assertEq(address(minter).balance, balBefore + 1 ether);
@@ -1297,40 +1330,41 @@ contract BOOAv2DeepSecurityTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  CATEGORY 13: PAUSE EDGE CASES
+    //  CATEGORY 13: PHASE EDGE CASES
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @dev Both BOOA and Minter paused — double pause
+    /// @dev Both BOOA paused and Minter closed — double block
     function test_pause_doublePause() public {
         booa.setPaused(true);
-        minter.setPaused(true);
+        minter.setPhase(BOOAMinter.MintPhase.Closed);
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
-        // Minter pause hits first
+        // Minter closed hits first
         vm.prank(user);
-        vm.expectRevert(BOOAMinter.MintingPaused.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        vm.expectRevert(BOOAMinter.MintingClosed.selector);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
-        // Unpause minter, BOOA pause still blocks
-        minter.setPaused(false);
+        // Open minter, BOOA pause still blocks
+        minter.setPhase(BOOAMinter.MintPhase.Public);
         vm.prank(user);
         vm.expectRevert(BOOAv2.MintingPaused.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // Unpause BOOA — now works
         booa.setPaused(false);
         vm.prank(user);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1);
     }
 
-    /// @dev Transfer and burn still work when paused
+    /// @dev Transfer and burn still work when closed/paused
     function test_pause_transferAndBurnWork() public {
         _mintAsUser(user);
         booa.setPaused(true);
-        minter.setPaused(true);
+        minter.setPhase(BOOAMinter.MintPhase.Closed);
 
         // Transfer works
         vm.prank(user);
@@ -1399,9 +1433,11 @@ contract BOOAv2DeepSecurityTest is Test {
     function test_invariant_multipleMinters() public {
         uint256 signer2Key = 0xB0B;
         address signer2Addr = vm.addr(signer2Key);
-        BOOAMinter minter2 = new BOOAMinter(address(booa), address(store), signer2Addr, MINT_PRICE);
+        BOOAMinter minter2 = new BOOAMinter(address(booa), address(store), signer2Addr, ALLOWLIST_PRICE, PUBLIC_PRICE);
+        minter2.setPhase(BOOAMinter.MintPhase.Public);
         booa.setMinter(address(minter2), true);
         store.setWriter(address(minter2), true);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Both mint successfully
         _mintAsUser(user); // via minter1
@@ -1411,7 +1447,7 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer2Key, ethHash);
         vm.prank(user2);
-        minter2.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v));
+        minter2.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, abi.encodePacked(r, s, v), emptyProof);
 
         assertEq(booa.totalSupply(), 2);
 
@@ -1420,7 +1456,7 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes memory sig1 = _signMint(validBitmap, validTraits, user, deadline2);
         vm.prank(user);
         vm.expectRevert(BOOAMinter.InvalidSignature.selector);
-        minter2.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline2, sig1);
+        minter2.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline2, sig1, emptyProof);
     }
 
     /// @dev Revoked minter's pending signatures are immediately invalid
@@ -1428,6 +1464,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // Get a valid signature
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
 
         // Revoke minter BEFORE user uses the signature
         booa.setMinter(address(minter), false);
@@ -1435,6 +1472,6 @@ contract BOOAv2DeepSecurityTest is Test {
         // The signature is valid (signer matches), but minter can't call booa.mint()
         vm.prank(user);
         vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
-        minter.mint{value: MINT_PRICE}(validBitmap, validTraits, deadline, sig);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 }

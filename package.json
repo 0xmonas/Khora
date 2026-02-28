@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
+    "@openzeppelin/merkle-tree": "^1.0.8",
     "@radix-ui/react-dialog": "^1.1.5",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-scroll-area": "^1.2.3",
