@@ -26,7 +26,8 @@ export async function getAllowlistProof(address: string): Promise<Hex[] | null> 
   const data = await loadAllowlistData();
   if (!data) return null;
   const proof = data.proofs[address.toLowerCase()];
-  if (!proof || proof.length === 0) return null;
+  if (proof === undefined) return null;
+  // Empty array is valid — single-leaf tree needs no proof siblings
   return proof as Hex[];
 }
 

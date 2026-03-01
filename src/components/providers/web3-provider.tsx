@@ -7,6 +7,7 @@ import { RainbowKitProvider, darkTheme, lightTheme, type Theme } from '@rainbow-
 import { wagmiConfig } from '@/lib/wagmi';
 import { useTheme } from '@/components/providers/theme-provider';
 import { SiweProvider } from './siwe-provider';
+import { baseSepolia } from 'wagmi/chains';
 
 import '@rainbow-me/rainbowkit/styles.css';
 
@@ -120,7 +121,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <SiweProvider>
-          <RainbowKitProvider theme={theme === 'dark' ? booaDark : booaLight}>
+          <RainbowKitProvider theme={theme === 'dark' ? booaDark : booaLight} initialChain={baseSepolia}>
             {children}
           </RainbowKitProvider>
         </SiweProvider>
