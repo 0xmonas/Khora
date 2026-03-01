@@ -737,9 +737,9 @@ export function InputForm() {
                 }`}>
                   {currentPhase === 0 ? 'CLOSED' : currentPhase === 1 ? 'ALLOWLIST' : 'PUBLIC'}
                 </span>
-                {currentPhase === 1 && isUserAllowlisted !== null && (
-                  <span className={`text-[10px] ${isUserAllowlisted ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {isUserAllowlisted ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+                {currentPhase === 1 && isUserAllowlisted && (
+                  <span className="text-[10px] text-green-600 dark:text-green-400">
+                    ELIGIBLE
                   </span>
                 )}
               </div>
@@ -760,7 +760,19 @@ export function InputForm() {
               )}
               {/* Status messages */}
               {isSoldOut && (
-                <p className="text-red-500 font-mono text-[10px] uppercase">sold out</p>
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-800">
+                  <span className="text-red-600 dark:text-red-400 font-mono text-xs font-bold uppercase">SOLD OUT</span>
+                </div>
+              )}
+              {currentPhase === 0 && !isSoldOut && (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
+                  <span className="text-neutral-600 dark:text-neutral-400 font-mono text-xs uppercase">Minting is paused</span>
+                </div>
+              )}
+              {currentPhase === 1 && isUserAllowlisted === false && (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+                  <span className="text-red-600 dark:text-red-400 font-mono text-xs">Your wallet is not on the allowlist</span>
+                </div>
               )}
               {isLimitReached && !isSoldOut && (
                 <p className="text-yellow-600 dark:text-yellow-500 font-mono text-[10px]">wallet limit reached</p>
