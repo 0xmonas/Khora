@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -43,6 +43,23 @@ function WalletButton() {
         mounted: boolean;
       }) => {
         const connected = mounted && account && chain;
+        const needsAuth = connected && (authenticationStatus === 'unauthenticated');
+
+        // Auto-trigger SIWE sign-in when wallet is connected but not authenticated
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const hasTriggered = useRef(false);
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        useEffect(() => {
+          if (needsAuth && !hasTriggered.current) {
+            hasTriggered.current = true;
+            // Small delay to let RainbowKit modal close after connect
+            const timer = setTimeout(() => openConnectModal(), 300);
+            return () => clearTimeout(timer);
+          }
+          if (!connected) {
+            hasTriggered.current = false;
+          }
+        }, [needsAuth, connected, openConnectModal]);
 
         if (!connected) {
           return (
@@ -59,7 +76,6 @@ function WalletButton() {
         // RainbowKit disables openChainModal/openAccountModal when SIWE auth is
         // not 'authenticated' (they become noop). Fall back to openConnectModal
         // which triggers the SIWE sign-in flow.
-        const needsAuth = authenticationStatus === 'unauthenticated' || authenticationStatus === 'loading';
         const handleChainClick = needsAuth ? openConnectModal : openChainModal;
         const handleAccountClick = needsAuth ? openConnectModal : openAccountModal;
 
