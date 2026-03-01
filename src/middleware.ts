@@ -23,6 +23,7 @@ const PUBLIC_READ_PATHS = [
   '/api/fetch-nfts',
   '/api/discover-agents',
   '/api/fetch-agent',
+  '/api/gallery',
 ];
 
 export async function middleware(request: NextRequest) {

@@ -10,6 +10,95 @@ import { base, baseSepolia } from 'wagmi/chains';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
 
+/** Inner component that receives RainbowKit render props — hooks are safe here */
+function WalletButtonInner({ account, chain, openAccountModal, openChainModal, openConnectModal, authenticationStatus, mounted }: {
+  account?: { displayName: string };
+  chain?: { id: number; unsupported?: boolean; name?: string };
+  openAccountModal: () => void;
+  openChainModal: () => void;
+  openConnectModal: () => void;
+  authenticationStatus?: string;
+  mounted: boolean;
+}) {
+  const connected = mounted && account && chain;
+  const needsAuth = connected && (authenticationStatus === 'unauthenticated');
+
+  // Auto-trigger SIWE sign-in when wallet is connected but not authenticated
+  const hasTriggered = useRef(false);
+  useEffect(() => {
+    if (needsAuth && !hasTriggered.current) {
+      hasTriggered.current = true;
+      // Small delay to let RainbowKit modal close after connect
+      const timer = setTimeout(() => openConnectModal(), 300);
+      return () => clearTimeout(timer);
+    }
+    if (!connected) {
+      hasTriggered.current = false;
+    }
+  }, [needsAuth, connected, openConnectModal]);
+
+  if (!connected) {
+    return (
+      <button
+        onClick={openConnectModal}
+        className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
+        style={walletFont}
+      >
+        Connect
+      </button>
+    );
+  }
+
+  // RainbowKit disables openChainModal/openAccountModal when SIWE auth is
+  // not 'authenticated' (they become noop). Fall back to openConnectModal
+  // which triggers the SIWE sign-in flow.
+  const handleChainClick = needsAuth ? openConnectModal : openChainModal;
+  const handleAccountClick = needsAuth ? openConnectModal : openAccountModal;
+
+  const isBase = chain.id === base.id;
+  const isBaseSepolia = chain.id === baseSepolia.id;
+  const isSupported = isBase || isBaseSepolia;
+
+  const dotColor = isBase
+    ? 'bg-green-500'
+    : isBaseSepolia
+      ? 'bg-yellow-500'
+      : 'bg-red-500';
+
+  const chainLabel = isBase
+    ? 'Base'
+    : isBaseSepolia
+      ? 'Sepolia'
+      : 'Wrong Network';
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Network Switcher */}
+      <button
+        onClick={handleChainClick}
+        style={walletFont}
+        className={`h-10 sm:h-12 px-3 text-xs flex items-center gap-2 transition-opacity ${
+          isSupported
+            ? 'bg-transparent text-foreground hover:opacity-70'
+            : 'bg-transparent text-red-600 dark:text-red-400 hover:opacity-70'
+        }`}
+      >
+        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+        {chainLabel}
+      </button>
+
+      {/* Account Button */}
+      <button
+        onClick={handleAccountClick}
+        className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
+        style={walletFont}
+      >
+        {account.displayName}
+      </button>
+    </div>
+  );
+}
+
 function WalletButton() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ConnectButton, setConnectButton] = useState<any>(null);
@@ -33,95 +122,7 @@ function WalletButton() {
 
   return (
     <ConnectButton.Custom>
-      {({ account, chain, openAccountModal, openChainModal, openConnectModal, authenticationStatus, mounted }: {
-        account?: { displayName: string };
-        chain?: { id: number; unsupported?: boolean; name?: string };
-        openAccountModal: () => void;
-        openChainModal: () => void;
-        openConnectModal: () => void;
-        authenticationStatus?: string;
-        mounted: boolean;
-      }) => {
-        const connected = mounted && account && chain;
-        const needsAuth = connected && (authenticationStatus === 'unauthenticated');
-
-        // Auto-trigger SIWE sign-in when wallet is connected but not authenticated
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const hasTriggered = useRef(false);
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        useEffect(() => {
-          if (needsAuth && !hasTriggered.current) {
-            hasTriggered.current = true;
-            // Small delay to let RainbowKit modal close after connect
-            const timer = setTimeout(() => openConnectModal(), 300);
-            return () => clearTimeout(timer);
-          }
-          if (!connected) {
-            hasTriggered.current = false;
-          }
-        }, [needsAuth, connected, openConnectModal]);
-
-        if (!connected) {
-          return (
-            <button
-              onClick={openConnectModal}
-              className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
-              style={walletFont}
-            >
-              Connect
-            </button>
-          );
-        }
-
-        // RainbowKit disables openChainModal/openAccountModal when SIWE auth is
-        // not 'authenticated' (they become noop). Fall back to openConnectModal
-        // which triggers the SIWE sign-in flow.
-        const handleChainClick = needsAuth ? openConnectModal : openChainModal;
-        const handleAccountClick = needsAuth ? openConnectModal : openAccountModal;
-
-        const isBase = chain.id === base.id;
-        const isBaseSepolia = chain.id === baseSepolia.id;
-        const isSupported = isBase || isBaseSepolia;
-
-        const dotColor = isBase
-          ? 'bg-green-500'
-          : isBaseSepolia
-            ? 'bg-yellow-500'
-            : 'bg-red-500';
-
-        const chainLabel = isBase
-          ? 'Base'
-          : isBaseSepolia
-            ? 'Sepolia'
-            : 'Wrong Network';
-
-        return (
-          <div className="flex items-center gap-2">
-            {/* Network Switcher */}
-            <button
-              onClick={handleChainClick}
-              style={walletFont}
-              className={`h-10 sm:h-12 px-3 text-xs flex items-center gap-2 transition-opacity ${
-                isSupported
-                  ? 'bg-transparent text-foreground hover:opacity-70'
-                  : 'bg-transparent text-red-600 dark:text-red-400 hover:opacity-70'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-              {chainLabel}
-            </button>
-
-            {/* Account Button */}
-            <button
-              onClick={handleAccountClick}
-              className="h-10 sm:h-12 px-4 bg-transparent text-sm text-foreground hover:opacity-70 transition-opacity"
-              style={walletFont}
-            >
-              {account.displayName}
-            </button>
-          </div>
-        );
-      }}
+      {(props: Parameters<typeof WalletButtonInner>[0]) => <WalletButtonInner {...props} />}
     </ConnectButton.Custom>
   );
 }
