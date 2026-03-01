@@ -765,8 +765,8 @@ export function InputForm() {
                 </div>
               )}
               {currentPhase === 0 && !isSoldOut && (
-                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
-                  <span className="text-neutral-600 dark:text-neutral-400 font-mono text-xs uppercase">Minting is paused</span>
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700">
+                  <span className="text-red-600 dark:text-red-400 font-mono text-xs uppercase">Minting is paused</span>
                 </div>
               )}
               {currentPhase === 1 && isUserAllowlisted === false && (
