@@ -48,6 +48,7 @@ type GeneratorContextType = {
   booaAddress: `0x${string}`;
   minterAddress: `0x${string}`;
   txHash: `0x${string}` | undefined;
+  isOwner: boolean;
   // ERC-8004 config
   erc8004Services: AgentService[];
   setErc8004Services: (s: AgentService[]) => void;
@@ -588,11 +589,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Check balance before calling the API to avoid wasting AI generation credits
-    const price = mint.mintPrice as bigint | undefined;
-    const balance = mint.userBalance as bigint | undefined;
-    if (price && price > BigInt(0) && balance !== undefined && balance < price) {
-      setError('Insufficient balance to mint. Please add funds to your wallet and try again.');
-      return;
+    // Skip for owner (ownerMint is free)
+    if (!mint.isOwner) {
+      const price = mint.mintPrice as bigint | undefined;
+      const balance = mint.userBalance as bigint | undefined;
+      if (price && price > BigInt(0) && balance !== undefined && balance < price) {
+        setError('Insufficient balance to mint. Please add funds to your wallet and try again.');
+        return;
+      }
     }
 
     setError(null);
@@ -786,6 +790,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     booaAddress: mint.booaAddress,
     minterAddress: mint.minterAddress,
     txHash: mint.txHash,
+    isOwner: mint.isOwner,
     erc8004Services, setErc8004Services,
     x402Support, setX402Support,
     supportedTrust, setSupportedTrust,

@@ -119,6 +119,33 @@ contract BOOAMinter is Ownable {
         emit AgentMinted(tokenId, msg.sender);
     }
 
+    /// @notice Owner-only mint: free, no phase/wallet-limit checks.
+    ///         Still requires a valid server signature for data integrity.
+    function ownerMint(
+        bytes calldata imageData,
+        bytes calldata traitsData,
+        uint256 deadline,
+        bytes calldata signature
+    ) external onlyOwner returns (uint256 tokenId) {
+        if (block.timestamp > deadline) revert SignatureExpired();
+        if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
+
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid));
+        bytes32 ethSignedHash = hash.toEthSignedMessageHash();
+
+        if (_usedSignatures[ethSignedHash]) revert SignatureAlreadyUsed();
+        address recovered = ethSignedHash.recover(signature);
+        if (recovered != signer) revert InvalidSignature();
+
+        _usedSignatures[ethSignedHash] = true;
+
+        tokenId = booa.mint(msg.sender);
+        dataStore.setImageData(tokenId, imageData);
+        dataStore.setTraits(tokenId, traitsData);
+
+        emit AgentMinted(tokenId, msg.sender);
+    }
+
     // ═══════════════════════════════════════
     //  Admin functions
     // ═══════════════════════════════════════

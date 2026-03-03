@@ -114,6 +114,15 @@ export function useMintAgent() {
     query: { enabled: !!minterAddress && minterAddress.length > 2 && !!address },
   });
 
+  const { data: contractOwner } = useReadContract({
+    address: minterAddress,
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'owner',
+    query: { enabled: !!minterAddress && minterAddress.length > 2 },
+  });
+
+  const isOwner = !!address && !!contractOwner && (address.toLowerCase() === (contractOwner as string).toLowerCase());
+
   // Write contract (single tx mint)
   const {
     writeContract,
@@ -204,20 +213,35 @@ export function useMintAgent() {
       throw new Error('Your wallet is not connected. Please connect your wallet and try again.');
     }
 
-    writeContract({
-      address: minterAddress,
-      abi: BOOA_V2_MINTER_ABI,
-      functionName: 'mint',
-      args: [
-        packet.imageData,
-        packet.traitsData,
-        BigInt(packet.deadline),
-        packet.signature,
-        (merkleProof || []) as readonly Hex[],
-      ],
-      value: mintPrice ?? BigInt(0),
-    });
-  }, [isConnected, address, minterAddress, mintPrice, mintRequestData, writeContract]);
+    if (isOwner) {
+      // Admin mint: free, no phase/limit checks
+      writeContract({
+        address: minterAddress,
+        abi: BOOA_V2_MINTER_ABI,
+        functionName: 'ownerMint',
+        args: [
+          packet.imageData,
+          packet.traitsData,
+          BigInt(packet.deadline),
+          packet.signature,
+        ],
+      });
+    } else {
+      writeContract({
+        address: minterAddress,
+        abi: BOOA_V2_MINTER_ABI,
+        functionName: 'mint',
+        args: [
+          packet.imageData,
+          packet.traitsData,
+          BigInt(packet.deadline),
+          packet.signature,
+          (merkleProof || []) as readonly Hex[],
+        ],
+        value: mintPrice ?? BigInt(0),
+      });
+    }
+  }, [isConnected, address, minterAddress, mintPrice, mintRequestData, writeContract, isOwner]);
 
   // Determine phase
   const phase: MintFlowPhase = isSuccess
@@ -259,6 +283,8 @@ export function useMintAgent() {
     userMintCount,
     // User balance
     userBalance: balanceData?.value,
+    // Admin
+    isOwner,
     // Connection
     isConnected,
     address,
