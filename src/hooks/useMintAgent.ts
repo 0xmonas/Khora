@@ -7,6 +7,7 @@ import {
   useReadContract,
   useAccount,
   useChainId,
+  useBalance,
 } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { Hex } from 'viem';
@@ -48,6 +49,8 @@ export function useMintAgent() {
   const chainId = useChainId();
   const booaAddress = getV2Address(chainId);
   const minterAddress = getV2MinterAddress(chainId);
+
+  const { data: balanceData } = useBalance({ address });
 
   const [mintRequestData, setMintRequestData] = useState<MintRequestData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -254,6 +257,8 @@ export function useMintAgent() {
     maxSupply,
     maxPerWallet,
     userMintCount,
+    // User balance
+    userBalance: balanceData?.value,
     // Connection
     isConnected,
     address,

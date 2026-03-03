@@ -587,6 +587,14 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Check balance before calling the API to avoid wasting AI generation credits
+    const price = mint.mintPrice as bigint | undefined;
+    const balance = mint.userBalance as bigint | undefined;
+    if (price && price > BigInt(0) && balance !== undefined && balance < price) {
+      setError('Insufficient balance to mint. Please add funds to your wallet and try again.');
+      return;
+    }
+
     setError(null);
     setLoading(true);
     setCurrentStep('generating');
