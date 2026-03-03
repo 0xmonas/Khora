@@ -10,71 +10,67 @@ V2'de tüm AI pipeline tek bir API çağrısında çalışır: `POST /api/mint-r
 
 ## API Call Breakdown — `POST /api/mint-request`
 
-### Call 1: Generate Agent Identity
+### Call 1: Generate Agent Identity + Portrait Prompt + Visual Traits (Combined)
 
 | Field | Value |
 |-------|-------|
 | **Model** | `gemini-3-flash-preview` |
-| **System Instruction** | ~250 tokens (agent identity designer prompt + JSON schema) |
-| **User Input** | ~20 tokens (fixed: "Generate a completely random, unique AI agent identity. Surprise me.") |
-| **Total Input** | ~270 tokens |
-| **Output** | ~300-500 tokens (JSON: name, description, creature, vibe, emoji, personality[], boundaries[], skills[], domains[]) |
-| **Thinking Tokens** | ~200-800 tokens (billed as output) |
+| **System Instruction** | ~700 tokens (combined: agent identity + portrait style guide + JSON schema) |
+| **User Input** | ~25 tokens (fixed prompt) |
+| **Total Input** | ~725 tokens |
+| **Output** | ~500-800 tokens (single JSON: agent fields + portraitPrompt + visualTraits) |
+| **Thinking Tokens** | ~300-1000 tokens (billed as output) |
 | **Temperature** | 1.0 |
 
-### Call 2: Generate Portrait Prompt + Visual Traits
+> **Optimization:** Previously 2 separate calls (agent identity + portrait prompt). Merged into 1 call, saving ~2-4s API round-trip latency.
 
-| Field | Value |
-|-------|-------|
-| **Model** | `gemini-3-flash-preview` |
-| **System Instruction** | ~600 tokens (avant-garde fashion portrait style guide, critical rules, JSON schema) |
-| **User Input** | ~200-400 tokens (agent JSON: name, creature, vibe, personality, skills, domains) |
-| **Total Input** | ~800-1000 tokens |
-| **Output** | ~150-300 tokens (JSON: prompt string + traits {Hair, Eyes, Facial Hair, Mouth, Accessory, Headwear, Skin}) |
-| **Thinking Tokens** | ~200-600 tokens (billed as output) |
-| **Temperature** | 0.7 |
-
-### Call 3: Generate Image
+### Call 2: Generate Image (with Reference)
 
 | Field | Value |
 |-------|-------|
 | **Model** | `gemini-2.5-flash-image` |
-| **Input** | ~200-400 tokens (enriched portrait prompt with trait details) |
+| **Input — Reference Image** | ~258 tokens (ref.png, 512x512, single tile) |
+| **Input — Text Prompt** | ~200-400 tokens (enriched portrait prompt with trait details + reference instruction) |
+| **Total Input** | ~458-658 tokens |
 | **Output** | 1 image (1024x1024, ~1290 output tokens) |
-| **Pricing** | Flat **$0.039** per output image |
+| **Pricing** | Flat **$0.039** per output image + input token cost |
+
+> **Reference Image:** `public/ref.png` (512x512 PNG, white silhouette face on black background) server boot'ta base64'e çevrilir ve her image generation çağrısına `inlineData` olarak eklenir. Gemini'da ≤768px image = 258 token = tek tile.
 
 ---
 
 ## Cost Per Generation
 
-### Pricing Reference (Paid Tier, Feb 2026)
+### Pricing Reference (Paid Tier, March 2026)
 
 | Model | Input (per 1M tokens) | Output incl. thinking (per 1M tokens) | Image Output |
 |-------|----------------------|---------------------------------------|-------------|
 | `gemini-3-flash-preview` | $0.50 | $3.00 | N/A |
-| `imagen-4.0-fast-generate-001` | N/A | N/A | $0.02/image |
+| `gemini-2.5-flash-image` | $0.30 | $30.00 (image tokens) | ~$0.039/image (1290 tokens) |
 
-### Text Calls (gemini-3-flash-preview)
+### Text Call (gemini-3-flash-preview) — Combined
 
 | Call | Input Tokens | Output + Thinking | Input Cost | Output Cost | Total |
 |------|-------------|-------------------|------------|-------------|-------|
-| Agent identity | ~270 | ~800 | $0.000135 | $0.0024 | **$0.0025** |
-| Portrait prompt | ~900 | ~600 | $0.000450 | $0.0018 | **$0.0023** |
-| **Text subtotal** | **~1,170** | **~1,400** | **$0.000585** | **$0.0042** | **$0.0048** |
+| Agent + portrait + traits (combined) | ~725 | ~1,200 | $0.000363 | $0.0036 | **$0.0040** |
 
-### Image Call (imagen-4.0-fast-generate-001)
+> **vs. Eski (2 ayrı call):** $0.0048 → $0.0040 (-%17). Tek çağrıda system instruction tekrarı yok, toplam token kullanımı düşer.
 
-| Call | Input | Output | Cost |
-|------|-------|--------|------|
-| Generate image | prompt text | 1 image (1024x1024) | **$0.02** |
+### Image Call (gemini-2.5-flash-image)
+
+| Call | Input Tokens | Output | Input Cost | Output Cost | Total |
+|------|-------------|--------|------------|-------------|-------|
+| Generate image | ~558 (258 ref image + ~300 text) | 1 image (1290 tokens) | $0.000167 | $0.039 | **$0.039** |
 
 ### Total Per Generation
 
 | Component | Cost | % of Total |
 |-----------|------|------------|
-| Text (2 calls) | $0.0048 | 19% |
-| Image (1 call) | $0.02 | 81% |
-| **Total** | **~$0.025** | 100% |
+| Text (1 combined call) | $0.0040 | 9% |
+| Image (1 call) | $0.039 | 91% |
+| **Total** | **~$0.043** | 100% |
+
+> **Optimizasyon etkisi:** 3 API call → 2 API call. Maliyet $0.044 → $0.043 (marginal). Asıl kazanım **latency**: ~2-4 saniye API round-trip tasarrufu.
 
 ---
 
@@ -86,8 +82,9 @@ V2'de tüm AI pipeline tek bir API çağrısında çalışır: `POST /api/mint-r
 |------------|---------|
 | SIWE auth | Wallet connected + signed in required |
 | IP rate limit | 5 requests per 60 seconds |
-| Per-wallet quota | **5 generations** per 24h (resets after mint) |
+| Per-wallet quota | **10 generations** per 24h (2x maxPerWallet) |
 | Wallet quota TTL | 24 hours |
+| maxPerWallet (on-chain) | 5 mints |
 
 ### Worst-Case Spam Scenarios
 
@@ -95,37 +92,40 @@ V2'de tüm AI pipeline tek bir API çağrısında çalışır: `POST /api/mint-r
 
 | | Value |
 |---|---|
-| Max generations | 5 (quota limit) |
-| Cost | 5 × $0.025 = **$0.125** |
+| Max generations | 10 (quota limit) |
+| Cost | 10 × $0.044 = **$0.44** |
 | Recovery | $0 (if they don't mint) |
-| Net loss | **$0.125** |
+| Net loss | **$0.44** |
 
 **Scenario 2: Spammer with 10 wallets**
 
 | | Value |
 |---|---|
-| Max generations | 10 × 5 = 50 |
-| Cost | 50 × $0.025 = **$1.25** |
+| Max generations | 10 × 10 = 100 |
+| Cost | 100 × $0.044 = **$4.40** |
 | IP rate limit blocks | After 5/min per IP, slowed down |
-| Net loss | **$1.25** (max per 24h per IP) |
+| Net loss | **$4.40** (max per 24h per IP) |
 
 **Scenario 3: Distributed spam (100 wallets, multiple IPs)**
 
 | | Value |
 |---|---|
-| Max generations | 100 × 5 = 500 |
-| Cost | 500 × $0.025 = **$12.50** |
+| Max generations | 100 × 10 = 1,000 |
+| Cost | 1,000 × $0.044 = **$44.00** |
 | Likelihood | Very low (each needs unique wallet + SIWE) |
 
 ### Revenue Recovery
 
 | Mint price | Revenue per mint | Generations covered |
 |------------|-----------------|---------------------|
-| 0.00015 ETH (~$0.30) | $0.30 | 12 generations |
-| 0.001 ETH (~$2.00) | $2.00 | 80 generations |
-| 0.005 ETH (~$10.00) | $10.00 | 400 generations |
+| 0.00042 ETH (~$0.84) | $0.84 | ~19 generations |
+| 0.00069 ETH (~$1.38) | $1.38 | ~31 generations |
+| 0.001 ETH (~$2.00) | $2.00 | ~45 generations |
+| 0.005 ETH (~$10.00) | $10.00 | ~227 generations |
 
-> **Current mint price (0.00015 ETH ≈ $0.30):** Her mint, ~12 üretimin maliyetini karşılıyor. Kullanıcı 5 deneyip 1 mint yaparsa → $0.125 maliyet, $0.30 gelir = **net kâr**.
+> **Allowlist price (0.00042 ETH ≈ $0.84):** Her mint ~19 üretimin maliyetini karşılıyor. Kullanıcı 10 deneyip 1 mint yaparsa → $0.44 maliyet, $0.84 gelir = **net kâr**.
+>
+> **Public price (0.00069 ETH ≈ $1.38):** Her mint ~31 üretimin maliyetini karşılıyor.
 
 ---
 
@@ -133,33 +133,56 @@ V2'de tüm AI pipeline tek bir API çağrısında çalışır: `POST /api/mint-r
 
 | Scenario | Generates/day | Text Cost | Image Cost | **Daily Cost** | **Monthly Cost** |
 |----------|--------------|-----------|------------|----------------|------------------|
-| 50 users × 2/day | 100 | $0.48 | $2.00 | **$2.48** | **$74** |
-| 200 users × 3/day | 600 | $2.88 | $12.00 | **$14.88** | **$446** |
-| 1,000 users × 3/day | 3,000 | $14.40 | $60.00 | **$74.40** | **$2,232** |
-| 5,000 users × 3/day | 15,000 | $72.00 | $300.00 | **$372.00** | **$11,160** |
-| 10,000 users × 3/day | 30,000 | $144.00 | $600.00 | **$744.00** | **$22,320** |
+| 50 users × 2/day | 100 | $0.48 | $3.90 | **$4.38** | **$131** |
+| 200 users × 3/day | 600 | $2.88 | $23.40 | **$26.28** | **$788** |
+| 1,000 users × 3/day | 3,000 | $14.40 | $117.00 | **$131.40** | **$3,942** |
+| 5,000 users × 3/day | 15,000 | $72.00 | $585.00 | **$657.00** | **$19,710** |
+| 10,000 users × 3/day | 30,000 | $144.00 | $1,170.00 | **$1,314.00** | **$39,420** |
 
-### With Mint Revenue (assuming 40% mint rate)
+### With Mint Revenue (assuming 40% mint rate, public price)
 
-| Scenario | Generates | Mints (40%) | AI Cost | Revenue (0.00015 ETH) | **Net** |
+| Scenario | Generates | Mints (40%) | AI Cost | Revenue (0.00069 ETH) | **Net** |
 |----------|----------|-------------|---------|----------------------|---------|
-| 100/day | 100 | 40 | $2.48 | $12.00 | **+$9.52** |
-| 600/day | 600 | 240 | $14.88 | $72.00 | **+$57.12** |
-| 3,000/day | 3,000 | 1,200 | $74.40 | $360.00 | **+$285.60** |
-| 15,000/day | 15,000 | 6,000 | $372.00 | $1,800.00 | **+$1,428** |
+| 100/day | 100 | 40 | $4.38 | $55.20 | **+$50.82** |
+| 600/day | 600 | 240 | $26.28 | $331.20 | **+$304.92** |
+| 3,000/day | 3,000 | 1,200 | $131.40 | $1,656.00 | **+$1,524.60** |
+| 15,000/day | 15,000 | 6,000 | $657.00 | $8,280.00 | **+$7,623** |
 
-> **Break-even mint rate:** Her kullanıcı ortalama 5 generate × $0.025 = $0.125 harcar. 1 mint = $0.30 gelir. 1 mint / 5 generate = %8.3 mint rate ile break-even.
+> **Break-even mint rate:** Her kullanıcı ortalama 10 generate × $0.044 = $0.44 harcar. 1 mint (public) = $1.38 gelir. 1 mint / 10 generate = **%10 mint rate ile break-even**.
 
 ---
 
-## Alternative Image Models
+## Cost Optimization Options
 
-| Image Model | Cost/Image | vs Current | Notes |
-|-------------|-----------|-----------|-------|
-| `imagen-4.0-fast-generate-001` (current) | $0.02 | baseline | Fast, cheap |
-| `imagen-4-standard` | $0.04 | 2x more | Better quality |
-| `imagen-4-ultra` | $0.06 | 3x more | Best quality |
-| `gemini-2.5-flash-image` (previous) | $0.039 | 95% more | Good quality but expensive |
+### Option 1: Batch API (50% image cost savings)
+
+`gemini-2.5-flash-image` Batch API ile $0.039 → $0.0195/image. Ancak Batch API 24 saat içinde işler — real-time mint flow için uygun değil.
+
+### Option 2: imagen-4.0-fast-generate-001'e Geri Dön
+
+| | gemini-2.5-flash-image | imagen-4.0-fast |
+|---|---|---|
+| Cost/image | $0.039 | $0.02 |
+| Reference image | Destekler (inlineData) | Desteklemez |
+| Quality | Daha iyi | İyi |
+| Total/generation | $0.044 | $0.025 |
+
+> **Trade-off:** imagen-4.0-fast %43 daha ucuz ama reference image desteklemiyor. Reference image tutarlılığı önemliyse gemini-2.5-flash-image kalmalı.
+
+### Option 3: Thinking Token Optimizasyonu
+
+`gemini-3-flash-preview` thinking token'ları output fiyatıyla faturalanıyor ($3/1M). `thinkingConfig.thinkingBudget` ile sınırlanabilir ancak yaratıcı çıktı kalitesini düşürebilir.
+
+---
+
+## Alternative Image Models Comparison
+
+| Image Model | Cost/Image | vs Current | Reference Image | Notes |
+|-------------|-----------|-----------|-----------------|-------|
+| `gemini-2.5-flash-image` (current) | $0.039 | baseline | Destekler | İyi kalite, ref image desteği |
+| `imagen-4.0-fast-generate-001` | $0.02 | %49 ucuz | Desteklemez | Hızlı, ucuz, ref image yok |
+| `imagen-4-standard` | $0.04 | %3 pahalı | Desteklemez | Daha iyi kalite |
+| `imagen-4-ultra` | $0.06 | %54 pahalı | Desteklemez | En iyi kalite |
 
 ---
 
@@ -170,21 +193,39 @@ User clicks MINT
   │
   POST /api/mint-request (single API call, server-side)
   │
-  ├─[1] gemini-3-flash-preview ────────── agent identity ──── ~$0.0025
+  ├─[1] gemini-3-flash-preview ────────── agent + portrait + traits ── ~$0.004  (3-5s)
+  │     └─ Combined: identity, portraitPrompt, visualTraits in one JSON
   │
-  ├─[2] gemini-3-flash-preview ────────── portrait prompt ─── ~$0.0023
+  ├─[2] gemini-2.5-flash-image ────────── generate image ───────────── ~$0.039  (8-12s)
+  │     └─ input: ref.png (258 tokens) + enriched prompt (~300 tokens)
+  │     └─ output: 1024x1024 image (1290 tokens)
   │
-  ├─[3] imagen-4.0-fast-generate-001 ──── generate image ──── ~$0.02
+  ├─[3] Server: pixelate + encode bitmap (parallel, no API cost)       (~0.5-1s)
   │
-  ├─[4] Server: pixelate + encode bitmap (no API cost)
-  │
-  ├─[5] Server: build traits JSON (no API cost)
-  │
-  └─[6] Server: EIP-191 sign packet (no API cost)
+  ├─[4] Server: build traits JSON + EIP-191 sign packet                (~0ms)
   │
   └─ Response → wallet popup → user confirms or rejects
-                                              TOTAL: ~$0.025
+                                      TOTAL: ~$0.043, ~11-17s
 ```
 
-**Kullanıcı reject ederse:** $0.025 kayıp, ama quota 1 azalır (5 → 4).
-**Kullanıcı mint ederse:** $0.025 maliyet, $0.30 gelir, quota sıfırlanır.
+**vs. Eski flow (3 API calls):** ~14-20s → ~11-17s (**~2-4s daha hızlı**)
+
+**Kullanıcı reject ederse:** $0.043 kayıp, ama quota 1 azalır (10 → 9).
+**Kullanıcı mint ederse:** $0.043 maliyet, $0.84-$1.38 gelir (allowlist/public), quota sıfırlanır.
+
+---
+
+## Key Differences vs. Previous Versions
+
+| | v1 (imagen) | v2 (3 call) | v3 (2 call, güncel) | Fark (v1→v3) |
+|---|---|---|---|---|
+| API calls | 3 | 3 | **2** | -1 call |
+| Image model | `imagen-4.0-fast` | `gemini-2.5-flash-image` | `gemini-2.5-flash-image` | Kalite artışı |
+| Reference image | Yok | Var | Var | Tutarlılık |
+| Cost per generation | ~$0.025 | ~$0.044 | **~$0.043** | +72% |
+| Latency | ~14-20s | ~14-20s | **~11-17s** | -2-4s |
+| Per-wallet quota | 5 | 10 | 10 | 2x maxPerWallet |
+| maxPerWallet | 10 | 5 | 5 | Azaltıldı |
+| Bitmap processing | Sequential | Sequential | **Parallel** | -0.5s |
+
+> **Sonuç:** v3 pipeline aynı maliyet ve kalitede ~2-4 saniye daha hızlı. 3 API çağrısı 2'ye düşürüldü (agent identity + portrait prompt birleştirildi), bitmap işlemleri paralelleştirildi.

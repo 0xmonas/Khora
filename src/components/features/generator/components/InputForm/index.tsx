@@ -96,6 +96,7 @@ export function InputForm() {
     importedImageURI,
     setImportedImageURI,
     isImportedAgentOwner,
+    isOwner,
     updateAgentOnly,
   } = useGenerator();
 
@@ -217,10 +218,13 @@ export function InputForm() {
     if (isBusy) return true;
     if (!isConnected) return true;
     if (!minterAddress || minterAddress.length <= 2) return true;
-    if (currentPhase === 0) return true; // Closed
     if (isSoldOut) return true;
-    if (isLimitReached) return true;
-    if (currentPhase === 1 && isUserAllowlisted === false) return true; // Allowlist phase, not allowlisted
+    // Owner bypasses phase and wallet-limit checks
+    if (!isOwner) {
+      if (currentPhase === 0) return true; // Closed
+      if (isLimitReached) return true;
+      if (currentPhase === 1 && isUserAllowlisted === false) return true;
+    }
     if (mode === 'create') {
       return false; // Fully generative — no user input needed
     } else {
@@ -230,10 +234,11 @@ export function InputForm() {
   };
 
   const getMintLabel = () => {
-    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete') return 'MINT AGAIN';
+    if (currentStep === 'complete' || currentStep === 'register_complete' || currentStep === 'update_complete') return isOwner ? 'ADMIN MINT' : 'MINT AGAIN';
     if (currentStep === 'registering') return 'REGISTERING...';
     if (currentStep === 'updating') return 'UPDATING...';
     if (currentStep !== 'input') return 'MINTING...';
+    if (isOwner) return 'ADMIN MINT';
     return mode === 'import' && selectedValue ? 'MINT & REGISTER' : 'MINT';
   };
 
@@ -749,12 +754,12 @@ export function InputForm() {
                   {totalSupply !== undefined ? totalSupply.toString() : '...'} minted
                   {maxSupply && maxSupply > BigInt(0) ? ` / ${maxSupply.toString()}` : ''}
                 </span>
-                <span>{formatEther(mintPrice)} ETH</span>
+                <span>{isOwner ? 'FREE' : `${formatEther(mintPrice)} ETH`}</span>
               </div>
               {/* Mint count per wallet */}
-              {maxPerWallet !== undefined && maxPerWallet > BigInt(0) && (
+              {!isOwner && maxPerWallet !== undefined && maxPerWallet > BigInt(0) && (
                 <div className="flex justify-between text-neutral-500">
-                  <span>your mints</span>
+                  <span>per wallet</span>
                   <span>{userMintCount !== undefined ? userMintCount.toString() : '0'} / {maxPerWallet.toString()}</span>
                 </div>
               )}
@@ -774,7 +779,7 @@ export function InputForm() {
                   <span className="text-red-600 dark:text-red-400 font-mono text-xs">Your wallet is not on the allowlist</span>
                 </div>
               )}
-              {isLimitReached && !isSoldOut && (
+              {isLimitReached && !isSoldOut && !isOwner && (
                 <p className="text-yellow-600 dark:text-yellow-500 font-mono text-[10px]">wallet limit reached</p>
               )}
               {chainId === baseSepolia.id && (

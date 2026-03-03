@@ -157,20 +157,10 @@ function StepContent() {
     );
   }
 
-  // Step 2: Confirming (waiting for wallet)
+  // Step 2: Confirming (waiting for wallet) — image hidden until mint completes
   if (currentStep === 'confirming') {
     return (
       <div className="space-y-3">
-        {imageToShow && (
-          <div className="w-full aspect-square max-h-48 border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-white dark:bg-neutral-900">
-            <img
-              src={imageToShow}
-              alt="Generated agent"
-              className="max-w-full max-h-full object-contain"
-              style={{ imageRendering: 'pixelated' }}
-            />
-          </div>
-        )}
         <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
           Confirm the mint transaction in your wallet.
         </p>
@@ -188,20 +178,10 @@ function StepContent() {
     );
   }
 
-  // Step 2 active: Pending (tx submitted, waiting for confirmation)
+  // Step 2 active: Pending (tx submitted, waiting for confirmation) — image hidden until mint completes
   if (currentStep === 'pending') {
     return (
       <div className="space-y-3">
-        {imageToShow && (
-          <div className="w-full aspect-square max-h-48 border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-white dark:bg-neutral-900">
-            <img
-              src={imageToShow}
-              alt="Generated agent"
-              className="max-w-full max-h-full object-contain"
-              style={{ imageRendering: 'pixelated' }}
-            />
-          </div>
-        )}
         {txHash && <TxHashLink hash={txHash} label="Mint tx" />}
         <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
           Transaction submitted — waiting for confirmation.
