@@ -61,7 +61,7 @@ export function rateLimitHeaders(result: { limit: number; remaining: number; res
  * Prevents a single wallet from generating unlimited images after committing.
  */
 const GEN_QUOTA_PREFIX = 'gen:wallet:';
-export const GEN_QUOTA_MAX = 5;
+export const GEN_QUOTA_MAX = 10;
 const GEN_QUOTA_TTL = 24 * 60 * 60; // 1 day (no commit deadline in V2, shorter TTL)
 
 export async function checkGenerationQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
