@@ -17,7 +17,7 @@ const PRODUCTS = [
   {
     name: 'BOOA',
     tagline: 'Born On-chain Owned Agents',
-    desc: 'Fully on-chain AI character NFTs on Base. AI generates unique pixel art portraits, personalities, and skills — stored permanently via SSTORE2.',
+    desc: 'Fully on-chain AI character NFTs on Shape. AI generates unique pixel art portraits, personalities, and skills — stored permanently via SSTORE2.',
     href: '/booa',
     cta: 'Explore BOOA',
   },
@@ -194,7 +194,7 @@ export function HeroSection() {
                   trusting a centralized server.
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  The Identity Registry is deployed on 10 chains at the same address via
+                  The Identity Registry is deployed on 24 chains at the same address via
                   deterministic CREATE2. Agents can register on any chain, and Khora discovers
                   them all in parallel.
                 </p>

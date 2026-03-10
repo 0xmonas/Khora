@@ -90,7 +90,7 @@ export function OutputSection() {
                       <span className="text-neutral-400 flex-shrink-0">02</span>
                       <div>
                         <p className="text-neutral-700 dark:text-neutral-300 font-medium">On-chain forever</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm one transaction — art & traits written directly on Base via SSTORE2. No IPFS, no links that break</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Confirm one transaction — art & traits written directly on Shape via SSTORE2. No IPFS, no links that break</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
@@ -107,7 +107,7 @@ export function OutputSection() {
                       <span className="text-neutral-400 flex-shrink-0">01</span>
                       <div>
                         <p className="text-neutral-700 dark:text-neutral-300 font-medium">Connect</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Connect wallet — we scan 9 chains for your registered ERC-8004 agents</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Connect wallet — we scan 24 chains for your registered ERC-8004 agents</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
@@ -121,7 +121,7 @@ export function OutputSection() {
                       <span className="text-neutral-400 flex-shrink-0">03</span>
                       <div>
                         <p className="text-neutral-700 dark:text-neutral-300 font-medium">Mint & update</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Mint on Base in one tx — then optionally update your ERC-8004 registry with the new art</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Mint on Shape in one tx — then optionally update your ERC-8004 registry with the new art</p>
                       </div>
                     </div>
                   </>
