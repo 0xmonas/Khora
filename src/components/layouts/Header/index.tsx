@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -22,20 +22,6 @@ function WalletButtonInner({ account, chain, openAccountModal, openChainModal, o
 }) {
   const connected = mounted && account && chain;
   const needsAuth = connected && (authenticationStatus === 'unauthenticated');
-
-  // Auto-trigger SIWE sign-in when wallet is connected but not authenticated
-  const hasTriggered = useRef(false);
-  useEffect(() => {
-    if (needsAuth && !hasTriggered.current) {
-      hasTriggered.current = true;
-      // Small delay to let RainbowKit modal close after connect
-      const timer = setTimeout(() => openConnectModal(), 300);
-      return () => clearTimeout(timer);
-    }
-    if (!connected) {
-      hasTriggered.current = false;
-    }
-  }, [needsAuth, connected, openConnectModal]);
 
   if (!connected) {
     return (

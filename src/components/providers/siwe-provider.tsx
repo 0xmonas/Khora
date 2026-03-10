@@ -7,57 +7,42 @@ import {
   type AuthenticationStatus,
 } from '@rainbow-me/rainbowkit';
 import { createSiweMessage } from 'viem/siwe';
-import { useAccount } from 'wagmi';
 
 const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
 export function useSiweStatus() { return useContext(SiweStatusContext); }
 
 export function SiweProvider({ children }: { children: ReactNode }) {
+  const fetchingStatusRef = useRef(false);
+  const verifyingRef = useRef(false);
   const [status, setStatus] = useState<AuthenticationStatus>('loading');
-  const { isConnected, address } = useAccount();
-  const prevConnected = useRef(isConnected);
 
-  // Check session when wallet connects or address changes
+  // Check session on page load + window focus (official RainbowKit pattern)
   useEffect(() => {
-    if (!isConnected) {
-      // Wallet not connected — if we were previously authenticated, logout server session
-      if (prevConnected.current) {
-        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    const fetchStatus = async () => {
+      if (fetchingStatusRef.current || verifyingRef.current) {
+        return;
       }
-      setStatus('unauthenticated');
-      prevConnected.current = false;
-      return;
-    }
 
-    prevConnected.current = true;
+      fetchingStatusRef.current = true;
 
-    // Wallet connected — verify SIWE session matches current address
-    let cancelled = false;
-    setStatus('loading');
-
-    (async () => {
       try {
         const res = await fetch('/api/auth/session');
         const data = await res.json();
-        if (cancelled) return;
-
-        if (data.address && address && data.address.toLowerCase() === address.toLowerCase()) {
-          // Session matches connected wallet
-          setStatus('authenticated');
-        } else if (data.address) {
-          // Session exists but for a different address — clear it
-          await fetch('/api/auth/logout', { method: 'POST' });
-          if (!cancelled) setStatus('unauthenticated');
-        } else {
-          setStatus('unauthenticated');
-        }
+        setStatus(data.address ? 'authenticated' : 'unauthenticated');
       } catch {
-        if (!cancelled) setStatus('unauthenticated');
+        setStatus('unauthenticated');
+      } finally {
+        fetchingStatusRef.current = false;
       }
-    })();
+    };
 
-    return () => { cancelled = true; };
-  }, [isConnected, address]);
+    // 1. page loads
+    fetchStatus();
+
+    // 2. window is focused (in case user logs out of another window)
+    window.addEventListener('focus', fetchStatus);
+    return () => window.removeEventListener('focus', fetchStatus);
+  }, []);
 
   const adapter = useMemo(
     () =>
@@ -81,24 +66,33 @@ export function SiweProvider({ children }: { children: ReactNode }) {
         },
 
         verify: async ({ message, signature }) => {
-          const res = await fetch('/api/auth/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, signature }),
-          });
-          await res.json();
+          verifyingRef.current = true;
 
-          if (res.ok) {
-            setStatus('authenticated');
-            return true;
+          try {
+            const res = await fetch('/api/auth/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message, signature }),
+            });
+
+            const authenticated = Boolean(res.ok);
+
+            if (authenticated) {
+              setStatus('authenticated');
+            }
+
+            return authenticated;
+          } catch (error) {
+            console.error('Error verifying SIWE signature', error);
+            return false;
+          } finally {
+            verifyingRef.current = false;
           }
-
-          return false;
         },
 
         signOut: async () => {
-          await fetch('/api/auth/logout', { method: 'POST' });
           setStatus('unauthenticated');
+          await fetch('/api/auth/logout', { method: 'POST' });
         },
       }),
     [],
