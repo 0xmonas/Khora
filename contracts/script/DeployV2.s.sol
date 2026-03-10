@@ -92,8 +92,8 @@ contract DeployV2 is Script {
         console.log("BOOAv2: dataStore set");
 
         minter.setMaxPerWallet(10);
-        minter.setMaxSupply(3333);
-        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333");
+        minter.setMaxSupply(20);
+        console.log("BOOAMinter: maxPerWallet=10, maxSupply=20");
 
         console.log("BOOAMinter: phase=Closed (awaiting manual phase change)");
 
