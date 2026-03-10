@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useMintAgent, type MintPhase, type ContractMintPhase } from '@/hooks/useMintAgent';
-import { getAllowlistProof, isAllowlisted as checkAllowlisted } from '@/lib/allowlist';
+import { getAllowlistProof } from '@/lib/allowlist';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
@@ -178,9 +178,10 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   // V2 mint hook — single-tx with server-signed data
   const mint = useMintAgent();
 
-  // Check allowlist status when address or contract phase changes
+  // Pre-fetch allowlist proof whenever address changes (regardless of phase)
+  // so it's ready when mint() is called during Allowlist phase
   useEffect(() => {
-    if (!mint.address || mint.currentPhase !== 1) {
+    if (!mint.address) {
       setIsUserAllowlisted(null);
       setAllowlistProof(null);
       return;
@@ -198,7 +199,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [mint.address, mint.currentPhase]);
+  }, [mint.address]);
 
   // Restore from localStorage (mount-only)
   // eslint-disable-next-line react-hooks/exhaustive-deps

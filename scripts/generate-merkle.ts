@@ -43,5 +43,5 @@ const output = {
   proofs,
 };
 
-writeFileSync(outputPath, JSON.stringify(output, null, 2));
+writeFileSync(outputPath, JSON.stringify(output));
 console.log('Written to:', outputPath);
