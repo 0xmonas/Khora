@@ -5,20 +5,16 @@ import { useAccount } from 'wagmi';
 import { useBridge } from '../BridgeContext';
 import { NFTCard } from './NFTCard';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
+import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 import type { DiscoveredAgent } from '@/types/agent';
 
-const CHAIN_IDS: Record<string, number> = {
-  shape: 360, 'shape-sepolia': 11011, ethereum: 1, polygon: 137, arbitrum: 42161,
-  celo: 42220, gnosis: 100, scroll: 534352, taiko: 167000, bsc: 56,
-};
+const CHAIN_IDS: Record<string, number> = Object.fromEntries(
+  Object.entries(CHAIN_CONFIG).map(([key, val]) => [key, val.chainId])
+);
 
-const CHAIN_OPTIONS = [
-  { value: 'shape', label: 'Shape' },
-  { value: 'shape-sepolia', label: 'Shape Sepolia' },
-  { value: 'ethereum', label: 'Ethereum' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-] as const;
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 type Tab = 'nfts' | 'agents';
 

@@ -41,18 +41,9 @@ function isValidImageURI(uri: string): boolean {
   catch { return false; }
 }
 
-const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = [
-  { value: 'ethereum', label: 'Ethereum' },
-  { value: 'shape', label: 'Shape' },
-  { value: 'shape-sepolia', label: 'Shape Sepolia' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-  { value: 'celo', label: 'Celo' },
-  { value: 'gnosis', label: 'Gnosis' },
-  { value: 'scroll', label: 'Scroll' },
-  { value: 'taiko', label: 'Taiko' },
-  { value: 'bsc', label: 'BNB Chain' },
-];
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 export function InputForm() {
   const {

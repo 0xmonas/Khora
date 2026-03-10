@@ -254,7 +254,7 @@
  │  (one call per chain, Promise.allSettled)                       │
  │                                                                  │
  │  ┌────────────────────────────────────────────────────────────┐  │
- │  │  For each chain (24 chains in parallel):                   │  │
+ │  │  For each chain (20 chains in parallel):                   │  │
  │  │                                                            │  │
  │  │  Ethereum ──┐                                              │  │
  │  │  Base ──────┤                                              │  │
@@ -269,17 +269,13 @@
  │  │  Celo ──────┤                                              │  │
  │  │  Gnosis ────┤                                              │  │
  │  │  Scroll ────┤                                              │  │
- │  │  Taiko ─────┤                                              │  │
  │  │  Linea ─────┤                                              │  │
  │  │  Mantle ────┤                                              │  │
  │  │  Metis ─────┤                                              │  │
  │  │  Soneium ───┤                                              │  │
  │  │  Abstract ──┤                                              │  │
  │  │  Monad ─────┤                                              │  │
- │  │  MegaETH ───┤                                              │  │
- │  │  GOAT ──────┤                                              │  │
- │  │  SKALE ─────┤                                              │  │
- │  │  X Layer ───┘                                              │  │
+ │  │  MegaETH ───┘                                              │  │
  │  │                                                            │  │
  │  │  Uses chain-specific registry address:                     │  │
  │  │  • Mainnet: 0x8004A169...9a432  (all chains except        │  │
@@ -288,7 +284,7 @@
  │  │    shape-sepolia)                                          │  │
  │  └────────────────────────────────────────────────────────────┘  │
  │                                                                  │
- │  "Scanning 24 chains..."  (animated)                             │
+ │  "Scanning 20 chains..."  (animated)                             │
  └──────────────────────────┬───────────────────────────────────────┘
                             │
                 ┌───────────┴───────────┐
@@ -735,10 +731,8 @@
  │  │  → Selecting one → UPDATE flow (not new registration)     │  │
  │  └────────────────────────────────────────────────────────────┘  │
  │                                                                  │
- │  Supported chains for NFT fetch (Alchemy):                      │
- │  Shape, Shape Sepolia, Ethereum, Polygon, Arbitrum               │
- │                                                                  │
- │  Agent discovery: all 24 chains (same as Import mode)            │
+ │  Supported chains: all 20 (Alchemy NFT API + RPC agent scan)    │
+ │  NFT fetch + Agent discovery on same chain set                  │
  └──────────────────────────┬───────────────────────────────────────┘
                             │
                             │ user clicks an NFT or Agent

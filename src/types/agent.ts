@@ -38,14 +38,13 @@ export interface ERC8004Registration {
   updatedAt?: number;
 }
 
-// Supported chains for ERC-8004 Identity Registry
+// Supported chains for ERC-8004 Identity Registry (Alchemy-supported only)
 export type SupportedChain =
   // Mainnets
   | 'ethereum' | 'base' | 'shape' | 'polygon' | 'arbitrum'
   | 'optimism' | 'avalanche' | 'bsc' | 'celo' | 'gnosis'
-  | 'scroll' | 'taiko' | 'linea' | 'mantle' | 'metis'
-  | 'soneium' | 'abstract' | 'monad' | 'megaeth' | 'goat'
-  | 'skale' | 'xlayer'
+  | 'scroll' | 'linea' | 'mantle' | 'metis'
+  | 'soneium' | 'abstract' | 'monad' | 'megaeth'
   // Testnets
   | 'base-sepolia' | 'shape-sepolia';
 
@@ -69,7 +68,6 @@ export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
   celo: { chainId: 42220, name: 'Celo', rpcUrl: 'https://celo-rpc.publicnode.com', rpcUrls: ['https://celo-rpc.publicnode.com', 'https://1rpc.io/celo', 'https://rpc.ankr.com/celo'] },
   gnosis: { chainId: 100, name: 'Gnosis', rpcUrl: 'https://rpc.gnosischain.com', rpcUrls: ['https://rpc.gnosischain.com', 'https://gnosis-rpc.publicnode.com', 'https://1rpc.io/gnosis'] },
   scroll: { chainId: 534352, name: 'Scroll', rpcUrl: 'https://scroll-rpc.publicnode.com', rpcUrls: ['https://scroll-rpc.publicnode.com', 'https://rpc.scroll.io', 'https://1rpc.io/scroll'] },
-  taiko: { chainId: 167000, name: 'Taiko', rpcUrl: 'https://rpc.taiko.xyz', rpcUrls: ['https://rpc.taiko.xyz', 'https://taiko-rpc.publicnode.com', 'https://rpc.mainnet.taiko.xyz'] },
   linea: { chainId: 59144, name: 'Linea', rpcUrl: 'https://rpc.linea.build', rpcUrls: ['https://rpc.linea.build', 'https://linea-mainnet-rpc.publicnode.com'] },
   mantle: { chainId: 5000, name: 'Mantle', rpcUrl: 'https://rpc.mantle.xyz', rpcUrls: ['https://rpc.mantle.xyz', 'https://mantle-rpc.publicnode.com'] },
   metis: { chainId: 1088, name: 'Metis', rpcUrl: 'https://andromeda.metis.io/?owner=1088', rpcUrls: ['https://andromeda.metis.io/?owner=1088', 'https://metis-mainnet.public.blastapi.io'] },
@@ -77,9 +75,6 @@ export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
   abstract: { chainId: 2741, name: 'Abstract', rpcUrl: 'https://api.mainnet.abs.xyz', rpcUrls: ['https://api.mainnet.abs.xyz'] },
   monad: { chainId: 143, name: 'Monad', rpcUrl: 'https://rpc.monad.xyz', rpcUrls: ['https://rpc.monad.xyz', 'https://monad-mainnet.drpc.org'] },
   megaeth: { chainId: 4326, name: 'MegaETH', rpcUrl: 'https://rpc.megaeth.com', rpcUrls: ['https://rpc.megaeth.com'] },
-  goat: { chainId: 2345, name: 'GOAT Network', rpcUrl: 'https://rpc.goat.network', rpcUrls: ['https://rpc.goat.network'] },
-  skale: { chainId: 2046399126, name: 'SKALE Europa', rpcUrl: 'https://mainnet.skalenodes.com/v1/elated-tan-skat', rpcUrls: ['https://mainnet.skalenodes.com/v1/elated-tan-skat'] },
-  xlayer: { chainId: 196, name: 'X Layer', rpcUrl: 'https://rpc.xlayer.tech', rpcUrls: ['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com'] },
   // ─── Testnets ───
   'base-sepolia': { chainId: 84532, name: 'Base Sepolia', rpcUrl: 'https://sepolia.base.org', rpcUrls: ['https://sepolia.base.org', 'https://base-sepolia-rpc.publicnode.com'] },
   'shape-sepolia': { chainId: 11011, name: 'Shape Sepolia', rpcUrl: 'https://sepolia.shape.network', rpcUrls: ['https://sepolia.shape.network'] },

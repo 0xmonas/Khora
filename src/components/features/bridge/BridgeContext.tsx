@@ -12,16 +12,14 @@ import type { NFTItem } from '@/app/api/fetch-nfts/route';
 
 export type BridgeStep = 'select' | 'configure' | 'registering' | 'complete';
 
-const SUPPORTED_CHAINS = ['shape', 'shape-sepolia', 'ethereum', 'polygon', 'arbitrum'] as const;
-type BridgeChain = typeof SUPPORTED_CHAINS[number];
+import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 
-const CHAIN_IDS: Record<string, number> = {
-  shape: 360,
-  'shape-sepolia': 11011,
-  ethereum: 1,
-  polygon: 137,
-  arbitrum: 42161,
-};
+const SUPPORTED_CHAINS = Object.keys(CHAIN_CONFIG) as SupportedChain[];
+type BridgeChain = SupportedChain;
+
+const CHAIN_IDS: Record<string, number> = Object.fromEntries(
+  Object.entries(CHAIN_CONFIG).map(([key, val]) => [key, val.chainId])
+);
 
 interface BridgeContextType {
   // NFT listing

@@ -11,12 +11,12 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 const CREATE_STEPS = [
   { num: '01', title: 'Mint', desc: 'One click — AI generates a full agent identity: creature type, personality, pixel art portrait, skills, and behavioral boundaries. You confirm a single wallet transaction.' },
   { num: '02', title: 'Stored on-chain', desc: 'The portrait is encoded as a 2,048-byte bitmap (64x64, C64 palette) and stored via SSTORE2 directly in the contract. Traits are packed into bytes. No IPFS, no external hosting — your agent lives on Shape forever.' },
-  { num: '03', title: 'Register on ERC-8004', desc: 'Optionally register your agent on the ERC-8004 Identity Registry — the on-chain passport for AI agents. Configure services, skills (OASF taxonomy), domains, and x402 payment support. Makes your agent discoverable across 24 chains.' },
+  { num: '03', title: 'Register on ERC-8004', desc: 'Optionally register your agent on the ERC-8004 Identity Registry — the on-chain passport for AI agents. Configure services, skills (OASF taxonomy), domains, and x402 payment support. Makes your agent discoverable across 20 chains.' },
   { num: '04', title: 'Export anywhere', desc: 'Download as PNG, SVG, ERC-8004 JSON, or OpenClaw format (IDENTITY.md + SOUL.md) so your agent can operate autonomously on platforms like Moltbook. Your character\'s personality and boundaries travel with it.' },
 ];
 
 const IMPORT_STEPS = [
-  { num: '01', title: 'Discover', desc: 'Connect your wallet — we scan 24 chains in parallel for your registered ERC-8004 agents. Or enter a token ID manually. Your existing agent identities appear instantly.' },
+  { num: '01', title: 'Discover', desc: 'Connect your wallet — we scan 20 chains in parallel for your registered ERC-8004 agents. Or enter a token ID manually. Your existing agent identities appear instantly.' },
   { num: '02', title: 'Reimagine', desc: 'Select an agent — AI generates a brand-new pixel art portrait while preserving the original identity: name, description, skills, domains, personality. Same soul, new face.' },
   { num: '03', title: 'Mint & update', desc: 'Mint the new portrait on Shape in one transaction. Then update your existing ERC-8004 registry entry with the on-chain art via setAgentURI — no new registration needed.' },
 ];
@@ -110,7 +110,7 @@ export default function BOOAAboutPage() {
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
                     What makes BOOA different: agents can be registered on the ERC-8004
                     Identity Registry — the first on-chain passport standard for AI agents.
-                    This makes them discoverable across 24 chains, with configurable
+                    This makes them discoverable across 20 chains, with configurable
                     services, skills, and payment support. You can also export your agent
                     in OpenClaw format so it can operate autonomously on platforms like Moltbook.
                   </p>
@@ -150,7 +150,7 @@ export default function BOOAAboutPage() {
                     server.
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                    The Identity Registry is deployed on 24 chains at the same address
+                    The Identity Registry is deployed on 20 chains at the same address
                     via deterministic CREATE2. Agents can register on any chain, and
                     Khora discovers them all in parallel.
                   </p>
@@ -209,7 +209,7 @@ export default function BOOAAboutPage() {
                       <span className="text-sm text-foreground" style={font}>Import mode</span>
                       <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
                         Already have an agent registered on ERC-8004? Connect your
-                        wallet and we scan 24 chains for your registered agents. Select
+                        wallet and we scan 20 chains for your registered agents. Select
                         one and its identity is fetched from the on-chain registry —
                         name, description, services, skills, domains. AI generates a
                         new portrait for the imported identity. After minting, the

@@ -10,21 +10,52 @@ const FILTERED_CONTRACTS = new Set(
   [IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET].map(a => a.toLowerCase())
 );
 
-// Alchemy network slugs (for non-Shape chains that support Alchemy)
+// Alchemy network slugs — all chains with ERC-8004 registry
 const CHAIN_TO_NETWORK: Record<string, string> = {
   ethereum: 'eth-mainnet',
+  base: 'base-mainnet',
+  shape: 'shape-mainnet',
   polygon: 'polygon-mainnet',
   arbitrum: 'arb-mainnet',
-  shape: 'shape-mainnet',
+  optimism: 'opt-mainnet',
+  avalanche: 'avax-mainnet',
+  bsc: 'bnb-mainnet',
+  celo: 'celo-mainnet',
+  gnosis: 'gnosis-mainnet',
+  scroll: 'scroll-mainnet',
+  linea: 'linea-mainnet',
+  mantle: 'mantle-mainnet',
+  metis: 'metis-mainnet',
+  soneium: 'soneium-mainnet',
+  abstract: 'abstract-mainnet',
+  monad: 'monad-mainnet',
+  megaeth: 'megaeth-mainnet',
+  // Testnets
+  'base-sepolia': 'base-sepolia',
   'shape-sepolia': 'shape-sepolia',
 };
 
 const CHAIN_IDS: Record<string, number> = {
-  shape: 360,
-  'shape-sepolia': 11011,
   ethereum: 1,
+  base: 8453,
+  shape: 360,
   polygon: 137,
   arbitrum: 42161,
+  optimism: 10,
+  avalanche: 43114,
+  bsc: 56,
+  celo: 42220,
+  gnosis: 100,
+  scroll: 534352,
+  linea: 59144,
+  mantle: 5000,
+  metis: 1088,
+  soneium: 1868,
+  abstract: 2741,
+  monad: 143,
+  megaeth: 4326,
+  'base-sepolia': 84532,
+  'shape-sepolia': 11011,
 };
 
 export interface NFTItem {
