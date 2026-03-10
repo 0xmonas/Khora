@@ -163,19 +163,18 @@ function TokenDetail({ token }: { token: GalleryToken }) {
 
   // Check if this token is already registered on the Identity Registry
   useEffect(() => {
-    if (!token.isOwned) return;
     let cancelled = false;
     fetch(`/api/agent-registry/${chainId}/${token.tokenId.toString()}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!cancelled && data?.registrations?.length > 0) {
           setRegistryAgentId(BigInt(data.registrations[0].agentId));
-          setRegisterStatus('already_registered');
+          if (token.isOwned) setRegisterStatus('already_registered');
         }
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [token.isOwned, chainId, token.tokenId]);
+  }, [chainId, token.tokenId, token.isOwned]);
 
   const handleRegister = useCallback(async () => {
     if (!token.isOwned || !publicClient) return;
@@ -423,7 +422,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         {token.isOwned && metadataLoading && (
           <div className="h-8 bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
         )}
-        {traits.length > 0 && (
+        {token.isOwned && traits.length > 0 && (
           <div>
             <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">download</p>
             <div className="flex gap-1.5">
