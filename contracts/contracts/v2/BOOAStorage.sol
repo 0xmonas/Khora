@@ -28,6 +28,10 @@ contract BOOAStorage is IBOOAStorage, Ownable {
 
     constructor() Ownable(msg.sender) {}
 
+    function renounceOwnership() public pure override {
+        revert("Cannot renounce");
+    }
+
     function setWriter(address writer, bool authorized) external onlyOwner {
         authorizedWriters[writer] = authorized;
         emit WriterUpdated(writer, authorized);

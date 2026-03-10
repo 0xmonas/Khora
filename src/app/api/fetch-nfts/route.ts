@@ -10,18 +10,18 @@ const FILTERED_CONTRACTS = new Set(
   [IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET].map(a => a.toLowerCase())
 );
 
-// Alchemy network slugs
+// Alchemy network slugs (for non-Shape chains that support Alchemy)
 const CHAIN_TO_NETWORK: Record<string, string> = {
-  base: 'base-mainnet',
-  'base-sepolia': 'base-sepolia',
   ethereum: 'eth-mainnet',
   polygon: 'polygon-mainnet',
   arbitrum: 'arb-mainnet',
+  shape: 'shape-mainnet',
+  'shape-sepolia': 'shape-sepolia',
 };
 
 const CHAIN_IDS: Record<string, number> = {
-  base: 8453,
-  'base-sepolia': 84532,
+  shape: 360,
+  'shape-sepolia': 11011,
   ethereum: 1,
   polygon: 137,
   arbitrum: 42161,
@@ -45,7 +45,7 @@ export interface NFTItem {
 
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address');
-  const chain = request.nextUrl.searchParams.get('chain') || 'base';
+  const chain = request.nextUrl.searchParams.get('chain') || 'shape';
   const pageKey = request.nextUrl.searchParams.get('pageKey') || undefined;
 
   if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {

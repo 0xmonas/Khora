@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { createPublicClient, http } from 'viem';
-import { base, baseSepolia } from 'viem/chains';
+import { shape, shapeSepolia } from 'viem/chains';
 import { parseSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { sessionOptions, type SessionData } from '@/lib/session';
 
 const CHAINS = {
-  [base.id]: base,
-  [baseSepolia.id]: baseSepolia,
+  [shape.id]: shape,
+  [shapeSepolia.id]: shapeSepolia,
 } as const;
 
 export async function POST(request: NextRequest) {

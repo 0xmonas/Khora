@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useChainId } from 'wagmi';
-import { base } from 'wagmi/chains';
+import { shape } from 'wagmi/chains';
 import { useBridge } from '../BridgeContext';
 
 function getExplorerUrl(chainId: number, hash: string): string {
-  if (chainId === base.id) return `https://basescan.org/tx/${hash}`;
-  return `https://sepolia.basescan.org/tx/${hash}`;
+  if (chainId === shape.id) return `https://shapescan.xyz/tx/${hash}`;
+  return `https://explorer-sepolia.shape.network/tx/${hash}`;
 }
 
 export function RegisterModal() {

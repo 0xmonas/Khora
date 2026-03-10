@@ -45,13 +45,13 @@ vi.mock('viem', () => ({
 }));
 
 vi.mock('viem/chains', () => ({
-  baseSepolia: { id: 84532 },
+  shapeSepolia: { id: 11011 },
 }));
 
 vi.mock('@/lib/contracts/booa', () => ({
   BOOA_NFT_ABI: [],
   getContractAddress: (chainId: number) =>
-    chainId === 84532 ? '0x1234567890123456789012345678901234567890' : null,
+    chainId === 11011 ? '0x1234567890123456789012345678901234567890' : null,
 }));
 
 // ── Helpers ──
@@ -114,7 +114,7 @@ describe('Pending Reveal API', () => {
     it('should return found:false when no entry exists', async () => {
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011', slot: '0' }),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -125,7 +125,7 @@ describe('Pending Reveal API', () => {
       mockRedisGet.mockResolvedValue({ svg: 'abcd', traits: 'ef01' });
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011', slot: '0' }),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -137,7 +137,7 @@ describe('Pending Reveal API', () => {
     it('should return 400 when address is missing', async () => {
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', slot: '0' }),
+        makeGetRequest({ chainId: '11011', slot: '0' }),
       );
       expect(res.status).toBe(400);
     });
@@ -153,7 +153,7 @@ describe('Pending Reveal API', () => {
     it('should return 400 when slot is missing', async () => {
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011' }),
       );
       expect(res.status).toBe(400);
     });
@@ -161,7 +161,7 @@ describe('Pending Reveal API', () => {
     it('should return 400 for invalid address format', async () => {
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ address: 'not-an-address', chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: 'not-an-address', chainId: '11011', slot: '0' }),
       );
       expect(res.status).toBe(400);
       const body = await res.json();
@@ -174,7 +174,7 @@ describe('Pending Reveal API', () => {
       });
       const { GET } = await import('@/app/api/pending-reveal/route');
       const res = await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011', slot: '0' }),
       );
       expect(res.status).toBe(429);
     });
@@ -182,10 +182,10 @@ describe('Pending Reveal API', () => {
     it('should use case-insensitive key lookup (address lowercased)', async () => {
       const { GET } = await import('@/app/api/pending-reveal/route');
       await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011', slot: '0' }),
       );
       expect(mockRedisGet).toHaveBeenCalledWith(
-        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:84532:0`,
+        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:11011:0`,
       );
     });
   });
@@ -197,7 +197,7 @@ describe('Pending Reveal API', () => {
   describe('POST /api/pending-reveal', () => {
     const validBody = {
       address: VALID_ADDRESS,
-      chainId: 84532,
+      chainId: 11011,
       slot: 0,
       svg: 'deadbeef',
       traits: 'cafebabe',
@@ -213,7 +213,7 @@ describe('Pending Reveal API', () => {
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(mockRedisSet).toHaveBeenCalledWith(
-        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:84532:0`,
+        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:11011:0`,
         { svg: 'deadbeef', traits: 'cafebabe' },
         { ex: 8 * 24 * 60 * 60 },
       );
@@ -382,7 +382,7 @@ describe('Pending Reveal API', () => {
   describe('DELETE /api/pending-reveal', () => {
     const validBody = {
       address: VALID_ADDRESS,
-      chainId: 84532,
+      chainId: 11011,
       slot: 0,
     };
 
@@ -398,7 +398,7 @@ describe('Pending Reveal API', () => {
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(mockRedisDel).toHaveBeenCalledWith(
-        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:84532:0`,
+        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:11011:0`,
       );
     });
 
@@ -410,7 +410,7 @@ describe('Pending Reveal API', () => {
 
     it('should return 400 when address is missing', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ chainId: 84532, slot: 0 }, siweHeader));
+      const res = await DELETE(makeDeleteRequest({ chainId: 11011, slot: 0 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
@@ -422,7 +422,7 @@ describe('Pending Reveal API', () => {
 
     it('should return 400 when slot is missing', async () => {
       const { DELETE } = await import('@/app/api/pending-reveal/route');
-      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, chainId: 84532 }, siweHeader));
+      const res = await DELETE(makeDeleteRequest({ address: VALID_ADDRESS, chainId: 11011 }, siweHeader));
       expect(res.status).toBe(400);
     });
 
@@ -493,7 +493,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'attacker-svg',
         }, siweHeader),
@@ -508,7 +508,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'attacker-overwrite',
         }, siweHeader),
@@ -523,7 +523,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'attacker-svg',
         }, siweHeader),
@@ -538,7 +538,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: { __proto__: 'xss' },
         }, siweHeader),
@@ -551,7 +551,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: '0x' + 'g'.repeat(40), // invalid hex
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'test',
         }, { 'x-siwe-address': '0x' + 'g'.repeat(40) }),
@@ -564,7 +564,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'test',
         }),
@@ -579,7 +579,7 @@ describe('Pending Reveal API', () => {
       const res = await DELETE(
         makeDeleteRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
         }),
       );
@@ -595,7 +595,7 @@ describe('Pending Reveal API', () => {
       const res = await POST(
         makePostRequest({
           address: VALID_ADDRESS,
-          chainId: 84532,
+          chainId: 11011,
           slot: 0,
           svg: 'spam',
         }, siweHeader),
@@ -614,10 +614,10 @@ describe('Pending Reveal API', () => {
       mockRedisGet.mockResolvedValue({ svg: 'test', traits: '' });
       const { GET } = await import('@/app/api/pending-reveal/route');
       await GET(
-        makeGetRequest({ address: VALID_ADDRESS, chainId: '84532', slot: '3' }),
+        makeGetRequest({ address: VALID_ADDRESS, chainId: '11011', slot: '3' }),
       );
       expect(mockRedisGet).toHaveBeenCalledWith(
-        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:84532:3`,
+        `pending-reveal:${VALID_ADDRESS.toLowerCase()}:11011:3`,
       );
     });
 
@@ -625,10 +625,10 @@ describe('Pending Reveal API', () => {
       const mixedCase = '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12';
       const { GET } = await import('@/app/api/pending-reveal/route');
       await GET(
-        makeGetRequest({ address: mixedCase, chainId: '84532', slot: '0' }),
+        makeGetRequest({ address: mixedCase, chainId: '11011', slot: '0' }),
       );
       expect(mockRedisGet).toHaveBeenCalledWith(
-        `pending-reveal:${mixedCase.toLowerCase()}:84532:0`,
+        `pending-reveal:${mixedCase.toLowerCase()}:11011:0`,
       );
     });
   });

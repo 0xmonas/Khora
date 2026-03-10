@@ -358,7 +358,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Add registrations array for bidirectional linking
-      const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
       if (mode === 'import' && importedRegistryTokenId) {
         registration.registrations = [{
           agentId: importedRegistryTokenId,
@@ -472,7 +472,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
     // Wallet must be on the same chain as the agent's registry
     if (mint.chainId !== agentChainId) {
-      setError(`Please switch your wallet to ${importedAgentChain === 'base' ? 'Base' : CHAIN_CONFIG[importedAgentChain].name} to update this agent.`);
+      setError(`Please switch your wallet to ${importedAgentChain === 'shape' ? 'Shape' : CHAIN_CONFIG[importedAgentChain].name} to update this agent.`);
       return;
     }
 
@@ -481,7 +481,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setIsModalOpen(true);
 
     try {
-      const registryAddr = agentChainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryAddr = getRegistryAddress(agentChainId);
 
       // Build ERC-8004 registration from current form state
       const cleanedServices = erc8004Services
@@ -742,7 +742,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }
         if (registryAgentId !== null) {
           const chainId = mint.chainId;
-          const registryAddr = chainId === 8453 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+          const registryAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
           registration.registrations = [{
             agentId: Number(registryAgentId),
             agentRegistry: `eip155:${chainId}:${registryAddr}`,
@@ -761,7 +761,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (mintedTokenId !== null) {
           const booaAddr = mint.booaAddress;
           if (booaAddr && booaAddr.length > 2) {
-            openClawImage = `eip155:8453/erc721:${booaAddr}/${mintedTokenId.toString()}`;
+            openClawImage = `eip155:360/erc721:${booaAddr}/${mintedTokenId.toString()}`;
           }
         }
         const zipBlob = await toOpenClawZip(agent, openClawImage);

@@ -28,7 +28,6 @@ contract BOOAMinter is Ownable {
     bytes32 public merkleRoot;
 
     mapping(address => uint256) public mintCount;
-    mapping(address => uint256) public allowlistMintCount;
     mapping(bytes32 => bool) private _usedSignatures;
 
     event AgentMinted(uint256 indexed tokenId, address indexed minter);
@@ -93,7 +92,6 @@ contract BOOAMinter is Ownable {
             bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender))));
             if (!MerkleProof.verifyCalldata(merkleProof, merkleRoot, leaf)) revert NotAllowlisted();
             price = allowlistPrice;
-            allowlistMintCount[msg.sender]++;
         } else {
             price = publicPrice;
         }
@@ -102,7 +100,7 @@ contract BOOAMinter is Ownable {
         if (maxPerWallet > 0 && mintCount[msg.sender] >= maxPerWallet) revert MintLimitReached();
         if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
 
-        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid, address(this)));
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         if (_usedSignatures[ethSignedHash]) revert SignatureAlreadyUsed();
@@ -117,6 +115,11 @@ contract BOOAMinter is Ownable {
         dataStore.setTraits(tokenId, traitsData);
 
         emit AgentMinted(tokenId, msg.sender);
+
+        if (msg.value > price) {
+            (bool ok,) = msg.sender.call{value: msg.value - price}("");
+            require(ok, "Refund failed");
+        }
     }
 
     /// @notice Owner-only mint: free, no phase/wallet-limit checks.
@@ -130,7 +133,7 @@ contract BOOAMinter is Ownable {
         if (block.timestamp > deadline) revert SignatureExpired();
         if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
 
-        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid, address(this)));
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         if (_usedSignatures[ethSignedHash]) revert SignatureAlreadyUsed();
@@ -151,8 +154,13 @@ contract BOOAMinter is Ownable {
     // ═══════════════════════════════════════
 
     function setSigner(address _signer) external onlyOwner {
+        require(_signer != address(0), "Zero address");
         signer = _signer;
         emit SignerUpdated(_signer);
+    }
+
+    function renounceOwnership() public pure override {
+        revert("Cannot renounce");
     }
 
     function setPhase(MintPhase _phase) external onlyOwner {

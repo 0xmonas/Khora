@@ -8,6 +8,7 @@ import {BOOARenderer} from "../../contracts/v2/BOOARenderer.sol";
 import {BOOAMinter} from "../../contracts/v2/BOOAMinter.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Merkle} from "murky/src/Merkle.sol";
 
 // ═══════════════════════════════════════════════════════════════════
 //  ATTACKER CONTRACTS
@@ -85,6 +86,33 @@ contract MaliciousRenderer {
     }
 }
 
+/// @dev Contract that rejects ETH refunds during mint
+contract RefundGriever {
+    BOOAMinter public minter;
+    uint256 public signerKey;
+    bytes public imageData;
+    bytes public traitsData;
+
+    constructor(address _minter) {
+        minter = BOOAMinter(payable(_minter));
+    }
+
+    function doMint(
+        bytes calldata _imageData,
+        bytes calldata _traitsData,
+        uint256 deadline,
+        bytes calldata sig
+    ) external payable {
+        bytes32[] memory emptyProof = new bytes32[](0);
+        minter.mint{value: msg.value}(_imageData, _traitsData, deadline, sig, emptyProof);
+    }
+
+    // Reject refunds
+    receive() external payable {
+        revert("no refunds");
+    }
+}
+
 /// @dev Self-destructing contract to force-send ETH (deprecated post-Dencun)
 contract ForceSender {
     constructor(address payable target) payable {
@@ -149,6 +177,11 @@ contract BOOAv2DeepSecurityTest is Test {
     bytes validBitmap;
     bytes validTraits;
 
+    // Merkle tree state
+    bytes32 merkleRoot;
+    bytes32[] merkleLeaves;
+    Merkle merkleHelper;
+
     function setUp() public {
         signerAddr = vm.addr(signerKey);
         vm.deal(attacker, 100 ether);
@@ -170,6 +203,14 @@ contract BOOAv2DeepSecurityTest is Test {
 
         validBitmap = _makeBitmap(0);
         validTraits = bytes('[{"trait_type":"Creature","value":"Test"}]');
+
+        // Build Merkle tree for allowlist: user and user2
+        merkleHelper = new Merkle();
+        merkleLeaves = new bytes32[](2);
+        merkleLeaves[0] = _computeLeaf(user);
+        merkleLeaves[1] = _computeLeaf(user2);
+        merkleRoot = merkleHelper.getRoot(merkleLeaves);
+        minter.setMerkleRoot(merkleRoot);
     }
 
     receive() external payable {}
@@ -186,7 +227,7 @@ contract BOOAv2DeepSecurityTest is Test {
     uint256 private _nonce;
 
     function _signMint(bytes memory imageData, bytes memory traitsData, address who, uint256 deadline) internal view returns (bytes memory) {
-        bytes32 hash = keccak256(abi.encode(imageData, traitsData, who, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, who, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         return abi.encodePacked(r, s, v);
@@ -198,6 +239,27 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes32[] memory emptyProof = new bytes32[](0);
         vm.prank(who);
         return minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+    }
+
+    function _computeLeaf(address addr) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(addr))));
+    }
+
+    function _getMerkleProof(address addr) internal view returns (bytes32[] memory) {
+        uint256 index;
+        bytes32 leaf = _computeLeaf(addr);
+        for (uint256 i; i < merkleLeaves.length; ++i) {
+            if (merkleLeaves[i] == leaf) { index = i; break; }
+        }
+        return merkleHelper.getProof(merkleLeaves, index);
+    }
+
+    function _mintAllowlist(address who) internal returns (uint256) {
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, who, deadline);
+        bytes32[] memory proof = _getMerkleProof(who);
+        vm.prank(who);
+        return minter.mint{value: ALLOWLIST_PRICE}(validBitmap, validTraits, deadline, sig, proof);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -376,7 +438,7 @@ contract BOOAv2DeepSecurityTest is Test {
         require(vm.addr(fakeKey) != signerAddr, "Keys must differ");
 
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeKey, ethHash);
         bytes32[] memory emptyProof = new bytes32[](0);
@@ -390,7 +452,7 @@ contract BOOAv2DeepSecurityTest is Test {
     ///      OpenZeppelin ECDSA.recover rejects high-s. Verify both paths.
     function test_sig_malleability_highS_rejected() public {
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         bytes32[] memory emptyProof = new bytes32[](0);
@@ -401,7 +463,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         // Now try the malleable form for a new mint
         uint256 deadline2 = block.timestamp + 2 hours;
-        bytes32 hash2 = keccak256(abi.encode(validBitmap, validTraits, user, deadline2, block.chainid));
+        bytes32 hash2 = keccak256(abi.encode(validBitmap, validTraits, user, deadline2, block.chainid, address(minter)));
         bytes32 ethHash2 = hash2.toEthSignedMessageHash();
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signerKey, ethHash2);
 
@@ -419,7 +481,7 @@ contract BOOAv2DeepSecurityTest is Test {
     ///      Some implementations accept v ∈ {0,1} instead of {27,28}
     function test_sig_compactV_rejected() public {
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         bytes32[] memory emptyProof = new bytes32[](0);
@@ -443,7 +505,7 @@ contract BOOAv2DeepSecurityTest is Test {
     /// @dev Exactly 64-byte signature (EIP-2098 compact) — verify handling
     function test_sig_compactEIP2098() public {
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
 
@@ -475,12 +537,12 @@ contract BOOAv2DeepSecurityTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         // Sign for Ethereum mainnet (chainid=1)
-        bytes32 hashMainnet = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(1)));
+        bytes32 hashMainnet = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(1), address(minter)));
         bytes32 ethHashMainnet = hashMainnet.toEthSignedMessageHash();
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(signerKey, ethHashMainnet);
 
         // Sign for Base (chainid=8453)
-        bytes32 hashBase = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(8453)));
+        bytes32 hashBase = keccak256(abi.encode(validBitmap, validTraits, user, deadline, uint256(8453), address(minter)));
         bytes32 ethHashBase = hashBase.toEthSignedMessageHash();
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(signerKey, ethHashBase);
         bytes32[] memory emptyProof = new bytes32[](0);
@@ -512,7 +574,7 @@ contract BOOAv2DeepSecurityTest is Test {
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // New signer's signature works
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, ethHash);
         vm.prank(user);
@@ -961,16 +1023,10 @@ contract BOOAv2DeepSecurityTest is Test {
         assertTrue(booa.authorizedMinters(attacker));
     }
 
-    /// @dev Renounce ownership — no one can admin
-    function test_access_renounceOwnership() public {
+    /// @dev Renounce ownership is blocked
+    function test_access_renounceOwnershipBlocked() public {
+        vm.expectRevert("Cannot renounce");
         booa.renounceOwnership();
-
-        vm.expectRevert();
-        booa.setMinter(attacker, true);
-
-        vm.prank(attacker);
-        vm.expectRevert();
-        booa.setMinter(attacker, true);
     }
 
     /// @dev updateMetadata restricted to contract owner (not token owner)
@@ -1127,18 +1183,20 @@ contract BOOAv2DeepSecurityTest is Test {
     //  CATEGORY 10: ETH HANDLING & WITHDRAWAL ATTACKS
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @dev Overpayment — excess ETH stays in minter contract
+    /// @dev Overpayment — excess ETH is refunded to sender
     function test_eth_overpayment() public {
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
         bytes32[] memory emptyProof = new bytes32[](0);
 
-        uint256 balBefore = address(minter).balance;
+        uint256 userBalBefore = user.balance;
+        uint256 minterBalBefore = address(minter).balance;
         vm.prank(user);
         minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
 
-        // Excess stays in minter — no refund!
-        assertEq(address(minter).balance, balBefore + 1 ether);
+        // Only price kept, excess refunded
+        assertEq(address(minter).balance, minterBalBefore + minter.publicPrice());
+        assertEq(user.balance, userBalBefore - minter.publicPrice());
     }
 
     /// @dev WithdrawTo with griever contract — fails but doesn't lock funds
@@ -1443,7 +1501,7 @@ contract BOOAv2DeepSecurityTest is Test {
         _mintAsUser(user); // via minter1
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user2, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user2, deadline, block.chainid, address(minter2)));
         bytes32 ethHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer2Key, ethHash);
         vm.prank(user2);
@@ -1473,5 +1531,266 @@ contract BOOAv2DeepSecurityTest is Test {
         vm.prank(user);
         vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CATEGORY 16: REFUND ACROSS ALL PHASES
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// @dev Overpayment refund during Allowlist phase
+    function test_eth_allowlistOverpaymentRefund() public {
+        minter.setPhase(BOOAMinter.MintPhase.Allowlist);
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory proof = _getMerkleProof(user);
+
+        uint256 userBalBefore = user.balance;
+        uint256 minterBalBefore = address(minter).balance;
+
+        vm.prank(user);
+        minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig, proof);
+
+        // Only allowlist price kept, excess refunded
+        assertEq(address(minter).balance, minterBalBefore + ALLOWLIST_PRICE);
+        assertEq(user.balance, userBalBefore - ALLOWLIST_PRICE);
+    }
+
+    /// @dev Exact payment in allowlist phase — no refund needed
+    function test_eth_allowlistExactPaymentNoRefund() public {
+        minter.setPhase(BOOAMinter.MintPhase.Allowlist);
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory proof = _getMerkleProof(user);
+
+        uint256 userBalBefore = user.balance;
+        vm.prank(user);
+        minter.mint{value: ALLOWLIST_PRICE}(validBitmap, validTraits, deadline, sig, proof);
+
+        assertEq(user.balance, userBalBefore - ALLOWLIST_PRICE);
+    }
+
+    /// @dev Closed phase reverts before any refund logic
+    function test_eth_closedPhaseRevertsBeforeRefund() public {
+        minter.setPhase(BOOAMinter.MintPhase.Closed);
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+
+        uint256 userBalBefore = user.balance;
+        vm.prank(user);
+        vm.expectRevert(BOOAMinter.MintingClosed.selector);
+        minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
+
+        // No ETH spent
+        assertEq(user.balance, userBalBefore);
+    }
+
+    /// @dev Exact payment in public phase — no refund triggered
+    function test_eth_publicExactPaymentNoRefund() public {
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+
+        uint256 userBalBefore = user.balance;
+        vm.prank(user);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+
+        assertEq(user.balance, userBalBefore - PUBLIC_PRICE);
+    }
+
+    /// @dev Free mint (price=0) with ETH sent — full refund
+    function test_eth_freeMintRefundsAll() public {
+        minter.setPublicPrice(0);
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+
+        uint256 userBalBefore = user.balance;
+        vm.prank(user);
+        minter.mint{value: 0.5 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
+
+        // All ETH refunded since price is 0
+        assertEq(user.balance, userBalBefore);
+        assertEq(address(minter).balance, 0);
+    }
+
+    /// @dev Refund failure reverts the entire mint
+    function test_eth_refundFailureRevertsEntireMint() public {
+        RefundGriever griever = new RefundGriever(address(minter));
+        vm.deal(address(griever), 10 ether);
+
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, address(griever), deadline);
+
+        // Griever sends 1 ETH but rejects refund — entire tx reverts
+        vm.expectRevert("Refund failed");
+        griever.doMint{value: 1 ether}(validBitmap, validTraits, deadline, sig);
+
+        // No token minted
+        assertEq(booa.totalSupply(), 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CATEGORY 17: WITHDRAW EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// @dev Withdraw after multiple mints with refunds — only prices accumulate
+    function test_eth_withdrawAfterMultipleRefunds() public {
+        // Mint 1: overpay in public
+        uint256 d1 = block.timestamp + 1 hours + _nonce++;
+        bytes memory s1 = _signMint(validBitmap, validTraits, user, d1);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        vm.prank(user);
+        minter.mint{value: 0.5 ether}(validBitmap, validTraits, d1, s1, emptyProof);
+
+        // Mint 2: overpay in public
+        uint256 d2 = block.timestamp + 1 hours + _nonce++;
+        bytes memory s2 = _signMint(validBitmap, validTraits, user2, d2);
+        vm.prank(user2);
+        minter.mint{value: 0.5 ether}(validBitmap, validTraits, d2, s2, emptyProof);
+
+        // Contract should hold exactly 2x public price
+        assertEq(address(minter).balance, PUBLIC_PRICE * 2);
+
+        // Withdraw all
+        uint256 ownerBalBefore = address(owner).balance;
+        minter.withdraw();
+        assertEq(address(owner).balance, ownerBalBefore + PUBLIC_PRICE * 2);
+        assertEq(address(minter).balance, 0);
+    }
+
+    /// @dev Withdraw with zero balance — succeeds but sends 0 ETH
+    function test_eth_withdrawZeroBalance() public {
+        uint256 ownerBalBefore = address(owner).balance;
+        minter.withdraw();
+        assertEq(address(owner).balance, ownerBalBefore);
+    }
+
+    /// @dev withdrawTo non-owner caller reverts
+    function test_eth_withdrawToNonOwnerReverts() public {
+        vm.deal(address(minter), 1 ether);
+        vm.prank(user);
+        vm.expectRevert();
+        minter.withdrawTo(payable(user));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CATEGORY 18: STRESS TESTS
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// @dev Sequential mints with refunds — 10 mints from same wallet
+    function test_stress_sequentialMintsWithRefunds() public {
+        minter.setMaxPerWallet(20);
+
+        uint256 userBalBefore = user.balance;
+        for (uint256 i; i < 10; ++i) {
+            uint256 deadline = block.timestamp + 1 hours + _nonce++;
+            bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
+            bytes32[] memory emptyProof = new bytes32[](0);
+            vm.prank(user);
+            minter.mint{value: 0.1 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
+        }
+
+        assertEq(booa.totalSupply(), 10);
+        assertEq(minter.mintCount(user), 10);
+        // Only 10x price deducted, all excess refunded
+        assertEq(user.balance, userBalBefore - PUBLIC_PRICE * 10);
+        assertEq(address(minter).balance, PUBLIC_PRICE * 10);
+    }
+
+    /// @dev Max supply boundary — mint up to limit, next reverts
+    function test_stress_maxSupplyBoundary() public {
+        minter.setMaxSupply(5);
+        minter.setMaxPerWallet(10);
+
+        address[5] memory wallets;
+        for (uint256 i; i < 5; ++i) {
+            wallets[i] = address(uint160(0xF000 + i));
+            vm.deal(wallets[i], 10 ether);
+        }
+
+        // Mint exactly 5 tokens
+        for (uint256 i; i < 5; ++i) {
+            uint256 deadline = block.timestamp + 1 hours + _nonce++;
+            bytes memory sig = _signMint(validBitmap, validTraits, wallets[i], deadline);
+            bytes32[] memory emptyProof = new bytes32[](0);
+            vm.prank(wallets[i]);
+            minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+        }
+
+        assertEq(booa.totalSupply(), 5);
+
+        // 6th mint reverts
+        address extraUser = address(0xFFFF);
+        vm.deal(extraUser, 10 ether);
+        uint256 deadline6 = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig6 = _signMint(validBitmap, validTraits, extraUser, deadline6);
+        bytes32[] memory proof6 = new bytes32[](0);
+        vm.prank(extraUser);
+        vm.expectRevert(BOOAMinter.MaxSupplyReached.selector);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline6, sig6, proof6);
+    }
+
+    /// @dev Multiple wallets minting in allowlist then transition to public
+    function test_stress_phaseTransition() public {
+        minter.setMaxPerWallet(5);
+
+        // Phase 1: Allowlist
+        minter.setPhase(BOOAMinter.MintPhase.Allowlist);
+        _mintAllowlist(user);
+        _mintAllowlist(user2);
+        assertEq(booa.totalSupply(), 2);
+
+        // Phase 2: Public
+        minter.setPhase(BOOAMinter.MintPhase.Public);
+        _mintAsUser(user);
+
+        // user3 (not on allowlist) can now mint in public
+        address user3 = address(0xDEAD);
+        vm.deal(user3, 10 ether);
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user3, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        vm.prank(user3);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+
+        assertEq(booa.totalSupply(), 4);
+        // user minted in both phases — combined mintCount
+        assertEq(minter.mintCount(user), 2);
+    }
+
+    /// @dev Rapid mint-burn-mint cycle stress test
+    function test_stress_mintBurnMintCycle() public {
+        minter.setMaxPerWallet(20);
+
+        // Mint 5 tokens
+        for (uint256 i; i < 5; ++i) {
+            _mintAsUser(user);
+        }
+        assertEq(booa.totalSupply(), 5);
+        assertEq(booa.balanceOf(user), 5);
+
+        // Burn 3
+        vm.startPrank(user);
+        booa.burn(0);
+        booa.burn(2);
+        booa.burn(4);
+        vm.stopPrank();
+
+        assertEq(booa.totalSupply(), 2);
+        assertEq(booa.balanceOf(user), 2);
+
+        // Mint 3 more
+        for (uint256 i; i < 3; ++i) {
+            _mintAsUser(user);
+        }
+        assertEq(booa.totalSupply(), 5);
+        assertEq(booa.balanceOf(user), 5);
+        // mintCount tracks lifetime mints, not current balance
+        assertEq(minter.mintCount(user), 8);
     }
 }

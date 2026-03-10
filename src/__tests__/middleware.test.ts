@@ -90,7 +90,7 @@ describe('Middleware', () => {
 
   it('should allow protected route with valid session', async () => {
     mockSession.address = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
-    mockSession.chainId = 84532;
+    mockSession.chainId = 11011;
 
     const { middleware } = await import('@/middleware');
 
@@ -102,7 +102,7 @@ describe('Middleware', () => {
 
   it('should forward x-siwe-address header when authenticated', async () => {
     mockSession.address = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
-    mockSession.chainId = 84532;
+    mockSession.chainId = 11011;
 
     const { middleware } = await import('@/middleware');
 

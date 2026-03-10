@@ -34,7 +34,10 @@
  │  │    used for skills/domains)       │  │
  │  ├────────────────────────────────────┤  │
  │  │        [ MINT ]                    │  │
- │  │   0 minted / 0.00015 ETH          │  │
+ │  │   0 minted / {price} ETH          │  │
+ │  │   (price read from contract:      │  │
+ │  │    testnet 0.00069, mainnet        │  │
+ │  │    0.0069 public; owner=FREE)      │  │
  │  └────────────────────────────────────┘  │
  └──────────────────┬───────────────────────┘
                     │
@@ -91,7 +94,8 @@
         │  │    • Palette: C64                                   │  │
         │  │                                                     │  │
         │  │ 7. EIP-191 sign(imageData, traitsData,              │  │
-        │  │              minter, deadline)                      │  │
+        │  │              minter, deadline, chainId,             │  │
+        │  │              minterContractAddress)                 │  │
         │  │    signer: server-side SIGNER_PRIVATE_KEY           │  │
         │  │    deadline: 5 minutes from now                     │  │
         │  │                                                     │  │
@@ -122,22 +126,29 @@
         │    imageData,    // 2048-byte bitmap                      │
         │    traitsData,   // JSON bytes                            │
         │    deadline,     // signature expiry                      │
-        │    signature     // server EIP-191 signature              │
+        │    signature,    // server EIP-191 signature              │
+        │    merkleProof   // [] for public, proof for allowlist    │
         │  )                                                        │
+        │  (Owner uses ownerMint — free, no phase/limit checks)     │
         │                                                           │
         │  ┌─────────────────────────────────────────────────────┐  │
         │  │ On-chain (BOOAMinter.sol):                          │  │
-        │  │  1. Check: !paused                                  │  │
+        │  │  1. Check: currentPhase != Closed                   │  │
+        │  │     (Phases: Closed=0, Allowlist=1, Public=2)       │  │
         │  │  2. Check: block.timestamp <= deadline              │  │
-        │  │  3. Check: msg.value >= mintPrice                   │  │
-        │  │  4. Check: mintCount[sender] < maxPerWallet         │  │
-        │  │  5. Check: totalSupply < maxSupply                  │  │
-        │  │  6. Verify EIP-191 signature from trusted signer    │  │
+        │  │  3. If Allowlist → verify merkleProof               │  │
+        │  │  4. Check: msg.value >= price (phase-dependent)     │  │
+        │  │  5. Check: mintCount[sender] < maxPerWallet         │  │
+        │  │  6. Check: totalSupply < maxSupply                  │  │
         │  │  7. Check: signature not already used (replay)      │  │
-        │  │  8. booa.mint(sender) → ERC721 token                │  │
-        │  │  9. store.setImageData(tokenId, bitmap) → SSTORE2   │  │
-        │  │ 10. store.setTraits(tokenId, traitsJSON) → SSTORE2  │  │
-        │  │ 11. emit AgentMinted(tokenId, sender)               │  │
+        │  │  8. Verify EIP-191 signature from trusted signer    │  │
+        │  │     (signs: imageData, traitsData, sender,          │  │
+        │  │      deadline, chainId, address(this))              │  │
+        │  │  9. booa.mint(sender) → ERC721 token                │  │
+        │  │ 10. store.setImageData(tokenId, bitmap) → SSTORE2   │  │
+        │  │ 11. store.setTraits(tokenId, traitsJSON) → SSTORE2  │  │
+        │  │ 12. emit AgentMinted(tokenId, sender)               │  │
+        │  │ 13. Refund excess ETH (msg.value - price) if any    │  │
         │  └─────────────────────────────────────────────────────┘  │
         │                                                           │
         │  ● Waiting for wallet confirmation...                     │
@@ -238,28 +249,46 @@
  ┌──────────────────────────────────────────────────────────────────┐
  │  AUTO-DISCOVERY                                                  │
  │                                                                  │
- │  GET /api/discover-agents?address=0x...                          │
+ │  Frontend scans ALL chains in parallel:                          │
+ │  GET /api/discover-agents?address=0x...&chain={chain}           │
+ │  (one call per chain, Promise.allSettled)                       │
  │                                                                  │
  │  ┌────────────────────────────────────────────────────────────┐  │
- │  │  For each chain (10 chains in parallel):                   │  │
+ │  │  For each chain (24 chains in parallel):                   │  │
  │  │                                                            │  │
  │  │  Ethereum ──┐                                              │  │
  │  │  Base ──────┤                                              │  │
  │  │  Base Sep ──┤  1. balanceOf(address) → skip if 0           │  │
- │  │  Polygon ───┤  2. findMaxTokenId() → multicall probe       │  │
- │  │  Arbitrum ──┤  3. scanOwnedTokenIds() → parallel waves     │  │
- │  │  Celo ──────┤  4. tokenURI() batch → extract names         │  │
- │  │  Gnosis ────┤     (data URI → base64 decode                │  │
- │  │  Scroll ────┤      OR http URI → fetch JSON)               │  │
+ │  │  Shape ─────┤  2. findMaxTokenId() → multicall probe       │  │
+ │  │  Shape Sep ─┤  3. scanOwnedTokenIds() → parallel waves     │  │
+ │  │  Polygon ───┤  4. tokenURI() batch → extract names         │  │
+ │  │  Arbitrum ──┤     (data URI → base64 decode                │  │
+ │  │  Optimism ──┤      OR http URI → fetch JSON)               │  │
+ │  │  Avalanche ─┤                                              │  │
+ │  │  BNB ───────┤                                              │  │
+ │  │  Celo ──────┤                                              │  │
+ │  │  Gnosis ────┤                                              │  │
+ │  │  Scroll ────┤                                              │  │
  │  │  Taiko ─────┤                                              │  │
- │  │  BNB ───────┘                                              │  │
+ │  │  Linea ─────┤                                              │  │
+ │  │  Mantle ────┤                                              │  │
+ │  │  Metis ─────┤                                              │  │
+ │  │  Soneium ───┤                                              │  │
+ │  │  Abstract ──┤                                              │  │
+ │  │  Monad ─────┤                                              │  │
+ │  │  MegaETH ───┤                                              │  │
+ │  │  GOAT ──────┤                                              │  │
+ │  │  SKALE ─────┤                                              │  │
+ │  │  X Layer ───┘                                              │  │
  │  │                                                            │  │
  │  │  Uses chain-specific registry address:                     │  │
- │  │  • Mainnet: 0x8004A169...9a432                             │  │
- │  │  • Testnet: 0x8004A818...4BD9e  (base-sepolia)            │  │
+ │  │  • Mainnet: 0x8004A169...9a432  (all chains except        │  │
+ │  │    testnets — TESTNET_IDS inverse pattern)                 │  │
+ │  │  • Testnet: 0x8004A818...4BD9e  (base-sepolia,            │  │
+ │  │    shape-sepolia)                                          │  │
  │  └────────────────────────────────────────────────────────────┘  │
  │                                                                  │
- │  "Scanning 10 chains..."  (animated)                             │
+ │  "Scanning 24 chains..."  (animated)                             │
  └──────────────────────────┬───────────────────────────────────────┘
                             │
                 ┌───────────┴───────────┐
@@ -550,7 +579,7 @@
  │                                                                 │
  │  ┌───────────────────────────────────────────────────────────┐  │
  │  │  BOOAv2 (BOOA.sol) — Minimal ERC721 + ERC2981             │  │
- │  │  Base Sepolia: 0x8527988D...Bcb8CBD                       │  │
+ │  │  Shape Sepolia: 0x23e06B07...9D8dbF                       │  │
  │  │                                                           │  │
  │  │  • mint(to) → only authorized minters                    │  │
  │  │  • tokenURI(id) → delegates to Renderer                 │  │
@@ -561,13 +590,16 @@
  │         │                                      ▼               │
  │  ┌──────┴────────────────────┐  ┌────────────────────────────┐ │
  │  │  BOOAMinter               │  │  BOOARenderer               │ │
- │  │  0x5881479...Aacd3857     │  │  0xCE684098...aE3692        │ │
+ │  │  0xF4e1a6...38e649       │  │  0xB7d41D...98452AF         │ │
  │  │                           │  │                             │ │
  │  │  • Server-signed mint     │  │  • renderSVG(bitmap)        │ │
  │  │  • EIP-191 verification   │  │  • tokenURI() → JSON       │ │
  │  │  • Replay protection      │  │  • C64 16-color palette    │ │
- │  │  • mintPrice / maxSupply  │  │  • RLE path compression    │ │
- │  │  • maxPerWallet / pause   │  │  • DynamicBufferLib        │ │
+ │  │  • Merkle allowlist phase │  │  • RLE path compression    │ │
+ │  │  • Phase: Closed/AL/Pub  │  │  • DynamicBufferLib        │ │
+ │  │  • maxPerWallet/maxSupply │  │                             │ │
+ │  │  • ownerMint (free)       │  │                             │ │
+ │  │  • ETH refund on overpay  │  │                             │ │
  │  │  • withdraw / withdrawTo  │  │                             │ │
  │  └──────┬────────────────────┘  └─────────┬──────────────────┘ │
  │         │ setImageData()                  │ getImageData()     │
@@ -575,7 +607,7 @@
  │         ▼                                 ▼                    │
  │  ┌───────────────────────────────────────────────────────────┐  │
  │  │  BOOAStorage                                              │  │
- │  │  0x185c903...aE3692                                       │  │
+ │  │  0x026e49...C368B45B                                      │  │
  │  │                                                           │  │
  │  │  • SSTORE2 bitmap storage (2048 bytes per token)          │  │
  │  │  • SSTORE2 traits storage (JSON, max 8192 bytes)          │  │
@@ -644,5 +676,195 @@
  │                                                                 │
  │  Create mode:  register(agentURI)  → mints new agent token      │
  │  Import mode:  setAgentURI(9, uri) → updates existing agent     │
+ │  Bridge mode:  register(agentURI)  → new agent from any NFT     │
+ │            OR  setAgentURI(id,uri) → update existing agent      │
  │                                                                 │
  └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                       NFT-TO-AGENT BRIDGE
+═══════════════════════════════════════════════════════════════════════
+
+ Converts any NFT (from multiple chains) into an ERC-8004 registered
+ agent on the Identity Protocol. No minting — just registration.
+
+ Route: /bridge
+
+ ┌─────────────┐
+ │  User lands  │
+ │  on /bridge  │
+ └──────┬──────┘
+        │
+        ▼
+ ┌──────────────────────────────────────────┐
+ │  CONNECT + AUTH                          │
+ │  ┌────────────────────────────────────┐  │
+ │  │ "Connect your wallet to bridge     │  │
+ │  │  your NFTs into agents"            │  │
+ │  │                                    │  │
+ │  │ Requires: wallet + SIWE auth       │  │
+ │  └────────────────────────────────────┘  │
+ └──────────────────┬───────────────────────┘
+                    │
+                    │ wallet connected + SIWE signed
+                    ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  STEP 1: SELECT (step='select')                                  │
+ │                                                                  │
+ │  ┌────────────────────────────────────────────────────────────┐  │
+ │  │ Tabs: [NFTs] [Agents]                                      │  │
+ │  │ Chain: [Shape ▾] [Ethereum] [Polygon] [Arbitrum]           │  │
+ │  ├────────────────────────────────────────────────────────────┤  │
+ │  │                                                            │  │
+ │  │  NFTs Tab:                                                 │  │
+ │  │  GET /api/fetch-nfts?address=0x...&chain=shape&pageKey=... │  │
+ │  │  → Alchemy getNFTsForOwner (50 per page)                  │  │
+ │  │  → Filters OUT ERC-8004 registry tokens                   │  │
+ │  │  → Infinite scroll (IntersectionObserver)                  │  │
+ │  │                                                            │  │
+ │  │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                     │  │
+ │  │  │ NFT1 │ │ NFT2 │ │ NFT3 │ │ NFT4 │  ...                │  │
+ │  │  │ ████ │ │ ░░░░ │ │ ████ │ │ ░░░░ │                     │  │
+ │  │  └──────┘ └──────┘ └──────┘ └──────┘                     │  │
+ │  │                                                            │  │
+ │  │  Agents Tab:                                               │  │
+ │  │  GET /api/discover-agents?address=0x...&chain={chain}      │  │
+ │  │  → Shows existing ERC-8004 agents (with '8004' badge)     │  │
+ │  │  → Selecting one → UPDATE flow (not new registration)     │  │
+ │  └────────────────────────────────────────────────────────────┘  │
+ │                                                                  │
+ │  Supported chains for NFT fetch (Alchemy):                      │
+ │  Shape, Shape Sepolia, Ethereum, Polygon, Arbitrum               │
+ │                                                                  │
+ │  Agent discovery: all 24 chains (same as Import mode)            │
+ └──────────────────────────┬───────────────────────────────────────┘
+                            │
+                            │ user clicks an NFT or Agent
+                            ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  STEP 2: CONFIGURE (step='configure')                            │
+ │                                                                  │
+ │  Two-column layout:                                              │
+ │  ┌──────────────────────────┬───────────────────────────────┐   │
+ │  │  LEFT: ConfigPanel       │  RIGHT: SelectedNFTPreview    │   │
+ │  │                          │                               │   │
+ │  │  Agent Name:             │  ┌────────┐                   │   │
+ │  │  [CoolNFT________]      │  │  ████  │  CoolNFT #42     │   │
+ │  │  (pre-filled from NFT)   │  │  ░░██  │  Collection: ...  │   │
+ │  │                          │  │  ████  │  Chain: Shape     │   │
+ │  │  Description:            │  └────────┘                   │   │
+ │  │  [A rare digital...]     │                               │   │
+ │  │  (pre-filled from NFT)   │  Attributes:                  │   │
+ │  │                          │  [Background: Blue]           │   │
+ │  │  ▸ ERC-8004 Config       │  [Eyes: Laser]                │   │
+ │  │    (same UI as Import    │  [Mouth: Grin]                │   │
+ │  │     mode — services,     │                               │   │
+ │  │     skills, domains,     │                               │   │
+ │  │     x402, trust)         │                               │   │
+ │  │                          │                               │   │
+ │  │  ────────────────────    │                               │   │
+ │  │  [REGISTER AS AGENT]     │                               │   │
+ │  │  or [UPDATE AGENT]       │                               │   │
+ │  │  (if existing agent)     │                               │   │
+ │  └──────────────────────────┴───────────────────────────────┘   │
+ │                                                                  │
+ │  NFT attribute auto-mapping:                                     │
+ │  • skill/ability/power/class/trait → Skills                     │
+ │  • domain/category/type/faction/realm → Domains                 │
+ │                                                                  │
+ │  For existing agents (Agents tab):                              │
+ │  • POST /api/fetch-agent { chain, agentId }                    │
+ │  • Pre-fills services, skills, domains, x402, trust from       │
+ │    existing on-chain registration                               │
+ │  • isExistingAgent = true → calls setAgentURI() not register() │
+ └──────────────────────────┬───────────────────────────────────────┘
+                            │
+                            │ click REGISTER or UPDATE
+                            ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  STEP 3: REGISTERING (step='registering')                        │
+ │                                                                  │
+ │  ┌────────────────────────────────────────────────────────────┐  │
+ │  │  RegisterModal                                             │  │
+ │  │                                                            │  │
+ │  │  1. Build ERC-8004 Registration JSON:                      │  │
+ │  │     {                                                      │  │
+ │  │       "type": "...#registration-v1",                       │  │
+ │  │       "name": "CoolNFT",                                  │  │
+ │  │       "description": "...",                                │  │
+ │  │       "image": "..." (optimized),                          │  │
+ │  │       "services": [...],                                   │  │
+ │  │       "active": true/false,                                │  │
+ │  │       "x402Support": false,                                │  │
+ │  │       "supportedTrust": [...],                             │  │
+ │  │       "updatedAt": 1710000000                              │  │
+ │  │     }                                                      │  │
+ │  │                                                            │  │
+ │  │  2. Image optimization (ensureSmallImageURI):              │  │
+ │  │     • SVG data URIs → pass through                        │  │
+ │  │     • HTTP/IPFS/Arweave URLs → pass through               │  │
+ │  │     • Data URIs < 50KB → pass through                     │  │
+ │  │     • Large images → downscale to 64x64 px                │  │
+ │  │                                                            │  │
+ │  │  3. Size validation: max 100KB (prevents gas bloat)        │  │
+ │  │                                                            │  │
+ │  │  4. Encode as data:application/json;base64,...             │  │
+ │  │                                                            │  │
+ │  │  5. On-chain call:                                         │  │
+ │  │     NEW:      register(agentURI)                           │  │
+ │  │     EXISTING: setAgentURI(agentId, agentURI)               │  │
+ │  │                                                            │  │
+ │  │  "Registering on ERC-8004 Identity Registry..."            │  │
+ │  │  Register tx: 0xabc...def  ↗                               │  │
+ │  │  ● Waiting for confirmation...                             │  │
+ │  └────────────────────────────────────────────────────────────┘  │
+ │                                                                  │
+ │  On tx receipt (new agents):                                     │
+ │  • Decode Registered(agentId, agentURI, owner) event             │
+ │  • Extract agentId for display                                   │
+ │                                                                  │
+ │  Error handling:                                                 │
+ │  • User rejects → back to configure (silent)                    │
+ │  • Tx fails → friendly error + back to configure                │
+ └──────────────────────────┬───────────────────────────────────────┘
+                            │
+                            │ tx confirmed
+                            ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  STEP 4: COMPLETE (step='complete')                              │
+ │                                                                  │
+ │  ┌────────────────────────────────────────────────────────────┐  │
+ │  │  ✓ Agent registered successfully!                          │  │
+ │  │                                                            │  │
+ │  │  ┌────────┐                                                │  │
+ │  │  │  ████  │  CoolNFT                                      │  │
+ │  │  │  ░░██  │                                                │  │
+ │  │  └────────┘                                                │  │
+ │  │                                                            │  │
+ │  │  Registry Agent ID: #42                                    │  │
+ │  │  Register tx: 0xdef...456  ↗                               │  │
+ │  │                                                            │  │
+ │  │  [ BRIDGE ANOTHER NFT ]                                    │  │
+ │  │  (resets to step='select')                                 │  │
+ │  │                                                            │  │
+ │  │  closing in 30s                                            │  │
+ │  └────────────────────────────────────────────────────────────┘  │
+ └──────────────────────────────────────────────────────────────────┘
+
+
+ KEY DIFFERENCES: Bridge vs Create/Import
+
+ ┌─────────────────┬──────────────────┬─────────────────────────────┐
+ │                 │  Create/Import   │  Bridge                     │
+ ├─────────────────┼──────────────────┼─────────────────────────────┤
+ │ Minting         │ Yes (BOOA NFT)   │ No minting — only register │
+ │ AI Generation   │ Yes (Gemini)     │ No — uses existing NFT     │
+ │ Image Source    │ AI-generated     │ NFT's own image            │
+ │ Pixel Art       │ 64x64 on-chain   │ Original image (optimized) │
+ │ Payment         │ Mint price (ETH) │ Gas only (free)            │
+ │ On-chain Data   │ BOOA contracts   │ Identity Registry only     │
+ │ Result          │ BOOA NFT + Agent │ Agent registration only    │
+ │ Multi-chain     │ Shape only       │ Any supported chain        │
+ └─────────────────┴──────────────────┴─────────────────────────────┘

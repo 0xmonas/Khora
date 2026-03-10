@@ -105,7 +105,7 @@ contract BOOAv2Test is Test {
     }
 
     function _signMint(bytes memory imageData, bytes memory traitsData, address who, uint256 deadline) internal view returns (bytes memory) {
-        bytes32 hash = keccak256(abi.encode(imageData, traitsData, who, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(imageData, traitsData, who, deadline, block.chainid, address(minter)));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         return abi.encodePacked(r, s, v);
@@ -196,14 +196,17 @@ contract BOOAv2Test is Test {
         assertEq(minter.mintCount(user2), 0);
     }
 
-    function test_mint_acceptsOverpayment() public {
+    function test_mint_refundsOverpayment() public {
         _setPublicPhase();
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
         bytes32[] memory emptyProof = new bytes32[](0);
+        uint256 balBefore = user.balance;
         vm.prank(user);
         minter.mint{value: 1 ether}(validBitmap, validTraits, deadline, sig, emptyProof);
         assertEq(booa.totalSupply(), 1);
+        // Only the price should be deducted, excess refunded
+        assertEq(user.balance, balBefore - PUBLIC_PRICE);
     }
 
     // ═══════════════════════════════════════════════════
@@ -299,7 +302,7 @@ contract BOOAv2Test is Test {
         _setPublicPhase();
         uint256 wrongKey = 0xBAD;
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethHash);
         bytes32[] memory emptyProof = new bytes32[](0);
@@ -387,7 +390,7 @@ contract BOOAv2Test is Test {
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, oldSig, emptyProof);
 
         // New signer accepted
-        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, validTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, ethHash);
         vm.prank(user);
@@ -604,11 +607,10 @@ contract BOOAv2Test is Test {
         minter.mint{value: ALLOWLIST_PRICE - 1}(validBitmap, validTraits, deadline, sig, proof);
     }
 
-    function test_allowlist_tracksAllowlistMintCount() public {
+    function test_allowlist_tracksMintCount() public {
         minter.setPhase(BOOAMinter.MintPhase.Allowlist);
         _mintAllowlist(user);
         _mintAllowlist(user);
-        assertEq(minter.allowlistMintCount(user), 2);
         assertEq(minter.mintCount(user), 2);
     }
 
@@ -1349,7 +1351,7 @@ contract BOOAv2Test is Test {
         );
 
         uint256 deadline = block.timestamp + 1 hours + _nonce++;
-        bytes32 hash = keccak256(abi.encode(validBitmap, realisticTraits, user, deadline, block.chainid));
+        bytes32 hash = keccak256(abi.encode(validBitmap, realisticTraits, user, deadline, block.chainid, address(minter)));
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
 

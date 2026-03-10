@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
     const traitsDataHex = toHex(traitsBytes);
     const minterAddress = walletAddress as Hex;
     const deadline = createDeadline(); // 10 minutes (default in signer.ts)
-    const chainId = BigInt(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || '84532'); // Base Sepolia default
+    const chainId = BigInt(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || '11011'); // Shape Sepolia default
 
     const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline, chainId);
 

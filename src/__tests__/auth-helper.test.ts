@@ -38,14 +38,14 @@ describe('getAuthSession', () => {
 
   it('should return session data when authenticated', async () => {
     mockSession.address = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
-    mockSession.chainId = 84532;
+    mockSession.chainId = 11011;
 
     const { getAuthSession } = await import('@/lib/auth');
 
     const result = await getAuthSession();
     expect(result).toEqual({
       address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-      chainId: 84532,
+      chainId: 11011,
     });
   });
 

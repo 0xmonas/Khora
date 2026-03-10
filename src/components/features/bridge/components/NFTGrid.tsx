@@ -8,13 +8,13 @@ import type { NFTItem } from '@/app/api/fetch-nfts/route';
 import type { DiscoveredAgent } from '@/types/agent';
 
 const CHAIN_IDS: Record<string, number> = {
-  base: 8453, 'base-sepolia': 84532, ethereum: 1, polygon: 137, arbitrum: 42161,
+  shape: 360, 'shape-sepolia': 11011, ethereum: 1, polygon: 137, arbitrum: 42161,
   celo: 42220, gnosis: 100, scroll: 534352, taiko: 167000, bsc: 56,
 };
 
 const CHAIN_OPTIONS = [
-  { value: 'base', label: 'Base' },
-  { value: 'base-sepolia', label: 'Base Sepolia' },
+  { value: 'shape', label: 'Shape' },
+  { value: 'shape-sepolia', label: 'Shape Sepolia' },
   { value: 'ethereum', label: 'Ethereum' },
   { value: 'polygon', label: 'Polygon' },
   { value: 'arbitrum', label: 'Arbitrum' },

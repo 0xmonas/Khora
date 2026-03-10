@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { createPublicClient, http, type Chain } from 'viem';
-import { base, baseSepolia } from 'viem/chains';
+import { shape, shapeSepolia } from 'viem/chains';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
 import { resetGenerationQuota } from '@/lib/ratelimit';
 
 const CHAIN_MAP: Record<number, Chain> = {
-  [base.id]: base,
-  [baseSepolia.id]: baseSepolia,
+  [shape.id]: shape,
+  [shapeSepolia.id]: shapeSepolia,
 };
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const chain = CHAIN_MAP[Number(chainId)] || baseSepolia;
+    const chain = CHAIN_MAP[Number(chainId)] || shapeSepolia;
     const client = createPublicClient({
       chain,
       transport: http(),
@@ -196,7 +196,7 @@ export async function DELETE(req: NextRequest) {
   const contractAddress = getContractAddress(Number(chainId));
   if (contractAddress) {
     try {
-      const chain = CHAIN_MAP[Number(chainId)] || baseSepolia;
+      const chain = CHAIN_MAP[Number(chainId)] || shapeSepolia;
       const client = createPublicClient({
         chain,
         transport: http(),

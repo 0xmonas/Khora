@@ -3,12 +3,12 @@ import { validateInput } from '@/lib/api/api-helpers';
 import { fetchAgentSchema } from '@/lib/validation/schemas';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
-import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
-
-const TESTNET_CHAINS: string[] = ['base-sepolia'];
+import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 
 function getRegistryForChain(chain: string): `0x${string}` {
-  return TESTNET_CHAINS.includes(chain) ? IDENTITY_REGISTRY_TESTNET : IDENTITY_REGISTRY_MAINNET;
+  const chainId = CHAIN_CONFIG[chain as SupportedChain]?.chainId;
+  if (!chainId) return getRegistryAddress(1); // fallback to mainnet
+  return getRegistryAddress(chainId);
 }
 
 export const maxDuration = 30;

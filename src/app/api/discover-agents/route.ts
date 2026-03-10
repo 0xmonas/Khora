@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
-import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
-
-// Testnet chains use the testnet registry address
-const TESTNET_CHAINS: SupportedChain[] = ['base-sepolia'];
+import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 
 function getRegistryForChain(chain: SupportedChain): `0x${string}` {
-  return TESTNET_CHAINS.includes(chain) ? IDENTITY_REGISTRY_TESTNET : IDENTITY_REGISTRY_MAINNET;
+  const chainId = CHAIN_CONFIG[chain].chainId;
+  return getRegistryAddress(chainId);
 }
 
 export const maxDuration = 30;

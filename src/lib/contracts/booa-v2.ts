@@ -1,4 +1,4 @@
-import { base, baseSepolia } from 'wagmi/chains';
+import { shape, shapeSepolia } from 'wagmi/chains';
 
 // ── V2 Contract Addresses ──
 // Four separate contracts: BOOA (ERC721), Storage, Renderer, Minter
@@ -13,7 +13,7 @@ export const BOOA_V2_STORAGE_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_V2_
 export const BOOA_V2_RENDERER_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_V2_RENDERER_ADDRESS || '') as `0x${string}`;
 export const BOOA_V2_RENDERER_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_V2_RENDERER_ADDRESS_TESTNET || '') as `0x${string}`;
 
-const MAINNET_IDS = new Set<number>([base.id]);
+const MAINNET_IDS = new Set<number>([shape.id]);
 
 export function getV2Address(chainId: number): `0x${string}` {
   if (MAINNET_IDS.has(chainId) && BOOA_V2_ADDRESS.length > 2) return BOOA_V2_ADDRESS;
@@ -35,10 +35,10 @@ export function getV2RendererAddress(chainId: number): `0x${string}` {
   return BOOA_V2_RENDERER_ADDRESS_TESTNET;
 }
 
-/** V2 chain ID for contract reads (Base Sepolia for testnet fallback) */
+/** V2 chain ID for contract reads (Shape Sepolia for testnet fallback) */
 export function getV2ChainId(chainId: number): number {
-  if (MAINNET_IDS.has(chainId) && BOOA_V2_ADDRESS.length > 2) return base.id;
-  return baseSepolia.id;
+  if (MAINNET_IDS.has(chainId) && BOOA_V2_ADDRESS.length > 2) return shape.id;
+  return shapeSepolia.id;
 }
 
 // ── BOOAv2 (ERC721) ABI — read-only functions ──

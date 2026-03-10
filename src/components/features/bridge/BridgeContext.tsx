@@ -12,12 +12,12 @@ import type { NFTItem } from '@/app/api/fetch-nfts/route';
 
 export type BridgeStep = 'select' | 'configure' | 'registering' | 'complete';
 
-const SUPPORTED_CHAINS = ['base', 'base-sepolia', 'ethereum', 'polygon', 'arbitrum'] as const;
+const SUPPORTED_CHAINS = ['shape', 'shape-sepolia', 'ethereum', 'polygon', 'arbitrum'] as const;
 type BridgeChain = typeof SUPPORTED_CHAINS[number];
 
 const CHAIN_IDS: Record<string, number> = {
-  base: 8453,
-  'base-sepolia': 84532,
+  shape: 360,
+  'shape-sepolia': 11011,
   ethereum: 1,
   polygon: 137,
   arbitrum: 42161,
@@ -89,7 +89,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [pageKey, setPageKey] = useState<string | null>(null);
-  const [selectedChain, setSelectedChain] = useState<BridgeChain>('base');
+  const [selectedChain, setSelectedChain] = useState<BridgeChain>('shape');
 
   // Selected NFT
   const [selectedNFT, setSelectedNFT] = useState<NFTItem | null>(null);

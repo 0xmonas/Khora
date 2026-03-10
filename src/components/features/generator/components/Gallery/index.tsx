@@ -5,7 +5,7 @@ import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search } from 'lu
 import Image from 'next/image';
 import { useChainId, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
-import { base } from 'wagmi/chains';
+import { shape } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
 import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
 import { useAgentMetadata } from '@/hooks/useAgentMetadata';
@@ -70,10 +70,10 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 function TxHashLink({ hash, label, chainId }: { hash: `0x${string}`; label: string; chainId: number }) {
-  const isMainnet = chainId === base.id;
+  const isMainnet = chainId === shape.id;
   const explorerBase = isMainnet
-    ? 'https://basescan.org'
-    : 'https://sepolia.basescan.org';
+    ? 'https://shapescan.xyz'
+    : 'https://explorer-sepolia.shape.network';
   const short = `${hash.slice(0, 6)}...${hash.slice(-4)}`;
 
   return (
@@ -146,7 +146,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const chainId = useChainId();
   const contract = getV2Address(chainId);
   const storage = getV2StorageAddress(chainId);
-  const isMainnet = chainId === base.id;
+  const isMainnet = chainId === shape.id;
   const tokenId = token.tokenId.toString();
   const traits = useOnChainTraits(token.tokenId, storage);
   // Only fetch full metadata (Upstash) for owned tokens
@@ -279,16 +279,16 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   }, [lightboxOpen]);
 
   const marketplaceUrl = isMainnet
-    ? `https://opensea.io/assets/base/${contract}/${tokenId}`
-    : `https://testnet.rarible.com/token/base/${contract}:${tokenId}`;
+    ? `https://opensea.io/assets/shape/${contract}/${tokenId}`
+    : `https://testnet.rarible.com/token/shape/${contract}:${tokenId}`;
 
-  const chainSlug = isMainnet ? 'base' : 'base-sepolia';
+  const chainSlug = isMainnet ? 'shape' : 'shape-sepolia';
   const onchainCheckerUrl = `https://onchainchecker.xyz/collection/${chainSlug}/${contract}/${tokenId}`;
 
   const scan8004Url = registryAgentId !== null
     ? isMainnet
-      ? `https://www.8004scan.io/agents/base/${registryAgentId.toString()}`
-      : `https://testnet.8004scan.io/agents/base-sepolia/${registryAgentId.toString()}`
+      ? `https://www.8004scan.io/agents/shape/${registryAgentId.toString()}`
+      : `https://testnet.8004scan.io/agents/shape-sepolia/${registryAgentId.toString()}`
     : null;
 
   // Extract key traits from on-chain data (public for everyone)
@@ -444,7 +444,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
               </button>
               <button
                 onClick={() => {
-                  const chainPrefix = isMainnet ? '8453' : '84532';
+                  const chainPrefix = isMainnet ? '360' : '11011';
                   const imgRef = `eip155:${chainPrefix}/erc721:${contract}/${tokenId}`;
                   downloadFormat(metadata || traitsToAgent(traits), token.svg, 'openclaw', imgRef);
                 }}

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
-import { base, baseSepolia } from 'wagmi/chains';
+import { shape, shapeSepolia } from 'wagmi/chains';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -55,19 +55,19 @@ function WalletButtonInner({ account, chain, openAccountModal, openChainModal, o
   const handleChainClick = needsAuth ? openConnectModal : openChainModal;
   const handleAccountClick = needsAuth ? openConnectModal : openAccountModal;
 
-  const isBase = chain.id === base.id;
-  const isBaseSepolia = chain.id === baseSepolia.id;
-  const isSupported = isBase || isBaseSepolia;
+  const isShape = chain.id === shape.id;
+  const isShapeSepolia = chain.id === shapeSepolia.id;
+  const isSupported = isShape || isShapeSepolia;
 
-  const dotColor = isBase
+  const dotColor = isShape
     ? 'bg-green-500'
-    : isBaseSepolia
+    : isShapeSepolia
       ? 'bg-yellow-500'
       : 'bg-red-500';
 
-  const chainLabel = isBase
-    ? 'Base'
-    : isBaseSepolia
+  const chainLabel = isShape
+    ? 'Shape'
+    : isShapeSepolia
       ? 'Sepolia'
       : 'Wrong Network';
 

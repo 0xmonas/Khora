@@ -1,12 +1,12 @@
-import { base, baseSepolia } from 'wagmi/chains';
+import { shape, shapeSepolia } from 'wagmi/chains';
 
 export const BOOA_NFT_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS || '') as `0x${string}`;
 export const BOOA_NFT_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET || '') as `0x${string}`;
 
-/** Mainnet chain IDs (Base) */
-const MAINNET_IDS = new Set<number>([base.id]);
-/** Testnet chain IDs (Base Sepolia) */
-const TESTNET_IDS = new Set<number>([baseSepolia.id]);
+/** Mainnet chain IDs (Shape) */
+const MAINNET_IDS = new Set<number>([shape.id]);
+/** Testnet chain IDs (Shape Sepolia) */
+const TESTNET_IDS = new Set<number>([shapeSepolia.id]);
 
 export function getContractAddress(chainId: number): `0x${string}` {
   if (MAINNET_IDS.has(chainId) && BOOA_NFT_ADDRESS.length > 2) return BOOA_NFT_ADDRESS;
@@ -15,8 +15,8 @@ export function getContractAddress(chainId: number): `0x${string}` {
 
 /** Returns the chainId where the contract actually lives */
 export function getContractChainId(chainId: number): number {
-  if (MAINNET_IDS.has(chainId) && BOOA_NFT_ADDRESS.length > 2) return base.id;
-  return baseSepolia.id;
+  if (MAINNET_IDS.has(chainId) && BOOA_NFT_ADDRESS.length > 2) return shape.id;
+  return shapeSepolia.id;
 }
 
 export function isTestnetChain(chainId: number): boolean {

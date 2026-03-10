@@ -5,7 +5,7 @@ export const maxDuration = 30;
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
 
 /**
- * GET /api/gallery?contract=0x...&chain=base-sepolia
+ * GET /api/gallery?contract=0x...&chain=shape-sepolia
  *
  * Fetches all NFTs in a collection via Alchemy getNFTsForContract.
  * Returns tokenId, SVG image, name, and owner for each token.
@@ -13,7 +13,7 @@ const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
  */
 export async function GET(request: NextRequest) {
   const contract = request.nextUrl.searchParams.get('contract');
-  const chain = request.nextUrl.searchParams.get('chain') || 'base-sepolia';
+  const chain = request.nextUrl.searchParams.get('chain') || 'shape-sepolia';
   const startToken = request.nextUrl.searchParams.get('startToken') || undefined;
 
   if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract)) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Alchemy API key not configured' }, { status: 500 });
   }
 
-  const network = chain === 'base' ? 'base-mainnet' : 'base-sepolia';
+  const network = chain === 'shape' ? 'shape-mainnet' : 'shape-sepolia';
 
   try {
     const url = new URL(

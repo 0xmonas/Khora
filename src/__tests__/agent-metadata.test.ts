@@ -91,7 +91,7 @@ describe('Agent Metadata API', () => {
     it('should return found:false when no entry exists', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -102,12 +102,12 @@ describe('Agent Metadata API', () => {
       mockRedisGet.mockResolvedValue({
         ...VALID_AGENT,
         _minter: VALID_ADDRESS.toLowerCase(),
-        _chainId: 84532,
+        _chainId: 11011,
         _tokenId: 1,
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -122,7 +122,7 @@ describe('Agent Metadata API', () => {
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1', address: OTHER_ADDRESS }),
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: OTHER_ADDRESS }),
       );
       const body = await res.json();
       expect(body.found).toBe(false);
@@ -139,7 +139,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 when tokenId is missing', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', address: VALID_ADDRESS }),
+        makeGetRequest({ chainId: '11011', address: VALID_ADDRESS }),
       );
       expect(res.status).toBe(400);
     });
@@ -147,7 +147,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 when address is missing', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1' }),
+        makeGetRequest({ chainId: '11011', tokenId: '1' }),
       );
       expect(res.status).toBe(400);
     });
@@ -155,7 +155,7 @@ describe('Agent Metadata API', () => {
     it('should return 400 for invalid address format', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1', address: 'bad' }),
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: 'bad' }),
       );
       expect(res.status).toBe(400);
     });
@@ -166,7 +166,7 @@ describe('Agent Metadata API', () => {
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '84532', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
       );
       expect(res.status).toBe(429);
     });
@@ -179,7 +179,7 @@ describe('Agent Metadata API', () => {
   describe('POST /api/agent-metadata', () => {
     const validBody = {
       address: VALID_ADDRESS,
-      chainId: 84532,
+      chainId: 11011,
       tokenId: 1,
       agent: VALID_AGENT,
     };
@@ -192,11 +192,11 @@ describe('Agent Metadata API', () => {
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(mockRedisSet).toHaveBeenCalledWith(
-        'agent:metadata:84532:1',
+        'agent:metadata:11011:1',
         expect.objectContaining({
           name: 'TestAgent',
           _minter: VALID_ADDRESS.toLowerCase(),
-          _chainId: 84532,
+          _chainId: 11011,
           _tokenId: 1,
         }),
       );

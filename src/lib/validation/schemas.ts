@@ -7,8 +7,14 @@ export const generateAgentSchema = z.object({
 
 export const fetchAgentSchema = z.object({
   chain: z.enum([
-    'ethereum', 'base', 'base-sepolia', 'polygon', 'arbitrum',
-    'celo', 'gnosis', 'scroll', 'taiko', 'bsc',
+    // Mainnets
+    'ethereum', 'base', 'shape', 'polygon', 'arbitrum',
+    'optimism', 'avalanche', 'bsc', 'celo', 'gnosis',
+    'scroll', 'taiko', 'linea', 'mantle', 'metis',
+    'soneium', 'abstract', 'monad', 'megaeth', 'goat',
+    'skale', 'xlayer',
+    // Testnets
+    'base-sepolia', 'shape-sepolia',
   ]),
   agentId: z.number().int().positive('Agent ID must be a positive integer'),
 });

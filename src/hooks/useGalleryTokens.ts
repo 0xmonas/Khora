@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount, useChainId, useReadContracts } from 'wagmi';
 import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
-import { base } from 'wagmi/chains';
+import { shape } from 'wagmi/chains';
 
 export interface GalleryToken {
   tokenId: bigint;
@@ -26,7 +26,7 @@ export function useGalleryTokens() {
   const [isLoading, setIsLoading] = useState(false);
   const fetchedRef = useRef(false);
 
-  const chain = chainId === base.id ? 'base' : 'base-sepolia';
+  const chain = chainId === shape.id ? 'shape' : 'shape-sepolia';
 
   // Step 1: Fetch all tokens (metadata + SVG) via Alchemy API
   const fetchGallery = useCallback(async () => {

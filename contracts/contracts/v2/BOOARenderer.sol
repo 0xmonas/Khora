@@ -28,7 +28,12 @@ contract BOOARenderer is IBOOARenderer, Ownable {
     }
 
     function setDataStore(address _dataStore) external onlyOwner {
+        require(_dataStore != address(0), "Zero address");
         dataStore = IBOOAStorage(_dataStore);
+    }
+
+    function renounceOwnership() public pure override {
+        revert("Cannot renounce");
     }
 
     function tokenURI(uint256 tokenId) external view returns (string memory) {

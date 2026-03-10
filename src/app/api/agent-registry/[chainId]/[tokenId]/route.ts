@@ -80,11 +80,11 @@ export async function GET(
   if (booaContract) {
     try {
       const { createPublicClient, http } = await import('viem');
-      const { base, baseSepolia } = await import('viem/chains');
+      const { shape, shapeSepolia } = await import('viem/chains');
       const chainMap: Record<number, Chain> = {
-        [base.id]: base, [baseSepolia.id]: baseSepolia,
+        [shape.id]: shape, [shapeSepolia.id]: shapeSepolia,
       };
-      const chain = chainMap[chainIdNum] || baseSepolia;
+      const chain = chainMap[chainIdNum] || shapeSepolia;
       const client = createPublicClient({ chain, transport: http() });
       const svgString = await client.readContract({
         address: booaContract as `0x${string}`,

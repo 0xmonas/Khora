@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { base, baseSepolia } from 'wagmi/chains';
+import { shape, shapeSepolia } from 'wagmi/chains';
 import { Image as ImageIcon, FileCode, FileJson, Archive, FileText, ChevronDown, Plus, X as XIcon } from 'lucide-react';
 import { formatEther } from 'viem';
 import { useGenerator } from '../../GeneratorContext';
@@ -43,8 +43,8 @@ function isValidImageURI(uri: string): boolean {
 
 const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = [
   { value: 'ethereum', label: 'Ethereum' },
-  { value: 'base', label: 'Base' },
-  { value: 'base-sepolia', label: 'Base Sepolia' },
+  { value: 'shape', label: 'Shape' },
+  { value: 'shape-sepolia', label: 'Shape Sepolia' },
   { value: 'polygon', label: 'Polygon' },
   { value: 'arbitrum', label: 'Arbitrum' },
   { value: 'celo', label: 'Celo' },
@@ -102,7 +102,7 @@ export function InputForm() {
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const SUPPORTED_CHAIN_IDS = new Set<number>([base.id, baseSepolia.id]);
+  const SUPPORTED_CHAIN_IDS = new Set<number>([shape.id, shapeSepolia.id]);
   const isWrongNetwork = isConnected && !SUPPORTED_CHAIN_IDS.has(chainId);
 
   // Agent discovery state (local to InputForm)
@@ -196,16 +196,38 @@ export function InputForm() {
     setDiscoveryError(null);
     setDiscoveredAgents([]);
 
-    fetch(`/api/discover-agents?address=${address}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setDiscoveredAgents(data.agents || []);
-        if (data.errors?.length > 0) {
-          const failedChains = data.errors.map((e: { chain: string }) => e.chain).join(', ');
-          setDiscoveryError(`Some chains could not be scanned: ${failedChains}`);
+    // Scan all chains in parallel — API accepts one chain at a time
+    const chains = Object.keys(CHAIN_CONFIG) as SupportedChain[];
+    Promise.allSettled(
+      chains.map((chain) =>
+        fetch(`/api/discover-agents?address=${address}&chain=${chain}`)
+          .then((res) => res.json())
+      )
+    )
+      .then((results) => {
+        const allAgents: DiscoveredAgent[] = [];
+        const failedChains: string[] = [];
+        results.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            allAgents.push(...(result.value.agents || []));
+            if (result.value.errors?.length > 0) {
+              failedChains.push(...result.value.errors.map((e: { chain: string }) => e.chain));
+            }
+          } else {
+            failedChains.push(chains[i]);
+          }
+        });
+        // Sort: agents with metadata first, then by chain, then by tokenId
+        allAgents.sort((a, b) => {
+          if (a.hasMetadata !== b.hasMetadata) return a.hasMetadata ? -1 : 1;
+          if (a.chainName !== b.chainName) return a.chainName.localeCompare(b.chainName);
+          return a.tokenId - b.tokenId;
+        });
+        setDiscoveredAgents(allAgents);
+        if (failedChains.length > 0) {
+          setDiscoveryError(`Some chains could not be scanned: ${failedChains.join(', ')}`);
         }
       })
-      .catch((err) => setDiscoveryError(err.message || 'Failed to scan chains'))
       .finally(() => setDiscoveryLoading(false));
   }, [mode, isConnected, address, manualMode]);
 
@@ -782,9 +804,9 @@ export function InputForm() {
               {isLimitReached && !isSoldOut && !isOwner && (
                 <p className="text-yellow-600 dark:text-yellow-500 font-mono text-[10px]">wallet limit reached</p>
               )}
-              {chainId === baseSepolia.id && (
+              {chainId === shapeSepolia.id && (
                 <p className="text-yellow-600 dark:text-yellow-500">
-                  Testnet — Base Sepolia
+                  Testnet — Shape Sepolia
                 </p>
               )}
             </div>

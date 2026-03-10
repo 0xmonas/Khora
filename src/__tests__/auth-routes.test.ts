@@ -42,8 +42,8 @@ vi.mock('viem', () => ({
 }));
 
 vi.mock('viem/chains', () => ({
-  base: { id: 8453 },
-  baseSepolia: { id: 84532 },
+  shape: { id: 360 },
+  shapeSepolia: { id: 11011 },
 }));
 
 // ── Tests ──
@@ -70,7 +70,7 @@ describe('Auth Routes', () => {
 
     it('should clear existing session data when requesting new nonce', async () => {
       mockSession.address = '0x1234';
-      mockSession.chainId = 84532;
+      mockSession.chainId = 11011;
 
       const { GET } = await import('@/app/api/auth/nonce/route');
 
@@ -124,7 +124,7 @@ describe('Auth Routes', () => {
       mockParseSiweMessage.mockReturnValue({
         nonce: 'different-nonce',
         address: validAddress,
-        chainId: 84532,
+        chainId: 11011,
         domain: 'localhost:3000',
       });
 
@@ -141,7 +141,7 @@ describe('Auth Routes', () => {
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
-        chainId: 84532,
+        chainId: 11011,
         domain: 'evil.com',
       });
 
@@ -175,7 +175,7 @@ describe('Auth Routes', () => {
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
-        chainId: 84532,
+        chainId: 11011,
         domain: 'localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(false);
@@ -193,7 +193,7 @@ describe('Auth Routes', () => {
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
-        chainId: 84532,
+        chainId: 11011,
         domain: 'localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(true);
@@ -205,21 +205,21 @@ describe('Auth Routes', () => {
       const body = await res.json();
       expect(body.ok).toBe(true);
       expect(body.address).toBe(validAddress);
-      expect(body.chainId).toBe(84532);
+      expect(body.chainId).toBe(11011);
 
       // Session should be updated
       expect(mockSession.address).toBe(validAddress);
-      expect(mockSession.chainId).toBe(84532);
+      expect(mockSession.chainId).toBe(11011);
       expect(mockSession.nonce).toBeUndefined();
       expect(mockSave).toHaveBeenCalledOnce();
     });
 
-    it('should support Base mainnet (chain 8453)', async () => {
+    it('should support Shape mainnet (chain 360)', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
-        chainId: 8453,
+        chainId: 360,
         domain: 'localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(true);
@@ -229,7 +229,7 @@ describe('Auth Routes', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.chainId).toBe(8453);
+      expect(body.chainId).toBe(360);
     });
 
     it('should return 500 on unexpected error', async () => {
@@ -257,7 +257,7 @@ describe('Auth Routes', () => {
 
     it('should return session data when authenticated', async () => {
       mockSession.address = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
-      mockSession.chainId = 84532;
+      mockSession.chainId = 11011;
 
       const { GET } = await import('@/app/api/auth/session/route');
 
@@ -265,14 +265,14 @@ describe('Auth Routes', () => {
       const body = await response.json();
 
       expect(body.address).toBe('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
-      expect(body.chainId).toBe(84532);
+      expect(body.chainId).toBe(11011);
     });
   });
 
   describe('POST /api/auth/logout', () => {
     it('should destroy the session', async () => {
       mockSession.address = '0x1234';
-      mockSession.chainId = 84532;
+      mockSession.chainId = 11011;
 
       const { POST } = await import('@/app/api/auth/logout/route');
 

@@ -83,6 +83,7 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
     }
 
     function setRenderer(address _renderer) external onlyOwner {
+        require(_renderer != address(0), "Zero address");
         renderer = IBOOARenderer(_renderer);
         emit RendererUpdated(_renderer);
         if (totalMinted > 0) {
@@ -91,6 +92,7 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
     }
 
     function setDataStore(address _dataStore) external onlyOwner {
+        require(_dataStore != address(0), "Zero address");
         dataStore = IBOOAStorage(_dataStore);
     }
 
@@ -134,8 +136,11 @@ contract BOOAv2 is ERC721, ERC2981, Ownable {
         require(ok, "Withdraw failed");
     }
 
+    function renounceOwnership() public pure override {
+        revert("Cannot renounce");
+    }
+
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
-        // EIP-4906
         if (interfaceId == bytes4(0x49064906)) return true;
         return super.supportsInterface(interfaceId);
     }

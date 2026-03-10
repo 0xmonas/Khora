@@ -9,8 +9,8 @@ const linkClass = 'text-sm text-neutral-500 hover:text-black dark:hover:text-whi
 const NFT_CONTRACT = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS || process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET || '';
 const isMainnet = !!process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
 const openseaUrl = isMainnet
-  ? `https://opensea.io/assets/base/${NFT_CONTRACT}`
-  : `https://testnets.opensea.io/assets/base-sepolia/${NFT_CONTRACT}`;
+  ? `https://opensea.io/assets/shape/${NFT_CONTRACT}`
+  : `https://testnets.opensea.io/assets/shape-sepolia/${NFT_CONTRACT}`;
 
 export function Footer() {
   return (

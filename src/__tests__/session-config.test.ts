@@ -32,12 +32,12 @@ describe('Session Config', () => {
     const session: SessionData = {
       nonce: 'abc',
       address: '0x123',
-      chainId: 84532,
+      chainId: 11011,
     };
 
     expect(session.nonce).toBe('abc');
     expect(session.address).toBe('0x123');
-    expect(session.chainId).toBe(84532);
+    expect(session.chainId).toBe(11011);
   });
 
   it('should allow optional fields in SessionData', () => {
