@@ -31,10 +31,10 @@ export default function AgentsPage() {
           {/* Title */}
           <div className="text-center space-y-2">
             <h1 className="font-mono text-lg font-bold text-neutral-900 dark:text-white">
-              BOOA Agent Cards
+              BOOA Ident Cards
             </h1>
             <p className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-              View any BOOA agent card by token ID
+              View any BOOA ident card by token ID
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function AgentsPage() {
               disabled={!tokenId}
               className="w-full h-11 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              VIEW AGENT CARD
+              VIEW IDENT CARD
             </button>
           </div>
         </div>
