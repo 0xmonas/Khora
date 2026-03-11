@@ -144,6 +144,9 @@ export function Header() {
               <Link href="/bridge" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
                 Bridge
               </Link>
+              <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
+                Agents
+              </Link>
             </nav>
             <div className="flex items-center gap-4">
               <button
