@@ -145,7 +145,7 @@ export function Header() {
                 Bridge
               </Link>
               <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
-                Agents
+                Ident Cards
               </Link>
             </nav>
             <div className="flex items-center gap-4">

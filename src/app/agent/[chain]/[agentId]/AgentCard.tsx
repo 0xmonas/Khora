@@ -187,7 +187,7 @@ export function AgentCard({ agent, scores, scan8004Url }: AgentCardProps) {
     ctx.shadowColor = 'rgba(200,180,57,0.6)';
     ctx.shadowBlur = 10 * s;
     ctx.fillStyle = GOLD;
-    ctx.fillText(`IDENT CARD // #${agent.tokenId}`, pad, hdrH / 2);
+    ctx.fillText(`BOOA #${agent.tokenId}`, pad, hdrH / 2);
     ctx.shadowBlur = 0;
 
     // Battery (right side)
@@ -439,7 +439,7 @@ export function AgentCard({ agent, scores, scan8004Url }: AgentCardProps) {
               <div className="relative flex items-center justify-between px-4 h-8 bg-[#111] border-b border-[#444]">
                 <CornerDots />
                 <span className="text-[10px] tracking-wider" style={goldBloom}>
-                  IDENT CARD // #{agent.tokenId}
+                  BOOA #{agent.tokenId}
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] uppercase" style={dimText}>
