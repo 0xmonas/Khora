@@ -1,11 +1,12 @@
 'use client';
 
-import { createContext, useContext, type ReactNode, useEffect, useMemo, useState, useRef } from 'react';
+import { createContext, useContext, type ReactNode, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   createAuthenticationAdapter,
   RainbowKitAuthenticationProvider,
   type AuthenticationStatus,
 } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 
 const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
@@ -15,6 +16,36 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   const fetchingStatusRef = useRef(false);
   const verifyingRef = useRef(false);
   const [status, setStatus] = useState<AuthenticationStatus>('loading');
+  const prevAddressRef = useRef<string | undefined>(undefined);
+  const { address, isConnected } = useAccount();
+
+  // Sign out the old session so RainbowKit auto-prompts SIWE for new wallet
+  const signOutSession = useCallback(async () => {
+    setStatus('unauthenticated');
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* noop */ }
+  }, []);
+
+  // Detect wallet address changes and invalidate session
+  useEffect(() => {
+    // Skip initial mount — let the session check handle it
+    if (prevAddressRef.current === undefined) {
+      prevAddressRef.current = address;
+      return;
+    }
+
+    // Address actually changed (switched wallet or disconnected)
+    if (address !== prevAddressRef.current) {
+      prevAddressRef.current = address;
+
+      if (!address || !isConnected) {
+        // Wallet disconnected
+        signOutSession();
+      } else {
+        // Wallet switched — sign out old session so SIWE re-prompts
+        signOutSession();
+      }
+    }
+  }, [address, isConnected, signOutSession]);
 
   // Check session on page load + window focus (official RainbowKit pattern)
   useEffect(() => {

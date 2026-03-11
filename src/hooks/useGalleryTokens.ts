@@ -87,7 +87,7 @@ export function useGalleryTokens() {
 
   const { data: ownerResults } = useReadContracts({
     contracts: ownerCalls,
-    query: { enabled: galleryData.length > 0 },
+    query: { enabled: galleryData.length > 0 && !!address },
   });
 
   // Build final token list with accurate ownership
@@ -114,7 +114,7 @@ export function useGalleryTokens() {
   return {
     tokens,
     totalSupply: galleryData.length,
-    isLoading: isLoading || (galleryData.length > 0 && !ownerResults),
+    isLoading: isLoading || (galleryData.length > 0 && !!address && !ownerResults),
     refetch,
   };
 }

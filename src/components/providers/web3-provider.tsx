@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { WagmiProvider } from 'wagmi';
+import { useEffect, useRef, useState } from 'react';
+import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider, darkTheme, lightTheme, type Theme } from '@rainbow-me/rainbowkit';
+import { RainbowKitProvider, darkTheme, lightTheme, useConnectModal, type Theme } from '@rainbow-me/rainbowkit';
 import { wagmiConfig } from '@/lib/wagmi';
 import { useTheme } from '@/components/providers/theme-provider';
-import { SiweProvider } from './siwe-provider';
+import { SiweProvider, useSiweStatus } from './siwe-provider';
 import { shapeSepolia } from 'wagmi/chains';
 
 import '@rainbow-me/rainbowkit/styles.css';
@@ -113,6 +113,33 @@ const booaLight: Theme = {
   },
 };
 
+/** Auto-opens SIWE sign-in modal when wallet is connected but session is unauthenticated */
+function SiweAutoPrompt() {
+  const { isConnected } = useAccount();
+  const siweStatus = useSiweStatus();
+  const { openConnectModal } = useConnectModal();
+  const hasPromptedRef = useRef(false);
+
+  useEffect(() => {
+    // Wallet is connected but SIWE session is invalid — auto-open sign-in modal
+    if (isConnected && siweStatus === 'unauthenticated' && !hasPromptedRef.current && openConnectModal) {
+      hasPromptedRef.current = true;
+      // Small delay to let RainbowKit settle after wallet switch
+      const timer = setTimeout(() => {
+        openConnectModal();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+
+    // Reset flag when authenticated or disconnected so it can re-trigger
+    if (siweStatus === 'authenticated' || !isConnected) {
+      hasPromptedRef.current = false;
+    }
+  }, [isConnected, siweStatus, openConnectModal]);
+
+  return null;
+}
+
 export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const { theme } = useTheme();
@@ -122,6 +149,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <SiweProvider>
           <RainbowKitProvider theme={theme === 'dark' ? booaDark : booaLight} initialChain={shapeSepolia}>
+            <SiweAutoPrompt />
             {children}
           </RainbowKitProvider>
         </SiweProvider>
