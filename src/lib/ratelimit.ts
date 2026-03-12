@@ -61,7 +61,7 @@ export function rateLimitHeaders(result: { limit: number; remaining: number; res
  * Prevents a single wallet from generating unlimited images after committing.
  */
 const GEN_QUOTA_PREFIX = 'gen:wallet:';
-export const GEN_QUOTA_MAX = 10;
+export const GEN_QUOTA_MAX = 6; // 3 mint + 3 hata payı
 const GEN_QUOTA_TTL = 24 * 60 * 60; // 1 day (no commit deadline in V2, shorter TTL)
 
 export async function checkGenerationQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
@@ -81,4 +81,24 @@ export async function incrementGenerationCount(address: string): Promise<void> {
 export async function resetGenerationQuota(address: string): Promise<void> {
   const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
   await redis.del(key);
+}
+
+/**
+ * Global daily generation cap — hard spending limit.
+ * Prevents runaway costs regardless of per-wallet or per-IP limits.
+ * Resets daily via TTL (86400s from first increment).
+ */
+const DAILY_CAP_KEY = 'gen:daily:global';
+export const DAILY_CAP_MAX = 5000; // max 5000 generations/day = ~$250/day
+
+export async function checkDailyCap(): Promise<{ allowed: boolean; count: number }> {
+  const count = (await redis.get<number>(DAILY_CAP_KEY)) ?? 0;
+  return { allowed: count < DAILY_CAP_MAX, count };
+}
+
+export async function incrementDailyCap(): Promise<void> {
+  const newCount = await redis.incr(DAILY_CAP_KEY);
+  if (newCount === 1) {
+    await redis.expire(DAILY_CAP_KEY, 86400); // 24 hours TTL
+  }
 }

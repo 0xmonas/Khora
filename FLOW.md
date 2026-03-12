@@ -63,21 +63,26 @@
         │  ┌─────────────────────────────────────────────────────┐  │
         │  │ Server pipeline (all in one request):               │  │
         │  │                                                     │  │
-        │  │ 1. Rate limit check (IP + wallet quota)             │  │
+        │  │ 1. Rate limit check:                                 │  │
+        │  │    • Global daily cap (5000/day, hard stop)         │  │
+        │  │    • IP rate limit (5 req/60s sliding window)       │  │
+        │  │    • Per-wallet quota (6 total / 24h TTL)           │  │
         │  │                                                     │  │
-        │  │ 2. Gemini → generate agent identity                 │  │
+        │  │ 2. Gemini (Vertex AI) → generate agent identity      │  │
+        │  │    client: getAI() singleton (src/lib/server/gemini) │  │
         │  │    model: gemini-3-flash-preview (temp: 1.0)        │  │
+        │  │    region: global                                    │  │
         │  │    output: name, description, creature, vibe,       │  │
         │  │            emoji, personality[], boundaries[],      │  │
         │  │            skills[], domains[]                      │  │
         │  │                                                     │  │
-        │  │ 3. Gemini → generate portrait prompt + visual traits│  │
+        │  │ 3. Gemini (Vertex AI) → portrait prompt + traits    │  │
         │  │    model: gemini-3-flash-preview (temp: 0.7)        │  │
         │  │    output: portrait prompt, visual traits JSON      │  │
         │  │    (Hair, Eyes, Facial Hair, Mouth, Accessory,      │  │
         │  │     Headwear, Skin)                                 │  │
         │  │                                                     │  │
-        │  │ 4. Gemini → generate image                          │  │
+        │  │ 4. Gemini (Vertex AI) → generate image              │  │
         │  │    model: gemini-2.5-flash-image                    │  │
         │  │    params: 1:1 aspect                               │  │
         │  │    output: base64 image                             │  │
@@ -99,7 +104,8 @@
         │  │    signer: server-side SIGNER_PRIVATE_KEY           │  │
         │  │    deadline: 5 minutes from now                     │  │
         │  │                                                     │  │
-        │  │ 8. Increment wallet generation quota                │  │
+        │  │ 8. Increment wallet generation quota + daily cap     │  │
+        │  │    (6 total per wallet / 24h, NO reset on mint)    │  │
         │  └──────────────────┬──────────────────────────────────┘  │
         │                     │                                     │
         │  Response:          │                                     │
@@ -172,7 +178,7 @@
         │                                                  │
         │  On success: saves agent metadata to Upstash     │
         │  via POST /api/agent-metadata                    │
-        │  (resets generation quota for this wallet)        │
+        │  (quota is NOT reset — 6 total per 24h)          │
         └───────────────────────┬──────────────────────────┘
                                 │
                    ┌────────────┴────────────┐
@@ -862,3 +868,81 @@
  │ Result          │ BOOA NFT + Agent │ Agent registration only    │
  │ Multi-chain     │ Shape only       │ Any supported chain        │
  └─────────────────┴──────────────────┴─────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    AI INFRASTRUCTURE (Vertex AI)
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  AI Client: Shared singleton — src/lib/server/gemini.ts         │
+ │                                                                 │
+ │  Credential resolution (priority order):                        │
+ │  1. GOOGLE_SERVICE_ACCOUNT_KEY (base64) → Vercel / serverless  │
+ │  2. GOOGLE_APPLICATION_CREDENTIALS (file) → Local dev          │
+ │  3. GEMINI_API_KEY → AI Studio fallback (lower rate limits)    │
+ │                                                                 │
+ │  All 3 AI routes import from @/lib/server/gemini:              │
+ │  • /api/mint-request     (text + image generation)             │
+ │  • /api/generate-agent   (text generation only)                │
+ │  • /api/enrich-agent     (text generation only)                │
+ │                                                                 │
+ │  Models:                                                        │
+ │  ┌──────────────────────────┬───────────────────────────────┐  │
+ │  │ gemini-3-flash-preview   │ Text (identity, traits, prompt)│  │
+ │  │ gemini-2.5-flash-image   │ Image generation              │  │
+ │  └──────────────────────────┴───────────────────────────────┘  │
+ │                                                                 │
+ │  Region: global (required for gemini-3-flash-preview)          │
+ │  Project: fast-kiln-483423-h7 (Vico-Banana)                   │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    RATE LIMITING & SPENDING CAPS
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  3-Layer Protection (all via Upstash Redis)                     │
+ │                                                                 │
+ │  Layer 1: Global Daily Cap                                      │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Key:    gen:daily:global                                 │   │
+ │  │ Limit:  5,000 / day (~$250/day max)                      │   │
+ │  │ TTL:    24h from first increment                         │   │
+ │  │ Effect: HTTP 503 — hard stop, all wallets blocked        │   │
+ │  │ Routes: mint-request, generate-agent                     │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Layer 2: IP Rate Limit                                         │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Key:    rl:generation:{ip}                               │   │
+ │  │ Limit:  5 req / 60s (sliding window)                     │   │
+ │  │ Effect: HTTP 429                                         │   │
+ │  │ Routes: mint-request, generate-agent                     │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Layer 3: Per-Wallet Quota                                      │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Key:    gen:wallet:{address}                             │   │
+ │  │ Limit:  6 total (3 mint + 3 error margin)                │   │
+ │  │ TTL:    24h from first generation                        │   │
+ │  │ Reset:  NEVER (no reset on mint — lifetime per 24h)      │   │
+ │  │ Effect: HTTP 429 — "generation limit reached"            │   │
+ │  │ Routes: mint-request, generate-agent                     │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Flow per request:                                              │
+ │  daily cap check → IP rate limit → wallet quota → generate     │
+ │       ↓ fail            ↓ fail         ↓ fail                  │
+ │      503               429             429                     │
+ │                                                                 │
+ │  On successful generation:                                      │
+ │  incrementGenerationCount(wallet) + incrementDailyCap()        │
+ │                                                                 │
+ │  Middleware rate limits (all /api/* routes):                     │
+ │  • GET:  60 req / 60s per IP (generalLimiter)                  │
+ │  • POST: 30 req / 60s per IP (writeLimiter)                    │
+ └─────────────────────────────────────────────────────────────────┘

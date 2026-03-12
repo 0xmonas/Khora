@@ -137,9 +137,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ registration });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch agent';
+    console.error('fetch-agent error:', error);
+    const message = error instanceof Error ? error.message : '';
 
-    // Provide user-friendly error for common issues
     if (message.includes('execution reverted') || message.includes('revert')) {
       return NextResponse.json(
         { error: 'Agent ID not found on this chain' },
@@ -147,6 +147,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch agent' }, { status: 500 });
   }
 }

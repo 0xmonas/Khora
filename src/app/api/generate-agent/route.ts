@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { getAI } from '@/lib/server/gemini';
 const MODEL_TEXT = 'gemini-3-flash-preview';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Global daily cap ──
+    const daily = await checkDailyCap();
+    if (!daily.allowed) {
+      return NextResponse.json(
+        { error: 'Daily generation limit reached. Please try again tomorrow.' },
+        { status: 503 },
+      );
+    }
+
     // Rate limit: 5 agent generations per 60s per IP
     const ip = getIP(request);
     const rl = await generationLimiter.limit(ip);
@@ -28,14 +37,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY is not configured' },
-        { status: 500 }
-      );
-    }
-
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = getAI();
 
     const systemInstruction = `You are an AI agent identity designer. You generate completely unique, creative agent identities from scratch — no user input needed. Every agent must be wildly different from the last.
 Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
@@ -107,11 +109,13 @@ Be wildly creative. Every agent should feel completely unique — vary the creat
     if (walletAddress) {
       await incrementGenerationCount(walletAddress);
     }
+    await incrementDailyCap();
 
     return NextResponse.json({ agent });
   } catch (error) {
+    console.error('generate-agent error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate agent' },
+      { error: 'Failed to generate agent' },
       { status: 500 }
     );
   }

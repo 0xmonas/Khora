@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       nextToken: data.pageKey || null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch gallery';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('gallery error:', error);
+    return NextResponse.json({ error: 'Failed to fetch gallery' }, { status: 500 });
   }
 }

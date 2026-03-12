@@ -3,7 +3,7 @@ import { Redis } from '@upstash/redis';
 import { createPublicClient, http, type Chain } from 'viem';
 import { shape, shapeSepolia } from 'viem/chains';
 import { BOOA_NFT_ABI, getContractAddress } from '@/lib/contracts/booa';
-import { resetGenerationQuota } from '@/lib/ratelimit';
+
 
 const CHAIN_MAP: Record<number, Chain> = {
   [shape.id]: shape,
@@ -219,9 +219,6 @@ export async function DELETE(req: NextRequest) {
 
   const key = makeKey(address, Number(chainId), Number(slot));
   await redis.del(key);
-
-  // Reset generation quota after successful reveal so wallet can mint again
-  await resetGenerationQuota(address);
 
   return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });
 }

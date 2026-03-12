@@ -121,10 +121,11 @@ export async function GET(request: NextRequest) {
       headers: { 'Cache-Control': 'public, max-age=60' },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch agent';
+    console.error('agent-card error:', error);
+    const message = error instanceof Error ? error.message : '';
     if (message.includes('execution reverted') || message.includes('revert')) {
       return NextResponse.json({ error: 'Agent not found on this chain' }, { status: 404 });
     }
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch agent' }, { status: 500 });
   }
 }

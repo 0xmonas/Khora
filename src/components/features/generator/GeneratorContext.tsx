@@ -93,12 +93,17 @@ async function saveAgentMetadataToAPI(
   agent: KhoraAgent,
 ) {
   try {
-    await fetch('/api/agent-metadata', {
+    const res = await fetch('/api/agent-metadata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ address, chainId, tokenId, agent }),
     });
-  } catch {}
+    if (!res.ok) {
+      console.error('agent-metadata save failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (err) {
+    console.error('agent-metadata save error:', err);
+  }
 }
 
 /** Extract SVG image data URI from BOOA on-chain tokenURI metadata */

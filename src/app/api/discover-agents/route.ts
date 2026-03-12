@@ -324,8 +324,8 @@ async function discoverOnChain(
 
     return { agents };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { agents: [], error: `${config.name}: ${message.slice(0, 100)}` };
+    console.error(`discover-agents [${config.name}] error:`, error);
+    return { agents: [], error: `${config.name}: request failed` };
   }
 }
 

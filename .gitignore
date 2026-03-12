@@ -47,3 +47,9 @@ contracts/broadcast/
 
 # docs
 docs/
+
+# google cloud service account keys
+keys/
+*.json.key
+*-service-account*.json
+*credentials*.json

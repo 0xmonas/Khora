@@ -107,9 +107,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
-      const text = await res.text();
+      console.error('fetch-nfts upstream error:', res.status, await res.text().catch(() => ''));
       return NextResponse.json(
-        { error: `Alchemy API error: ${res.status} ${text.slice(0, 200)}` },
+        { error: 'Failed to fetch NFTs from provider' },
         { status: 502 },
       );
     }
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       pageKey: data.pageKey || null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch NFTs';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('fetch-nfts error:', error);
+    return NextResponse.json({ error: 'Failed to fetch NFTs' }, { status: 500 });
   }
 }

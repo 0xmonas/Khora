@@ -712,22 +712,26 @@ contract BOOAv2Test is Test {
     //  8. SOLD-OUT PROTECTION
     // ═══════════════════════════════════════════════════
 
-    function test_soldout_cannotChangeMaxSupplyWhenSoldOut() public {
+    function test_soldout_canIncreaseMaxSupplyWhenSoldOut() public {
         _setPublicPhase();
         minter.setMaxSupply(2);
         _mintAsUser(user);
         _mintAsUser(user2);
-        // Now sold out — cannot change maxSupply
-        vm.expectRevert(BOOAMinter.SoldOut.selector);
+        // Sold out — owner can still increase maxSupply
         minter.setMaxSupply(5);
+        assertEq(minter.maxSupply(), 5);
+        // Can mint again after increase
+        _mintAsUser(user);
     }
 
-    function test_soldout_cannotChangeMaxSupplyToZeroWhenSoldOut() public {
+    function test_soldout_canSetUnlimitedWhenSoldOut() public {
         _setPublicPhase();
         minter.setMaxSupply(1);
         _mintAsUser(user);
-        vm.expectRevert(BOOAMinter.SoldOut.selector);
+        // Sold out — owner can set to unlimited (0)
         minter.setMaxSupply(0);
+        assertEq(minter.maxSupply(), 0);
+        _mintAsUser(user);
     }
 
     function test_soldout_canChangeMaxSupplyBeforeSoldOut() public {

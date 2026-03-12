@@ -41,12 +41,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ owner: owner as string });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to check ownership';
+    console.error('check-owner error:', error);
+    const message = error instanceof Error ? error.message : '';
 
     if (message.includes('execution reverted') || message.includes('revert')) {
       return NextResponse.json({ error: 'Agent ID not found on this chain' }, { status: 404 });
     }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to check ownership' }, { status: 500 });
   }
 }

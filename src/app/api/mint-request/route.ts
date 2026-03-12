@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
 import { toHex } from 'viem';
 import type { Hex } from 'viem';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
 import { signMintPacket, createDeadline } from '@/lib/server/signer';
 import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
+import { getAI } from '@/lib/server/gemini';
 
 // Load reference face composition image (once at module level)
 let REF_IMAGE_BASE64: string | null = null;
@@ -15,16 +15,6 @@ try {
   REF_IMAGE_BASE64 = readFileSync(refPath).toString('base64');
 } catch {
   console.warn('ref.png not found — generating without face reference');
-}
-
-// Reuse AI client across requests (module-level singleton)
-let _ai: InstanceType<typeof GoogleGenAI> | null = null;
-function getAI(): InstanceType<typeof GoogleGenAI> {
-  if (!_ai) {
-    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
-    _ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  }
-  return _ai;
 }
 
 export const maxDuration = 120; // AI pipeline can take ~60s
@@ -103,6 +93,15 @@ Output ONLY the JSON object. No markdown fences, no explanation.`;
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Global daily cap (hard spending limit) ──
+    const daily = await checkDailyCap();
+    if (!daily.allowed) {
+      return NextResponse.json(
+        { error: 'Daily generation limit reached. Please try again tomorrow.' },
+        { status: 503 },
+      );
+    }
+
     // ── Rate limiting ──
     const ip = getIP(request);
     const rl = await generationLimiter.limit(ip);
@@ -276,8 +275,9 @@ export async function POST(request: NextRequest) {
 
     const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline, chainId);
 
-    // ── Increment quota after successful generation ──
+    // ── Quotas: count generation + daily cap (no reset — wallet has 6 total lifetime) ──
     await incrementGenerationCount(walletAddress);
+    await incrementDailyCap();
 
     // ══════════════════════════════════════════════════
     //  STEP 5: Return signed packet to frontend
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('mint-request error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate mint data' },
+      { error: 'Failed to generate mint data' },
       { status: 500 },
     );
   }

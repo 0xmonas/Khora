@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { getAI } from '@/lib/server/gemini';
 const MODEL_TEXT = 'gemini-3-flash-preview';
 import { validateInput } from '@/lib/api/api-helpers';
 import { enrichAgentSchema } from '@/lib/validation/schemas';
@@ -18,19 +18,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY is not configured' },
-        { status: 500 }
-      );
-    }
-
     const result = await validateInput(request, enrichAgentSchema);
     if ('error' in result) return result.error;
 
     const { name, description, skills, domains } = result.data;
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = getAI();
 
     const systemInstruction = `You are an AI agent identity enricher. Given an existing agent's name, description, skills and domains from their on-chain registration, you fill in the missing personality fields.
 Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
@@ -95,8 +88,9 @@ Existing domains: ${JSON.stringify(domains)}`,
 
     return NextResponse.json({ agent });
   } catch (error) {
+    console.error('enrich-agent error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to enrich agent' },
+      { error: 'Failed to enrich agent' },
       { status: 500 }
     );
   }

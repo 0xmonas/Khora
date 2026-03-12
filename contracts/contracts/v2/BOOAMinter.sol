@@ -190,10 +190,6 @@ contract BOOAMinter is Ownable {
         if (_maxSupply > 0 && _maxSupply < currentTotal) {
             revert MaxSupplyReached();
         }
-        // Cannot change once sold out
-        if (maxSupply > 0 && currentTotal >= maxSupply) {
-            revert SoldOut();
-        }
         maxSupply = _maxSupply;
         emit MaxSupplyUpdated(_maxSupply);
     }
