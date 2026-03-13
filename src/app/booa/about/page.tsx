@@ -250,6 +250,23 @@ export default function BOOAAboutPage() {
                   </div>
                 </div>
 
+                {/* Studio */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    Studio
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    Explore BOOA utilities — look up any agent by token ID or turn your own images into BOOA-style pixel art.
+                  </p>
+                  <Link
+                    href="/studio"
+                    className="inline-flex text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
+                    style={font}
+                  >
+                    Open Studio
+                  </Link>
+                </div>
+
                 {/* Links */}
                 <div className="flex flex-wrap gap-6">
                   <a
