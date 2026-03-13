@@ -3,7 +3,7 @@
 import { useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ImageIcon } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 
@@ -26,6 +26,14 @@ const TOOLS: ToolCard[] = [
     description: 'Look up any BOOA agent by token ID. View on-chain pixel art, traits, and ERC-8004 identity.',
     href: '/agents',
     media: 'ident.png',
+    tag: 'LIVE',
+  },
+  {
+    id: 'img2boa',
+    title: 'Img2Booa',
+    description: 'Turn any image into BOOA-style pixel art. Same C64 palette + Bayer dithering pipeline as the minter.',
+    href: '/studio/img2boa',
+    media: 'img2booa.png',
     tag: 'LIVE',
   },
 ];

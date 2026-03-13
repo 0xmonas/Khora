@@ -135,8 +135,8 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
 }
 
 /**
- * Pixelate an image to 64x64 with Bayer 8x8 dither + C64 palette quantization (server-side).
- * Returns base64 PNG for preview.
+ * Pixelate an image to 64x64 with Bayer 4x4 dither + C64 palette quantization (server-side).
+ * Returns base64 PNG for preview. Always produces square 64x64 output (for minting).
  */
 export async function pixelateImageServer(base64Image: string): Promise<string> {
   const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
@@ -149,7 +149,7 @@ export async function pixelateImageServer(base64Image: string): Promise<string> 
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Apply Bayer 8x8 dithering (replaces pixel stretch)
+  // Apply Bayer 4x4 dithering
   const dithered = Buffer.from(data);
   applyBayer4x4Dither(dithered, GRID_SIZE, GRID_SIZE, 3);
 
@@ -171,4 +171,94 @@ export async function pixelateImageServer(base64Image: string): Promise<string> 
     .toBuffer();
 
   return `data:image/png;base64,${png.toString('base64')}`;
+}
+
+// ── Aspect ratio support for Img2Booa ──
+
+const SUPPORTED_RATIOS: [number, number][] = [
+  [1, 1], [2, 3], [3, 2], [3, 4], [4, 3], [16, 9], [9, 16], [2, 1], [1, 2],
+];
+
+function snapToRatio(w: number, h: number): [number, number] {
+  const aspect = w / h;
+  let best: [number, number] = [1, 1];
+  let bestDiff = Infinity;
+  for (const [rw, rh] of SUPPORTED_RATIOS) {
+    const diff = Math.abs(aspect - rw / rh);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = [rw, rh];
+    }
+  }
+  return best;
+}
+
+function gridDimensions(rw: number, rh: number): { gw: number; gh: number } {
+  // Base unit = 64. Scale so the longer side is 64.
+  if (rw >= rh) {
+    const gw = GRID_SIZE;
+    const gh = Math.round((GRID_SIZE * rh) / rw);
+    return { gw, gh: gh % 2 === 0 ? gh : gh + 1 }; // keep even for nibble packing
+  }
+  const gh = GRID_SIZE;
+  const gw = Math.round((GRID_SIZE * rw) / rh);
+  return { gw: gw % 2 === 0 ? gw : gw + 1, gh };
+}
+
+export interface PixelateResult {
+  image: string;
+  width: number;
+  height: number;
+  ratio: [number, number];
+}
+
+/**
+ * Pixelate an image preserving its aspect ratio.
+ * Snaps to the nearest supported ratio, then produces a proportional pixel grid.
+ */
+export async function pixelateImageWithAspect(base64Image: string): Promise<PixelateResult> {
+  const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+  const imageBuffer = Buffer.from(raw, 'base64');
+
+  // Auto-rotate based on EXIF orientation, then read true dimensions
+  const rotatedBuf = await sharp(imageBuffer).rotate().toBuffer();
+  const meta = await sharp(rotatedBuf).metadata();
+  const srcW = meta.width ?? 64;
+  const srcH = meta.height ?? 64;
+
+  const ratio = snapToRatio(srcW, srcH);
+  const { gw, gh } = gridDimensions(ratio[0], ratio[1]);
+
+  const { data } = await sharp(rotatedBuf)
+    .resize(gw, gh, { kernel: 'nearest' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const dithered = Buffer.from(data);
+  applyBayer4x4Dither(dithered, gw, gh, 3);
+
+  const totalPixels = gw * gh;
+  const quantized = Buffer.alloc(totalPixels * 3);
+  for (let i = 0; i < totalPixels; i++) {
+    const idx = nearestPaletteIndex(dithered[i * 3], dithered[i * 3 + 1], dithered[i * 3 + 2]);
+    const c = C64_PALETTE[idx];
+    quantized[i * 3] = c.r;
+    quantized[i * 3 + 1] = c.g;
+    quantized[i * 3 + 2] = c.b;
+  }
+
+  const outW = gw * PREVIEW_SCALE;
+  const outH = gh * PREVIEW_SCALE;
+  const png = await sharp(quantized, { raw: { width: gw, height: gh, channels: 3 } })
+    .resize(outW, outH, { kernel: 'nearest' })
+    .png()
+    .toBuffer();
+
+  return {
+    image: `data:image/png;base64,${png.toString('base64')}`,
+    width: outW,
+    height: outH,
+    ratio,
+  };
 }
