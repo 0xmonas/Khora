@@ -57,6 +57,9 @@ export function Footer() {
                 <Link href="/bridge" className={linkClass} style={footerFont}>
                   Bridge
                 </Link>
+                <Link href="/blog" className={linkClass} style={footerFont}>
+                  Blog
+                </Link>
                 <a
                   href="https://x.com/khorafun"
                   target="_blank"

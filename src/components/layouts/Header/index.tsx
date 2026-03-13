@@ -147,6 +147,9 @@ export function Header() {
               <Link href="/studio" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
                 Studio
               </Link>
+              <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
+                Blog
+              </Link>
             </nav>
             <div className="flex items-center gap-4">
               <button
