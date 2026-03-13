@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, Plus, X as XIcon } from 'lucide-react';
 import { useBridge } from '../BridgeContext';
 import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASFCategory } from '@/lib/oasf-taxonomy';
+import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 import type { AgentService } from '@/types/agent';
+
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 const SERVICE_TYPES = ['web', 'A2A', 'MCP', 'OASF', 'ENS', 'DID', 'email'] as const;
 const TRUST_OPTIONS = ['reputation', 'crypto-economic', 'tee-attestation'] as const;
@@ -38,6 +43,7 @@ export function ConfigPanel() {
     selectedDomains, setSelectedDomains,
     x402Support, setX402Support,
     supportedTrust, setSupportedTrust,
+    registryChain, setRegistryChain,
     register, updateAgent, error, step,
   } = useBridge();
 
@@ -176,6 +182,39 @@ export function ConfigPanel() {
             />
           </div>
         </div>
+
+        {/* Register on (chain selector — only for new registrations) */}
+        {!isExistingAgent && (() => {
+          const nftChainLabel = CHAIN_OPTIONS.find(c => c.value === selectedNFT.chain)?.label || selectedNFT.chain;
+          const regChainLabel = CHAIN_OPTIONS.find(c => c.value === registryChain)?.label || registryChain;
+          const isCrossChain = selectedNFT.chain !== registryChain;
+
+          return (
+            <div>
+              <h3 className="text-sm font-mono mb-1 dark:text-white">Register on</h3>
+              <div className="w-full bg-neutral-700 dark:bg-neutral-200">
+                <select
+                  value={registryChain}
+                  onChange={(e) => setRegistryChain(e.target.value as SupportedChain)}
+                  className="w-full p-2.5 bg-transparent text-white dark:text-neutral-900 font-mono text-xs cursor-pointer outline-none"
+                >
+                  {CHAIN_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {isCrossChain ? (
+                <p className="font-mono text-[10px] text-amber-500 mt-1">
+                  Your NFT is on {nftChainLabel} but the agent identity will be registered on {regChainLabel}
+                </p>
+              ) : (
+                <p className="font-mono text-[10px] text-neutral-400 mt-1">
+                  Your agent identity will be registered on this chain
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ERC-8004 Config (collapsible) */}
         <div>

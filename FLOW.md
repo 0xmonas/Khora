@@ -753,8 +753,16 @@
  │  │  [A rare digital...]     │                               │   │
  │  │  (pre-filled from NFT)   │  Attributes:                  │   │
  │  │                          │  [Background: Blue]           │   │
- │  │  ▸ ERC-8004 Config       │  [Eyes: Laser]                │   │
- │  │    (same UI as Import    │  [Mouth: Grin]                │   │
+ │  │  Register on:            │  [Eyes: Laser]                │   │
+ │  │  [Shape ▾]               │  [Mouth: Grin]                │   │
+ │  │  (defaults to NFT chain, │                               │   │
+ │  │   user can pick any      │                               │   │
+ │  │   supported chain)       │                               │   │
+ │  │  ⚠ cross-chain warning   │                               │   │
+ │  │  if different from NFT   │                               │   │
+ │  │                          │                               │   │
+ │  │  ▸ ERC-8004 Config       │                               │   │
+ │  │    (same UI as Import    │                               │   │
  │  │     mode — services,     │                               │   │
  │  │     skills, domains,     │                               │   │
  │  │     x402, trust)         │                               │   │
@@ -768,6 +776,13 @@
  │  NFT attribute auto-mapping:                                     │
  │  • skill/ability/power/class/trait → Skills                     │
  │  • domain/category/type/faction/realm → Domains                 │
+ │                                                                  │
+ │  Cross-chain registration (new agents only):                    │
+ │  • "Register on" selector defaults to NFT's chain               │
+ │  • User can change to any supported chain                       │
+ │  • If different from NFT chain, amber warning shown:           │
+ │    "Your NFT is on X but agent will be registered on Y"        │
+ │  • Hidden for existing agents (Agents tab — chain is fixed)    │
  │                                                                  │
  │  For existing agents (Agents tab):                              │
  │  • POST /api/fetch-agent { chain, agentId }                    │
@@ -807,9 +822,17 @@
  │  │                                                            │  │
  │  │  4. Encode as data:application/json;base64,...             │  │
  │  │                                                            │  │
- │  │  5. On-chain call:                                         │  │
- │  │     NEW:      register(agentURI)                           │  │
- │  │     EXISTING: setAgentURI(agentId, agentURI)               │  │
+ │  │  5. Auto chain switch:                                     │  │
+ │  │     • If wallet chain ≠ target chain → switchChainAsync()  │  │
+ │  │     • Target chain: registryChain (new) or NFT chain (upd) │  │
+ │  │                                                            │  │
+ │  │  6. On-chain call:                                         │  │
+ │  │     NEW:      register(agentURI) on registryChain          │  │
+ │  │     EXISTING: setAgentURI(agentId, agentURI) on NFT chain  │  │
+ │  │                                                            │  │
+ │  │  7. Wait for receipt via getPublicClient(config, chainId)  │  │
+ │  │     (NOT usePublicClient hook — avoids stale ref after     │  │
+ │  │      chain switch)                                         │  │
  │  │                                                            │  │
  │  │  "Registering on ERC-8004 Identity Registry..."            │  │
  │  │  Register tx: 0xabc...def  ↗                               │  │
@@ -862,6 +885,8 @@
  │ On-chain Data   │ BOOA contracts   │ Identity Registry only     │
  │ Result          │ BOOA NFT + Agent │ Agent registration only    │
  │ Multi-chain     │ Shape only       │ Any supported chain        │
+ │ Cross-chain     │ N/A              │ NFT on chain A, register   │
+ │                 │                  │ agent on chain B           │
  └─────────────────┴──────────────────┴─────────────────────────────┘
 
 

@@ -221,6 +221,24 @@ export default function BOOAAboutPage() {
                   </div>
                 </div>
 
+                {/* Bridge */}
+                <div className="space-y-4">
+                  <h2 className="text-lg text-foreground" style={font}>
+                    Bridge
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    The Bridge lets you take any NFT from your wallet and register it
+                    as an ERC-8004 agent identity. Select an NFT, configure skills,
+                    services, domains, and payment support, then register on-chain in
+                    one transaction. Works on 20+ EVM chains.
+                  </p>
+                  <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
+                    You can also use the Bridge to update existing agent registrations —
+                    switch to the Agents tab to see your registered agents and modify
+                    their metadata.
+                  </p>
+                </div>
+
                 {/* Stack */}
                 <div className="space-y-4">
                   <h2 className="text-lg text-foreground" style={font}>

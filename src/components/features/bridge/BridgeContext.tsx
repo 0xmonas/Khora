@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useAccount, useChainId, useWriteContract, usePublicClient } from 'wagmi';
+import { useAccount, useChainId, useWriteContract, usePublicClient, useSwitchChain, useConfig } from 'wagmi';
+import { getPublicClient } from '@wagmi/core';
 import { decodeEventLog } from 'viem';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
@@ -54,6 +55,10 @@ interface BridgeContextType {
   supportedTrust: string[];
   setSupportedTrust: (t: string[]) => void;
 
+  // Registration target chain (can differ from NFT chain)
+  registryChain: BridgeChain;
+  setRegistryChain: (chain: BridgeChain) => void;
+
   // Registration / Update
   step: BridgeStep;
   registryAgentId: bigint | null;
@@ -81,6 +86,8 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const siweStatus = useSiweStatus();
   const isAuthenticated = siweStatus === 'authenticated';
   const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
+  const wagmiConfig = useConfig();
 
   // NFT listing state
   const [nfts, setNfts] = useState<NFTItem[]>([]);
@@ -103,6 +110,9 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
   const [x402Support, setX402Support] = useState(false);
   const [supportedTrust, setSupportedTrust] = useState<string[]>([]);
+
+  // Registration target chain (defaults to NFT's chain, user can change)
+  const [registryChain, setRegistryChain] = useState<BridgeChain>('shape');
 
   // Registration
   const [step, setStep] = useState<BridgeStep>('select');
@@ -158,6 +168,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   // Select NFT or Agent and auto-fill config
   const selectNFT = useCallback(async (nft: NFTItem) => {
     setSelectedNFT(nft);
+    setRegistryChain(nft.chain as BridgeChain);
     setError(null);
 
     // Check if this is an existing agent (from discover-agents, contractAddress='0x8004')
@@ -299,7 +310,20 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const registryAddress = getRegistryAddress(walletChainId);
+    // Use the user-selected registry chain (defaults to NFT's chain, can be changed)
+    const targetChainId = CHAIN_IDS[registryChain] || walletChainId;
+    const registryAddress = getRegistryAddress(targetChainId);
+
+    // Auto-switch wallet to the correct chain if needed
+    if (walletChainId !== targetChainId) {
+      try {
+        await switchChainAsync({ chainId: targetChainId });
+      } catch {
+        const chainName = SUPPORTED_CHAINS.find(c => CHAIN_IDS[c] === targetChainId) || registryChain;
+        setError(`Please switch your wallet to ${chainName} to register.`);
+        return;
+      }
+    }
 
     setError(null);
     setStep('registering');
@@ -326,8 +350,10 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       setRegisterTxHash(hash);
 
-      if (!publicClient) throw new Error('No public client');
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      // Get a public client for the target chain (publicClient hook may still reference old chain after switch)
+      const client = getPublicClient(wagmiConfig, { chainId: targetChainId }) || publicClient;
+      if (!client) throw new Error('No public client');
+      const receipt = await client.waitForTransactionReceipt({ hash });
 
       let registeredAgentId: bigint | null = null;
       for (const log of receipt.logs) {
@@ -362,7 +388,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setStep('configure');
       setIsModalOpen(false);
     }
-  }, [selectedNFT, address, isAuthenticated, walletChainId, agentImage, buildRegistrationJSON, writeContractAsync, publicClient]);
+  }, [selectedNFT, address, isAuthenticated, walletChainId, registryChain, agentImage, buildRegistrationJSON, writeContractAsync, switchChainAsync, wagmiConfig, publicClient]);
 
   // Update EXISTING agent on Identity Registry (setAgentURI)
   const updateAgent = useCallback(async () => {
@@ -376,11 +402,15 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     const agentChainId = CHAIN_IDS[selectedNFT.chain] || walletChainId;
     const registryAddress = getRegistryAddress(agentChainId);
 
-    // Check wallet is on the correct chain
+    // Auto-switch wallet to the correct chain if needed
     if (walletChainId !== agentChainId) {
-      const chainName = SUPPORTED_CHAINS.find(c => CHAIN_IDS[c] === agentChainId) || selectedNFT.chain;
-      setError(`Please switch your wallet to ${chainName} to update this agent.`);
-      return;
+      try {
+        await switchChainAsync({ chainId: agentChainId });
+      } catch {
+        const chainName = SUPPORTED_CHAINS.find(c => CHAIN_IDS[c] === agentChainId) || selectedNFT.chain;
+        setError(`Please switch your wallet to ${chainName} to update this agent.`);
+        return;
+      }
     }
 
     setError(null);
@@ -407,8 +437,9 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       setRegisterTxHash(hash);
 
-      if (!publicClient) throw new Error('No public client');
-      await publicClient.waitForTransactionReceipt({ hash });
+      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
+      if (!client) throw new Error('No public client');
+      await client.waitForTransactionReceipt({ hash });
 
       setRegistryAgentId(BigInt(agentTokenId));
       setStep('complete');
@@ -424,7 +455,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setStep('configure');
       setIsModalOpen(false);
     }
-  }, [selectedNFT, address, isAuthenticated, walletChainId, agentImage, buildRegistrationJSON, writeContractAsync, publicClient]);
+  }, [selectedNFT, address, isAuthenticated, walletChainId, agentImage, buildRegistrationJSON, writeContractAsync, switchChainAsync, wagmiConfig, publicClient]);
 
   const reset = useCallback(() => {
     clearSelection();
@@ -447,6 +478,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       selectedSkills, setSelectedSkills, selectedDomains, setSelectedDomains,
       x402Support, setX402Support,
       supportedTrust, setSupportedTrust,
+      registryChain, setRegistryChain,
       step, registryAgentId, registerTxHash, error, register, updateAgent, reset,
       isModalOpen, closeModal,
     }}>
