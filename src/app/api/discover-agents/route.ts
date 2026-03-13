@@ -74,10 +74,10 @@ async function findMaxTokenId(client: any, registryAddress: `0x${string}`): Prom
     }
   });
 
-  // If nothing found at any 1000-step checkpoint, check small range 1..COARSE_STEP
+  // If nothing found at any 1000-step checkpoint, check small range 0..COARSE_STEP-1
   if (highestCoarse === 0) {
     const smallContracts = [];
-    for (let id = 1; id <= COARSE_STEP; id++) {
+    for (let id = 0; id < COARSE_STEP; id++) {
       smallContracts.push({
         address: registryAddress,
         abi: REGISTRY_ABI,
@@ -90,9 +90,9 @@ async function findMaxTokenId(client: any, registryAddress: `0x${string}`): Prom
       multicallAddress: MULTICALL3,
       allowFailure: true,
     });
-    let maxSmall = 0;
+    let maxSmall = -1;
     smallResults.forEach((r: { status: string }, i: number) => {
-      if (r.status === 'success') maxSmall = Math.max(maxSmall, i + 1);
+      if (r.status === 'success') maxSmall = Math.max(maxSmall, i);
     });
     return maxSmall;
   }
@@ -201,8 +201,8 @@ async function scanOwnedTokenIds(
 
   // Build batches from HIGH to LOW (newest tokens first)
   const batches: { start: number; end: number }[] = [];
-  for (let end = maxTokenId; end >= 1; end -= BATCH_SIZE) {
-    batches.push({ start: Math.max(1, end - BATCH_SIZE + 1), end });
+  for (let end = maxTokenId; end >= 0; end -= BATCH_SIZE) {
+    batches.push({ start: Math.max(0, end - BATCH_SIZE + 1), end });
   }
 
   for (let w = 0; w < batches.length; w += CONCURRENT) {
