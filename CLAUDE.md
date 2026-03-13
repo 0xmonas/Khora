@@ -1,7 +1,7 @@
 # Khôra — CLAUDE.md
 
 ## Project
-AI agent identity generator + on-chain registry. Mint AI-generated agents as NFTs on Shape Network, register on ERC-8004 Identity Registry across 20+ EVM chains.
+AI agent identity generator + on-chain registry. Mint AI-generated agents as NFTs on Shape Network, register on ERC-8004 Identity Registry across 16 EVM chains.
 
 ## Tech Stack
 - **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, wagmi v2, viem, RainbowKit
@@ -51,5 +51,5 @@ contracts/       # Foundry project (v2 system)
 
 ## ERC-8004 Registry
 - Mainnet: `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`
-- Testnet: `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- Testnet: `0x8004A816BFB912233c491671b3d84c89A494BD9e`
 - Deterministic CREATE2 — same address on all EVM chains

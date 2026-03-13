@@ -11,7 +11,7 @@ export const fetchAgentSchema = z.object({
     'ethereum', 'base', 'shape', 'polygon', 'arbitrum',
     'optimism', 'avalanche', 'bsc', 'celo', 'gnosis',
     'scroll', 'linea', 'mantle', 'metis',
-    'soneium', 'abstract', 'monad', 'megaeth',
+    'abstract', 'monad',
     // Testnets
     'base-sepolia', 'shape-sepolia',
   ]),

@@ -7,7 +7,7 @@ export function friendlyError(raw: string): string {
   if (lower.includes('too many requests') || lower.includes('429'))
     return 'You\'re going too fast! Please wait a moment and try again.';
   if (lower.includes('generation limit') || lower.includes('quota'))
-    return 'You\'ve reached your generation limit for this session. Mint your current agent to unlock more.';
+    return 'You\'ve reached your generation limit (6 per 24h). Please try again later.';
 
   // Auth
   if (lower.includes('authentication required') || lower.includes('sign in'))

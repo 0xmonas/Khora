@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 import { toHex } from 'viem';
 import type { Hex } from 'viem';
-import { GoogleGenAI } from '@google/genai';
-import Replicate from 'replicate';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX } from '@/lib/ratelimit';
 import { signMintPacket, createDeadline } from '@/lib/server/signer';
 import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
+
+// Load reference face composition image (once at module level)
+let REF_IMAGE_BASE64: string | null = null;
+try {
+  const refPath = join(process.cwd(), 'public', 'ref.png');
+  REF_IMAGE_BASE64 = readFileSync(refPath).toString('base64');
+} catch {
+  console.warn('ref.png not found — generating without face reference');
+}
 
 // Reuse AI client across requests (module-level singleton)
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
@@ -17,21 +27,10 @@ function getAI(): InstanceType<typeof GoogleGenAI> {
   return _ai;
 }
 
-// Replicate client singleton
-let _replicate: Replicate | null = null;
-function getReplicate(): Replicate {
-  if (!_replicate) {
-    if (!process.env.REPLICATE_API_TOKEN) throw new Error('REPLICATE_API_TOKEN not configured');
-    _replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
-  }
-  return _replicate;
-}
-
-const FLUX_LORA_MODEL = '0xmonas/y2:418c546e6143c2f46c6e774a625472e6ae71e78bac4d5cadede1ce3d31d3700d' as const;
-
 export const maxDuration = 120; // AI pipeline can take ~60s
 
 const MODEL_TEXT = 'gemini-3-flash-preview';
+const MODEL_IMAGE = 'gemini-2.5-flash-image';
 
 // Fixed reference prefix — every image prompt MUST start with this exact phrase
 const PORTRAIT_REFERENCE_PREFIX = 'A clean retro digital illustration portrait in PC-98 and C64 aesthetic, featuring flat color blocks with bold clean outlines, limited color palette with 2-5 dominant saturated colors, hard-edged cel-shading with no smooth gradients, front-facing shoulders-up composition looking directly at the viewer with face and upper body clearly visible, clean crisp linework, no glitch effects, no distortion, no noise artifacts';
@@ -104,15 +103,6 @@ Output ONLY the JSON object. No markdown fences, no explanation.`;
 
 export async function POST(request: NextRequest) {
   try {
-    // ── Global daily cap (hard spending limit) ──
-    const daily = await checkDailyCap();
-    if (!daily.allowed) {
-      return NextResponse.json(
-        { error: 'Daily generation limit reached. Please try again tomorrow.' },
-        { status: 503 },
-      );
-    }
-
     // ── Rate limiting ──
     const ip = getIP(request);
     const rl = await generationLimiter.limit(ip);
@@ -131,7 +121,7 @@ export async function POST(request: NextRequest) {
     const quota = await checkGenerationQuota(walletAddress);
     if (!quota.allowed) {
       return NextResponse.json(
-        { error: `Generation limit reached (${GEN_QUOTA_MAX} per 24h). Please try again later.` },
+        { error: `Generation limit reached (${GEN_QUOTA_MAX} per session). Mint your current agent to reset.` },
         { status: 429 },
       );
     }
@@ -142,7 +132,6 @@ export async function POST(request: NextRequest) {
     }
 
     const ai = getAI();
-    const t0 = Date.now();
 
     // ══════════════════════════════════════════════════
     //  STEP 1: Generate agent identity + portrait prompt + visual traits (SINGLE CALL)
@@ -163,9 +152,6 @@ export async function POST(request: NextRequest) {
 
     const parsed = JSON.parse(jsonStr);
     if (!parsed.name || !parsed.description || !parsed.creature) throw new Error('Incomplete agent data');
-
-    const t1 = Date.now();
-    console.log(`[mint] STEP 1 (Gemini text): ${t1 - t0}ms`);
 
     // Extract agent identity fields
     const agent = {
@@ -208,47 +194,45 @@ export async function POST(request: NextRequest) {
     enrichedPrompt += ` Solid black background, no gradient, no scenery.`;
 
     // ══════════════════════════════════════════════════
-    //  STEP 2: Generate image via Replicate FLUX + LoRA
+    //  STEP 2: Generate image
     // ══════════════════════════════════════════════════
 
-    const replicate = getReplicate();
+    // Build parts: reference image (if available) + text prompt
+    const imageParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
-    const fluxInput: Record<string, unknown> = {
-      prompt: enrichedPrompt,
-      model: 'dev',
-      num_outputs: 1,
-      aspect_ratio: '1:1',
-      output_format: 'png',
-      output_quality: 90,
-      guidance_scale: 3.5,
-      num_inference_steps: 28,
-      lora_scale: 1,
-      disable_safety_checker: true,
-    };
+    if (REF_IMAGE_BASE64) {
+      imageParts.push({
+        inlineData: { mimeType: 'image/png', data: REF_IMAGE_BASE64 },
+      });
+      imageParts.push({
+        text: `Use the attached image as a face/head composition reference. Match the general face shape, proportions, and positioning — but apply the character's unique visual style, colors, and features on top of it.\n\n${enrichedPrompt}`,
+      });
+    } else {
+      imageParts.push({ text: enrichedPrompt });
+    }
 
-    const fluxOutput = await replicate.run(FLUX_LORA_MODEL, { input: fluxInput }) as Array<{ url(): string }>;
+    const imageResponse = await ai.models.generateContent({
+      model: MODEL_IMAGE,
+      contents: [{ role: 'user', parts: imageParts }],
+      config: {
+        responseModalities: ['image', 'text'],
+        // @ts-expect-error aspectRatio exists at runtime but missing from SDK types
+        aspectRatio: '1:1',
+      },
+    });
 
-    if (!fluxOutput || fluxOutput.length === 0) throw new Error('No image generated');
-
-    const t2 = Date.now();
-    console.log(`[mint] STEP 2 (Replicate FLUX): ${t2 - t1}ms`);
-
-    // Download the generated image and convert to base64 (retry on transient DNS/network errors)
-    const imageUrl = fluxOutput[0].url();
-    let imageBuffer: Buffer;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const imageResp = await fetch(imageUrl);
-        if (!imageResp.ok) throw new Error(`HTTP ${imageResp.status}`);
-        imageBuffer = Buffer.from(await imageResp.arrayBuffer());
-        break;
-      } catch (dlErr) {
-        if (attempt === 2) throw new Error(`Failed to download generated image after 3 attempts: ${dlErr}`);
-        console.warn(`[mint] Image download attempt ${attempt + 1} failed, retrying in 1s...`, dlErr);
-        await new Promise(r => setTimeout(r, 1000));
+    let base64Image: string | null = null;
+    const candidates = imageResponse.candidates;
+    if (candidates?.[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          const { mimeType, data } = part.inlineData;
+          base64Image = `data:${mimeType};base64,${data}`;
+          break;
+        }
       }
     }
-    const base64Image = `data:image/png;base64,${imageBuffer!.toString('base64')}`;
+    if (!base64Image) throw new Error('No image generated');
 
     // ══════════════════════════════════════════════════
     //  STEP 3: Pixelate + encode bitmap (parallel)
@@ -258,9 +242,6 @@ export async function POST(request: NextRequest) {
       pixelateImageServer(base64Image),
       encodeBitmapServer(base64Image),
     ]);
-
-    const t3 = Date.now();
-    console.log(`[mint] STEP 3 (pixelate+bitmap): ${t3 - t2}ms`);
 
     // ══════════════════════════════════════════════════
     //  STEP 4: Build traits JSON + sign packet
@@ -295,16 +276,12 @@ export async function POST(request: NextRequest) {
 
     const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline, chainId);
 
-    // ── Quotas: count generation + daily cap (no reset — wallet has 6 total lifetime) ──
+    // ── Increment quota after successful generation ──
     await incrementGenerationCount(walletAddress);
-    await incrementDailyCap();
 
     // ══════════════════════════════════════════════════
     //  STEP 5: Return signed packet to frontend
     // ══════════════════════════════════════════════════
-
-    const tTotal = Date.now();
-    console.log(`[mint] TOTAL: ${tTotal - t0}ms | text=${t1 - t0}ms flux=${t2 - t1}ms bitmap=${t3 - t2}ms sign=${tTotal - t3}ms`);
 
     return NextResponse.json({
       // Data for contract call
@@ -321,7 +298,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('mint-request error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate mint data' },
+      { error: error instanceof Error ? error.message : 'Failed to generate mint data' },
       { status: 500 },
     );
   }

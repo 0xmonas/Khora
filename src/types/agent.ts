@@ -44,7 +44,7 @@ export type SupportedChain =
   | 'ethereum' | 'base' | 'shape' | 'polygon' | 'arbitrum'
   | 'optimism' | 'avalanche' | 'bsc' | 'celo' | 'gnosis'
   | 'scroll' | 'linea' | 'mantle' | 'metis'
-  | 'soneium' | 'abstract' | 'monad' | 'megaeth'
+  | 'abstract' | 'monad'
   // Testnets
   | 'base-sepolia' | 'shape-sepolia';
 
@@ -71,10 +71,8 @@ export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
   linea: { chainId: 59144, name: 'Linea', rpcUrl: 'https://rpc.linea.build', rpcUrls: ['https://rpc.linea.build', 'https://linea-mainnet-rpc.publicnode.com'] },
   mantle: { chainId: 5000, name: 'Mantle', rpcUrl: 'https://rpc.mantle.xyz', rpcUrls: ['https://rpc.mantle.xyz', 'https://mantle-rpc.publicnode.com'] },
   metis: { chainId: 1088, name: 'Metis', rpcUrl: 'https://andromeda.metis.io/?owner=1088', rpcUrls: ['https://andromeda.metis.io/?owner=1088', 'https://metis-mainnet.public.blastapi.io'] },
-  soneium: { chainId: 1868, name: 'Soneium', rpcUrl: 'https://rpc.soneium.org', rpcUrls: ['https://rpc.soneium.org'] },
   abstract: { chainId: 2741, name: 'Abstract', rpcUrl: 'https://api.mainnet.abs.xyz', rpcUrls: ['https://api.mainnet.abs.xyz'] },
   monad: { chainId: 143, name: 'Monad', rpcUrl: 'https://rpc.monad.xyz', rpcUrls: ['https://rpc.monad.xyz', 'https://monad-mainnet.drpc.org'] },
-  megaeth: { chainId: 4326, name: 'MegaETH', rpcUrl: 'https://rpc.megaeth.com', rpcUrls: ['https://rpc.megaeth.com'] },
   // ─── Testnets ───
   'base-sepolia': { chainId: 84532, name: 'Base Sepolia', rpcUrl: 'https://sepolia.base.org', rpcUrls: ['https://sepolia.base.org', 'https://base-sepolia-rpc.publicnode.com'] },
   'shape-sepolia': { chainId: 11011, name: 'Shape Sepolia', rpcUrl: 'https://sepolia.shape.network', rpcUrls: ['https://sepolia.shape.network'] },

@@ -6,58 +6,66 @@ On-chain AI agent generator on Shape. Create, mint, and register AI agents with 
 
 ## What is Khôra?
 
-Khôra turns a name and description into a complete AI agent identity — personality, skills, boundaries, domains — and mints it as a fully on-chain NFT on Base. Portraits are AI-generated pixel art stored directly in the smart contract via SSTORE2, with no external dependencies.
+Khôra generates complete AI agent identities — personality, skills, boundaries, domains — and mints them as fully on-chain NFTs on Shape Network. Portraits are AI-generated pixel art stored directly in the smart contract via SSTORE2, with no external dependencies.
 
-Agents can optionally be registered on the [ERC-8004 Identity Registry](https://eips.ethereum.org/EIPS/eip-8004), making them discoverable across the agent ecosystem.
+Agents can optionally be registered on the [ERC-8004 Identity Registry](https://eips.ethereum.org/EIPS/eip-8004), making them discoverable across 16 EVM chains.
 
 ## Features
 
-- **AI Agent Generation** — Gemini generates complete agent profiles (creature, vibe, personality, skills, domains, boundaries) from just a name and description
-- **AI Pixel Art Portraits** — Gemini image model generates portraits, processed through C64 16-color palette quantization and pixel stretch
+- **AI Agent Generation** — AI generates complete agent profiles (creature, vibe, personality, skills, domains, boundaries)
+- **AI Pixel Art Portraits** — AI-generated portraits processed through C64 16-color palette quantization and pixel stretch
 - **Fully On-Chain** — SVG art + JSON traits stored via SSTORE2, no IPFS or external hosting
-- **Commit-Reveal Minting** — Front-running resistant two-step mint on Base
-- **ERC-8004 Identity Registry** — Register agents on-chain for cross-ecosystem discoverability
-- **Import & Update** — Discover existing agents across 10 chains and update their identity with new art
-- **Multiple Export Formats** — PNG, SVG, ERC-8004 JSON, OpenClaw ZIP
-- **OASF Taxonomy** — Skills and domains follow the Open Agent Service Framework v0.8.0
+- **Signature-Based Minting** — Server-signed mint packets with deadline verification
+- **ERC-8004 Identity Registry** — Register agents on-chain for cross-ecosystem discoverability across 16 chains
+- **Create Mode** — Generate a completely random, unique AI agent from scratch
+- **Import Mode** — Discover your existing agents across 16 chains and reimagine them with new art
+- **Multiple Export Formats** — PNG, SVG, ERC-8004 JSON
+- **Cross-Chain Bridge** — Bridge agent identities across supported EVM chains
 
 ## How It Works
 
 ### Create Mode
-1. **Commit** — Reserve a mint slot on the BOOA contract (pays mint price)
-2. **Generate** — AI creates the full agent identity + pixel art portrait
-3. **Reveal** — SVG and traits are written on-chain
-4. **Register** *(optional)* — Register on ERC-8004 Identity Registry
+1. **Generate** — AI creates a full agent identity + pixel art portrait
+2. **Mint** — Server signs the mint packet, NFT is minted with on-chain SVG + traits
+3. **Register** *(optional)* — Register on ERC-8004 Identity Registry
 
 ### Import Mode
-1. **Discover** — Scan 10 chains for your existing ERC-8004 agents
+1. **Discover** — Scan 16 chains for your existing ERC-8004 agents
 2. **Select** — Pick an agent to reimagine
-3. **Mint** — Generate new pixel art and mint as BOOA NFT
+3. **Mint** — Generate new pixel art and mint as BOOA V2 NFT
 4. **Update** — Update the existing registry entry with the new identity
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Blockchain | Base (Ethereum L2) |
-| Smart Contracts | Solidity 0.8.24, SSTORE2, Hardhat |
+| Blockchain | Shape Network (mainnet: 360, testnet: 11011) |
+| Smart Contracts | Solidity 0.8.24, SSTORE2, Foundry |
 | Standards | ERC-721, ERC-2981, ERC-8004 |
-| Frontend | Next.js 15, React 18, TypeScript |
-| Web3 | wagmi, viem, RainbowKit |
-| AI | Google Gemini (agent + image generation) |
-| UI | Radix UI, Tailwind CSS, Departure Mono |
-| Backend | Upstash Redis, Iron-Session (SIWE) |
-| Taxonomy | OASF v0.8.0 |
+| Frontend | Next.js 15, React 19, TypeScript |
+| Web3 | wagmi v2, viem, RainbowKit |
+| AI | Gemini (text), Replicate (image) |
+| UI | Tailwind CSS, Departure Mono |
+| Auth | SIWE + Iron-Session |
+| Rate Limiting | Upstash Redis |
 
-## Smart Contract: BOOA
+## Smart Contracts: BOOA V2
 
-**BOOA by Khora** is an ERC-721 + ERC-2981 NFT contract on Base with:
+**BOOA V2** is a 4-contract system on Shape Network:
 
+| Contract | Role |
+|----------|------|
+| BOOAv2 | ERC-721 + ERC-2981 NFT core |
+| BOOAStorage | On-chain SVG + traits via SSTORE2 |
+| BOOARenderer | Token URI + metadata generation |
+| BOOAMinter | Signature-verified minting + phases |
+
+Features:
 - On-chain SVG storage via SSTORE2 (max 24KB per token)
 - On-chain JSON traits storage (max 8KB per token)
-- Commit-reveal minting pattern (7-day reveal deadline)
+- Server-signed mint packets with deadline expiry
 - SVG sanitization (blocks scripts, iframes, event handlers)
-- Configurable mint price, max supply, and per-wallet limits
+- Configurable mint price, max supply (3,333), and phases
 - Full royalty support (ERC-2981)
 
 ## Quick Start
@@ -68,7 +76,7 @@ npm install
 
 # Set up environment
 cp .env.example .env
-# Fill in your API keys (GEMINI_API_KEY, etc.)
+# Fill in your API keys
 
 # Run development server
 npm run dev
@@ -78,9 +86,8 @@ npm run dev
 
 ```bash
 cd contracts
-npm install
-npx hardhat compile
-npx hardhat run scripts/deploy.ts --network baseSepolia
+~/.foundry/bin/forge build
+~/.foundry/bin/forge test
 ```
 
 ## Environment Variables
@@ -88,13 +95,15 @@ npx hardhat run scripts/deploy.ts --network baseSepolia
 | Variable | Description |
 |----------|------------|
 | `GEMINI_API_KEY` | Google Gemini API key |
+| `REPLICATE_API_TOKEN` | Replicate API token |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
-| `NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET` | BOOA contract address (Base Sepolia) |
-| `NEXT_PUBLIC_BOOA_NFT_ADDRESS` | BOOA contract address (Base mainnet) |
+| `NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET` | BOOA V2 contract (Shape Sepolia) |
+| `NEXT_PUBLIC_BOOA_V2_MINTER_ADDRESS_TESTNET` | Minter contract (Shape Sepolia) |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
 | `SESSION_SECRET` | Iron-session secret (32+ chars) |
-| `DEPLOYER_PRIVATE_KEY` | Contract deployer private key |
+| `SIGNER_PRIVATE_KEY` | Mint packet signer key |
+| `DEPLOYER_PRIVATE_KEY` | Contract deployer key |
 
 ## Links
 

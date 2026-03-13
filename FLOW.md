@@ -68,43 +68,40 @@
         │  │    • IP rate limit (5 req/60s sliding window)       │  │
         │  │    • Per-wallet quota (6 total / 24h TTL)           │  │
         │  │                                                     │  │
-        │  │ 2. Gemini (Vertex AI) → generate agent identity      │  │
-        │  │    client: getAI() singleton (src/lib/server/gemini) │  │
+        │  │ 2. Gemini → generate agent identity + portrait       │  │
+        │  │    prompt + visual traits (SINGLE CALL)             │  │
+        │  │    client: getAI() singleton                        │  │
         │  │    model: gemini-3-flash-preview (temp: 1.0)        │  │
-        │  │    region: global                                    │  │
         │  │    output: name, description, creature, vibe,       │  │
         │  │            emoji, personality[], boundaries[],      │  │
-        │  │            skills[], domains[]                      │  │
-        │  │                                                     │  │
-        │  │ 3. Gemini (Vertex AI) → portrait prompt + traits    │  │
-        │  │    model: gemini-3-flash-preview (temp: 0.7)        │  │
-        │  │    output: portrait prompt, visual traits JSON      │  │
+        │  │            skills[], domains[],                     │  │
+        │  │            portraitPrompt, visualTraits              │  │
         │  │    (Hair, Eyes, Facial Hair, Mouth, Accessory,      │  │
         │  │     Headwear, Skin)                                 │  │
         │  │                                                     │  │
-        │  │ 4. Gemini (Vertex AI) → generate image              │  │
-        │  │    model: gemini-2.5-flash-image                    │  │
-        │  │    params: 1:1 aspect                               │  │
-        │  │    output: base64 image                             │  │
+        │  │ 3. Replicate FLUX Dev + LoRA → generate image       │  │
+        │  │    model: 0xmonas/y2 (H100, ~8s predict_time)      │  │
+        │  │    params: 1:1 aspect, 28 steps, guidance 3.5      │  │
+        │  │    output: PNG URL → download → base64              │  │
         │  │                                                     │  │
-        │  │ 5. Server-side pixelation + bitmap encoding         │  │
+        │  │ 4. Server-side pixelation + bitmap encoding         │  │
         │  │    • Downscale to 64x64                             │  │
         │  │    • C64 palette quantization (16 colors)           │  │
         │  │    • Encode as 2048-byte bitmap                     │  │
         │  │    (4 bits per pixel, 2 pixels per byte)            │  │
         │  │                                                     │  │
-        │  │ 6. Build traits JSON (attributes array)             │  │
+        │  │ 5. Build traits JSON (attributes array)             │  │
         │  │    • Agent traits (name, creature, vibe, etc.)      │  │
         │  │    • Visual traits (hair, eyes, skin, etc.)         │  │
         │  │    • Palette: C64                                   │  │
         │  │                                                     │  │
-        │  │ 7. EIP-191 sign(imageData, traitsData,              │  │
+        │  │ 6. EIP-191 sign(imageData, traitsData,              │  │
         │  │              minter, deadline, chainId,             │  │
         │  │              minterContractAddress)                 │  │
         │  │    signer: server-side SIGNER_PRIVATE_KEY           │  │
         │  │    deadline: 5 minutes from now                     │  │
         │  │                                                     │  │
-        │  │ 8. Increment wallet generation quota + daily cap     │  │
+        │  │ 7. Increment wallet generation quota + daily cap     │  │
         │  │    (6 total per wallet / 24h, NO reset on mint)    │  │
         │  └──────────────────┬──────────────────────────────────┘  │
         │                     │                                     │
@@ -260,7 +257,7 @@
  │  (one call per chain, Promise.allSettled)                       │
  │                                                                  │
  │  ┌────────────────────────────────────────────────────────────┐  │
- │  │  For each chain (20 chains in parallel):                   │  │
+ │  │  For each chain (16 chains in parallel):                   │  │
  │  │                                                            │  │
  │  │  Ethereum ──┐                                              │  │
  │  │  Base ──────┤                                              │  │
@@ -278,10 +275,8 @@
  │  │  Linea ─────┤                                              │  │
  │  │  Mantle ────┤                                              │  │
  │  │  Metis ─────┤                                              │  │
- │  │  Soneium ───┤                                              │  │
  │  │  Abstract ──┤                                              │  │
- │  │  Monad ─────┤                                              │  │
- │  │  MegaETH ───┘                                              │  │
+ │  │  Monad ─────┘                                              │  │
  │  │                                                            │  │
  │  │  Uses chain-specific registry address:                     │  │
  │  │  • Mainnet: 0x8004A169...9a432  (all chains except        │  │
@@ -290,7 +285,7 @@
  │  │    shape-sepolia)                                          │  │
  │  └────────────────────────────────────────────────────────────┘  │
  │                                                                  │
- │  "Scanning 20 chains..."  (animated)                             │
+ │  "Scanning 16 chains..."  (animated)                             │
  └──────────────────────────┬───────────────────────────────────────┘
                             │
                 ┌───────────┴───────────┐
@@ -860,7 +855,7 @@
  │                 │  Create/Import   │  Bridge                     │
  ├─────────────────┼──────────────────┼─────────────────────────────┤
  │ Minting         │ Yes (BOOA NFT)   │ No minting — only register │
- │ AI Generation   │ Yes (Gemini)     │ No — uses existing NFT     │
+ │ AI Generation   │ Yes (Gemini+Rep) │ No — uses existing NFT     │
  │ Image Source    │ AI-generated     │ NFT's own image            │
  │ Pixel Art       │ 64x64 on-chain   │ Original image (optimized) │
  │ Payment         │ Mint price (ETH) │ Gas only (free)            │
@@ -872,30 +867,29 @@
 
 
 ═══════════════════════════════════════════════════════════════════════
-                    AI INFRASTRUCTURE (Vertex AI)
+                    AI INFRASTRUCTURE
 ═══════════════════════════════════════════════════════════════════════
 
  ┌─────────────────────────────────────────────────────────────────┐
- │  AI Client: Shared singleton — src/lib/server/gemini.ts         │
+ │  TEXT: Google Gemini (AI Studio)                                 │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Client:  GoogleGenAI singleton (GEMINI_API_KEY)          │   │
+ │  │ Model:   gemini-3-flash-preview (temp: 1.0)             │   │
+ │  │ Routes:  mint-request, generate-agent, enrich-agent      │   │
+ │  │ Output:  agent identity + portrait prompt + visual traits│   │
+ │  │          (single combined call per mint)                 │   │
+ │  └─────────────────────────────────────────────────────────┘   │
  │                                                                 │
- │  Credential resolution (priority order):                        │
- │  1. GOOGLE_SERVICE_ACCOUNT_KEY (base64) → Vercel / serverless  │
- │  2. GOOGLE_APPLICATION_CREDENTIALS (file) → Local dev          │
- │  3. GEMINI_API_KEY → AI Studio fallback (lower rate limits)    │
- │                                                                 │
- │  All 3 AI routes import from @/lib/server/gemini:              │
- │  • /api/mint-request     (text + image generation)             │
- │  • /api/generate-agent   (text generation only)                │
- │  • /api/enrich-agent     (text generation only)                │
- │                                                                 │
- │  Models:                                                        │
- │  ┌──────────────────────────┬───────────────────────────────┐  │
- │  │ gemini-3-flash-preview   │ Text (identity, traits, prompt)│  │
- │  │ gemini-2.5-flash-image   │ Image generation              │  │
- │  └──────────────────────────┴───────────────────────────────┘  │
- │                                                                 │
- │  Region: global (required for gemini-3-flash-preview)          │
- │  Project: fast-kiln-483423-h7 (Vico-Banana)                   │
+ │  IMAGE: Replicate FLUX Dev + LoRA                               │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Client:  Replicate singleton (REPLICATE_API_TOKEN)       │   │
+ │  │ Model:   0xmonas/y2 (FLUX Dev fine-tune)                │   │
+ │  │ GPU:     H100, ~8s predict_time                          │   │
+ │  │ Params:  1:1 aspect, 28 steps, guidance 3.5, lora 1.0  │   │
+ │  │ Route:   mint-request only                               │   │
+ │  │ Limits:  ~10 concurrent (support ticket for 100+)        │   │
+ │  │          600 RPM, no RPD limit                           │   │
+ │  └─────────────────────────────────────────────────────────┘   │
  └─────────────────────────────────────────────────────────────────┘
 
 

@@ -107,7 +107,7 @@ export function OutputSection() {
                       <span className="text-neutral-400 flex-shrink-0">01</span>
                       <div>
                         <p className="text-neutral-700 dark:text-neutral-300 font-medium">Connect</p>
-                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Connect wallet — we scan 20 chains for your registered ERC-8004 agents</p>
+                        <p className="text-neutral-500 dark:text-neutral-500 text-xs">Connect wallet — we scan 16 chains for your registered ERC-8004 agents</p>
                       </div>
                     </div>
                     <div className="flex gap-3 items-start">
