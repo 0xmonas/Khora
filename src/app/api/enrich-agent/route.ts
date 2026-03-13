@@ -4,6 +4,7 @@ const MODEL_TEXT = 'gemini-3-flash-preview';
 import { validateInput } from '@/lib/api/api-helpers';
 import { enrichAgentSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { sanitizeForPrompt } from '@/utils/helpers/sanitize';
 
 export const maxDuration = 60;
 
@@ -49,10 +50,10 @@ Base your enrichment on the agent's existing identity. Be consistent with their 
           parts: [
             {
               text: `Enrich this agent's identity:
-Name: "${name}"
-Description: "${description}"
-Existing skills: ${JSON.stringify(skills)}
-Existing domains: ${JSON.stringify(domains)}`,
+Name: "${sanitizeForPrompt(name)}"
+Description: "${sanitizeForPrompt(description)}"
+Existing skills: ${JSON.stringify((skills ?? []).map(sanitizeForPrompt))}
+Existing domains: ${JSON.stringify((domains ?? []).map(sanitizeForPrompt))}`,
             },
           ],
         },
@@ -76,6 +77,10 @@ Existing domains: ${JSON.stringify(domains)}`,
       jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
     } else if (jsonStr.includes('```')) {
       jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
+    }
+
+    if (jsonStr.length > 50_000) {
+      return NextResponse.json({ error: 'AI response too large' }, { status: 500 });
     }
 
     const agent = JSON.parse(jsonStr);

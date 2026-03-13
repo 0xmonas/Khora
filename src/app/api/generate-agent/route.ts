@@ -89,6 +89,10 @@ Be wildly creative. Every agent should feel completely unique — vary the creat
       jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
     }
 
+    if (jsonStr.length > 50_000) {
+      return NextResponse.json({ error: 'AI response too large' }, { status: 500 });
+    }
+
     const agent = JSON.parse(jsonStr);
 
     // Ensure required fields exist

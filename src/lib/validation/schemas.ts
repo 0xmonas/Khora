@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
+// Block null bytes and control characters (except newline, tab, space)
+const safeString = (max: number) =>
+  z.string().trim().max(max).refine(
+    (s) => !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(s),
+    'Contains invalid control characters',
+  );
+
 export const generateAgentSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
-  description: z.string().trim().min(1, 'Description is required').max(1000, 'Description is too long'),
+  name: safeString(100).pipe(z.string().min(1, 'Name is required')),
+  description: safeString(1000).pipe(z.string().min(1, 'Description is required')),
 });
 
 export const fetchAgentSchema = z.object({
@@ -15,14 +22,14 @@ export const fetchAgentSchema = z.object({
     // Testnets
     'base-sepolia', 'shape-sepolia',
   ]),
-  agentId: z.number().int().positive('Agent ID must be a positive integer'),
+  agentId: z.number().int().positive('Agent ID must be a positive integer').max(100_000_000, 'Agent ID too large'),
 });
 
 export const enrichAgentSchema = z.object({
-  name: z.string().trim().min(1),
-  description: z.string().trim().min(1),
-  skills: z.array(z.string()).default([]),
-  domains: z.array(z.string()).default([]),
+  name: safeString(100).pipe(z.string().min(1)),
+  description: safeString(1000).pipe(z.string().min(1)),
+  skills: z.array(safeString(100)).max(20).default([]),
+  domains: z.array(safeString(100)).max(20).default([]),
 });
 
 export const discoverAgentsSchema = z.object({

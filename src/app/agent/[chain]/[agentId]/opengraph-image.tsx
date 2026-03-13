@@ -17,7 +17,12 @@ export default async function OGImage({
 }) {
   const { chain, agentId } = await params;
 
-  if (chain !== 'shape' && chain !== 'shape-sepolia') {
+  const parsedId = Number(agentId);
+  if (
+    (chain !== 'shape' && chain !== 'shape-sepolia') ||
+    !Number.isInteger(parsedId) ||
+    parsedId < 0
+  ) {
     return new ImageResponse(
       <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0a0a0a', color: '#fff', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace' }}>
         Not Found
@@ -53,13 +58,13 @@ export default async function OGImage({
         address: storageAddress,
         abi: BOOA_V2_STORAGE_ABI,
         functionName: 'getTraits',
-        args: [BigInt(Number(agentId))],
+        args: [BigInt(parsedId)],
       }) as Promise<string>,
       client.readContract({
         address: booaAddress,
         abi: BOOA_V2_ABI,
         functionName: 'tokenURI',
-        args: [BigInt(Number(agentId))],
+        args: [BigInt(parsedId)],
       }) as Promise<string>,
     ]);
 

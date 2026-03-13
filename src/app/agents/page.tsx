@@ -30,7 +30,7 @@ export default function AgentsPage() {
         <div className="w-full max-w-sm space-y-6">
           {/* Title */}
           <div className="text-center space-y-2">
-            <h1 className="font-mono text-lg font-bold text-neutral-900 dark:text-white">
+            <h1 className="text-lg font-bold text-neutral-900 dark:text-white" style={{ fontFamily: 'var(--font-departure-mono)' }}>
               BOOA Ident Cards
             </h1>
             <p className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">

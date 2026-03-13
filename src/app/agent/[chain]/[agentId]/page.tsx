@@ -88,8 +88,9 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       } catch { /* empty */ }
     }
 
-    const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
-    const getAll = (type: string) => traits.filter(t => t.trait_type === type).map(t => t.value);
+    const clamp = (s: string, max: number) => s.length > max ? s.slice(0, max) : s;
+    const get = (type: string, max = 200) => clamp(traits.find(t => t.trait_type === type)?.value || '', max);
+    const getAll = (type: string, max = 100) => traits.filter(t => t.trait_type === type).map(t => clamp(t.value, max));
 
     // Get on-chain tokenURI for SVG image
     let image = '';
@@ -137,7 +138,7 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       chainName: config.name,
       owner: owner as string,
       name: get('Name') || `BOOA #${tokenId}`,
-      description: get('Description') || '',
+      description: get('Description', 500) || '',
       creature: get('Creature') || '',
       vibe: get('Vibe') || '',
       emoji: get('Emoji') || '',

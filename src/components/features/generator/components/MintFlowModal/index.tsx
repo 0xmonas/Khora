@@ -134,7 +134,7 @@ function StepContent() {
 
   const imageToShow = pixelatedImage;
 
-  // Step 1: Generating (server AI pipeline)
+  // Step 1: Generating (server AI pipeline — typically 20-30s)
   if (currentStep === 'generating') {
     return (
       <div className="space-y-3">
@@ -153,6 +153,9 @@ function StepContent() {
         >
           {progress.toFixed(1)}%
         </span>
+        <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
+          This may take up to 1 minute — do not close or refresh the page.
+        </p>
       </div>
     );
   }
