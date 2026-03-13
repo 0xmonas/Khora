@@ -275,7 +275,7 @@ async function discoverOnChain(
 
     // Step 2: Find max tokenId via multicall probe
     const maxTokenId = await findMaxTokenId(client, registryAddress);
-    if (maxTokenId === 0) return { agents: [] };
+    if (maxTokenId < 0) return { agents: [] };
 
     // Step 3: Parallel multicall scan with early termination
     const ownedIds = await scanOwnedTokenIds(client, registryAddress, maxTokenId, address, expectedBalance);
