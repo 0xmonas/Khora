@@ -15,7 +15,6 @@ const SKIP_PATHS = [
 // Session is read and headers injected if logged in, but 401 is NOT returned.
 const SOFT_AUTH_PATHS = [
   '/api/agent-metadata',
-  '/api/pending-reveal',
 ];
 
 // Public read-only routes — no auth required, rate-limited
@@ -24,6 +23,8 @@ const PUBLIC_READ_PATHS = [
   '/api/discover-agents',
   '/api/fetch-agent',
   '/api/gallery',
+  '/api/agent-card',
+  '/api/agent-registry',
 ];
 
 export async function middleware(request: NextRequest) {
@@ -47,7 +48,11 @@ export async function middleware(request: NextRequest) {
 
   // Public read-only routes — skip auth, already rate-limited above
   if (PUBLIC_READ_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'))) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    return response;
   }
 
   // Read session from cookie

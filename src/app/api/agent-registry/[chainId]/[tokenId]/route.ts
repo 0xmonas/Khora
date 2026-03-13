@@ -12,6 +12,12 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// Allowed chainIds to prevent Redis key poisoning
+const VALID_CHAIN_IDS = new Set([
+  1, 8453, 360, 137, 42161, 10, 43114, 56, 42220, 100, 534352, 59144, 5000, 1088, 2741, 10143, // mainnets
+  84532, 11011, // testnets
+]);
+
 // GET /api/agent-registry/{chainId}/{tokenId}
 // Public endpoint — serves ERC-8004 registration JSON for the Identity Registry agentURI
 export async function GET(
@@ -31,8 +37,11 @@ export async function GET(
 
   const chainIdNum = Number(chainId);
   const tokenIdNum = Number(tokenId);
-  if (!Number.isInteger(chainIdNum) || !Number.isInteger(tokenIdNum) || tokenIdNum < 0) {
-    return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
+  if (!Number.isInteger(chainIdNum) || !VALID_CHAIN_IDS.has(chainIdNum)) {
+    return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
+  }
+  if (!Number.isInteger(tokenIdNum) || tokenIdNum < 0 || tokenIdNum > 100_000_000) {
+    return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
   // Check registry status first (works even without metadata)
@@ -146,8 +155,11 @@ export async function POST(
   const { chainId, tokenId } = await params;
   const chainIdNum = Number(chainId);
   const tokenIdNum = Number(tokenId);
-  if (!Number.isInteger(chainIdNum) || !Number.isInteger(tokenIdNum) || tokenIdNum < 0) {
-    return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
+  if (!Number.isInteger(chainIdNum) || !VALID_CHAIN_IDS.has(chainIdNum)) {
+    return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
+  }
+  if (!Number.isInteger(tokenIdNum) || tokenIdNum < 0 || tokenIdNum > 100_000_000) {
+    return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
   const body = await req.json();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pixelateImageWithAspect } from '@/lib/server/bitmap';
-import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { heavyLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 30;
 
@@ -9,7 +9,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export async function POST(request: NextRequest) {
   try {
     const ip = getIP(request);
-    const rl = await generalLimiter.limit(ip);
+    const rl = await heavyLimiter.limit(ip);
     if (!rl.success) {
       return NextResponse.json(
         { error: 'Too many requests — please wait before trying again' },

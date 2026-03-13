@@ -7,6 +7,16 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// Allowed chainIds to prevent Redis key poisoning
+const VALID_CHAIN_IDS = new Set([
+  1, 8453, 360, 137, 42161, 10, 43114, 56, 42220, 100, 534352, 59144, 5000, 1088, 2741, 10143, // mainnets
+  84532, 11011, // testnets
+]);
+
+function isValidChainId(chainId: number): boolean {
+  return VALID_CHAIN_IDS.has(chainId);
+}
+
 function isValidAddress(addr: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(addr);
 }
@@ -40,7 +50,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
   }
 
-  const key = makeKey(Number(chainId), Number(tokenId));
+  const chainIdNum = Number(chainId);
+  const tokenIdNum = Number(tokenId);
+  if (!Number.isInteger(chainIdNum) || !isValidChainId(chainIdNum)) {
+    return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
+  }
+  if (!Number.isInteger(tokenIdNum) || tokenIdNum < 0 || tokenIdNum > 100_000_000) {
+    return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
+  }
+
+  const key = makeKey(chainIdNum, tokenIdNum);
   const entry = await redis.get<Record<string, unknown>>(key);
 
   if (!entry) {
@@ -81,6 +100,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
   }
 
+  const chainIdNum = Number(chainId);
+  if (!Number.isInteger(chainIdNum) || !isValidChainId(chainIdNum)) {
+    return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
+  }
+
   // SIWE: require authenticated wallet and ensure it matches
   const sessionAddress = req.headers.get('x-siwe-address');
   if (!sessionAddress) {
@@ -91,18 +115,26 @@ export async function POST(req: NextRequest) {
   }
 
   const tokenIdNum = Number(tokenId);
-  if (!Number.isInteger(tokenIdNum) || tokenIdNum < 0) {
+  if (!Number.isInteger(tokenIdNum) || tokenIdNum < 0 || tokenIdNum > 100_000_000) {
     return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
   // Size check: agent JSON should be reasonable (max 500KB)
-  const serialized = JSON.stringify(agent);
+  if (typeof agent !== 'object' || agent === null || Array.isArray(agent)) {
+    return NextResponse.json({ error: 'Agent must be a JSON object' }, { status: 400 });
+  }
+  // Strip prototype pollution vectors
+  const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+  const sanitizedAgent = Object.fromEntries(
+    Object.entries(agent as Record<string, unknown>).filter(([k]) => !DANGEROUS_KEYS.has(k) && !k.startsWith('_'))
+  );
+  const serialized = JSON.stringify(sanitizedAgent);
   if (serialized.length > 500_000) {
     return NextResponse.json({ error: 'Agent metadata too large' }, { status: 400 });
   }
 
   // Overwrite protection: only the original minter can update
-  const key = makeKey(Number(chainId), tokenIdNum);
+  const key = makeKey(chainIdNum, tokenIdNum);
   const existing = await redis.get<Record<string, unknown>>(key);
   if (existing) {
     const originalMinter = (existing._minter as string) || '';
@@ -116,9 +148,9 @@ export async function POST(req: NextRequest) {
 
   // Store permanently (no TTL) — upsert for same minter
   await redis.set(key, {
-    ...agent,
+    ...sanitizedAgent,
     _minter: address.toLowerCase(),
-    _chainId: Number(chainId),
+    _chainId: chainIdNum,
     _tokenId: tokenIdNum,
     _savedAt: existing ? (existing._savedAt as number) : Date.now(),
     _updatedAt: Date.now(),

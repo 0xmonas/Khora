@@ -1,0 +1,249 @@
+# Khora API Reference
+# Base URL: https://khora.fun
+# Rate limit: 60 requests / 60 seconds per IP (all endpoints)
+
+## Overview
+
+Khora provides public APIs for querying BOOA NFTs (fully on-chain AI agent PFPs on Shape) and ERC-8004 agent identities across 18 EVM chains. All data is read directly from on-chain contracts. No API key required.
+
+## Supported Chains
+
+Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract, monad
+Testnets: base-sepolia, shape-sepolia
+
+## ERC-8004 Identity Registry
+
+Mainnet address (all chains): 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
+Testnet address (all chains): 0x8004A818BFB912233c491871b3d84c89A494BD9e
+Deployed via deterministic CREATE2 — same address on every EVM chain.
+
+---
+
+## Endpoints
+
+### GET /api/agent-card
+
+Fetch a complete ERC-8004 agent identity with computed scores.
+
+Parameters:
+- chain (required): Chain slug (e.g. "shape", "base", "ethereum", "shape-sepolia")
+- agentId (required): Non-negative integer token ID on the Identity Registry
+
+Response:
+{
+  "agent": {
+    "id": 9,
+    "chain": "base-sepolia",
+    "chainId": 84532,
+    "chainName": "Base Sepolia",
+    "owner": "0x...",
+    "name": "MyAgent",
+    "description": "A helpful DeFi agent",
+    "image": "data:image/png;base64,...",
+    "services": [
+      {
+        "name": "OASF",
+        "version": "0.8.0",
+        "skills": ["text-generation", "swap-execution"],
+        "domains": ["defi"]
+      }
+    ],
+    "skills": ["text-generation", "swap-execution"],
+    "domains": ["defi"],
+    "x402Support": false,
+    "supportedTrust": ["reputation"],
+    "active": false,
+    "registrations": []
+  },
+  "scores": {
+    "identity": 85,
+    "capability": 60,
+    "interoperability": 40,
+    "trust": 30,
+    "overall": 54
+  }
+}
+
+Errors: 400 (invalid params), 404 (agent not found), 500 (server error)
+Cache: 60 seconds
+
+Example:
+GET /api/agent-card?chain=base-sepolia&agentId=9
+
+---
+
+### GET /api/discover-agents
+
+Discover all ERC-8004 agents owned by a wallet address on a specific chain. Uses multicall for efficient on-chain scanning.
+
+Parameters:
+- address (required): Wallet address (0x...)
+- chain (required): Chain slug
+
+Response:
+{
+  "agents": [
+    {
+      "chain": "base-sepolia",
+      "chainName": "Base Sepolia",
+      "tokenId": 9,
+      "name": "MyAgent",
+      "image": "data:image/png;base64,...",
+      "description": "A helpful DeFi agent",
+      "hasMetadata": true
+    }
+  ],
+  "errors": [],
+  "totalCount": 1
+}
+
+Example:
+GET /api/discover-agents?address=0x1234...&chain=base-sepolia
+
+---
+
+### POST /api/fetch-agent
+
+Fetch the raw ERC-8004 registration data for a specific agent. Supports data URIs (on-chain), HTTPS, IPFS, and Arweave URIs.
+
+Request body (JSON):
+{
+  "chain": "base-sepolia",
+  "agentId": 9
+}
+
+Response:
+{
+  "registration": {
+    "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    "name": "MyAgent",
+    "description": "A helpful DeFi agent",
+    "image": "data:image/png;base64,...",
+    "services": [...],
+    "active": false,
+    "x402Support": false,
+    "supportedTrust": ["reputation"],
+    "updatedAt": 1710000000
+  }
+}
+
+---
+
+### GET /api/gallery
+
+Fetch all BOOA NFTs in a contract collection on Shape. Returns on-chain SVG art, token IDs, and names.
+
+Parameters:
+- contract (required): Contract address (0x...)
+- chain (optional): "shape" or "shape-sepolia" (default: "shape-sepolia")
+- startToken (optional): Pagination token for next page
+
+Response:
+{
+  "tokens": [
+    {
+      "tokenId": "0",
+      "svg": "<svg ...>...</svg>",
+      "imageUrl": "https://...",
+      "name": "Void Walker"
+    }
+  ],
+  "totalCount": 20,
+  "nextToken": null
+}
+
+Example:
+GET /api/gallery?contract=0x23e06B07...&chain=shape-sepolia
+
+---
+
+### GET /api/fetch-nfts
+
+Fetch all NFTs owned by a wallet address on any supported chain. Powered by Alchemy.
+
+Parameters:
+- address (required): Wallet address (0x...)
+- chain (optional): Chain slug (default: "shape")
+- pageKey (optional): Pagination token
+
+Response:
+{
+  "nfts": [
+    {
+      "contractAddress": "0x...",
+      "tokenId": "42",
+      "name": "Cool NFT",
+      "description": "...",
+      "image": "https://...",
+      "collection": "CoolCollection",
+      "tokenType": "ERC721",
+      "chain": "shape",
+      "chainId": 360,
+      "raw": {
+        "attributes": [
+          { "trait_type": "Background", "value": "Blue" }
+        ]
+      }
+    }
+  ],
+  "totalCount": 50,
+  "pageKey": "abc123..."
+}
+
+Example:
+GET /api/fetch-nfts?address=0x1234...&chain=shape
+
+---
+
+## On-Chain Contracts (Shape)
+
+BOOA NFT (ERC-721 + ERC-2981): Fully on-chain AI agent PFPs
+- Pixel art stored as 2,048-byte bitmap via SSTORE2 (64x64, C64 16-color palette)
+- Traits stored as JSON bytes via SSTORE2
+- SVG rendered on-chain by Renderer contract
+- No IPFS, no external dependencies
+
+BOOA V2 Architecture:
+- BOOAv2 (BOOA.sol): Minimal ERC-721 + ERC-2981
+- BOOAMinter: Server-signed minting with EIP-191 verification
+- BOOAStorage: SSTORE2 bitmap + traits storage
+- BOOARenderer: On-chain SVG rendering from bitmap
+
+## ERC-8004 Registration Format
+
+Agents registered on the Identity Registry store their metadata as a data URI:
+data:application/json;base64,{base64-encoded JSON}
+
+The JSON follows the ERC-8004 registration-v1 schema:
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Agent Name",
+  "description": "What the agent does",
+  "image": "data:image/png;base64,... or https://...",
+  "services": [
+    {
+      "name": "OASF",
+      "version": "0.8.0",
+      "skills": ["text-generation", "summarization"],
+      "domains": ["defi", "gaming"]
+    },
+    {
+      "name": "A2A",
+      "endpoint": "https://agent.example/.well-known/agent-card.json",
+      "version": "0.3.0"
+    }
+  ],
+  "active": true,
+  "x402Support": false,
+  "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"]
+}
+
+Service types: web, A2A, MCP, OASF, ENS, DID, email
+Skills taxonomy: OASF v0.8.0
+Trust mechanisms: reputation, crypto-economic, tee-attestation
+
+## Rate Limits
+
+All endpoints: 60 requests per 60 seconds per IP (sliding window)
+POST endpoints: 30 requests per 60 seconds per IP
+Responses include rate limit headers when limits are approached.

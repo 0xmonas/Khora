@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-// Block null bytes and control characters (except newline, tab, space)
+// Block null bytes and ALL control characters (single-line input only)
 const safeString = (max: number) =>
   z.string().trim().max(max).refine(
-    (s) => !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(s),
+    (s) => !/[\x00-\x1F\x7F]/.test(s),
     'Contains invalid control characters',
   );
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { useBridge } from '../BridgeContext';
 import { NFTCard } from './NFTCard';
@@ -16,7 +16,10 @@ const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries
   ([key, val]) => ({ value: key as SupportedChain, label: val.name })
 );
 
+const PAGE_SIZE = 20;
+
 type Tab = 'nfts' | 'agents';
+type SortOrder = 'latest' | 'oldest';
 
 function agentToNFTItem(agent: DiscoveredAgent): NFTItem {
   let image = agent.image || '';
@@ -49,12 +52,15 @@ export function NFTGrid() {
   const [tab, setTab] = useState<Tab>('nfts');
   const [agents, setAgents] = useState<DiscoveredAgent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('latest');
+  const [agentVisibleCount, setAgentVisibleCount] = useState(PAGE_SIZE);
 
   // Fetch agents only for the selected chain
   useEffect(() => {
     if (!isConnected || !address) { setAgents([]); return; }
     setAgentsLoading(true);
     setAgents([]);
+    setAgentVisibleCount(PAGE_SIZE);
     fetch(`/api/discover-agents?address=${address}&chain=${selectedChain}`)
       .then((res) => res.json())
       .then((data) => setAgents(data.agents || []))
@@ -62,31 +68,64 @@ export function NFTGrid() {
       .finally(() => setAgentsLoading(false));
   }, [isConnected, address, selectedChain]);
 
-  const agentItems = useMemo(() => agents.map(agentToNFTItem), [agents]);
+  // Sort agents by tokenId (proxy for registration order)
+  const sortedAgents = useMemo(() => {
+    const sorted = [...agents];
+    sorted.sort((a, b) =>
+      sortOrder === 'latest' ? b.tokenId - a.tokenId : a.tokenId - b.tokenId
+    );
+    return sorted;
+  }, [agents, sortOrder]);
+
+  // Client-side paginated agent items
+  const agentItems = useMemo(
+    () => sortedAgents.slice(0, agentVisibleCount).map(agentToNFTItem),
+    [sortedAgents, agentVisibleCount],
+  );
+  const agentHasMore = agentVisibleCount < sortedAgents.length;
+
+  const loadMoreAgents = useCallback(() => {
+    setAgentVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
+  // Reset visible count when sort changes
+  useEffect(() => {
+    setAgentVisibleCount(PAGE_SIZE);
+  }, [sortOrder]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // Unified infinite scroll for both tabs
   useEffect(() => {
-    if (tab !== 'nfts' || !hasMore || loading) return;
+    const isNftsTab = tab === 'nfts';
+    const shouldObserve = isNftsTab ? (hasMore && !loading) : (agentHasMore && !agentsLoading);
+    if (!shouldObserve) return;
+
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (isNftsTab) loadMore();
+          else loadMoreAgents();
+        }
+      },
       { threshold: 0.1 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [tab, hasMore, loading, loadMore]);
+  }, [tab, hasMore, loading, loadMore, agentHasMore, agentsLoading, loadMoreAgents]);
 
   const isLoading = tab === 'nfts' ? loading : agentsLoading;
   const items = tab === 'nfts' ? nfts : agentItems;
   const isEmpty = !isLoading && items.length === 0;
+  const showSentinel = tab === 'nfts' ? hasMore : agentHasMore;
   const chainLabel = CHAIN_OPTIONS.find(c => c.value === selectedChain)?.label || selectedChain;
 
   return (
     <div className="space-y-3">
-      {/* Tab toggle + chain filter */}
-      <div className="flex items-center justify-between">
+      {/* Tab toggle + sort + chain filter */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex">
           <button
             type="button"
@@ -111,11 +150,21 @@ export function NFTGrid() {
             Agents
           </button>
         </div>
-        <div className="w-32">
+        <div className="flex items-center gap-2">
+          {/* Sort filter */}
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+            className="p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
+          >
+            <option value="latest">Latest</option>
+            <option value="oldest">Oldest</option>
+          </select>
+          {/* Chain filter */}
           <select
             value={selectedChain}
             onChange={(e) => setSelectedChain(e.target.value as typeof selectedChain)}
-            className="w-full p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
+            className="w-32 p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
           >
             {CHAIN_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -123,6 +172,16 @@ export function NFTGrid() {
           </select>
         </div>
       </div>
+
+      {/* Item count */}
+      {!isLoading && items.length > 0 && tab === 'agents' && (
+        <p className="font-mono text-[10px] text-neutral-400">
+          {agentVisibleCount >= sortedAgents.length
+            ? `${sortedAgents.length} agent${sortedAgents.length !== 1 ? 's' : ''}`
+            : `${agentVisibleCount} / ${sortedAgents.length} agents`
+          }
+        </p>
+      )}
 
       {/* Grid */}
       {items.length > 0 && (
@@ -169,8 +228,8 @@ export function NFTGrid() {
         </div>
       )}
 
-      {/* Infinite scroll sentinel (NFTs tab only) */}
-      {tab === 'nfts' && hasMore && <div ref={sentinelRef} className="h-4" />}
+      {/* Infinite scroll sentinel (both tabs) */}
+      {showSentinel && <div ref={sentinelRef} className="h-4" />}
     </div>
   );
 }

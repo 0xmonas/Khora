@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
-      const text = await res.text();
+      console.error(`Alchemy API error: ${res.status}`);
       return NextResponse.json(
-        { error: `Alchemy API error: ${res.status} ${text.slice(0, 200)}` },
+        { error: 'Gallery data temporarily unavailable' },
         { status: 502 },
       );
     }

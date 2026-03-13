@@ -39,8 +39,8 @@ contract DeployV2 is Script {
         uint256 allowlistPrice;
         uint256 publicPrice;
         if (isMainnet) {
-            allowlistPrice = 0.0042 ether;
-            publicPrice = 0.0069 ether;
+            allowlistPrice = 0.0033 ether;
+            publicPrice = 0.0042 ether;
         } else {
             allowlistPrice = 0.00042 ether;
             publicPrice = 0.00069 ether;
@@ -93,8 +93,8 @@ contract DeployV2 is Script {
 
         minter.setMaxPerWallet(10);
         minter.setMaxSupply(3333);
-        minter.setPhase(BOOAMinter.MintPhase.Public);
-        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333, phase=Public");
+        // Phase starts CLOSED — owner must manually setPhase() after verifying everything
+        console.log("BOOAMinter: maxPerWallet=10, maxSupply=3333, phase=Closed (default)");
 
         vm.stopBroadcast();
 

@@ -35,14 +35,25 @@ export const generationLimiter = new Ratelimit({
 });
 
 /**
+ * Rate limiter for CPU-heavy operations (img2boa): 10 per 60s per IP.
+ */
+export const heavyLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '60 s'),
+  prefix: 'rl:heavy',
+});
+
+/**
  * Helper to extract IP from Next.js request.
+ * On Vercel, x-forwarded-for is rewritten to contain ONLY the real client IP
+ * (external IPs are not forwarded), so spoofing is not possible.
  */
 export function getIP(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.headers.get('x-real-ip') ?? '127.0.0.1';
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    '127.0.0.1'
+  );
 }
 
 /**

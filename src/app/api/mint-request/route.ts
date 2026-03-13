@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         imageBuffer = Buffer.from(await imageResp.arrayBuffer());
         break;
       } catch (dlErr) {
-        if (attempt === 2) throw new Error(`Failed to download generated image after 3 attempts: ${dlErr}`);
+        if (attempt === 2) throw new Error('Failed to download generated image after 3 attempts');
         console.warn(`[mint] Image download attempt ${attempt + 1} failed, retrying in 1s...`, dlErr);
         await new Promise(r => setTimeout(r, 1000));
       }
