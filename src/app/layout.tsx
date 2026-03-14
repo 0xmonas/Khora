@@ -11,10 +11,24 @@ const departureMono = localFont({
 
 export const metadata = {
   title: 'Khôra',
-  description: 'AI-powered character generator',
-  keywords: ['AI', 'character', 'generator', 'Claude', 'Replicate'],
+  description: 'Open-source studio building tools for autonomous agents, generative NFTs, and on-chain games.',
+  keywords: ['AI', 'agents', 'NFT', 'on-chain', 'ERC-8004', 'pixel art', 'Shape Network'],
   icons: {
     icon: '/favicon.ico',
+  },
+  openGraph: {
+    title: 'Khôra',
+    description: 'Open-source studio building tools for autonomous agents, generative NFTs, and on-chain games.',
+    url: 'https://khora.fun',
+    siteName: 'Khôra',
+    images: [{ url: '/og-banner.png', width: 1200, height: 630 }],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Khôra',
+    description: 'Open-source studio for autonomous agents, generative NFTs, and on-chain games.',
+    images: ['/og-banner.png'],
   },
 };
 

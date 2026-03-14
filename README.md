@@ -2,7 +2,7 @@
 
 On-chain AI agent generator on Shape. Create, mint, and register AI agents with fully on-chain pixel art and identity — powered by ERC-8004.
 
-![logo](https://github.com/user-attachments/assets/bb73db4c-1f64-4e64-8f32-bc0c6ad17ae6)
+![Khôra](public/og-banner.png)
 
 ## What is Khôra?
 

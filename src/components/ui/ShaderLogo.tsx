@@ -43,7 +43,7 @@ export function ShaderLogo() {
     needsStaticRedraw.current = true;
     let loaded = 0;
 
-    const baseSrc = theme === 'dark' ? '/khoradark.png' : '/khoralogo.png';
+    const baseSrc = '/khoralogo.svg';
 
     const baseImg = new Image();
     baseImg.crossOrigin = 'anonymous';
@@ -61,7 +61,7 @@ export function ShaderLogo() {
       loaded++;
       if (loaded === 2) setReady(2);
     };
-    colorImg.src = '/khoradark.png';
+    colorImg.src = '/khoralogo.svg';
   }, [theme]);
 
   useEffect(() => {

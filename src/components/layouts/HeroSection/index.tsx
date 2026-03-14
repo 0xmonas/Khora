@@ -49,12 +49,12 @@ export function HeroSection() {
       <div className="px-4 md:px-6 lg:px-8 py-16 md:py-24 lg:py-32">
         <div className="w-full max-w-[1400px] mx-auto aspect-[5/2] relative">
           <Image
-            src={theme === 'dark' ? '/khoradark.png' : '/khoralogo.png'}
+            src="/khoralogo.svg"
             alt="Khora Logo"
             fill
             loading="eager"
             sizes="100vw"
-            className="object-contain invisible"
+            className={`object-contain invisible ${theme === 'dark' ? 'brightness-0 invert' : ''}`}
             priority
           />
           <ShaderLogo />
