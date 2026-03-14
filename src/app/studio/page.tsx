@@ -58,7 +58,7 @@ function isVideo(filename: string) {
   return filename.endsWith('.mp4');
 }
 
-function ToolMedia({ src, alt }: { src: string; alt: string }) {
+function ToolMedia({ src, alt, priority }: { src: string; alt: string; priority?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const path = `/studio/${src}`;
 
@@ -81,6 +81,7 @@ function ToolMedia({ src, alt }: { src: string; alt: string }) {
       src={path}
       alt={alt}
       fill
+      priority={priority}
       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
       className="object-cover"
       style={{ imageRendering: src.endsWith('.png') ? 'pixelated' : 'auto' }}
@@ -96,7 +97,7 @@ function ToolCardItem({ tool }: { tool: ToolCard }) {
     >
       {/* Media */}
       <div className="relative w-full aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-        <ToolMedia src={tool.media} alt={tool.title} />
+        <ToolMedia src={tool.media} alt={tool.title} priority={tool.id === TOOLS[0]?.id} />
         {tool.tag && (
           <span
             className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 border border-green-600 dark:border-green-500 text-green-600 dark:text-green-500 bg-white/90 dark:bg-neutral-900/90"
@@ -136,28 +137,24 @@ export default function StudioPage() {
           <div className="w-full lg:grid lg:grid-cols-12">
             <div className="hidden lg:block lg:col-span-1" />
             <div className="lg:col-span-10">
-              <div className="max-w-3xl space-y-8">
+              {/* Title */}
+              <div className="max-w-2xl space-y-3">
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
+                  BOOA
+                </p>
+                <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>
+                  Studio
+                </h1>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
+                  Tools and utilities for the BOOA collection.
+                </p>
+              </div>
 
-                {/* Title */}
-                <div className="space-y-3">
-                  <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
-                    BOOA
-                  </p>
-                  <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>
-                    Studio
-                  </h1>
-                  <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
-                    Tools and utilities for the BOOA collection.
-                  </p>
-                </div>
-
-                {/* Tool Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {TOOLS.map((tool) => (
-                    <ToolCardItem key={tool.id} tool={tool} />
-                  ))}
-                </div>
-
+              {/* Tool Grid */}
+              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {TOOLS.map((tool) => (
+                  <ToolCardItem key={tool.id} tool={tool} />
+                ))}
               </div>
             </div>
             <div className="hidden lg:block lg:col-span-1" />
