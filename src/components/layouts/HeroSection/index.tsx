@@ -1,9 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { Github, ArrowRight } from 'lucide-react';
-import { useTheme } from '@/components/providers/theme-provider';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -40,24 +38,13 @@ const CAPABILITIES = [
 
 
 export function HeroSection() {
-  const { theme } = useTheme();
-
   return (
     <div className="flex-1 flex flex-col">
 
-      {/* Logo */}
+      {/* Hero Video — ASCII shader */}
       <div className="px-4 md:px-6 lg:px-8 py-16 md:py-24 lg:py-32">
         <div className="w-full max-w-[1400px] mx-auto aspect-[5/2] relative">
-          <Image
-            src="/khoralogo.svg"
-            alt="Khora Logo"
-            fill
-            loading="eager"
-            sizes="100vw"
-            className={`object-contain invisible ${theme === 'dark' ? 'brightness-0 invert' : ''}`}
-            priority
-          />
-          <ShaderLogo />
+          <ShaderLogo src="/tree.mp4" type="video" />
         </div>
       </div>
 
