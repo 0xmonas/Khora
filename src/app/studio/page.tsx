@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, ImageIcon } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 
@@ -35,6 +35,14 @@ const TOOLS: ToolCard[] = [
     href: '/studio/img2boa',
     media: 'img2booa.png',
     tag: 'LIVE',
+  },
+  {
+    id: 'agent-sound',
+    title: 'Agent Sound',
+    description: 'Each pixel becomes a note. 64 rows, 16 tones — hear your agent as 8-bit chiptune.',
+    href: '/studio/agent-sound',
+    media: 'agent-sound.png',
+    tag: 'NEW',
   },
 ];
 

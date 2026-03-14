@@ -60,8 +60,11 @@ export default function AgentsPage() {
                   </p>
                 </div>
 
-                {/* Search Card */}
-                <div className="max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
+              </div>
+
+              {/* Search Card — centered in full col-span-10 */}
+              <div className="mt-8 flex justify-center">
+                <div className="w-full max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
                   {/* Network toggle */}
                   <div>
                     <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>
@@ -127,8 +130,8 @@ export default function AgentsPage() {
                     VIEW IDENT CARD
                   </button>
                 </div>
-
               </div>
+
             </div>
             <div className="hidden lg:block lg:col-span-1" />
           </div>
