@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {BOOAv2} from "../../contracts/v2/BOOA.sol";
+import {BOOA} from "../../contracts/v2/BOOA.sol";
 import {BOOAStorage} from "../../contracts/v2/BOOAStorage.sol";
 import {BOOARenderer} from "../../contracts/v2/BOOARenderer.sol";
 import {BOOAMinter} from "../../contracts/v2/BOOAMinter.sol";
 import {Merkle} from "murky/src/Merkle.sol";
 
-contract BOOAv2Test is Test {
-    BOOAv2 public booa;
+contract BOOATest is Test {
+    BOOA public booa;
     BOOAStorage public store;
     BOOARenderer public renderer;
     BOOAMinter public minter;
@@ -42,7 +42,7 @@ contract BOOAv2Test is Test {
 
         store = new BOOAStorage();
         renderer = new BOOARenderer(address(store));
-        booa = new BOOAv2(owner, 500);
+        booa = new BOOA(owner, 500);
         minter = new BOOAMinter(address(booa), address(store), signerAddr, ALLOWLIST_PRICE, PUBLIC_PRICE);
 
         booa.setMinter(address(minter), true);
@@ -754,7 +754,7 @@ contract BOOAv2Test is Test {
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
         bytes32[] memory emptyProof = new bytes32[](0);
         vm.prank(user);
-        vm.expectRevert(BOOAv2.MintingPaused.selector);
+        vm.expectRevert(BOOA.MintingPaused.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
@@ -1034,7 +1034,7 @@ contract BOOAv2Test is Test {
 
     function test_access_onlyMinterCanMint() public {
         vm.prank(user);
-        vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
+        vm.expectRevert(BOOA.NotAuthorizedMinter.selector);
         booa.mint(user);
     }
 
@@ -1068,7 +1068,7 @@ contract BOOAv2Test is Test {
         bytes memory sig = _signMint(validBitmap, validTraits, user, deadline);
         bytes32[] memory emptyProof = new bytes32[](0);
         vm.prank(user);
-        vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
+        vm.expectRevert(BOOA.NotAuthorizedMinter.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
@@ -1199,7 +1199,7 @@ contract BOOAv2Test is Test {
         _setPublicPhase();
         _mintAsUser(user);
         vm.prank(user2);
-        vm.expectRevert(BOOAv2.NotTokenOwner.selector);
+        vm.expectRevert(BOOA.NotTokenOwner.selector);
         booa.burn(0);
     }
 
@@ -1227,7 +1227,7 @@ contract BOOAv2Test is Test {
         _mintAsUser(user);
         BOOARenderer newRenderer = new BOOARenderer(address(store));
         vm.expectEmit(false, false, false, true);
-        emit BOOAv2.BatchMetadataUpdate(0, 1);
+        emit BOOA.BatchMetadataUpdate(0, 1);
         booa.setRenderer(address(newRenderer));
     }
 
@@ -1242,7 +1242,7 @@ contract BOOAv2Test is Test {
         _mintAsUser(user);
         bytes memory newBitmap = _makeBitmap(4); // white
         vm.expectEmit(false, false, false, true);
-        emit BOOAv2.MetadataUpdate(0);
+        emit BOOA.MetadataUpdate(0);
         booa.updateMetadata(0, newBitmap, "");
 
         // Verify image actually changed
@@ -1255,7 +1255,7 @@ contract BOOAv2Test is Test {
         _mintAsUser(user);
         bytes memory newTraits = bytes('[{"trait_type":"Creature","value":"Updated"}]');
         vm.expectEmit(false, false, false, true);
-        emit BOOAv2.MetadataUpdate(0);
+        emit BOOA.MetadataUpdate(0);
         booa.updateMetadata(0, "", newTraits);
 
         bytes memory stored = store.getTraits(0);
@@ -1392,5 +1392,393 @@ contract BOOAv2Test is Test {
             if (found) return true;
         }
         return false;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  AUDIT FIX TESTS — Burn bypass & Storage desync
+    // ═══════════════════════════════════════════════════
+
+    /// @notice Audit Fix #1: maxSupply cap uses nextTokenId (lifetime count),
+    ///         NOT totalSupply (circulating). Burns must NOT open new mint slots.
+    function test_audit_burnDoesNotBypassMaxSupply() public {
+        _setPublicPhase();
+        minter.setMaxSupply(3);
+        minter.setMaxPerWallet(0); // unlimited per wallet
+
+        // Mint 3 tokens (hits cap)
+        _mintAsUser(user);  // tokenId 0
+        _mintAsUser(user);  // tokenId 1
+        _mintAsUser(user2); // tokenId 2
+
+        assertEq(booa.nextTokenId(), 3);
+        assertEq(booa.totalSupply(), 3);
+
+        // Burn one token
+        vm.prank(user);
+        booa.burn(0);
+
+        // totalSupply dropped to 2, but nextTokenId is still 3
+        assertEq(booa.totalSupply(), 2);
+        assertEq(booa.nextTokenId(), 3);
+
+        // Attempt to mint again — must revert even though totalSupply < maxSupply
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user2, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        vm.prank(user2);
+        vm.expectRevert(BOOAMinter.MaxSupplyReached.selector);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+    }
+
+    /// @notice Audit Fix #1b: ownerMint also respects lifetime cap after burns
+    function test_audit_ownerMintRespectsLifetimeCapAfterBurn() public {
+        _setPublicPhase();
+        minter.setMaxSupply(2);
+        minter.setMaxPerWallet(0);
+
+        _mintAsUser(user);  // tokenId 0
+        _mintAsUser(user2); // tokenId 1
+
+        // Burn one
+        vm.prank(user);
+        booa.burn(0);
+        assertEq(booa.totalSupply(), 1);
+
+        // ownerMint must also fail
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, owner, deadline);
+        vm.expectRevert(BOOAMinter.MaxSupplyReached.selector);
+        minter.ownerMint(validBitmap, validTraits, deadline, sig);
+    }
+
+    /// @notice Audit Fix #1c: setMaxSupply cannot be set below lifetime minted count
+    function test_audit_setMaxSupplyCannotGoBelowLifetimeMinted() public {
+        _setPublicPhase();
+        minter.setMaxPerWallet(0);
+
+        _mintAsUser(user);  // tokenId 0
+        _mintAsUser(user);  // tokenId 1
+        _mintAsUser(user2); // tokenId 2
+
+        // Burn 2 tokens — totalSupply = 1, but nextTokenId = 3
+        vm.prank(user);
+        booa.burn(0);
+        vm.prank(user);
+        booa.burn(1);
+
+        assertEq(booa.totalSupply(), 1);
+        assertEq(booa.nextTokenId(), 3);
+
+        // Cannot set maxSupply to 2 (below nextTokenId=3)
+        vm.expectRevert(BOOAMinter.MaxSupplyReached.selector);
+        minter.setMaxSupply(2);
+
+        // Can set to 3 (equal to nextTokenId)
+        minter.setMaxSupply(3);
+        assertEq(minter.maxSupply(), 3);
+
+        // Can set to 0 (unlimited)
+        minter.setMaxSupply(0);
+    }
+
+    /// @notice Audit Fix #1d: Multiple burn-mint cycles cannot exceed lifetime cap
+    function test_audit_multipleBurnMintCyclesRespectCap() public {
+        _setPublicPhase();
+        minter.setMaxSupply(3);
+        minter.setMaxPerWallet(0);
+
+        // Mint 2
+        uint256 id0 = _mintAsUser(user);
+        uint256 id1 = _mintAsUser(user);
+        assertEq(booa.nextTokenId(), 2);
+
+        // Burn both
+        vm.prank(user);
+        booa.burn(id0);
+        vm.prank(user);
+        booa.burn(id1);
+        assertEq(booa.totalSupply(), 0);
+        assertEq(booa.nextTokenId(), 2);
+
+        // Can only mint 1 more (cap=3, nextTokenId=2)
+        _mintAsUser(user2);
+        assertEq(booa.nextTokenId(), 3);
+
+        // 4th lifetime mint must fail
+        uint256 deadline = block.timestamp + 1 hours + _nonce++;
+        bytes memory sig = _signMint(validBitmap, validTraits, user2, deadline);
+        bytes32[] memory emptyProof = new bytes32[](0);
+        vm.prank(user2);
+        vm.expectRevert(BOOAMinter.MaxSupplyReached.selector);
+        minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
+    }
+
+    /// @notice Audit Fix #2: BOOAMinter now has setDataStore for storage migration
+    function test_audit_minterHasSetDataStore() public {
+        BOOAStorage newStore = new BOOAStorage();
+
+        // Minter can update its dataStore
+        minter.setDataStore(address(newStore));
+        assertEq(address(minter.dataStore()), address(newStore));
+    }
+
+    /// @notice Audit Fix #2b: setDataStore rejects zero address
+    function test_audit_minterSetDataStoreRejectsZero() public {
+        vm.expectRevert("Zero address");
+        minter.setDataStore(address(0));
+    }
+
+    /// @notice Audit Fix #2c: setDataStore is onlyOwner
+    function test_audit_minterSetDataStoreOnlyOwner() public {
+        BOOAStorage newStore = new BOOAStorage();
+        vm.prank(user);
+        vm.expectRevert();
+        minter.setDataStore(address(newStore));
+    }
+
+    /// @notice Audit Fix #2d: Synchronized storage migration works end-to-end
+    function test_audit_synchronizedStorageMigration() public {
+        _setPublicPhase();
+        minter.setMaxPerWallet(0);
+
+        // Mint with original store
+        uint256 tokenId = _mintAsUser(user);
+
+        // Verify token works
+        string memory uri1 = booa.tokenURI(tokenId);
+        assertTrue(bytes(uri1).length > 0);
+
+        // Deploy new store and migrate all 3 pointers atomically
+        BOOAStorage newStore = new BOOAStorage();
+        newStore.setWriter(address(minter), true);
+        newStore.setWriter(address(booa), true);
+
+        // Copy existing data to new store
+        bytes memory existingImage = store.getImageData(tokenId);
+        bytes memory existingTraits = store.getTraits(tokenId);
+        newStore.setWriter(address(this), true);
+        newStore.setImageData(tokenId, existingImage);
+        newStore.setTraits(tokenId, existingTraits);
+        newStore.setWriter(address(this), false);
+
+        // Update all 3 pointers
+        minter.setDataStore(address(newStore));
+        renderer.setDataStore(address(newStore));
+        booa.setDataStore(address(newStore));
+
+        // tokenURI still works from new store
+        string memory uri2 = booa.tokenURI(tokenId);
+        assertTrue(bytes(uri2).length > 0);
+
+        // New mints go to new store
+        uint256 tokenId2 = _mintAsUser(user2);
+        string memory uri3 = booa.tokenURI(tokenId2);
+        assertTrue(bytes(uri3).length > 0);
+
+        // Owner metadata update also goes to new store
+        bytes memory newBmp = _makeBitmap(5);
+        booa.updateMetadata(tokenId, newBmp, "");
+        string memory uri4 = booa.tokenURI(tokenId);
+        assertTrue(bytes(uri4).length > 0);
+        // URI should change after metadata update
+        assertTrue(keccak256(bytes(uri2)) != keccak256(bytes(uri4)));
+    }
+
+    /// @notice Audit Fix #2e: Desync scenario — if only renderer is migrated,
+    ///         minter writes to old store, tokenURI reverts for new tokens
+    function test_audit_desyncCausesRevertWithoutFix() public {
+        _setPublicPhase();
+        minter.setMaxPerWallet(0);
+
+        // Deploy new store, only update renderer (simulating partial migration)
+        BOOAStorage newStore = new BOOAStorage();
+        renderer.setDataStore(address(newStore));
+
+        // Mint — minter writes to OLD store, renderer reads from NEW store
+        uint256 tokenId = _mintAsUser(user);
+
+        // tokenURI should revert because new store has no data for this token
+        vm.expectRevert("No image data");
+        booa.tokenURI(tokenId);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  AUDIT TESTS — Withdraw safety (CEI, reentrancy)
+    // ═══════════════════════════════════════════════════
+
+    /// @notice BOOA withdraw sends entire balance to owner
+    function test_audit_booaWithdrawSendsFullBalance() public {
+        // Send ETH to booa contract
+        vm.deal(address(booa), 5 ether);
+
+        uint256 ownerBefore = address(this).balance;
+        booa.withdraw();
+        uint256 ownerAfter = address(this).balance;
+
+        assertEq(ownerAfter - ownerBefore, 5 ether);
+        assertEq(address(booa).balance, 0);
+    }
+
+    /// @notice BOOA withdrawTo sends to specified address
+    function test_audit_booaWithdrawToSendsToRecipient() public {
+        vm.deal(address(booa), 3 ether);
+
+        uint256 userBefore = user.balance;
+        booa.withdrawTo(payable(user));
+        uint256 userAfter = user.balance;
+
+        assertEq(userAfter - userBefore, 3 ether);
+        assertEq(address(booa).balance, 0);
+    }
+
+    /// @notice BOOA withdraw is onlyOwner
+    function test_audit_booaWithdrawOnlyOwner() public {
+        vm.deal(address(booa), 1 ether);
+        vm.prank(user);
+        vm.expectRevert();
+        booa.withdraw();
+    }
+
+    /// @notice BOOA withdrawTo rejects zero address
+    function test_audit_booaWithdrawToRejectsZero() public {
+        vm.deal(address(booa), 1 ether);
+        vm.expectRevert("Zero address");
+        booa.withdrawTo(payable(address(0)));
+    }
+
+    /// @notice BOOA withdraw with zero balance succeeds (no revert)
+    function test_audit_booaWithdrawZeroBalance() public {
+        assertEq(address(booa).balance, 0);
+        booa.withdraw(); // should not revert
+    }
+
+    /// @notice Minter withdraw sends entire balance to owner
+    function test_audit_minterWithdrawSendsFullBalance() public {
+        vm.deal(address(minter), 5 ether);
+
+        uint256 ownerBefore = address(this).balance;
+        minter.withdraw();
+        uint256 ownerAfter = address(this).balance;
+
+        assertEq(ownerAfter - ownerBefore, 5 ether);
+        assertEq(address(minter).balance, 0);
+    }
+
+    /// @notice Minter withdrawTo sends to specified address
+    function test_audit_minterWithdrawToSendsToRecipient() public {
+        vm.deal(address(minter), 3 ether);
+
+        uint256 userBefore = user.balance;
+        minter.withdrawTo(payable(user));
+        uint256 userAfter = user.balance;
+
+        assertEq(userAfter - userBefore, 3 ether);
+        assertEq(address(minter).balance, 0);
+    }
+
+    /// @notice Minter withdraw is onlyOwner
+    function test_audit_minterWithdrawOnlyOwner() public {
+        vm.deal(address(minter), 1 ether);
+        vm.prank(user);
+        vm.expectRevert();
+        minter.withdraw();
+    }
+
+    /// @notice Minter withdrawTo rejects zero address
+    function test_audit_minterWithdrawToRejectsZero() public {
+        vm.deal(address(minter), 1 ether);
+        vm.expectRevert("Zero address");
+        minter.withdrawTo(payable(address(0)));
+    }
+
+    /// @notice Withdraw reentrancy: reentrant call gets 0 balance (safe by design)
+    function test_audit_withdrawReentrancySafe() public {
+        WithdrawReentrancyAttacker attacker = new WithdrawReentrancyAttacker();
+
+        // Transfer ownership to attacker so it can call withdraw
+        booa.transferOwnership(address(attacker));
+
+        vm.deal(address(booa), 2 ether);
+        attacker.attack(booa);
+
+        // Attacker got exactly 2 ether (not double), contract is drained
+        assertEq(address(booa).balance, 0);
+        assertEq(address(attacker).balance, 2 ether);
+        // Reentrant call count should be 1 (second call sends 0)
+        assertEq(attacker.callCount(), 2);
+    }
+
+    /// @notice Minter withdraw reentrancy: same safety check
+    function test_audit_minterWithdrawReentrancySafe() public {
+        MinterWithdrawReentrancyAttacker attacker = new MinterWithdrawReentrancyAttacker();
+
+        minter.transferOwnership(address(attacker));
+
+        vm.deal(address(minter), 2 ether);
+        attacker.attack(minter);
+
+        assertEq(address(minter).balance, 0);
+        assertEq(address(attacker).balance, 2 ether);
+        assertEq(attacker.callCount(), 2);
+    }
+
+    /// @notice Withdraw after multiple paid mints accumulates correctly
+    function test_audit_withdrawAfterMints() public {
+        _setPublicPhase();
+        minter.setMaxPerWallet(0);
+
+        // 3 mints at PUBLIC_PRICE each
+        _mintAsUser(user);
+        _mintAsUser(user);
+        _mintAsUser(user2);
+
+        uint256 expectedBalance = PUBLIC_PRICE * 3;
+        assertEq(address(minter).balance, expectedBalance);
+
+        uint256 ownerBefore = address(this).balance;
+        minter.withdraw();
+        uint256 ownerAfter = address(this).balance;
+
+        assertEq(ownerAfter - ownerBefore, expectedBalance);
+        assertEq(address(minter).balance, 0);
+    }
+}
+
+/// @dev Attacker contract that tries to reenter BOOA.withdraw()
+contract WithdrawReentrancyAttacker {
+    BOOA public target;
+    uint256 public callCount;
+
+    function attack(BOOA _target) external {
+        target = _target;
+        callCount = 0;
+        target.withdraw();
+    }
+
+    receive() external payable {
+        callCount++;
+        if (callCount < 2) {
+            // Try to reenter — second call should send 0 because balance is already drained
+            target.withdraw();
+        }
+    }
+}
+
+/// @dev Attacker contract that tries to reenter BOOAMinter.withdraw()
+contract MinterWithdrawReentrancyAttacker {
+    BOOAMinter public target;
+    uint256 public callCount;
+
+    function attack(BOOAMinter _target) external {
+        target = _target;
+        callCount = 0;
+        target.withdraw();
+    }
+
+    receive() external payable {
+        callCount++;
+        if (callCount < 2) {
+            target.withdraw();
+        }
     }
 }

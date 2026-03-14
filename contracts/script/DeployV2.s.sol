@@ -65,9 +65,9 @@ contract DeployV2 is Script {
         BOOARenderer renderer = new BOOARenderer(address(dataStore));
         console.log("BOOARenderer:", address(renderer));
 
-        // 3. BOOAv2 (ERC721)
-        BOOAv2 booa = new BOOAv2(royaltyReceiver, royaltyBps);
-        console.log("BOOAv2:", address(booa));
+        // 3. BOOA (ERC721)
+        BOOA booa = new BOOA(royaltyReceiver, royaltyBps);
+        console.log("BOOA:", address(booa));
 
         // 4. BOOAMinter (needs booa + storage + signer + prices)
         BOOAMinter minter = new BOOAMinter(
@@ -82,14 +82,14 @@ contract DeployV2 is Script {
         // ── Post-deploy wiring ──
         booa.setMinter(address(minter), true);
         booa.setRenderer(address(renderer));
-        console.log("BOOAv2: minter authorized, renderer set");
+        console.log("BOOA: minter authorized, renderer set");
 
         dataStore.setWriter(address(minter), true);
         dataStore.setWriter(address(booa), true);
         console.log("BOOAStorage: minter + booa authorized as writers");
 
         booa.setDataStore(address(dataStore));
-        console.log("BOOAv2: dataStore set");
+        console.log("BOOA: dataStore set");
 
         minter.setMaxPerWallet(10);
         minter.setMaxSupply(3333);

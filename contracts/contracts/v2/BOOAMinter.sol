@@ -98,7 +98,7 @@ contract BOOAMinter is Ownable {
 
         if (msg.value < price) revert InsufficientPayment();
         if (maxPerWallet > 0 && mintCount[msg.sender] >= maxPerWallet) revert MintLimitReached();
-        if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
+        if (maxSupply > 0 && booa.nextTokenId() >= maxSupply) revert MaxSupplyReached();
 
         bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid, address(this)));
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
@@ -131,7 +131,7 @@ contract BOOAMinter is Ownable {
         bytes calldata signature
     ) external onlyOwner returns (uint256 tokenId) {
         if (block.timestamp > deadline) revert SignatureExpired();
-        if (maxSupply > 0 && booa.totalSupply() >= maxSupply) revert MaxSupplyReached();
+        if (maxSupply > 0 && booa.nextTokenId() >= maxSupply) revert MaxSupplyReached();
 
         bytes32 hash = keccak256(abi.encode(imageData, traitsData, msg.sender, deadline, block.chainid, address(this)));
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
@@ -152,6 +152,11 @@ contract BOOAMinter is Ownable {
     // ═══════════════════════════════════════
     //  Admin functions
     // ═══════════════════════════════════════
+
+    function setDataStore(address _dataStore) external onlyOwner {
+        require(_dataStore != address(0), "Zero address");
+        dataStore = IBOOAStorage(_dataStore);
+    }
 
     function setSigner(address _signer) external onlyOwner {
         require(_signer != address(0), "Zero address");
@@ -185,8 +190,8 @@ contract BOOAMinter is Ownable {
     }
 
     function setMaxSupply(uint256 _maxSupply) external onlyOwner {
-        uint256 currentTotal = booa.totalSupply();
-        // Cannot reduce below current supply
+        uint256 currentTotal = booa.nextTokenId();
+        // Cannot reduce below lifetime minted count
         if (_maxSupply > 0 && _maxSupply < currentTotal) {
             revert MaxSupplyReached();
         }

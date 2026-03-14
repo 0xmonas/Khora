@@ -19,9 +19,9 @@ import {IBOOAStorage} from "./interfaces/IBOOAStorage.sol";
 //    64x64 · C64 palette · SSTORE2 bitmap
 //
 
-/// @title BOOAv2
+/// @title BOOA
 /// @notice Minimal ERC721. Minting delegated to authorized contracts.
-contract BOOAv2 is ERC721, ERC2981, Ownable {
+contract BOOA is ERC721, ERC2981, Ownable {
     /// @dev EIP-4906 metadata update events
     event MetadataUpdate(uint256 _tokenId);
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);

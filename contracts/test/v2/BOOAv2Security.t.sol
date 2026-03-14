@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {BOOAv2} from "../../contracts/v2/BOOA.sol";
+import {BOOA} from "../../contracts/v2/BOOA.sol";
 import {BOOAStorage} from "../../contracts/v2/BOOAStorage.sol";
 import {BOOARenderer} from "../../contracts/v2/BOOARenderer.sol";
 import {BOOAMinter} from "../../contracts/v2/BOOAMinter.sol";
@@ -122,12 +122,12 @@ contract ForceSender {
 
 /// @dev Contract that tries to re-enter burn during a transfer callback
 contract BurnReentrant {
-    BOOAv2 public booa;
+    BOOA public booa;
     uint256 public tokenToBurn;
     bool public attacked;
 
     constructor(address _booa) {
-        booa = BOOAv2(_booa);
+        booa = BOOA(_booa);
     }
 
     function onERC721Received(address, address, uint256 tokenId, bytes calldata) external returns (bytes4) {
@@ -154,11 +154,11 @@ contract CallerProxy {
     }
 }
 
-contract BOOAv2DeepSecurityTest is Test {
+contract BOOADeepSecurityTest is Test {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    BOOAv2 public booa;
+    BOOA public booa;
     BOOAStorage public store;
     BOOARenderer public renderer;
     BOOAMinter public minter;
@@ -190,7 +190,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         store = new BOOAStorage();
         renderer = new BOOARenderer(address(store));
-        booa = new BOOAv2(owner, 500);
+        booa = new BOOA(owner, 500);
         minter = new BOOAMinter(address(booa), address(store), signerAddr, ALLOWLIST_PRICE, PUBLIC_PRICE);
 
         booa.setMinter(address(minter), true);
@@ -622,7 +622,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         // The mint fails because booa.mint reverts
         vm.prank(user);
-        vm.expectRevert(BOOAv2.MintingPaused.selector);
+        vm.expectRevert(BOOA.MintingPaused.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // Unpause — try again with same sig
@@ -649,7 +649,7 @@ contract BOOAv2DeepSecurityTest is Test {
         booa.setPaused(true);
 
         vm.prank(user);
-        vm.expectRevert(BOOAv2.MintingPaused.selector);
+        vm.expectRevert(BOOA.MintingPaused.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // mintCount should NOT have incremented
@@ -995,7 +995,7 @@ contract BOOAv2DeepSecurityTest is Test {
     /// @dev Direct BOOA.mint bypass — only authorized minters can call
     function test_access_directMintByNonMinter() public {
         vm.prank(attacker);
-        vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
+        vm.expectRevert(BOOA.NotAuthorizedMinter.selector);
         booa.mint(attacker);
     }
 
@@ -1364,7 +1364,7 @@ contract BOOAv2DeepSecurityTest is Test {
         bytes memory originalTraits = store.getTraits(0);
 
         vm.expectEmit(false, false, false, true);
-        emit BOOAv2.MetadataUpdate(0);
+        emit BOOA.MetadataUpdate(0);
         booa.updateMetadata(0, bytes(""), bytes(""));
 
         assertEq(keccak256(store.getImageData(0)), keccak256(originalBitmap));
@@ -1383,7 +1383,7 @@ contract BOOAv2DeepSecurityTest is Test {
         _mintAsUser(user);
 
         vm.expectEmit(false, false, false, true);
-        emit BOOAv2.MetadataUpdate(0);
+        emit BOOA.MetadataUpdate(0);
         booa.updateMetadata(0, _makeBitmap(3), bytes("updated"));
     }
 
@@ -1408,7 +1408,7 @@ contract BOOAv2DeepSecurityTest is Test {
         // Open minter, BOOA pause still blocks
         minter.setPhase(BOOAMinter.MintPhase.Public);
         vm.prank(user);
-        vm.expectRevert(BOOAv2.MintingPaused.selector);
+        vm.expectRevert(BOOA.MintingPaused.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
 
         // Unpause BOOA — now works
@@ -1529,7 +1529,7 @@ contract BOOAv2DeepSecurityTest is Test {
 
         // The signature is valid (signer matches), but minter can't call booa.mint()
         vm.prank(user);
-        vm.expectRevert(BOOAv2.NotAuthorizedMinter.selector);
+        vm.expectRevert(BOOA.NotAuthorizedMinter.selector);
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
