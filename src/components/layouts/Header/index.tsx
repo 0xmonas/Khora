@@ -129,12 +129,12 @@ export function Header() {
               className="cursor-pointer"
             >
               <Image
-                src="/logo.png"
+                src="/khoralogo.svg"
                 alt="Logo"
                 fill
                 sizes="48px"
                 loading="eager"
-                className="object-contain bg-[#30f] dark:bg-background"
+                className="object-contain dark:brightness-0 dark:invert"
               />
             </div>
             <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">
