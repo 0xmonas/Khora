@@ -44,6 +44,14 @@ const TOOLS: ToolCard[] = [
     media: 'agent-sound.png',
     tag: 'NEW',
   },
+  {
+    id: 'banner-builder',
+    title: 'Banner Builder',
+    description: 'Build a Twitter/X banner from your BOOA agents. Drag to reorder, export as PNG.',
+    href: '/studio/banner-builder',
+    media: 'banner-builder.png',
+    tag: 'NEW',
+  },
 ];
 
 function isVideo(filename: string) {
