@@ -48,6 +48,13 @@ contracts/broadcast/
 # docs
 docs/
 
+# editor / agent configs
+.agent/
+.agents/
+.claude/
+.cursor/
+.vscode/
+
 # google cloud service account keys
 keys/
 *.json.key
