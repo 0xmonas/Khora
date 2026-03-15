@@ -438,6 +438,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({
             address: mint.address,
             registryAgentId: finalAgentId,
+            txHash: hash,
           }),
         });
       } catch { /* best effort */ }

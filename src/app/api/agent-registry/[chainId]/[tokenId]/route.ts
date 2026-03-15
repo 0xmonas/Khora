@@ -137,8 +137,13 @@ function isValidAddress(addr: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(addr);
 }
 
+function isValidTxHash(hash: string): boolean {
+  return /^0x[0-9a-fA-F]{64}$/.test(hash);
+}
+
 // POST /api/agent-registry/{chainId}/{tokenId}
 // Save registry agentId after successful Identity Registry registration
+// Requires txHash — verifies the Registered event on-chain before writing to Redis
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ chainId: string; tokenId: string }> },
@@ -163,13 +168,16 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { address, registryAgentId } = body;
+  const { address, registryAgentId, txHash } = body;
 
   if (!address || !isValidAddress(address)) {
     return NextResponse.json({ error: 'Invalid address' }, { status: 400 });
   }
   if (registryAgentId === undefined || !Number.isInteger(Number(registryAgentId))) {
     return NextResponse.json({ error: 'Invalid registryAgentId' }, { status: 400 });
+  }
+  if (!txHash || !isValidTxHash(txHash)) {
+    return NextResponse.json({ error: 'Invalid txHash' }, { status: 400 });
   }
 
   // Verify the caller is the minter (if metadata exists)
@@ -182,12 +190,73 @@ export async function POST(
     }
   }
 
+  // Verify the registration TX on-chain
+  try {
+    const { createPublicClient, http, decodeEventLog } = await import('viem');
+    const { shape, shapeSepolia } = await import('viem/chains');
+    const { IDENTITY_REGISTRY_ABI } = await import('@/lib/contracts/identity-registry');
+
+    const chainMap: Record<number, Chain> = {
+      [shape.id]: shape, [shapeSepolia.id]: shapeSepolia,
+    };
+    const chain = chainMap[chainIdNum] || shapeSepolia;
+    const client = createPublicClient({ chain, transport: http() });
+
+    const receipt = await client.getTransactionReceipt({
+      hash: txHash as `0x${string}`,
+    });
+
+    if (receipt.status !== 'success') {
+      return NextResponse.json({ error: 'Transaction failed on-chain' }, { status: 400 });
+    }
+
+    // Find the Registered event in the receipt logs
+    let verifiedAgentId: bigint | null = null;
+    let verifiedOwner: string | null = null;
+
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: IDENTITY_REGISTRY_ABI,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === 'Registered') {
+          const args = decoded.args as { agentId: bigint; owner: string };
+          verifiedAgentId = args.agentId;
+          verifiedOwner = args.owner;
+          break;
+        }
+      } catch {
+        // Not our event, skip
+      }
+    }
+
+    if (verifiedAgentId === null || verifiedOwner === null) {
+      return NextResponse.json({ error: 'No Registered event found in transaction' }, { status: 400 });
+    }
+
+    // Verify agentId matches
+    if (Number(verifiedAgentId) !== Number(registryAgentId)) {
+      return NextResponse.json({ error: 'agentId mismatch between event and request' }, { status: 400 });
+    }
+
+    // Verify owner matches
+    if (verifiedOwner.toLowerCase() !== address.toLowerCase()) {
+      return NextResponse.json({ error: 'owner mismatch between event and request' }, { status: 400 });
+    }
+  } catch (err) {
+    console.error('TX verification error:', err);
+    return NextResponse.json({ error: 'Failed to verify transaction on-chain' }, { status: 500 });
+  }
+
   // Save registry data (separate key, no TTL)
   const registryKey = `agent:registry:${chainIdNum}:${tokenIdNum}`;
   await redis.set(registryKey, {
     agentId: Number(registryAgentId),
     registeredAt: Date.now(),
     registeredBy: address.toLowerCase(),
+    txHash,
   });
 
   return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });

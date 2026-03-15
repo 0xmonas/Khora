@@ -18,7 +18,7 @@ export default function GeneratorPage() {
                 <div className="w-full lg:w-[280px] flex-shrink-0">
                   <InputForm />
                 </div>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-8">
                   <OutputSection />
                   <Gallery />
                 </div>

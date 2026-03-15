@@ -155,6 +155,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
 
   // Registration state
   const [registerStatus, setRegisterStatus] = useState<'idle' | 'registering' | 'success' | 'error' | 'already_registered'>('idle');
+  const [registryCheckLoading, setRegistryCheckLoading] = useState(true);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
@@ -164,6 +165,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   // Check if this token is already registered on the Identity Registry
   useEffect(() => {
     let cancelled = false;
+    setRegistryCheckLoading(true);
     fetch(`/api/agent-registry/${chainId}/${token.tokenId.toString()}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -172,7 +174,8 @@ function TokenDetail({ token }: { token: GalleryToken }) {
           if (token.isOwned) setRegisterStatus('already_registered');
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRegistryCheckLoading(false); });
     return () => { cancelled = true; };
   }, [chainId, token.tokenId, token.isOwned]);
 
@@ -251,6 +254,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
           body: JSON.stringify({
             address,
             registryAgentId: Number(registeredAgentId),
+            txHash: hash,
           }),
         });
       } catch { /* best effort */ }
@@ -304,9 +308,9 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   return (
     <>
     <CustomScrollArea className="h-full">
-      <div className="p-3 space-y-3">
+      <div className="p-3 space-y-3 overflow-hidden max-w-full w-full box-border">
         {/* Header: image + info */}
-        <div className="flex gap-3 items-start">
+        <div className="flex gap-3 items-start min-w-0">
           <div
             className="w-24 h-24 flex-shrink-0 border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => token.svg && setLightboxOpen(true)}
@@ -323,13 +327,13 @@ function TokenDetail({ token }: { token: GalleryToken }) {
             )}
           </div>
 
-          <div className="flex-1 min-w-0 flex flex-col justify-between h-24">
+          <div className="flex-1 min-w-0 flex flex-col justify-between min-h-[96px]">
             <div className="space-y-0.5">
-              <p className="font-mono text-xs font-bold text-neutral-900 dark:text-white truncate">
+              <p className="font-mono text-xs font-bold text-neutral-900 dark:text-white" style={{ overflowWrap: 'anywhere' }}>
                 {emoji && `${emoji} `}{name || `Agent #${tokenId}`}
               </p>
               {creature && (
-                <p className="font-mono text-[10px] text-neutral-500 truncate">
+                <p className="font-mono text-[10px] text-neutral-500" style={{ overflowWrap: 'anywhere' }}>
                   {creature}{vibe ? ` — ${vibe}` : ''}
                 </p>
               )}
@@ -376,7 +380,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         {description && (
           <div>
             <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">description</p>
-            <p className="font-mono text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed">
+            <p className="font-mono text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed" style={{ overflowWrap: 'anywhere' }}>
               {description}
             </p>
           </div>
@@ -393,6 +397,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                     <span
                       key={s}
                       className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
+                      style={{ overflowWrap: 'anywhere' }}
                     >
                       {s}
                     </span>
@@ -408,6 +413,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                     <span
                       key={d}
                       className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
+                      style={{ overflowWrap: 'anywhere' }}
                     >
                       {d}
                     </span>
@@ -477,7 +483,13 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         )}
 
         {/* Register on Agent Protocol — only for owned tokens */}
-        {token.isOwned && registerStatus === 'already_registered' && (
+        {token.isOwned && registryCheckLoading && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
+            <div className="w-full h-10 bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+          </div>
+        )}
+
+        {token.isOwned && !registryCheckLoading && registerStatus === 'already_registered' && (
           <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
             {registryAgentId !== null && (
               <div className="flex justify-between font-mono text-[10px]">
@@ -491,7 +503,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
           </div>
         )}
 
-        {token.isOwned && registerStatus === 'idle' && (
+        {token.isOwned && !registryCheckLoading && registerStatus === 'idle' && (
           <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
             <button
               onClick={handleRegister}
@@ -499,7 +511,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
             >
               REGISTER ON AGENT PROTOCOL
             </button>
-            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1">
+            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1 truncate">
               gas only, no fee
             </p>
           </div>
@@ -544,7 +556,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
           <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
             {registerError && (
               <div className="border border-red-500 p-2">
-                <p className="font-mono text-[10px] text-red-500">{registerError}</p>
+                <p className="font-mono text-[10px] text-red-500" style={{ overflowWrap: 'anywhere' }}>{registerError}</p>
               </div>
             )}
             <button
@@ -627,7 +639,7 @@ export function Gallery() {
 
   return (
     <div
-      className="border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden w-full aspect-square"
+      className="border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden w-full aspect-square min-w-0 max-w-full"
     >
       {/* Title bar */}
       <div className="h-10 border-b-2 border-neutral-700 dark:border-neutral-200 p-2 flex justify-between items-center">
@@ -650,7 +662,7 @@ export function Gallery() {
 
       {/* Content */}
       {selectedToken ? (
-        <div className="h-[calc(100%-40px)]">
+        <div className="h-[calc(100%-40px)] min-w-0 overflow-hidden">
           <TokenDetail token={selectedToken} />
         </div>
       ) : (
