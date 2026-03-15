@@ -130,6 +130,9 @@ function StepContent() {
     txHash,
     mode,
     importedRegistryTokenId,
+    error,
+    mintAndGenerate,
+    closeModal,
   } = useGenerator();
 
   const imageToShow = pixelatedImage;
@@ -348,6 +351,31 @@ function StepContent() {
     );
   }
 
+  // Error state with retry button (shown when generation fails while modal is open)
+  if (currentStep === 'input' && error) {
+    return (
+      <div className="space-y-3">
+        <div className="border-2 border-red-500 p-3">
+          <p className="font-mono text-xs text-red-500">{error}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { closeModal(); }}
+            className="flex-1 h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            CLOSE
+          </button>
+          <button
+            onClick={() => { mintAndGenerate(); }}
+            className="flex-1 h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors"
+          >
+            TRY AGAIN
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -412,7 +440,7 @@ export function MintFlowModal() {
       >
         <DialogHeader>
           <DialogTitle>{isUpdateFlow ? 'update_flow' : 'mint_flow'}</DialogTitle>
-          {canClose && currentStep !== 'input' && (
+          {canClose && (currentStep !== 'input' || error) && (
             <button
               onClick={closeModal}
               className="w-6 h-6 flex items-center justify-center hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
@@ -452,8 +480,8 @@ export function MintFlowModal() {
             </p>
           )}
 
-          {/* Error display */}
-          {error && (
+          {/* Error display (only when not already shown in StepContent's error view) */}
+          {error && currentStep !== 'input' && (
             <div className="border-2 border-red-500 p-3">
               <p className="font-mono text-xs text-red-500">{error}</p>
             </div>

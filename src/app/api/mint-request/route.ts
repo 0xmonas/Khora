@@ -29,7 +29,7 @@ function getReplicate(): Replicate {
 
 const FLUX_LORA_MODEL = '0xmonas/y2:418c546e6143c2f46c6e774a625472e6ae71e78bac4d5cadede1ce3d31d3700d' as const;
 
-export const maxDuration = 120; // AI pipeline can take ~60s
+export const maxDuration = 300; // AI pipeline: Gemini + Replicate + encoding (~30-60s typical)
 
 const MODEL_TEXT = 'gemini-3-flash-preview';
 
@@ -226,15 +226,68 @@ export async function POST(request: NextRequest) {
       disable_safety_checker: true,
     };
 
-    const fluxOutput = await replicate.run(FLUX_LORA_MODEL, { input: fluxInput }) as Array<{ url(): string }>;
+    // Community model with Cancel-After deadline (GPU auto-cancels if not done in 2min)
+    const REPLICATE_DEADLINE = '2m';
+    const replicateToken = process.env.REPLICATE_API_TOKEN!;
+    const modelVersion = FLUX_LORA_MODEL.split(':')[1];
 
-    if (!fluxOutput || fluxOutput.length === 0) throw new Error('No image generated');
+    const predictionResp = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${replicateToken}`,
+        'Content-Type': 'application/json',
+        'Cancel-After': REPLICATE_DEADLINE,
+        'Prefer': 'wait',
+      },
+      body: JSON.stringify({ version: modelVersion, input: fluxInput }),
+    });
+
+    if (!predictionResp.ok) {
+      const errBody = await predictionResp.text();
+      throw new Error(`Replicate API error ${predictionResp.status}: ${errBody}`);
+    }
+
+    let prediction = await predictionResp.json();
+
+    // If prediction hasn't completed yet (Prefer: wait timed out), poll until done
+    if (prediction.status !== 'succeeded') {
+      if (prediction.status === 'canceled' || prediction.status === 'aborted') {
+        throw new Error('Image generation timed out. Please try again.');
+      }
+      if (prediction.status === 'failed') {
+        throw new Error(`Image generation failed: ${prediction.error || 'unknown error'}`);
+      }
+      // Poll with replicate SDK
+      prediction = await replicate.wait(prediction);
+      if (prediction.status === 'canceled' || prediction.status === 'aborted') {
+        throw new Error('Image generation timed out. Please try again.');
+      }
+      if (prediction.status !== 'succeeded') {
+        throw new Error(`Image generation failed: ${prediction.error || 'unknown error'}`);
+      }
+    }
+
+    const fluxOutput = prediction.output;
+    if (!fluxOutput || !Array.isArray(fluxOutput) || fluxOutput.length === 0) throw new Error('No image generated');
+    const imageUrl = fluxOutput[0];
+    console.log(`[mint] STEP 2 (Replicate community, deadline=${REPLICATE_DEADLINE}): ${Date.now() - t1}ms`);
+
+    // ── DEPLOYMENT (uncomment to use dedicated GPU instead of community) ──
+    // const deployOwner = process.env.REPLICATE_DEPLOYMENT_OWNER;
+    // const deployName = process.env.REPLICATE_DEPLOYMENT_NAME;
+    // if (deployOwner && deployName) {
+    //   const prediction = await replicate.deployments.predictions.create(
+    //     deployOwner, deployName, { input: fluxInput },
+    //   );
+    //   const completed = await replicate.wait(prediction);
+    //   if (completed.status === 'failed') throw new Error(`Replicate prediction failed: ${completed.error}`);
+    //   const output = completed.output as string[];
+    //   if (!output || output.length === 0) throw new Error('No image generated from deployment');
+    //   imageUrl = output[0];
+    //   console.log(`[mint] STEP 2 (Replicate Deployment ${deployOwner}/${deployName}): ${Date.now() - t1}ms`);
+    // }
 
     const t2 = Date.now();
-    console.log(`[mint] STEP 2 (Replicate FLUX): ${t2 - t1}ms`);
-
-    // Download the generated image and convert to base64 (retry on transient DNS/network errors)
-    const imageUrl = fluxOutput[0].url();
     let imageBuffer: Buffer;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -320,8 +373,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('mint-request error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate mint data';
     return NextResponse.json(
-      { error: 'Failed to generate mint data' },
+      { error: message },
       { status: 500 },
     );
   }

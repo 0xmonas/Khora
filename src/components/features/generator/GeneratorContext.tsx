@@ -667,7 +667,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError(friendlyError(msg));
       setCurrentStep('input');
       setLoading(false);
-      setIsModalOpen(false);
+      // Keep modal open so user sees the error + retry button
+      setIsModalOpen(true);
       stopProgressBar();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
