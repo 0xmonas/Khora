@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     );
     url.searchParams.set('contractAddress', contract);
     url.searchParams.set('withMetadata', 'true');
+    url.searchParams.set('refreshCache', 'true');
     url.searchParams.set('limit', '100');
     if (startToken) url.searchParams.set('startToken', startToken);
 

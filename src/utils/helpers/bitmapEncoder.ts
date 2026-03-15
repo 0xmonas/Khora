@@ -229,7 +229,7 @@ interface RGBColor {
   
     // Build SVG
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 ${size} ${size}" shape-rendering="crispEdges">`;
-    svg += `<rect fill="#${C64_HEX[bgColor]}" width="${size}" height="${size}"/>`;
+    svg += `<rect fill="#${C64_HEX[bgColor]}" y="-0.5" width="${size}" height="${size + 1}"/>`;
   
     // One <path> per non-background color
     for (let color = 0; color < 16; color++) {

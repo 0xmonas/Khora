@@ -82,7 +82,7 @@ contract BOOARenderer is IBOOARenderer, Ownable {
 
         DynamicBufferLib.DynamicBuffer memory buf;
         buf.p('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">');
-        buf.p('<rect fill="#', bytes(_colorHex(bgColor)), '" width="64" height="64"/>');
+        buf.p('<rect fill="#', bytes(_colorHex(bgColor)), '" y="-0.5" width="64" height="65"/>');
 
         for (uint8 color; color < 16; ++color) {
             if (color == bgColor || counts[color] == 0) continue;

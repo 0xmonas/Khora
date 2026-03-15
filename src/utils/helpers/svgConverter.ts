@@ -114,7 +114,8 @@ export async function convertToSVG(imageUrl: string, size: number = 64): Promise
   }
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 ${w} ${h}" shape-rendering="crispEdges">`;
-  svg += `<rect fill="${bgColor}" width="${w}" height="${h}"/>`;
+  svg += `<rect fill="${bgColor}" y="-0.5" width="${w}" height="${h + 1}"/>`;
+
   svg += paths.join('');
   svg += '</svg>';
 
