@@ -297,15 +297,16 @@ export async function POST(request: NextRequest) {
 
     const t2 = Date.now();
     let imageBuffer: Buffer;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    const maxAttempts = 8;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const imageResp = await fetch(imageUrl);
         if (!imageResp.ok) throw new Error(`HTTP ${imageResp.status}`);
         imageBuffer = Buffer.from(await imageResp.arrayBuffer());
         break;
       } catch (dlErr) {
-        if (attempt === 4) throw new Error('Failed to download generated image after 5 attempts');
-        const delay = (attempt + 1) * 2000; // 2s, 4s, 6s, 8s
+        if (attempt === maxAttempts - 1) throw new Error(`Failed to download generated image after ${maxAttempts} attempts`);
+        const delay = (attempt + 1) * 2000 + 1000; // 3s, 5s, 7s, 9s, 11s, 13s, 15s
         console.warn(`[mint] Image download attempt ${attempt + 1} failed, retrying in ${delay / 1000}s...`, dlErr);
         await new Promise(r => setTimeout(r, delay));
       }
