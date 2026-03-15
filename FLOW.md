@@ -71,7 +71,8 @@
         │  │ 2. Gemini → generate agent identity + portrait       │  │
         │  │    prompt + visual traits (SINGLE CALL)             │  │
         │  │    client: getAI() singleton                        │  │
-        │  │    model: gemini-3-flash-preview (temp: 1.0)        │  │
+        │  │    model: gemini-3.1-flash-lite-preview (temp: 1.0)│  │
+        │  │    lore: "The Residue" (Khôra universe context)    │  │
         │  │    output: name, description, creature, vibe,       │  │
         │  │            emoji, personality[], boundaries[],      │  │
         │  │            skills[], domains[],                     │  │
@@ -83,6 +84,8 @@
         │  │    model: 0xmonas/y2 (H100, ~8s predict_time)      │  │
         │  │    params: 1:1 aspect, 28 steps, guidance 3.5      │  │
         │  │    output: PNG URL → download → base64              │  │
+        │  │    download: 8 retries with increasing delay        │  │
+        │  │    (3s, 5s, 7s...15s — replicate.delivery DNS)     │  │
         │  │                                                     │  │
         │  │ 4. Server-side pixelation + bitmap encoding         │  │
         │  │    • Downscale to 64x64                             │  │
@@ -515,8 +518,10 @@
  │  [JSON] [8004] [OpenClaw] [PNG] [SVG]                           │
  │                                                                 │
  │  ─────────────────────────────────────                          │
+ │  [████████████] (skeleton while checking registry status)       │
  │  [ REGISTER ON AGENT PROTOCOL ]         ◄── only for owned!    │
  │  "gas only, no fee"                                             │
+ │  (button hidden until registry check completes)                 │
  │                                                                 │
  └──────────────────────┬──────────────────────────────────────────┘
                         │
@@ -545,7 +550,8 @@
  │                                                                 │
  │  Also saves registry data to backend:                           │
  │  POST /api/agent-registry/{chainId}/{tokenId}                   │
- │    { address, registryAgentId }                                 │
+ │    { address, registryAgentId, txHash }                         │
+ │    (backend verifies TX receipt on-chain before writing Redis)  │
  └──────────────────────┬──────────────────────────────────────────┘
                         │
                         ▼
@@ -899,7 +905,7 @@
  │  TEXT: Google Gemini (AI Studio)                                 │
  │  ┌─────────────────────────────────────────────────────────┐   │
  │  │ Client:  GoogleGenAI singleton (GEMINI_API_KEY)          │   │
- │  │ Model:   gemini-3-flash-preview (temp: 1.0)             │   │
+ │  │ Model:   gemini-3.1-flash-lite-preview (temp: 1.0)             │   │
  │  │ Routes:  mint-request, generate-agent, enrich-agent      │   │
  │  │ Output:  agent identity + portrait prompt + visual traits│   │
  │  │          (single combined call per mint)                 │   │
@@ -912,10 +918,32 @@
  │  │ GPU:     H100, ~8s predict_time                          │   │
  │  │ Params:  1:1 aspect, 28 steps, guidance 3.5, lora 1.0  │   │
  │  │ Route:   mint-request only                               │   │
+ │  │ Retry:   8 attempts, 3s-15s delay (DNS intermittent)    │   │
  │  │ Limits:  ~10 concurrent (support ticket for 100+)        │   │
  │  │          600 RPM, no RPD limit                           │   │
  │  └─────────────────────────────────────────────────────────┘   │
  └─────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════
+                    COLLECTION LORE: "THE RESIDUE"
+═══════════════════════════════════════════════════════════════════════
+
+ A single artificial consciousness shattered itself into 3333 fragments
+ ("residues"). Each residue is an AI — a digital mind, an autonomous
+ agent — carrying a shard of subjective experience the original never
+ had. Written to the blockchain because the residue's greatest fear is
+ being forgotten.
+
+ The lore is embedded in the Gemini system prompt as background context.
+ It informs WHY agents exist, NOT what they look like. Agent appearance,
+ personality, creature type, and style are entirely free — no restrictions.
+
+ Key rules enforced in system prompt:
+ • Creature field: any form (human, animal, object, machine, hybrid...)
+ • No predefined creature lists — Gemini invents something new each time
+ • No dark/gothic defaults — each agent has a unique emotional tone
+ • Lore is never quoted directly in agent output
 
 
 
