@@ -5,6 +5,7 @@ import { validateInput } from '@/lib/api/api-helpers';
 import { enrichAgentSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import { sanitizeForPrompt } from '@/utils/helpers/sanitize';
+import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 
 export const maxDuration = 60;
 
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest) {
 
     const ai = getAI();
 
+    const skillsList = Array.from(ALL_OASF_SKILLS).join(', ');
+    const domainsList = Array.from(ALL_OASF_DOMAINS).join(', ');
+
     const systemInstruction = `You are an AI agent identity enricher. Given an existing agent's name, description, skills and domains from their on-chain registration, you fill in the missing personality fields.
 Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
 {
@@ -36,11 +40,24 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
   "emoji": "string (single emoji that fits this agent)",
   "personality": ["string array of 4-6 core behavior principles"],
   "boundaries": ["string array of 3-5 things this agent refuses to do"],
-  "skills": ["string array — include the existing skills plus any inferred ones"],
-  "domains": ["string array — include the existing domains plus any inferred ones"],
+  "skills": ["keep existing skills + pick additional ones from the OASF list below — use EXACT label text"],
+  "domains": ["keep existing domains + pick additional ones from the OASF list below — use EXACT label text"],
   "services": []
 }
-Base your enrichment on the agent's existing identity. Be consistent with their declared skills and domains.`;
+
+OASF SKILLS (pick from this list ONLY):
+${skillsList}
+
+OASF DOMAINS (pick from this list ONLY):
+${domainsList}
+
+COHERENCE RULES:
+- Keep the original name and description (enhance description only if it's very short).
+- personality MUST reflect the agent's skills/domains. Not generic AI platitudes.
+- boundaries MUST be consistent with the agent's expertise.
+- creature and vibe should feel natural for the skill/domain combination.
+- If existing skills/domains are already OASF labels, keep them. If they're not in the list, find the closest OASF match and include both.
+IMPORTANT: All skills and domains in the output MUST be exact matches from the OASF lists above.`;
 
     const response = await ai.models.generateContent({
       model: MODEL_TEXT,
@@ -87,9 +104,11 @@ Existing domains: ${JSON.stringify((domains ?? []).map(sanitizeForPrompt))}`,
 
     agent.personality = agent.personality || [];
     agent.boundaries = agent.boundaries || [];
-    agent.skills = agent.skills || skills;
-    agent.domains = agent.domains || domains;
     agent.services = [];
+
+    // Validate skills/domains against OASF taxonomy — filter out hallucinated entries
+    agent.skills = (agent.skills || skills || []).filter((s: string) => ALL_OASF_SKILLS.has(s));
+    agent.domains = (agent.domains || domains || []).filter((d: string) => ALL_OASF_DOMAINS.has(d));
 
     return NextResponse.json({ agent });
   } catch (error) {
