@@ -113,3 +113,25 @@ export async function incrementDailyCap(): Promise<void> {
     await redis.expire(DAILY_CAP_KEY, 86400); // 24 hours TTL
   }
 }
+
+/**
+ * Per-wallet daily chat message quota.
+ * Limits how many messages a wallet can send to agent chat per day.
+ */
+const CHAT_QUOTA_PREFIX = 'chat:daily:';
+export const CHAT_QUOTA_MAX = 50;
+const CHAT_QUOTA_TTL = 24 * 60 * 60; // 24 hours
+
+export async function checkChatQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
+  const key = `${CHAT_QUOTA_PREFIX}${address.toLowerCase()}`;
+  const count = (await redis.get<number>(key)) ?? 0;
+  return { allowed: count < CHAT_QUOTA_MAX, remaining: Math.max(0, CHAT_QUOTA_MAX - count) };
+}
+
+export async function incrementChatCount(address: string): Promise<void> {
+  const key = `${CHAT_QUOTA_PREFIX}${address.toLowerCase()}`;
+  const newCount = await redis.incr(key);
+  if (newCount === 1) {
+    await redis.expire(key, CHAT_QUOTA_TTL);
+  }
+}

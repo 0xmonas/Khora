@@ -10,6 +10,7 @@ import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import type { AgentService } from '@/types/agent';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
+import { skillLabelsToSlugs, domainLabelsToSlugs, skillSlugsToLabels, domainSlugsToLabels } from '@/lib/oasf-taxonomy';
 
 export type BridgeStep = 'select' | 'configure' | 'registering' | 'complete';
 
@@ -205,14 +206,15 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
           }));
           setErc8004Services(services);
 
-          const allSkills: string[] = [];
-          const allDomains: string[] = [];
+          const allSkillSlugs: string[] = [];
+          const allDomainSlugs: string[] = [];
           for (const svc of reg.services || []) {
-            if (svc.skills) allSkills.push(...svc.skills);
-            if (svc.domains) allDomains.push(...svc.domains);
+            if (svc.skills) allSkillSlugs.push(...svc.skills);
+            if (svc.domains) allDomainSlugs.push(...svc.domains);
           }
-          if (allSkills.length) setSelectedSkills(Array.from(new Set(allSkills)));
-          if (allDomains.length) setSelectedDomains(Array.from(new Set(allDomains)));
+          // Convert on-chain OASF slugs → human-readable labels for UI
+          if (allSkillSlugs.length) setSelectedSkills(Array.from(new Set(skillSlugsToLabels(allSkillSlugs))));
+          if (allDomainSlugs.length) setSelectedDomains(Array.from(new Set(domainSlugsToLabels(allDomainSlugs))));
           if (reg.x402Support !== undefined) setX402Support(!!reg.x402Support);
           if (reg.supportedTrust?.length) setSupportedTrust(reg.supportedTrust);
         }
@@ -261,25 +263,28 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const buildRegistrationJSON = useCallback(() => {
     const cleanedServices = erc8004Services.filter(s => s.endpoint.trim() || s.name === 'OASF');
 
+    // Convert UI labels → OASF slugs for ERC-8004 registration
+    const skillSlugs = skillLabelsToSlugs(selectedSkills);
+    const domainSlugs = domainLabelsToSlugs(selectedDomains);
     let hasOASF = false;
     const enrichedServices = cleanedServices.map(s => {
       if (s.name === 'OASF') {
         hasOASF = true;
         return {
           ...s,
-          skills: Array.from(new Set([...(s.skills || []), ...selectedSkills])),
-          domains: Array.from(new Set([...(s.domains || []), ...selectedDomains])),
+          skills: Array.from(new Set([...(s.skills || []), ...skillSlugs])),
+          domains: Array.from(new Set([...(s.domains || []), ...domainSlugs])),
         };
       }
       return s;
     });
-    if (!hasOASF && (selectedSkills.length || selectedDomains.length)) {
+    if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
       enrichedServices.push({
         name: 'OASF',
         endpoint: '',
         version: '0.8.0',
-        skills: selectedSkills,
-        domains: selectedDomains,
+        skills: skillSlugs,
+        domains: domainSlugs,
       });
     }
 

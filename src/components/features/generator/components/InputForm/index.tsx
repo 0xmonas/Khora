@@ -911,7 +911,7 @@ function TaxonomyPicker({
     .map(cat => ({
       ...cat,
       items: lowerSearch
-        ? cat.items.filter(item => item.toLowerCase().includes(lowerSearch))
+        ? cat.items.filter(item => item.label.toLowerCase().includes(lowerSearch))
         : cat.items,
     }))
     .filter(cat => cat.items.length > 0);
@@ -967,7 +967,7 @@ function TaxonomyPicker({
       <div className="space-y-0.5 max-h-[200px] overflow-y-auto">
         {filteredCats.map(cat => {
           const isOpen = openCats.has(cat.label) || !!lowerSearch;
-          const catSelected = cat.items.filter(i => selected.includes(i)).length;
+          const catSelected = cat.items.filter(i => selected.includes(i.label)).length;
 
           return (
             <div key={cat.label}>
@@ -989,16 +989,16 @@ function TaxonomyPicker({
                 <div className="flex flex-wrap gap-1 pb-1.5 pl-3.5">
                   {cat.items.map(item => (
                     <button
-                      key={item}
+                      key={item.label}
                       type="button"
-                      onClick={() => onToggle(item)}
+                      onClick={() => onToggle(item.label)}
                       className={`px-1.5 py-0.5 font-mono text-[9px] border transition-colors ${
-                        selected.includes(item)
+                        selected.includes(item.label)
                           ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 border-neutral-700 dark:border-neutral-200'
                           : 'bg-transparent text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-500'
                       }`}
                     >
-                      {item}
+                      {item.label}
                     </button>
                   ))}
                 </div>

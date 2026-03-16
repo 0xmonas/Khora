@@ -13,6 +13,7 @@ import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
+import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
 
 export type Mode = 'create' | 'import';
 export type Step = 'input' | 'generating' | 'confirming' | 'pending' | 'complete' | 'registering' | 'register_complete' | 'updating' | 'update_complete';
@@ -500,26 +501,28 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           return s;
         });
 
-      // Merge skills/domains into OASF service
+      // Merge skills/domains into OASF service (convert UI labels → OASF slugs for ERC-8004)
+      const skillSlugs = skillLabelsToSlugs(selectedSkills);
+      const domainSlugs = domainLabelsToSlugs(selectedDomains);
       let hasOASF = false;
       const enrichedServices = cleanedServices.map(s => {
         if (s.name === 'OASF') {
           hasOASF = true;
           return {
             ...s,
-            skills: Array.from(new Set([...(s.skills || []), ...selectedSkills])),
-            domains: Array.from(new Set([...(s.domains || []), ...selectedDomains])),
+            skills: Array.from(new Set([...(s.skills || []), ...skillSlugs])),
+            domains: Array.from(new Set([...(s.domains || []), ...domainSlugs])),
           };
         }
         return s;
       });
-      if (!hasOASF && (selectedSkills.length || selectedDomains.length)) {
+      if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
         enrichedServices.push({
           name: 'OASF',
           endpoint: '',
           version: '0.8.0',
-          skills: selectedSkills,
-          domains: selectedDomains,
+          skills: skillSlugs,
+          domains: domainSlugs,
         });
       }
 

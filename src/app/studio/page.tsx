@@ -52,6 +52,14 @@ const TOOLS: ToolCard[] = [
     media: 'banner-builder.png',
     tag: 'NEW',
   },
+  {
+    id: 'agent-chat',
+    title: 'Agent Chat',
+    description: 'Talk to your BOOA agents. Each agent responds in character based on its personality and expertise.',
+    href: '/studio/agent-chat',
+    media: 'agent-chat.png',
+    tag: 'NEW',
+  },
 ];
 
 function isVideo(filename: string) {

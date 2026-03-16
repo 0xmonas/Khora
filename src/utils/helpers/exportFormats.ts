@@ -1,8 +1,13 @@
 import type { KhoraAgent, ERC8004Registration } from '@/types/agent';
+import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
 
 export function toERC8004(agent: KhoraAgent): ERC8004Registration {
   // Include user-added services (filter empty endpoints except OASF which may be metadata-only)
   const validServices = agent.services.filter(s => s.endpoint.trim() || s.name === 'OASF');
+
+  // Convert UI labels → OASF slugs for ERC-8004 registration
+  const skillSlugs = skillLabelsToSlugs(agent.skills || []);
+  const domainSlugs = domainLabelsToSlugs(agent.domains || []);
 
   // Merge agent-level skills/domains into existing OASF service
   let hasOASF = false;
@@ -11,21 +16,21 @@ export function toERC8004(agent: KhoraAgent): ERC8004Registration {
       hasOASF = true;
       return {
         ...s,
-        skills: Array.from(new Set([...(s.skills || []), ...(agent.skills || [])])),
-        domains: Array.from(new Set([...(s.domains || []), ...(agent.domains || [])])),
+        skills: Array.from(new Set([...(s.skills || []), ...skillSlugs])),
+        domains: Array.from(new Set([...(s.domains || []), ...domainSlugs])),
       };
     }
     return s;
   });
 
   // Auto-create OASF service for skills/domains if none exists
-  if (!hasOASF && (agent.skills?.length || agent.domains?.length)) {
+  if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
     enrichedServices.push({
       name: 'OASF',
       endpoint: '',
       version: '0.8.0',
-      skills: agent.skills || [],
-      domains: agent.domains || [],
+      skills: skillSlugs,
+      domains: domainSlugs,
     });
   }
 

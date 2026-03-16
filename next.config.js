@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'nft-cdn.alchemy.com' },
+      { protocol: 'https', hostname: '*.g.alchemy.com' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+    ],
+  },
   webpack: (config) => {
     // MetaMask SDK requires @react-native-async-storage which doesn't exist in web context
     config.resolve.fallback = {
