@@ -8,6 +8,7 @@ import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
+import { toAgentDataURI } from '@/utils/helpers/exportFormats';
 import type { AgentService } from '@/types/agent';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 import { skillLabelsToSlugs, domainLabelsToSlugs, skillSlugsToLabels, domainSlugsToLabels } from '@/lib/oasf-taxonomy';
@@ -294,6 +295,17 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Include nftOrigin for immutable event log linking (only for new NFTs, not existing 8004 agents)
+    const nftOriginData = selectedNFT && !isExistingAgent && address
+      ? {
+          nftOrigin: {
+            contract: `eip155:${selectedNFT.chainId}:${selectedNFT.contractAddress}`,
+            tokenId: Number(selectedNFT.tokenId),
+            originalOwner: address.toLowerCase(),
+          },
+        }
+      : {};
+
     return {
       type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1' as const,
       name: agentName,
@@ -304,8 +316,9 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       x402Support,
       supportedTrust: supportedTrust.length ? supportedTrust : undefined,
       updatedAt: Math.floor(Date.now() / 1000),
+      ...nftOriginData,
     };
-  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust]);
+  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust, selectedNFT, isExistingAgent, address]);
 
   // Register NEW agent on Identity Registry
   const register = useCallback(async () => {
@@ -344,7 +357,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       if (new Blob([jsonStr]).size > MAX_AGENT_URI_BYTES) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
-      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+      const agentURI = toAgentDataURI(registration);
 
       const hash = await writeContractAsync({
         address: registryAddress,
@@ -431,7 +444,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       if (new Blob([jsonStr]).size > MAX_AGENT_URI_BYTES) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
-      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+      const agentURI = toAgentDataURI(registration);
 
       const hash = await writeContractAsync({
         address: registryAddress,

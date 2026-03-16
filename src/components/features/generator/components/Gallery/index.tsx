@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search } from 'lucide-react';
 import Image from 'next/image';
-import { useChainId, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
+import { useChainId, useReadContract, useWriteContract, usePublicClient, useAccount } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import { shape } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
@@ -13,7 +13,7 @@ import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
-import { toERC8004 } from '@/utils/helpers/exportFormats';
+import { toERC8004, toAgentDataURI, utf8ToBase64 } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
 
 interface OnChainTrait {
@@ -144,6 +144,7 @@ async function downloadFormat(
 
 function TokenDetail({ token }: { token: GalleryToken }) {
   const chainId = useChainId();
+  const { address } = useAccount();
   const contract = getV2Address(chainId);
   const storage = getV2StorageAddress(chainId);
   const isMainnet = chainId === shape.id;
@@ -190,12 +191,17 @@ function TokenDetail({ token }: { token: GalleryToken }) {
       // Build agent from Upstash metadata or on-chain traits
       const agent = metadata || traitsToAgent(traits);
 
-      // Build ERC-8004 registration JSON
-      const registration = toERC8004(agent);
+      // Build ERC-8004 registration JSON with nftOrigin for immutable linking
+      const nftOrigin = address ? {
+        contract: `eip155:${chainId}:${contract}`,
+        tokenId: Number(token.tokenId),
+        originalOwner: address,
+      } : undefined;
+      const registration = toERC8004(agent, nftOrigin);
 
       // Fetch on-chain SVG and embed as data URI (WA005 fix)
       if (token.svg) {
-        registration.image = `data:image/svg+xml;base64,${btoa(token.svg)}`;
+        registration.image = `data:image/svg+xml;base64,${utf8ToBase64(token.svg)}`;
       }
 
       // Strip empty endpoint from OASF (WA009 fix)
@@ -205,9 +211,8 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         }
       }
 
-      // Encode as on-chain data URI
-      const jsonStr = JSON.stringify(registration);
-      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+      // Encode as on-chain data URI (UTF-8 safe)
+      const agentURI = toAgentDataURI(registration);
 
       // Register on Identity Registry
       const registryAddress = getRegistryAddress(chainId);

@@ -10,7 +10,7 @@ import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
 import { CHAIN_CONFIG } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
-import { toERC8004 } from '@/utils/helpers/exportFormats';
+import { toERC8004, toAgentDataURI, type NFTOriginInput } from '@/utils/helpers/exportFormats';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
@@ -347,9 +347,17 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       const chainId = mint.chainId;
       const registryAddress = getRegistryAddress(chainId);
       const booaTokenId = Number(mintedTokenId);
+      const booaAddress = getV2Address(chainId);
+
+      // Build nftOrigin for immutable event log linking
+      const nftOrigin: NFTOriginInput = {
+        contract: `eip155:${chainId}:${booaAddress}`,
+        tokenId: booaTokenId,
+        originalOwner: mint.address!,
+      };
 
       // Build ERC-8004 registration JSON
-      const registration = toERC8004(agent);
+      const registration = toERC8004(agent, nftOrigin);
 
       // Fetch the on-chain SVG from BOOA tokenURI (same image the NFT uses)
       const onChainImage = await fetchBOOAImageURI(publicClient, chainId, mintedTokenId);
@@ -373,9 +381,8 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }];
       }
 
-      // Encode as on-chain data URI
-      const jsonStr = JSON.stringify(registration);
-      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+      // Encode as on-chain data URI (UTF-8 safe)
+      const agentURI = toAgentDataURI(registration);
 
       let hash: `0x${string}`;
 
@@ -552,8 +559,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }],
       };
 
-      const jsonStr = JSON.stringify(registration);
-      const agentURI = `data:application/json;base64,${btoa(jsonStr)}`;
+      const agentURI = toAgentDataURI(registration);
 
       const hash = await writeRegister({
         address: registryAddress,
@@ -747,7 +753,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         downloadBlob(svgBlob, `${fileName}.svg`);
       } else if (format === 'erc8004') {
         const { toERC8004 } = await import('@/utils/helpers/exportFormats');
-        const registration = toERC8004(agent);
+        // Include nftOrigin if we have a minted token
+        const origin = mintedTokenId !== null && mintedTokenId !== undefined && mint.address
+          ? { contract: `eip155:${mint.chainId}:${getV2Address(mint.chainId)}`, tokenId: Number(mintedTokenId), originalOwner: mint.address }
+          : undefined;
+        const registration = toERC8004(agent, origin);
         if (pixelatedImage) {
           registration.image = pixelatedImage;
         }

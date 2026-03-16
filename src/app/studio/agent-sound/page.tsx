@@ -320,7 +320,6 @@ export default function AgentSoundPage() {
   const [bpm, setBpm] = useState(140);
   const [params, setParams] = useState<SynthParams>(DEFAULT_PARAMS);
   const synthRef = useRef<SynthState | null>(null);
-  const chain = network === 'mainnet' ? 'shape' : 'shape-sepolia';
 
   const updateParam = (key: keyof SynthParams, value: number) => {
     setParams(prev => ({ ...prev, [key]: value }));
@@ -338,18 +337,18 @@ export default function AgentSoundPage() {
     setError(''); setLoading(true); setGrid(null); setAgentName(''); setAgentImage(''); setCurrentRow(-1);
     if (synthRef.current) { synthRef.current.stopFlag.stopped = true; synthRef.current.ctx.close(); synthRef.current = null; setIsPlaying(false); }
     try {
-      const res = await fetch(`/api/agent-card?chain=${chain}&agentId=${targetId}`);
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Agent not found'); }
+      const res = await fetch(`/api/booa-token?network=${network}&tokenId=${targetId}`);
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Token not found in BOOA collection'); }
       const data = await res.json();
-      const imageUri: string = data.agent.image || '';
-      setTokenId(String(targetId)); setAgentName(data.agent.name || `Agent #${targetId}`); setAgentImage(imageUri);
+      const imageUri: string = data.image || '';
+      setTokenId(String(targetId)); setAgentName(data.name || `BOOA #${targetId}`); setAgentImage(imageUri);
       let svg = '';
       if (imageUri.startsWith('data:image/svg+xml;base64,')) svg = atob(imageUri.split(',')[1]);
       else if (imageUri.startsWith('data:image/svg+xml,')) svg = decodeURIComponent(imageUri.split(',')[1]);
-      if (!svg) throw new Error('No SVG data found');
+      if (!svg) throw new Error('No SVG data found — this token may not have pixel art');
       setGrid(svgToPixelGrid(svg));
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to load agent'); } finally { setLoading(false); }
-  }, [tokenId, chain]);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to load token'); } finally { setLoading(false); }
+  }, [tokenId, network]);
 
   const handlePrev = () => { const id = Number(tokenId); if (id > 0) fetchAgent(id - 1); };
   const handleNext = () => fetchAgent(Number(tokenId) + 1);
@@ -454,7 +453,7 @@ export default function AgentSoundPage() {
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="text-[11px] text-foreground truncate" style={font}>{agentName}</p>
-                              <p className="text-[9px] text-muted-foreground/60" style={font}>{chain} #{tokenId}</p>
+                              <p className="text-[9px] text-muted-foreground/60" style={font}>BOOA #{tokenId}</p>
                             </div>
                             <span className="text-[10px] tabular-nums" style={{ ...font, color: PINK }}>{bpm} BPM</span>
                           </div>

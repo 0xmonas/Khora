@@ -1,7 +1,31 @@
 import type { KhoraAgent, ERC8004Registration } from '@/types/agent';
 import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
 
-export function toERC8004(agent: KhoraAgent): ERC8004Registration {
+/**
+ * UTF-8 safe base64 encoding.
+ * `btoa()` only handles Latin-1 — multi-byte chars like "ô" in "Khôra" corrupt the output.
+ */
+export function utf8ToBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** Build a `data:application/json;base64,...` URI from a registration object. */
+export function toAgentDataURI(registration: object): string {
+  return `data:application/json;base64,${utf8ToBase64(JSON.stringify(registration))}`;
+}
+
+export interface NFTOriginInput {
+  contract: string;  // CAIP-10: eip155:{chainId}:{address}
+  tokenId: number;
+  originalOwner: string;
+}
+
+export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput): ERC8004Registration {
   // Include user-added services (filter empty endpoints except OASF which may be metadata-only)
   const validServices = agent.services.filter(s => s.endpoint.trim() || s.name === 'OASF');
 
@@ -51,6 +75,14 @@ export function toERC8004(agent: KhoraAgent): ERC8004Registration {
     x402Support: agent.x402Support ?? false,
     supportedTrust: agent.supportedTrust?.length ? agent.supportedTrust : undefined,
     updatedAt: Math.floor(Date.now() / 1000),
+    // Immutable link to source NFT — preserved in Registered event log forever
+    ...(nftOrigin ? {
+      nftOrigin: {
+        contract: nftOrigin.contract,
+        tokenId: nftOrigin.tokenId,
+        originalOwner: nftOrigin.originalOwner.toLowerCase(),
+      },
+    } : {}),
   };
 }
 

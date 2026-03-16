@@ -36,6 +36,12 @@ export interface ERC8004Registration {
   registrations?: { agentId: number; agentRegistry: string }[];
   supportedTrust?: string[];
   updatedAt?: number;
+  // Links this 8004 agent to its source NFT (immutable in Registered event log)
+  nftOrigin?: {
+    contract: string;  // CAIP-10 format: eip155:{chainId}:{address}
+    tokenId: number;
+    originalOwner: string; // wallet that registered (lowercase)
+  };
 }
 
 // Supported chains for ERC-8004 Identity Registry (Alchemy-supported only)
