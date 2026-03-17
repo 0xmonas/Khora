@@ -10,7 +10,7 @@ import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
 import { CHAIN_CONFIG } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
-import { toERC8004, toAgentDataURI, type NFTOriginInput } from '@/utils/helpers/exportFormats';
+import { toERC8004, toAgentDataURI, type NFTOriginInput, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
@@ -356,8 +356,13 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         originalOwner: mint.address!,
       };
 
-      // Build ERC-8004 registration JSON
-      const registration = toERC8004(agent, nftOrigin);
+      // Build ERC-8004 registration JSON with bidirectional link (IA004)
+      const regAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryInfo: RegistryInfo = {
+        agentRegistry: `eip155:${chainId}:${regAddr}`,
+        ...(mode === 'import' && importedRegistryTokenId ? { agentId: importedRegistryTokenId } : {}),
+      };
+      const registration = toERC8004(agent, nftOrigin, registryInfo);
 
       // Fetch the on-chain SVG from BOOA tokenURI (same image the NFT uses)
       const onChainImage = await fetchBOOAImageURI(publicClient, chainId, mintedTokenId);
@@ -370,15 +375,6 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         if (svc.name === 'OASF' && !svc.endpoint.trim()) {
           delete (svc as unknown as Record<string, unknown>).endpoint;
         }
-      }
-
-      // Add registrations array for bidirectional linking
-      const registryAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
-      if (mode === 'import' && importedRegistryTokenId) {
-        registration.registrations = [{
-          agentId: importedRegistryTokenId,
-          agentRegistry: `eip155:${chainId}:${registryAddr}`,
-        }];
       }
 
       // Encode as on-chain data URI (UTF-8 safe)
@@ -527,7 +523,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         enrichedServices.push({
           name: 'OASF',
           endpoint: '',
-          version: '0.8.0',
+          version: '1.0.0',
           skills: skillSlugs,
           domains: domainSlugs,
         });

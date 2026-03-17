@@ -5,7 +5,7 @@ import { useAccount, useChainId, useWriteContract, usePublicClient, useSwitchCha
 import { getPublicClient } from '@wagmi/core';
 import { decodeEventLog } from 'viem';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { toAgentDataURI } from '@/utils/helpers/exportFormats';
@@ -283,7 +283,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       enrichedServices.push({
         name: 'OASF',
         endpoint: '',
-        version: '0.8.0',
+        version: '1.0.0',
         skills: skillSlugs,
         domains: domainSlugs,
       });
@@ -357,6 +357,10 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       if (new Blob([jsonStr]).size > MAX_AGENT_URI_BYTES) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
+      // Add registrations array for bidirectional on-chain link (IA004)
+      const regAddr = targetChainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      (registration as Record<string, unknown>).registrations = [{ agentRegistry: `eip155:${targetChainId}:${regAddr}` }];
+
       const agentURI = toAgentDataURI(registration);
 
       const hash = await writeContractAsync({
@@ -444,6 +448,13 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       if (new Blob([jsonStr]).size > MAX_AGENT_URI_BYTES) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
+      // Add registrations array with agentId for bidirectional on-chain link (IA004)
+      const regAddr = agentChainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      (registration as Record<string, unknown>).registrations = [{
+        agentId: agentTokenId,
+        agentRegistry: `eip155:${agentChainId}:${regAddr}`,
+      }];
+
       const agentURI = toAgentDataURI(registration);
 
       const hash = await writeContractAsync({

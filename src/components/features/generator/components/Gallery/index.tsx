@@ -12,8 +12,8 @@ import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
-import { toERC8004, toAgentDataURI, utf8ToBase64 } from '@/utils/helpers/exportFormats';
+import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { toERC8004, toAgentDataURI, utf8ToBase64, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
 
 interface OnChainTrait {
@@ -197,7 +197,9 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         tokenId: Number(token.tokenId),
         originalOwner: address,
       } : undefined;
-      const registration = toERC8004(agent, nftOrigin);
+      const registryAddr = chainId === shape.id ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryInfo: RegistryInfo = { agentRegistry: `eip155:${chainId}:${registryAddr}` };
+      const registration = toERC8004(agent, nftOrigin, registryInfo);
 
       // Fetch on-chain SVG and embed as data URI (WA005 fix)
       if (token.svg) {

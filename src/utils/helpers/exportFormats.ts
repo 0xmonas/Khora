@@ -25,7 +25,12 @@ export interface NFTOriginInput {
   originalOwner: string;
 }
 
-export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput): ERC8004Registration {
+export interface RegistryInfo {
+  agentId?: number;
+  agentRegistry: string; // CAIP-2: eip155:{chainId}:{registryAddress}
+}
+
+export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registryInfo?: RegistryInfo): ERC8004Registration {
   // Include user-added services (filter empty endpoints except OASF which may be metadata-only)
   const validServices = agent.services.filter(s => s.endpoint.trim() || s.name === 'OASF');
 
@@ -52,7 +57,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput): ERC800
     enrichedServices.push({
       name: 'OASF',
       endpoint: '',
-      version: '0.8.0',
+      version: '1.0.0',
       skills: skillSlugs,
       domains: domainSlugs,
     });
@@ -61,7 +66,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput): ERC800
   // Fix OASF version: ensure semver format (IA026)
   for (const s of enrichedServices) {
     if (s.name === 'OASF' && s.version && !/^\d+\.\d+/.test(s.version)) {
-      s.version = '0.8.0';
+      s.version = '1.0.0';
     }
   }
 
@@ -82,6 +87,13 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput): ERC800
         tokenId: nftOrigin.tokenId,
         originalOwner: nftOrigin.originalOwner.toLowerCase(),
       },
+    } : {}),
+    // Bidirectional on-chain link (IA004 fix)
+    ...(registryInfo ? {
+      registrations: [{
+        ...(registryInfo.agentId !== undefined ? { agentId: registryInfo.agentId } : {}),
+        agentRegistry: registryInfo.agentRegistry,
+      }],
     } : {}),
   };
 }
