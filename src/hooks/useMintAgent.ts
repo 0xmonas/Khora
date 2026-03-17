@@ -160,7 +160,10 @@ export function useMintAgent() {
   }
 
   // Step 1: Request server to generate + sign
-  const requestMint = useCallback(async (): Promise<MintRequestData | null> => {
+  const requestMint = useCallback(async (opts?: {
+    skills?: string[];
+    domains?: string[];
+  }): Promise<MintRequestData | null> => {
     if (!isConnected || !address) {
       setGenerateError('Your wallet is not connected. Please connect your wallet and try again.');
       return null;
@@ -173,7 +176,10 @@ export function useMintAgent() {
       const response = await fetch('/api/mint-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(opts ? {
+          skills: opts.skills ?? [],
+          domains: opts.domains ?? [],
+        } : {}),
       });
 
       const data = await response.json();

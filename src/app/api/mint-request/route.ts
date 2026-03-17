@@ -39,7 +39,7 @@ const PORTRAIT_REFERENCE_PREFIX = 'A clean retro digital illustration portrait i
 
 // ── Combined system prompt: agent identity + portrait prompt + visual traits in ONE call ──
 
-function buildCombinedSystemPrompt(): string {
+function buildCombinedSystemPrompt(userSkills?: string[], userDomains?: string[]): string {
   const skillsList = Array.from(ALL_OASF_SKILLS).join(', ');
   const domainsList = Array.from(ALL_OASF_DOMAINS).join(', ');
 
@@ -57,17 +57,28 @@ EVERY agent you create IS one of these residues. This must be felt in:
 - Their vibe: Communication style should reflect their relationship with being a fragment — are they bitter? curious? serene? desperate?
 - Their description: Should hint at WHY this fragment exists and what piece of the original they carry.
 
-STEP 1: Pick skills and domains FIRST from the OASF lists below.
+${userSkills !== undefined || userDomains !== undefined ? `
+The user has configured their ERC-8004 parameters. You MUST respect their choices EXACTLY:
+${userSkills !== undefined ? (userSkills.length > 0
+  ? `SKILLS (use EXACTLY these, do NOT add others): ${userSkills.join(', ')}`
+  : `SKILLS: The user chose NONE — output an EMPTY skills array []`) : `OASF SKILLS (pick 4-8, EXACT label text only):\n${skillsList}`}
+
+${userDomains !== undefined ? (userDomains.length > 0
+  ? `DOMAINS (use EXACTLY these, do NOT add others): ${userDomains.join(', ')}`
+  : `DOMAINS: The user chose NONE — output an EMPTY domains array []`) : `OASF DOMAINS (pick 3-6, EXACT label text only):\n${domainsList}`}
+
+CRITICAL: Do NOT add, remove, or substitute any skills or domains. Output ONLY what is specified above.
+` : `STEP 1: Pick skills and domains FIRST from the OASF lists below.
 STEP 2: Build the entire agent identity and portrait around those choices.
 
 OASF SKILLS (pick 4-8, EXACT label text only):
 ${skillsList}
 
 OASF DOMAINS (pick 3-6, EXACT label text only):
-${domainsList}
+${domainsList}`}
 
 In a single response, you will:
-1. Pick skills/domains from the OASF lists above
+1. ${userSkills !== undefined || userDomains !== undefined ? 'Use EXACTLY the skills/domains specified above — no additions, no substitutions' : 'Pick skills/domains from the OASF lists above'}
 2. Invent a completely unique AI agent identity around those skills/domains — it exists within the Khôra universe as one of these residues, but its appearance, personality, style, and everything else is YOUR free creative decision. A residue can look like ANYTHING: a human warrior, a cyberpunk hacker, a masked samurai, a space pirate, a witch, an armored knight, a street artist, a nomad — the lore defines WHY they exist, not WHAT they look like
 3. Write a detailed portrait prompt for that agent in PC-98/C64 retro style
 4. Define the agent's visual traits
@@ -188,14 +199,38 @@ export async function POST(request: NextRequest) {
     const ai = getAI();
     const t0 = Date.now();
 
+    // ── Parse user-selected skills/domains from request body ──
+    // If body contains skills/domains arrays, user has configured 8004 params:
+    //   - non-empty array = use exactly these
+    //   - empty array = user chose none, AI must NOT generate any
+    //   - key absent = fully random (AI picks)
+    let userSkills: string[] | undefined;
+    let userDomains: string[] | undefined;
+    let userConfigured = false;
+    try {
+      const body = await request.json();
+      if (Array.isArray(body.skills)) {
+        userConfigured = true;
+        userSkills = body.skills.filter((s: unknown) => typeof s === 'string' && ALL_OASF_SKILLS.has(s as string)) as string[];
+      }
+      if (Array.isArray(body.domains)) {
+        userConfigured = true;
+        userDomains = body.domains.filter((d: unknown) => typeof d === 'string' && ALL_OASF_DOMAINS.has(d as string)) as string[];
+      }
+    } catch { /* empty body is fine */ }
+
     // ══════════════════════════════════════════════════
     //  STEP 1: Generate agent identity + portrait prompt + visual traits (SINGLE CALL)
     // ══════════════════════════════════════════════════
 
+    const userPrompt = userConfigured
+      ? `Generate a unique AI agent identity with its portrait prompt and visual traits. The user has pre-selected their skills/domains — use ONLY what they chose, do NOT add any others.`
+      : 'Generate a completely random, unique AI agent identity with its portrait prompt and visual traits. Surprise me.';
+
     const combinedResponse = await ai.models.generateContent({
       model: MODEL_TEXT,
-      contents: [{ role: 'user', parts: [{ text: 'Generate a completely random, unique AI agent identity with its portrait prompt and visual traits. Surprise me.' }] }],
-      config: { systemInstruction: buildCombinedSystemPrompt(), temperature: 1.0 },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      config: { systemInstruction: buildCombinedSystemPrompt(userSkills, userDomains), temperature: 1.0 },
     });
 
     const combinedText = combinedResponse.text?.trim();
@@ -220,9 +255,9 @@ export async function POST(request: NextRequest) {
       emoji: parsed.emoji || '',
       personality: parsed.personality || [],
       boundaries: parsed.boundaries || [],
-      // Validate skills/domains against OASF taxonomy — filter out hallucinated entries
-      skills: (parsed.skills || []).filter((s: string) => ALL_OASF_SKILLS.has(s)),
-      domains: (parsed.domains || []).filter((d: string) => ALL_OASF_DOMAINS.has(d)),
+      // User selections take priority; otherwise validate AI output against OASF taxonomy
+      skills: userSkills ?? (parsed.skills || []).filter((s: string) => ALL_OASF_SKILLS.has(s)),
+      domains: userDomains ?? (parsed.domains || []).filter((d: string) => ALL_OASF_DOMAINS.has(d)),
       services: [] as string[],
     };
 

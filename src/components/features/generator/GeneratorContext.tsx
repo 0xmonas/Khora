@@ -624,7 +624,12 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Step 1: Server generates AI agent + pixelates + encodes bitmap + signs packet
-      const data = await mint.requestMint();
+      // If user configured ANY 8004 param, send both skills+domains (empty array = "none selected, don't generate")
+      const userConfigured = selectedSkills.length > 0 || selectedDomains.length > 0;
+      const data = await mint.requestMint(userConfigured ? {
+        skills: selectedSkills,
+        domains: selectedDomains,
+      } : undefined);
 
       if (!data) {
         // requestMint sets its own error via generateError
