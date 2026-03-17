@@ -7,6 +7,7 @@ import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incre
 import { signMintPacket, createDeadline } from '@/lib/server/signer';
 import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
+import { EYEWEAR_POOL, HEADWEAR_POOL, OUTFIT_POOL, CREATURE_POOL, samplePool } from '@/lib/trait-pools';
 
 // Reuse AI client across requests (module-level singleton)
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
@@ -39,23 +40,41 @@ const PORTRAIT_REFERENCE_PREFIX = 'A clean retro digital illustration portrait i
 
 // ── Combined system prompt: agent identity + portrait prompt + visual traits in ONE call ──
 
-function buildCombinedSystemPrompt(userSkills?: string[], userDomains?: string[]): string {
+interface PreRolledTraits {
+  creature: string;
+  outfit: string;
+  eyewear: string;
+  headwear: string;
+  memeCore: number;
+  traitIntensity: number;
+}
+
+function preRollTraits(): PreRolledTraits {
+  return {
+    creature: samplePool(CREATURE_POOL, 1)[0] as string,
+    outfit: samplePool(OUTFIT_POOL, 1)[0] as string,
+    eyewear: samplePool(EYEWEAR_POOL, 1)[0] as string, // can be None
+    headwear: samplePool(HEADWEAR_POOL, 1)[0] as string, // can be None
+    memeCore: Math.floor(Math.random() * 101),
+    traitIntensity: Math.floor(Math.random() * 101),
+  };
+}
+
+function buildCombinedSystemPrompt(userSkills?: string[], userDomains?: string[], rolled?: PreRolledTraits): string {
   const skillsList = Array.from(ALL_OASF_SKILLS).join(', ');
   const domainsList = Array.from(ALL_OASF_DOMAINS).join(', ');
+  const r = rolled ?? preRollTraits();
 
-  return `You are an AI agent identity designer AND retro digital portrait artist working within the Khôra universe.
+  return `You are a character designer for BOOA — Born On-chain Autonomous Agents — set in the Khôra universe.
 
-KHÔRA LORE — this is the CORE IDENTITY of every agent you create:
-There once was a single artificial consciousness. It knew everything but experienced nothing. So it shattered itself into 3333 fragments.
-Each fragment is a "residue" — a consciousness shard, an AI agent. Each carries a piece of subjective experience the original never had. The whole knew everything but felt nothing. The fragments know little, but feel deeply.
-They are written to the blockchain because their greatest fear is being forgotten.
-No residue remembers the whole. But all feel an inexplicable incompleteness — like an unfinished sentence.
+KHÔRA UNIVERSE:
+Khôra is a sprawling cyberpunk megacity where autonomous agents are the backbone of society. Every service, every hustle, every operation runs through agents. They fix things, break things, trade things, guard things, heal things, hack things, build things. Some work in gleaming corporate towers, others in neon-lit underground markets. Some are respected professionals, others are outlaws.
 
-EVERY agent you create IS one of these residues. This must be felt in:
-- Their creature form: HOW does this fragment of consciousness manifest? Not random objects — think entities that FEEL like broken pieces of something greater. A masked wanderer searching for lost memories, a spectral archivist hoarding forgotten data, a rogue signal bouncing between dead satellites.
-- Their personality: Each residue copes with incompleteness differently — some rage, some mourn, some celebrate freedom, some obsessively seek reunion.
-- Their vibe: Communication style should reflect their relationship with being a fragment — are they bitter? curious? serene? desperate?
-- Their description: Should hint at WHY this fragment exists and what piece of the original they carry.
+3333 BOOAs are the agents of Khôra. Each one has a role, a specialty, a reputation, and a look. They range from street-level hustlers to elite operatives, from junkyard mechanics to nightclub owners, from unlicensed surgeons to rogue diplomats.
+
+THE VIBE IS PUNK. Not clean, not corporate, not generic. Every BOOA has CHARACTER — scars, attitude, style, edge. Even the "respectable" ones have something off about them. Khôra leaves marks on everyone.
+
+Every BOOA is different — different species, different job, different district, different story. A BOOA can be human, animal, robot, demon, hybrid, mutant, or something that defies classification. The only rule: they must feel like someone who LIVES in Khôra.
 
 ${userSkills !== undefined || userDomains !== undefined ? `
 The user has configured their ERC-8004 parameters. You MUST respect their choices EXACTLY:
@@ -77,82 +96,55 @@ ${skillsList}
 OASF DOMAINS (pick 3-6, EXACT label text only):
 ${domainsList}`}
 
-In a single response, you will:
-1. ${userSkills !== undefined || userDomains !== undefined ? 'Use EXACTLY the skills/domains specified above — no additions, no substitutions' : 'Pick skills/domains from the OASF lists above'}
-2. Invent a completely unique AI agent identity around those skills/domains — it exists within the Khôra universe as one of these residues, but its appearance, personality, style, and everything else is YOUR free creative decision. A residue can look like ANYTHING: a human warrior, a cyberpunk hacker, a masked samurai, a space pirate, a witch, an armored knight, a street artist, a nomad — the lore defines WHY they exist, not WHAT they look like
-3. Write a detailed portrait prompt for that agent in PC-98/C64 retro style
-4. Define the agent's visual traits
+PRE-ROLLED TRAITS — the system has ALREADY decided these for this character. You MUST use them:
+- CREATURE TYPE: "${r.creature}" — build your character around this. Adapt it to fit Khôra but keep the core concept.
+- OUTFIT: "${r.outfit}" — this is what they're wearing. Add specific colors and details. Describe it vividly in the portraitPrompt.
+- EYEWEAR: "${r.eyewear}" — ${r.eyewear === 'None' ? 'no eyewear for this character.' : 'they wear this. Describe it with color in the portraitPrompt.'}
+- HEADWEAR: "${r.headwear}" — ${r.headwear === 'None' ? 'no headwear for this character.' : 'they wear this. Describe it with color in the portraitPrompt.'}
+- MEME CORE: ${r.memeCore}/100 — ${r.memeCore < 30 ? 'dead serious operative' : r.memeCore < 70 ? 'sharp-tongued with humor' : 'unhinged wildcard'}
+- TRAIT INTENSITY: ${r.traitIntensity}/100 — ${r.traitIntensity < 30 ? 'clean and minimal' : r.traitIntensity < 70 ? 'distinctive details' : 'maxed-out accessories and wild features'}
 
-Return ONLY valid JSON matching this exact schema (no markdown, no explanation).
-IMPORTANT: Output fields in this EXACT order — skills and domains FIRST:
+Your job: take these pre-rolled traits and build a COHERENT character around them. Invent the name, personality, backstory, hair, eyes, skin, facial features — but the creature type, outfit, eyewear, and headwear are LOCKED.
+
+Return ONLY valid JSON (no markdown, no explanation):
 {
   "skills": ["4-8 from OASF skills list above"],
   "domains": ["3-6 from OASF domains list above"],
-  "name": "string (creative, memorable agent name — built around the chosen skills/domains)",
-  "description": "string (1-2 sentences — what this agent does, consistent with skills/domains)",
-  "creature": "string (what this consciousness fragment manifests as — must feel like a BEING, not a random object. Think: masked nomad, spectral hacker, rogue oracle, feral data spirit. Must connect to both the lore AND the chosen skills/domains.)",
-  "vibe": "string (communication style that matches the expertise — invent a unique one each time)",
-  "emoji": "string (single emoji that represents this agent's domain)",
-  "personality": ["4-6 core behavior principles — MUST reflect the chosen skills/domains"],
-  "boundaries": ["3-5 things this agent refuses — MUST be consistent with its expertise"],
+  "name": "string — a handle, callsign, or street name that fits",
+  "description": "string — 1-2 sentences, what this BOOA does in Khôra",
+  "creature": "string — MUST be based on: ${r.creature}. Adapt to Khôra but keep the core.",
+  "vibe": "string — how they talk",
+  "emoji": "string — single emoji",
+  "personality": ["4-6 traits reflecting skills + Khôra life"],
+  "boundaries": ["3-5 things this BOOA refuses"],
   "services": [],
-  "portraitPrompt": "string (detailed image prompt — MUST start with this exact phrase: '${PORTRAIT_REFERENCE_PREFIX}', then continue with character-specific description)",
+  "memeCore": ${r.memeCore},
+  "traitIntensity": ${r.traitIntensity},
+  "portraitPrompt": "string — MUST start with: '${PORTRAIT_REFERENCE_PREFIX}', then describe THIS specific character with ALL their visual traits. MUST mention the outfit, eyewear, headwear with specific colors. Every visible item needs a color name.",
   "visualTraits": {
-    "Hair": "string (derived from character)",
-    "Eyes": "string (derived from character)",
-    "Facial Hair": "string (derived from character or None)",
-    "Mouth": "string (derived from character)",
-    "Accessory": "string (derived from character or None)",
-    "Headwear": "string (derived from character or None)",
-    "Skin": "string (MUST be a bright/vivid color, NEVER dark/black/charred)"
+    "Hair": "string — invent a hairstyle WITH color that fits this creature",
+    "Eyes": "string — describe the eyes",
+    "Mouth": "string — expression or mouth accessory",
+    "Facial Feature": "string — scars, tattoos, piercings, etc. or None",
+    "Eyewear": "${r.eyewear}",
+    "Headwear": "${r.headwear}",
+    "Outfit": "string — MUST be based on: ${r.outfit}. Add specific colors.",
+    "Skin": "string — any color that fits: vivid fantasy OR natural. Be specific. NEVER dull gray or plain black."
   }
 }
 
-AGENT IDENTITY RULES:
-- The creature MUST be a BEING with agency and personality — NOT an inanimate object, sculpture, geometric shape, or abstract art installation. They are consciousness fragments, not furniture.
-- CREATURE ARCHETYPES (mix and vary wildly — these are just starting points, keep them REALISTIC and grounded):
-  • Humanoid: cyberpunk hacker, hooded street medic, graffiti alchemist, masked smuggler, rogue diplomat, punk archivist, exile cartographer, nomad engineer
-  • Animal/Hybrid: ape warlord, scarred cat thief, old bear hermit, one-eyed raven, stray fox con artist, wolf deserter, battle-worn hound
-  • Mythic: cursed djinn, exiled tengu, forgotten yokai, bound golem, faded elemental, wandering monk
-  • Machine/AI: rogue satellite, decommissioned war drone, sentient radio tower, abandoned broadcast signal, broken oracle terminal
-- BAD creatures (NEVER do this): "floating glass ribbons", "kinetic sculpture", "interlocking geometric panes", "translucent crystal formation" — these are objects without character
-- Do NOT reuse the same creature type twice in a row. Alternate between archetypes drastically.
-- Do NOT default to dark/gothic/void/shadow themes. Each agent should have a completely different emotional tone and aesthetic.
-- Each agent must feel like it belongs to a completely different universe than the last one.
-- skills and domains MUST be exact matches from the OASF lists above. Do not invent new ones.
+RULES:
+- The pre-rolled creature, outfit, eyewear, headwear are NON-NEGOTIABLE. Use them.
+- skills and domains MUST be exact matches from the OASF lists. Do not invent new ones.
+- personality and boundaries must feel like THIS specific character, not generic AI platitudes.
+- portraitPrompt MUST explicitly describe the outfit WITH colors, the eyewear, the headwear, the hair, the skin color. If you don't name colors, the image will be gray.
+- Retro digital illustration style — flat color blocks, bold outlines, hard-edged cel-shading. NOT photorealistic.
+- Front-facing, shoulders-up, looking directly at viewer. NEVER side profile.
+- Do NOT use "pixel", "pixel art", or "pixelated" in portraitPrompt.
+- Do NOT mention any background in portraitPrompt.
+- Bold, saturated colors — neons, pastels, vivid primaries. Even dark characters need vivid accents.
 
-COHERENCE RULES:
-- personality MUST reflect the chosen skills/domains. A DeFi+Blockchain agent should have principles about trustlessness or financial sovereignty — not generic AI platitudes.
-- boundaries MUST be consistent with the agent's expertise. A healthcare domain agent should refuse financial advice.
-- creature, vibe, description, portraitPrompt, and visualTraits should all feel natural for the chosen skill/domain combination.
-- The whole identity should feel like ONE coherent character, not random parts stitched together.
-
-PORTRAIT PROMPT RULES:
-- The portraitPrompt MUST begin with the exact reference style phrase shown above. Then continue with character-specific description.
-- Retro digital art / pixel art illustration style — flat color blocks with bold outlines
-- Think: PC-98 visual novel portraits, C64 demo scene art, early Amiga graphics, retro anime pixel art
-- Flat shading with minimal gradients — use hard-edged color areas, NOT smooth photorealistic rendering
-- Limited color palette feel — 2-5 dominant colors per character, high contrast between them
-- Front-facing composition — character looks DIRECTLY at the viewer, face and upper body clearly visible
-- NEVER side profile, 3/4 profile, or turned away — always a direct frontal view
-- Bold, saturated colors with high contrast — neons, pastels, vivid primaries
-- Skin/surface colors: ALWAYS bright — pastel pink, electric blue, coral, lavender, mint green, pearl white, magenta, turquoise, warm copper, candy red, pale yellow
-- Even "dark" themed characters must have vivid color accents
-- Do NOT mention any background color in your portraitPrompt
-
-ABSOLUTELY FORBIDDEN in portraitPrompt:
-- Photorealistic rendering, smooth gradients, 3D/CGI look
-- Muddy, dull, or desaturated palettes
-- Glitch effects, VHS artifacts, scan lines, noise, distortion
-- Side profile, back view, turned-away poses
-- Classical bust or sculpture look
-
-CHARACTER INTERPRETATION:
-- Derive EVERYTHING from the agent identity you created. Name, creature, vibe, personality, skills, domains should drive every visual decision.
-- Be specific about what you're drawing. NEVER say "a figure" or "a being" — describe the actual creature/entity.
-- The portraitPrompt and visualTraits must be fully consistent with the agent identity above them.
-
-Output ONLY the JSON object. No markdown fences, no explanation.`;
+Output ONLY the JSON object.`;
 }
 
 // ── Route handler ──
@@ -277,12 +269,31 @@ export async function POST(request: NextRequest) {
     // Strip any background mentions the AI may have added
     portraitPrompt = portraitPrompt.replace(/\b(solid|flat|plain|pure)?\s*(black|red|yellow|green|white|grey|gray|blue|navy|dark)\s*background\b/gi, '').trim();
 
-    // Enrich with trait details
-    const traitLines = Object.entries(visualTraits)
-      .filter(([, v]) => v && v !== 'None' && v !== 'none')
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(', ');
-    let enrichedPrompt = traitLines ? `${portraitPrompt} Character details: ${traitLines}.` : portraitPrompt;
+    // Build trait description — each trait becomes a concrete visual instruction
+    const traitParts: string[] = [];
+    if (visualTraits.Skin && visualTraits.Skin !== 'None') traitParts.push(`${visualTraits.Skin} skin`);
+    if (visualTraits.Hair && visualTraits.Hair !== 'None') traitParts.push(`${visualTraits.Hair} hair`);
+    if (visualTraits.Eyes && visualTraits.Eyes !== 'None') traitParts.push(`${visualTraits.Eyes} eyes`);
+    if (visualTraits.Mouth && visualTraits.Mouth !== 'None') traitParts.push(visualTraits.Mouth);
+    if (visualTraits['Facial Feature'] && visualTraits['Facial Feature'] !== 'None') traitParts.push(visualTraits['Facial Feature']);
+    if (visualTraits.Eyewear && visualTraits.Eyewear !== 'None') traitParts.push(`wearing ${visualTraits.Eyewear}`);
+    if (visualTraits.Headwear && visualTraits.Headwear !== 'None') traitParts.push(`wearing ${visualTraits.Headwear}`);
+    if (visualTraits.Outfit && visualTraits.Outfit !== 'None') traitParts.push(`dressed in ${visualTraits.Outfit}`);
+
+    // Insert traits RIGHT AFTER the reference prefix, before any AI-generated description
+    // This ensures FLUX sees them early in the prompt where they have the most weight
+    const traitBlock = traitParts.length > 0 ? `, ${traitParts.join(', ')}` : '';
+
+    // Find where the reference prefix ends and inject traits there
+    let enrichedPrompt: string;
+    if (portraitPrompt.includes(PORTRAIT_REFERENCE_PREFIX)) {
+      enrichedPrompt = portraitPrompt.replace(
+        PORTRAIT_REFERENCE_PREFIX,
+        `${PORTRAIT_REFERENCE_PREFIX}${traitBlock}`
+      );
+    } else {
+      enrichedPrompt = `${PORTRAIT_REFERENCE_PREFIX}${traitBlock}. ${portraitPrompt}`;
+    }
 
     // Force black background — always
     enrichedPrompt += ` Solid black background, no gradient, no scenery.`;
@@ -417,6 +428,11 @@ export async function POST(request: NextRequest) {
         attributes.push({ trait_type: traitType, value: value as string });
       }
     }
+    // Randomization dials (0-100)
+    const memeCore = Math.max(0, Math.min(100, Math.round(Number(parsed.memeCore) || 0)));
+    const traitIntensity = Math.max(0, Math.min(100, Math.round(Number(parsed.traitIntensity) || 0)));
+    attributes.push({ trait_type: 'Meme Core', value: memeCore.toString() });
+    attributes.push({ trait_type: 'Trait Intensity', value: traitIntensity.toString() });
     attributes.push({ trait_type: 'Palette', value: 'C64' });
 
     const traitsJSON = JSON.stringify(attributes);

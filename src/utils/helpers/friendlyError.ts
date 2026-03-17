@@ -42,7 +42,7 @@ export function friendlyError(raw: string): string {
     return 'This mint session was already used. Please generate a new agent.';
 
   // AI generation
-  if (lower.includes('image generation timed out'))
+  if (lower.includes('image generation timed out') || lower.includes('aborted'))
     return 'Image generation timed out — servers are busy. Please try again.';
   if (lower.includes('image generation failed'))
     return 'Image generation failed. Please try again — each attempt is unique!';
