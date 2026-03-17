@@ -324,7 +324,13 @@ async function discoverOnChain(
 
     return { agents };
   } catch (error) {
-    console.error(`discover-agents [${config.name}] error:`, error);
+    // Contract not deployed on this chain or RPC unreachable — not an error, just skip
+    const msg = error instanceof Error ? error.message : '';
+    const isNoContract = msg.includes('returned no data') || msg.includes('is not a contract');
+    const isRpcDown = msg.includes('fetch failed') || msg.includes('ENOTFOUND');
+    if (!isNoContract && !isRpcDown) {
+      console.error(`discover-agents [${config.name}] error:`, error);
+    }
     return { agents: [], error: `${config.name}: request failed` };
   }
 }

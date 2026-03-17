@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/session';
-import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit-edge';
 
 // Routes that skip session entirely (no auth needed, no headers injected)
 const SKIP_PATHS = [

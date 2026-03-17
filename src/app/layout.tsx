@@ -10,6 +10,7 @@ const departureMono = localFont({
 });
 
 export const metadata = {
+  metadataBase: new URL('https://khora.fun'),
   title: 'Khôra',
   description: 'Open-source studio building tools for autonomous agents, generative NFTs, and on-chain games.',
   keywords: ['AI', 'agents', 'NFT', 'on-chain', 'ERC-8004', 'pixel art', 'Shape Network'],
