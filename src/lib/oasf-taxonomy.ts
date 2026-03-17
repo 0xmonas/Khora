@@ -1,7 +1,8 @@
-// OASF v1.0.0 — Open Agentic Schema Framework taxonomy
-// Skills and Domains from https://schema.oasf.outshift.com/1.0.0/skills & /domains
-// Format: label (human-readable for UI) + slug (FLAT identifier for ERC-8004 registration)
-// IMPORTANT: Slugs are FLAT (e.g. "summarization"), NOT hierarchical paths.
+// OASF v0.8.0 — Open Agentic Schema Framework taxonomy
+// Skills and Domains from https://github.com/agntcy/oasf/tree/v0.8.0/schema
+// Format: label (human-readable for UI) + slug (HIERARCHICAL path for ERC-8004 registration)
+// Slug format matches directory structure: category/subcategory/skill (files without .json extension)
+// 8004scan validates against v0.8.0 taxonomy
 
 export interface OASFItem {
   label: string;
@@ -14,315 +15,346 @@ export interface OASFCategory {
 }
 
 // ── Skills Taxonomy ──
+// Hierarchy mirrors: schema/skills/{category}/{subcategory}/{skill}.json
+// Source: https://github.com/agntcy/oasf/tree/v0.8.0/schema/skills
 
 export const OASF_SKILLS: OASFCategory[] = [
   {
     label: 'Natural Language Processing',
     items: [
-      { label: 'Summarization', slug: 'summarization' },
-      { label: 'Question Answering', slug: 'question_answering' },
-      { label: 'Sentiment Analysis', slug: 'sentiment_analysis' },
-      { label: 'Translation', slug: 'translation' },
-      { label: 'Named Entity Recognition', slug: 'named_entity_recognition' },
-      { label: 'Storytelling', slug: 'storytelling' },
-      { label: 'Dialogue Generation', slug: 'dialogue_generation' },
-      { label: 'Fact Verification', slug: 'fact_verification' },
-      { label: 'Problem Solving', slug: 'problem_solving' },
-      { label: 'Content Moderation', slug: 'content_moderation' },
-      { label: 'Style Transfer', slug: 'text_style_transfer' },
-      { label: 'Text Completion', slug: 'text_completion' },
-      { label: 'Contextual Comprehension', slug: 'contextual_comprehension' },
-      { label: 'Search', slug: 'information_retrieval_synthesis_search' },
-      { label: 'Paraphrasing', slug: 'paraphrasing' },
-      { label: 'Fact Extraction', slug: 'fact_extraction' },
-      { label: 'Bias Mitigation', slug: 'bias_mitigation' },
+      // natural_language_understanding/
+      { label: 'Contextual Comprehension', slug: 'natural_language_processing/natural_language_understanding/contextual_comprehension' },
+      { label: 'Named Entity Recognition', slug: 'natural_language_processing/token_classification/named_entity_recognition' },
+      // natural_language_generation/
+      { label: 'Summarization', slug: 'natural_language_processing/natural_language_generation/summarization' },
+      { label: 'Text Completion', slug: 'natural_language_processing/natural_language_generation/text_completion' },
+      { label: 'Paraphrasing', slug: 'natural_language_processing/natural_language_generation/paraphrasing' },
+      { label: 'Dialogue Generation', slug: 'natural_language_processing/natural_language_generation/dialogue_generation' },
+      { label: 'Style Transfer', slug: 'natural_language_processing/natural_language_generation/style_transfer' },
+      { label: 'Storytelling', slug: 'natural_language_processing/creative_content/storytelling' },
+      // information_retrieval_synthesis/
+      { label: 'Question Answering', slug: 'natural_language_processing/information_retrieval_synthesis/question_answering' },
+      { label: 'Fact Extraction', slug: 'natural_language_processing/information_retrieval_synthesis/fact_extraction' },
+      { label: 'Search', slug: 'natural_language_processing/information_retrieval_synthesis/search' },
+      // language_translation/
+      { label: 'Translation', slug: 'natural_language_processing/language_translation/translation' },
+      // analytical_reasoning/
+      { label: 'Problem Solving', slug: 'natural_language_processing/analytical_reasoning/problem_solving' },
+      { label: 'Fact Verification', slug: 'natural_language_processing/analytical_reasoning/fact_verification' },
+      // ethical_interaction/
+      { label: 'Bias Mitigation', slug: 'natural_language_processing/ethical_interaction/bias_mitigation' },
+      { label: 'Content Moderation', slug: 'natural_language_processing/ethical_interaction/content_moderation' },
+      // text_classification/
+      { label: 'Sentiment Analysis', slug: 'natural_language_processing/text_classification/sentiment_analysis' },
     ],
   },
   {
     label: 'Computer Vision',
     items: [
-      { label: 'Image Generation', slug: 'image_generation' },
-      { label: 'Image Classification', slug: 'image_classification' },
-      { label: 'Object Detection', slug: 'object_detection' },
-      { label: 'Image Segmentation', slug: 'image_segmentation' },
-      { label: 'Depth Estimation', slug: 'depth_estimation' },
-      { label: 'Image to 3D', slug: 'image_to_3d' },
+      // images_computer_vision/ (flat, no subcategories)
+      { label: 'Image Generation', slug: 'images_computer_vision/image_generation' },
+      { label: 'Image Classification', slug: 'images_computer_vision/image_classification' },
+      { label: 'Object Detection', slug: 'images_computer_vision/object_detection' },
+      { label: 'Image Segmentation', slug: 'images_computer_vision/image_segmentation' },
+      { label: 'Depth Estimation', slug: 'images_computer_vision/depth_estimation' },
+      { label: 'Image to 3D', slug: 'images_computer_vision/image_to_3d' },
     ],
   },
   {
     label: 'Multi Modal',
     items: [
-      { label: 'Speech Recognition', slug: 'speech_recognition' },
-      { label: 'Text-to-Speech', slug: 'text_to_speech' },
-      { label: 'Text to Image', slug: 'text_to_image' },
-      { label: 'Image to Text', slug: 'image_to_text' },
-      { label: 'Visual QA', slug: 'visual_qa' },
-      { label: 'Text to Video', slug: 'text_to_video' },
-      { label: 'Text to 3D', slug: 'text_to_3d' },
+      // multi_modal/image_processing/
+      { label: 'Text to Image', slug: 'multi_modal/image_processing/text_to_image' },
+      { label: 'Image to Text', slug: 'multi_modal/image_processing/image_to_text' },
+      { label: 'Visual QA', slug: 'multi_modal/image_processing/visual_qa' },
+      { label: 'Text to Video', slug: 'multi_modal/image_processing/text_to_video' },
+      { label: 'Text to 3D', slug: 'multi_modal/image_processing/text_to_3d' },
+      // multi_modal/audio_processing/
+      { label: 'Speech Recognition', slug: 'multi_modal/audio_processing/speech_recognition' },
+      { label: 'Text-to-Speech', slug: 'multi_modal/audio_processing/text_to_speech' },
     ],
   },
   {
     label: 'Analytical Skills',
     items: [
-      { label: 'Code Generation', slug: 'text_to_code' },
-      { label: 'Code Optimization', slug: 'code_optimization' },
-      { label: 'Math Problem Solving', slug: 'math_word_problems' },
-      { label: 'Theorem Proving', slug: 'theorem_proving' },
-      { label: 'Pure Math', slug: 'pure_math_operations' },
+      // analytical_skills/coding_skills/
+      { label: 'Code Generation', slug: 'analytical_skills/coding_skills/text_to_code' },
+      { label: 'Code Optimization', slug: 'analytical_skills/coding_skills/code_optimization' },
+      // analytical_skills/mathematical_reasoning/
+      { label: 'Math Problem Solving', slug: 'analytical_skills/mathematical_reasoning/math_word_problems' },
+      { label: 'Theorem Proving', slug: 'analytical_skills/mathematical_reasoning/theorem_proving' },
+      { label: 'Pure Math', slug: 'analytical_skills/mathematical_reasoning/pure_math_operations' },
     ],
   },
   {
     label: 'Data Engineering',
     items: [
-      { label: 'Data Cleaning', slug: 'data_cleaning' },
-      { label: 'Data Transformation', slug: 'data_transformation_pipeline' },
-      { label: 'Feature Engineering', slug: 'feature_engineering' },
-      { label: 'Schema Inference', slug: 'schema_inference' },
-      { label: 'Data Quality Assessment', slug: 'data_quality_assessment' },
+      // data_engineering/ (flat, no subcategories)
+      { label: 'Data Cleaning', slug: 'data_engineering/data_cleaning' },
+      { label: 'Data Transformation', slug: 'data_engineering/data_transformation_pipeline' },
+      { label: 'Feature Engineering', slug: 'data_engineering/feature_engineering' },
+      { label: 'Schema Inference', slug: 'data_engineering/schema_inference' },
+      { label: 'Data Quality Assessment', slug: 'data_engineering/data_quality_assessment' },
     ],
   },
   {
     label: 'RAG',
     items: [
-      { label: 'Document QA', slug: 'document_or_database_question_answering' },
-      { label: 'Document Retrieval', slug: 'document_retrieval' },
-      { label: 'Search (RAG)', slug: 'retrieval_of_information_search' },
-      { label: 'Indexing', slug: 'indexing' },
+      // retrieval_augmented_generation/
+      { label: 'Document QA', slug: 'retrieval_augmented_generation/document_or_database_question_answering' },
+      // retrieval_augmented_generation/retrieval_of_information/
+      { label: 'Document Retrieval', slug: 'retrieval_augmented_generation/retrieval_of_information/document_retrieval' },
+      { label: 'Search (RAG)', slug: 'retrieval_augmented_generation/retrieval_of_information/search' },
+      { label: 'Indexing', slug: 'retrieval_augmented_generation/retrieval_of_information/indexing' },
     ],
   },
   {
     label: 'Agent Orchestration',
     items: [
-      { label: 'Task Decomposition', slug: 'task_decomposition' },
-      { label: 'Multi-Agent Planning', slug: 'multi_agent_planning' },
-      { label: 'Agent Coordination', slug: 'agent_coordination' },
-      { label: 'Role Assignment', slug: 'role_assignment' },
-      { label: 'Negotiation & Resolution', slug: 'negotiation_resolution' },
+      // agent_orchestration/ (flat)
+      { label: 'Task Decomposition', slug: 'agent_orchestration/task_decomposition' },
+      { label: 'Multi-Agent Planning', slug: 'agent_orchestration/multi_agent_planning' },
+      { label: 'Agent Coordination', slug: 'agent_orchestration/agent_coordination' },
+      { label: 'Role Assignment', slug: 'agent_orchestration/role_assignment' },
+      { label: 'Negotiation & Resolution', slug: 'agent_orchestration/negotiation_resolution' },
     ],
   },
   {
     label: 'Tool Interaction',
     items: [
-      { label: 'API Understanding', slug: 'api_schema_understanding' },
-      { label: 'Workflow Automation', slug: 'workflow_automation' },
-      { label: 'Tool Use Planning', slug: 'tool_use_planning' },
-      { label: 'Script Integration', slug: 'script_integration' },
+      // tool_interaction/ (flat)
+      { label: 'API Understanding', slug: 'tool_interaction/api_schema_understanding' },
+      { label: 'Workflow Automation', slug: 'tool_interaction/workflow_automation' },
+      { label: 'Tool Use Planning', slug: 'tool_interaction/tool_use_planning' },
+      { label: 'Script Integration', slug: 'tool_interaction/script_integration' },
     ],
   },
   {
     label: 'Security & Privacy',
     items: [
-      { label: 'Vulnerability Analysis', slug: 'vulnerability_analysis' },
-      { label: 'Threat Detection', slug: 'threat_detection' },
-      { label: 'Secret Leak Detection', slug: 'secret_leak_detection' },
-      { label: 'Privacy Risk Assessment', slug: 'privacy_risk_assessment' },
+      // security_privacy/ (flat)
+      { label: 'Vulnerability Analysis', slug: 'security_privacy/vulnerability_analysis' },
+      { label: 'Threat Detection', slug: 'security_privacy/threat_detection' },
+      { label: 'Secret Leak Detection', slug: 'security_privacy/secret_leak_detection' },
+      { label: 'Privacy Risk Assessment', slug: 'security_privacy/privacy_risk_assessment' },
     ],
   },
   {
     label: 'DevOps & MLOps',
     items: [
-      { label: 'CI/CD Configuration', slug: 'ci_cd_configuration' },
-      { label: 'Deployment Orchestration', slug: 'deployment_orchestration' },
-      { label: 'Infrastructure Provisioning', slug: 'infrastructure_provisioning' },
-      { label: 'Monitoring & Alerting', slug: 'monitoring_alerting' },
+      // devops_mlops/ (flat)
+      { label: 'CI/CD Configuration', slug: 'devops_mlops/ci_cd_configuration' },
+      { label: 'Deployment Orchestration', slug: 'devops_mlops/deployment_orchestration' },
+      { label: 'Infrastructure Provisioning', slug: 'devops_mlops/infrastructure_provisioning' },
+      { label: 'Monitoring & Alerting', slug: 'devops_mlops/monitoring_alerting' },
     ],
   },
   {
     label: 'Advanced Reasoning',
     items: [
-      { label: 'Strategic Planning', slug: 'strategic_planning' },
-      { label: 'Chain of Thought', slug: 'chain_of_thought_structuring' },
-      { label: 'Hypothesis Generation', slug: 'hypothesis_generation' },
-      { label: 'Long Horizon Reasoning', slug: 'long_horizon_reasoning' },
+      // advanced_reasoning_planning/ (flat)
+      { label: 'Strategic Planning', slug: 'advanced_reasoning_planning/strategic_planning' },
+      { label: 'Chain of Thought', slug: 'advanced_reasoning_planning/chain_of_thought_structuring' },
+      { label: 'Hypothesis Generation', slug: 'advanced_reasoning_planning/hypothesis_generation' },
+      { label: 'Long Horizon Reasoning', slug: 'advanced_reasoning_planning/long_horizon_reasoning' },
     ],
   },
   {
     label: 'Evaluation & Monitoring',
     items: [
-      { label: 'Anomaly Detection', slug: 'anomaly_detection' },
-      { label: 'Performance Monitoring', slug: 'performance_monitoring' },
-      { label: 'Quality Evaluation', slug: 'quality_evaluation' },
-      { label: 'Test Case Generation', slug: 'test_case_generation' },
+      // evaluation_monitoring/ (flat)
+      { label: 'Anomaly Detection', slug: 'evaluation_monitoring/anomaly_detection' },
+      { label: 'Performance Monitoring', slug: 'evaluation_monitoring/performance_monitoring' },
+      { label: 'Quality Evaluation', slug: 'evaluation_monitoring/quality_evaluation' },
+      { label: 'Test Case Generation', slug: 'evaluation_monitoring/test_case_generation' },
     ],
   },
   {
     label: 'Governance & Compliance',
     items: [
-      { label: 'Compliance Assessment', slug: 'compliance_assessment' },
-      { label: 'Policy Mapping', slug: 'policy_mapping' },
-      { label: 'Risk Classification', slug: 'risk_classification' },
-      { label: 'Audit Trail Summarization', slug: 'audit_trail_summarization' },
+      // governance_compliance/ (flat)
+      { label: 'Compliance Assessment', slug: 'governance_compliance/compliance_assessment' },
+      { label: 'Policy Mapping', slug: 'governance_compliance/policy_mapping' },
+      { label: 'Risk Classification', slug: 'governance_compliance/risk_classification' },
+      { label: 'Audit Trail Summarization', slug: 'governance_compliance/audit_trail_summarization' },
     ],
   },
 ];
 
 // ── Domains Taxonomy ──
+// Hierarchy mirrors: schema/domains/{category}/{subcategory}/{domain}.json
+// Source: https://github.com/agntcy/oasf/tree/v0.8.0/schema/domains
 
 export const OASF_DOMAINS: OASFCategory[] = [
   {
     label: 'Technology',
     items: [
-      { label: 'Software Engineering', slug: 'software_engineering' },
-      { label: 'Software Development', slug: 'software_development' },
-      { label: 'DevOps', slug: 'devops' },
-      { label: 'APIs & Integration', slug: 'apis_integration' },
-      { label: 'Data Science', slug: 'data_science' },
-      { label: 'Big Data', slug: 'big_data' },
-      { label: 'Data Visualization', slug: 'data_visualization' },
-      { label: 'Blockchain', slug: 'blockchain' },
-      { label: 'Cryptocurrency', slug: 'cryptocurrency' },
-      { label: 'DeFi', slug: 'defi' },
-      { label: 'Smart Contracts', slug: 'smart_contracts' },
-      { label: 'Cybersecurity', slug: 'cybersecurity' },
-      { label: 'Cloud Computing', slug: 'cloud_computing' },
-      { label: 'Automation', slug: 'process_automation' },
-      { label: 'IoT', slug: 'internet_of_things' },
-      { label: 'Networking', slug: 'networking' },
-      { label: 'MLOps', slug: 'mlops' },
+      // technology/software_engineering/
+      { label: 'Software Engineering', slug: 'technology/software_engineering' },
+      { label: 'Software Development', slug: 'technology/software_engineering/software_development' },
+      { label: 'DevOps', slug: 'technology/software_engineering/devops' },
+      { label: 'APIs & Integration', slug: 'technology/software_engineering/apis_integration' },
+      { label: 'MLOps', slug: 'technology/software_engineering/mlops' },
+      // technology/data_science/
+      { label: 'Data Science', slug: 'technology/data_science' },
+      { label: 'Big Data', slug: 'technology/data_science/big_data' },
+      { label: 'Data Visualization', slug: 'technology/data_science/data_visualization' },
+      // technology/blockchain/
+      { label: 'Blockchain', slug: 'technology/blockchain' },
+      { label: 'Cryptocurrency', slug: 'technology/blockchain/cryptocurrency' },
+      { label: 'DeFi', slug: 'technology/blockchain/defi' },
+      { label: 'Smart Contracts', slug: 'technology/blockchain/smart_contracts' },
+      // technology/security/
+      { label: 'Cybersecurity', slug: 'technology/security/cybersecurity' },
+      // technology/ (flat)
+      { label: 'Cloud Computing', slug: 'technology/cloud_computing' },
+      { label: 'Automation', slug: 'technology/automation' },
+      { label: 'IoT', slug: 'technology/iot' },
+      { label: 'Networking', slug: 'technology/networking' },
     ],
   },
   {
     label: 'Finance & Business',
     items: [
-      { label: 'Finance', slug: 'finance' },
-      { label: 'Banking', slug: 'banking' },
-      { label: 'Investment Services', slug: 'investment_services' },
-      { label: 'Retail', slug: 'retail' },
-      { label: 'Consumer Goods', slug: 'consumer_goods' },
+      { label: 'Finance', slug: 'finance_and_business/finance' },
+      { label: 'Banking', slug: 'finance_and_business/banking' },
+      { label: 'Investment Services', slug: 'finance_and_business/investment_services' },
+      { label: 'Retail', slug: 'finance_and_business/retail' },
+      { label: 'Consumer Goods', slug: 'finance_and_business/consumer_goods' },
     ],
   },
   {
     label: 'Healthcare',
     items: [
-      { label: 'Telemedicine', slug: 'telemedicine' },
-      { label: 'Healthcare Informatics', slug: 'healthcare_informatics' },
-      { label: 'Medical Technology', slug: 'medical_technology' },
-      { label: 'Patient Management', slug: 'patient_management_systems' },
+      { label: 'Telemedicine', slug: 'healthcare/telemedicine' },
+      { label: 'Healthcare Informatics', slug: 'healthcare/healthcare_informatics' },
+      { label: 'Medical Technology', slug: 'healthcare/medical_technology' },
+      { label: 'Patient Management', slug: 'healthcare/patient_management_systems' },
     ],
   },
   {
     label: 'Education',
     items: [
-      { label: 'E-Learning', slug: 'e_learning' },
-      { label: 'Educational Technology', slug: 'educational_technology' },
-      { label: 'Curriculum Design', slug: 'curriculum_design' },
-      { label: 'Pedagogy', slug: 'pedagogy' },
+      { label: 'E-Learning', slug: 'education/e_learning' },
+      { label: 'Educational Technology', slug: 'education/educational_technology' },
+      { label: 'Curriculum Design', slug: 'education/curriculum_design' },
+      { label: 'Pedagogy', slug: 'education/pedagogy' },
     ],
   },
   {
     label: 'Legal',
     items: [
-      { label: 'Regulatory Compliance', slug: 'regulatory_compliance' },
-      { label: 'Contract Law', slug: 'contract_law' },
-      { label: 'Intellectual Property', slug: 'intellectual_property' },
-      { label: 'Litigation', slug: 'litigation' },
-      { label: 'Legal Research', slug: 'legal_research' },
+      { label: 'Regulatory Compliance', slug: 'legal/regulatory_compliance' },
+      { label: 'Contract Law', slug: 'legal/contract_law' },
+      { label: 'Intellectual Property', slug: 'legal/intellectual_property' },
+      { label: 'Litigation', slug: 'legal/litigation' },
+      { label: 'Legal Research', slug: 'legal/legal_research' },
     ],
   },
   {
     label: 'Marketing',
     items: [
-      { label: 'Digital Marketing', slug: 'digital_marketing' },
-      { label: 'Market Research', slug: 'market_research' },
-      { label: 'Marketing Analytics', slug: 'marketing_analytics' },
-      { label: 'Advertising', slug: 'advertising' },
-      { label: 'Brand Management', slug: 'brand_management' },
+      { label: 'Digital Marketing', slug: 'marketing_and_advertising/digital_marketing' },
+      { label: 'Market Research', slug: 'marketing_and_advertising/market_research' },
+      { label: 'Marketing Analytics', slug: 'marketing_and_advertising/marketing_analytics' },
+      { label: 'Advertising', slug: 'marketing_and_advertising/advertising' },
+      { label: 'Brand Management', slug: 'marketing_and_advertising/brand_management' },
     ],
   },
   {
     label: 'Retail & E-commerce',
     items: [
-      { label: 'Online Retail', slug: 'online_retail' },
-      { label: 'Customer Experience', slug: 'customer_experience' },
-      { label: 'Retail Analytics', slug: 'retail_analytics' },
-      { label: 'Inventory Management', slug: 'inventory_management' },
+      { label: 'Online Retail', slug: 'retail_and_ecommerce/online_retail' },
+      { label: 'Customer Experience', slug: 'retail_and_ecommerce/customer_experience' },
+      { label: 'Retail Analytics', slug: 'retail_and_ecommerce/retail_analytics' },
+      { label: 'Inventory Management', slug: 'retail_and_ecommerce/inventory_management' },
     ],
   },
   {
     label: 'Media & Entertainment',
     items: [
-      { label: 'Gaming', slug: 'gaming' },
-      { label: 'Content Creation', slug: 'content_creation' },
-      { label: 'Digital Media', slug: 'digital_media' },
-      { label: 'Streaming Services', slug: 'streaming_services' },
-      { label: 'Broadcasting', slug: 'broadcasting' },
+      { label: 'Gaming', slug: 'media_and_entertainment/gaming' },
+      { label: 'Content Creation', slug: 'media_and_entertainment/content_creation' },
+      { label: 'Digital Media', slug: 'media_and_entertainment/digital_media' },
+      { label: 'Streaming Services', slug: 'media_and_entertainment/streaming_services' },
+      { label: 'Broadcasting', slug: 'media_and_entertainment/broadcasting' },
     ],
   },
   {
     label: 'R&D',
     items: [
-      { label: 'Scientific Research', slug: 'scientific_research' },
-      { label: 'Product Development', slug: 'product_development' },
-      { label: 'Innovation Management', slug: 'innovation_management' },
+      { label: 'Scientific Research', slug: 'research_and_development/scientific_research' },
+      { label: 'Product Development', slug: 'research_and_development/product_development' },
+      { label: 'Innovation Management', slug: 'research_and_development/innovation_management' },
     ],
   },
   {
     label: 'HR',
     items: [
-      { label: 'Recruitment', slug: 'recruitment' },
-      { label: 'Training & Development', slug: 'training_and_development' },
-      { label: 'HR Analytics', slug: 'hr_analytics' },
+      { label: 'Recruitment', slug: 'human_resources/recruitment' },
+      { label: 'Training & Development', slug: 'human_resources/training_and_development' },
+      { label: 'HR Analytics', slug: 'human_resources/hr_analytics' },
     ],
   },
   {
     label: 'Trust & Safety',
     items: [
-      { label: 'Content Moderation', slug: 'content_moderation' },
-      { label: 'Fraud Prevention', slug: 'fraud_prevention' },
-      { label: 'Data Privacy', slug: 'data_privacy' },
-      { label: 'Risk Management', slug: 'risk_management' },
-      { label: 'Online Safety', slug: 'online_safety' },
+      { label: 'Content Moderation', slug: 'trust_and_safety/content_moderation' },
+      { label: 'Fraud Prevention', slug: 'trust_and_safety/fraud_prevention' },
+      { label: 'Data Privacy', slug: 'trust_and_safety/data_privacy' },
+      { label: 'Risk Management', slug: 'trust_and_safety/risk_management' },
+      { label: 'Online Safety', slug: 'trust_and_safety/online_safety' },
     ],
   },
   {
     label: 'Manufacturing',
     items: [
-      { label: 'Automation', slug: 'automation' },
-      { label: 'Robotics', slug: 'robotics' },
-      { label: 'Supply Chain Management', slug: 'supply_chain_management' },
-      { label: 'Lean Manufacturing', slug: 'lean_manufacturing' },
+      { label: 'Automation', slug: 'industrial_manufacturing/automation' },
+      { label: 'Robotics', slug: 'industrial_manufacturing/robotics' },
+      { label: 'Supply Chain Management', slug: 'industrial_manufacturing/supply_chain_management' },
+      { label: 'Lean Manufacturing', slug: 'industrial_manufacturing/lean_manufacturing' },
     ],
   },
   {
     label: 'Transportation',
     items: [
-      { label: 'Logistics', slug: 'logistics' },
-      { label: 'Autonomous Vehicles', slug: 'autonomous_vehicles' },
-      { label: 'Supply Chain', slug: 'supply_chain' },
-      { label: 'Automotive', slug: 'automotive' },
+      { label: 'Logistics', slug: 'transportation/logistics' },
+      { label: 'Autonomous Vehicles', slug: 'transportation/autonomous_vehicles' },
+      { label: 'Supply Chain', slug: 'transportation/supply_chain' },
+      { label: 'Automotive', slug: 'transportation/automotive' },
     ],
   },
   {
     label: 'Energy',
     items: [
-      { label: 'Renewable Energy', slug: 'renewable_energy' },
-      { label: 'Smart Grids', slug: 'smart_grids' },
-      { label: 'Energy Management', slug: 'energy_management' },
+      { label: 'Renewable Energy', slug: 'energy/renewable_energy' },
+      { label: 'Smart Grids', slug: 'energy/smart_grids' },
+      { label: 'Energy Management', slug: 'energy/energy_management' },
     ],
   },
   {
     label: 'Environmental Science',
     items: [
-      { label: 'Climate Science', slug: 'climate_science' },
-      { label: 'Sustainability', slug: 'sustainability' },
-      { label: 'Environmental Monitoring', slug: 'environmental_monitoring' },
+      { label: 'Climate Science', slug: 'environmental_science/climate_science' },
+      { label: 'Sustainability', slug: 'environmental_science/sustainability' },
+      { label: 'Environmental Monitoring', slug: 'environmental_science/environmental_monitoring' },
     ],
   },
   {
     label: 'Life Science',
     items: [
-      { label: 'Biotechnology', slug: 'biotechnology' },
-      { label: 'Genomics', slug: 'genomics' },
-      { label: 'Pharmaceutical Research', slug: 'pharmaceutical_research' },
-      { label: 'Bioinformatics', slug: 'bioinformatics' },
+      { label: 'Biotechnology', slug: 'life_science/biotechnology' },
+      { label: 'Genomics', slug: 'life_science/genomics' },
+      { label: 'Pharmaceutical Research', slug: 'life_science/pharmaceutical_research' },
+      { label: 'Bioinformatics', slug: 'life_science/bioinformatics' },
     ],
   },
   {
     label: 'Insurance',
     items: [
-      { label: 'InsurTech', slug: 'insurtech' },
-      { label: 'Actuarial Science', slug: 'actuarial_science' },
-      { label: 'Claims Processing', slug: 'claims_processing' },
+      { label: 'InsurTech', slug: 'insurance/insurtech' },
+      { label: 'Actuarial Science', slug: 'insurance/actuarial_science' },
+      { label: 'Claims Processing', slug: 'insurance/claims_processing' },
     ],
   },
 ];

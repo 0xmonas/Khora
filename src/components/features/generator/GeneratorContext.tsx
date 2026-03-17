@@ -458,7 +458,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError(friendlyError(msg));
       setCurrentStep('complete');
     }
-  }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient, pixelatedImage]);
+  }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient]);
 
   // ── UPDATE ONLY: update registry without minting ──
   const updateAgentOnly = useCallback(async () => {
@@ -522,17 +522,17 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
         enrichedServices.push({
           name: 'OASF',
-          endpoint: '',
-          version: '1.0.0',
+          endpoint: 'https://github.com/agntcy/oasf/',
+          version: '0.8.0',
           skills: skillSlugs,
           domains: domainSlugs,
         });
       }
 
-      // Strip empty OASF endpoints
+      // Ensure OASF services have the standard endpoint
       for (const svc of enrichedServices) {
         if (svc.name === 'OASF' && !svc.endpoint.trim()) {
-          delete (svc as unknown as Record<string, unknown>).endpoint;
+          svc.endpoint = 'https://github.com/agntcy/oasf/';
         }
       }
 

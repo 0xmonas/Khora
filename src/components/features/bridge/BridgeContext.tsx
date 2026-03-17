@@ -282,8 +282,8 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
       enrichedServices.push({
         name: 'OASF',
-        endpoint: '',
-        version: '1.0.0',
+        endpoint: 'https://github.com/agntcy/oasf/',
+        version: '0.8.0',
         skills: skillSlugs,
         domains: domainSlugs,
       });
@@ -291,7 +291,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
     for (const svc of enrichedServices) {
       if (svc.name === 'OASF' && !svc.endpoint.trim()) {
-        delete (svc as unknown as Record<string, unknown>).endpoint;
+        svc.endpoint = 'https://github.com/agntcy/oasf/';
       }
     }
 

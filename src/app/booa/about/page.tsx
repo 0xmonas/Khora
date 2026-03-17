@@ -254,7 +254,7 @@ export default function BOOAAboutPage() {
                       ['Art', 'AI pixel art → bitmap'],
                       ['Frontend', 'Next.js + wagmi'],
                       ['AI', 'Gemini + Replicate'],
-                      ['Taxonomy', 'OASF v1.0.0'],
+                      ['Taxonomy', 'OASF v0.8.0'],
                     ].map(([label, value]) => (
                       <div key={label} className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase" style={font}>

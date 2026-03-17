@@ -56,8 +56,8 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
   if (!hasOASF && (skillSlugs.length || domainSlugs.length)) {
     enrichedServices.push({
       name: 'OASF',
-      endpoint: '',
-      version: '1.0.0',
+      endpoint: 'https://github.com/agntcy/oasf/',
+      version: '0.8.0',
       skills: skillSlugs,
       domains: domainSlugs,
     });
@@ -66,7 +66,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
   // Fix OASF version: ensure semver format (IA026)
   for (const s of enrichedServices) {
     if (s.name === 'OASF' && s.version && !/^\d+\.\d+/.test(s.version)) {
-      s.version = '1.0.0';
+      s.version = '0.8.0';
     }
   }
 

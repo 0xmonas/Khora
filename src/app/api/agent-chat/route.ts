@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
-import { checkChatQuota, incrementChatCount, CHAT_QUOTA_MAX } from '@/lib/ratelimit';
+import { checkChatQuota, incrementChatCount } from '@/lib/ratelimit';
 
 export const maxDuration = 30;
 

@@ -276,7 +276,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
       setRegisterError(msg.slice(0, 200));
       setRegisterStatus('error');
     }
-  }, [token.isOwned, token.svg, publicClient, metadata, traits, chainId, tokenId, writeContractAsync]);
+  }, [token.isOwned, token.svg, publicClient, metadata, traits, chainId, tokenId, writeContractAsync, address, contract, token.tokenId]);
 
   // Close lightbox on Escape
   useEffect(() => {
