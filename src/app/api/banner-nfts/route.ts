@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
       });
 
       if (!res.ok) {
-        return NextResponse.json({ error: 'Failed to fetch from Alchemy' }, { status: 502 });
+        const errBody = await res.text().catch(() => '');
+        console.error(`Alchemy ${res.status}: ${errBody}`);
+        return NextResponse.json({ error: 'Failed to fetch from Alchemy', status: res.status, detail: errBody }, { status: 502 });
       }
 
       const data = await res.json();
