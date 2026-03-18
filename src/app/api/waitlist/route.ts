@@ -8,6 +8,7 @@ export const maxDuration = 15;
 
 const WAITLIST_KEY = 'waitlist:addresses';
 const WAITLIST_HANDLES_KEY = 'waitlist:handles'; // handle → address mapping (unique handles)
+const WAITLIST_TWEETS_KEY = 'waitlist:tweets'; // address → tweetUrl mapping
 const WAITLIST_META_KEY = 'waitlist:meta';
 const MIN_BALANCE = BigInt('5000000000000000'); // 0.005 ETH
 const MAX_WAITLIST = 1000;
@@ -110,24 +111,23 @@ export async function POST(request: NextRequest) {
 
     // 3. Parse & validate body
     const body = await request.json();
-    const { turnstileToken, twitterHandle } = body;
+    const { turnstileToken, tweetUrl } = body;
 
     if (!turnstileToken || typeof turnstileToken !== 'string') {
       return NextResponse.json({ error: 'Missing captcha token' }, { status: 400 });
     }
 
-    // Validate Twitter handle — must start with @
-    if (!twitterHandle || typeof twitterHandle !== 'string') {
-      return NextResponse.json({ error: 'Twitter handle is required' }, { status: 400 });
+    // Validate tweet URL and extract handle
+    if (!tweetUrl || typeof tweetUrl !== 'string') {
+      return NextResponse.json({ error: 'Tweet URL is required' }, { status: 400 });
     }
-    const trimmed = twitterHandle.trim();
-    if (!trimmed.startsWith('@')) {
-      return NextResponse.json({ error: 'Twitter handle must start with @' }, { status: 400 });
+    const tweetMatch = tweetUrl.trim().match(
+      /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/
+    );
+    if (!tweetMatch) {
+      return NextResponse.json({ error: 'Invalid tweet URL. Expected: https://x.com/handle/status/...' }, { status: 400 });
     }
-    const handle = trimmed.slice(1).toLowerCase();
-    if (!handle || !/^[a-z0-9_]{1,15}$/.test(handle)) {
-      return NextResponse.json({ error: 'Invalid Twitter handle' }, { status: 400 });
-    }
+    const handle = tweetMatch[2].toLowerCase();
 
     // 4. Verify Turnstile
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
@@ -173,9 +173,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Register address + handle atomically
+    // 7. Register address + handle + tweet URL
     const added = await redis.sadd(WAITLIST_KEY, addr);
     await redis.hset(WAITLIST_HANDLES_KEY, { [handle]: addr });
+    await redis.hset(WAITLIST_TWEETS_KEY, { [addr]: tweetUrl.trim() });
 
     const newCount = await redis.scard(WAITLIST_KEY);
 

@@ -112,10 +112,12 @@ function randomAddr(): string {
   return `0x${hex}`;
 }
 
-function randomHandle(): string {
+function randomTweetUrl(): { url: string; handle: string } {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789_';
   const len = 4 + Math.floor(Math.random() * 11);
-  return '@' + Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const handle = Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const statusId = Math.floor(Math.random() * 1e15).toString();
+  return { url: `https://x.com/${handle}/status/${statusId}`, handle };
 }
 
 // ── Tests ──
@@ -231,7 +233,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@alice' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://x.com/alice/status/123456789' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(403);
@@ -317,7 +319,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@bob' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://x.com/bob/status/123456789' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       const data = await res.json();
@@ -455,7 +457,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@alice' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://x.com/alice/status/123456789' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(403);
@@ -466,7 +468,7 @@ describe('Waitlist System', () => {
     it('rejects without SIWE auth', async () => {
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@alice' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://x.com/alice/status/123456789' },
       }));
       expect(res.status).toBe(401);
     });
@@ -474,7 +476,7 @@ describe('Waitlist System', () => {
     it('rejects without turnstile token', async () => {
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { twitterHandle: '@alice' },
+        body: { tweetUrl: 'https://x.com/alice/status/123' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(400);
@@ -482,7 +484,7 @@ describe('Waitlist System', () => {
       expect(data.error).toContain('captcha');
     });
 
-    it('rejects without twitter handle', async () => {
+    it('rejects without tweet URL', async () => {
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
         body: { turnstileToken: 'tok' },
@@ -490,18 +492,18 @@ describe('Waitlist System', () => {
       }));
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error).toContain('Twitter');
+      expect(data.error).toContain('Tweet URL');
     });
 
-    it('rejects invalid twitter handle (special chars)', async () => {
+    it('rejects invalid tweet URL', async () => {
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@hello world!' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://facebook.com/alice' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error).toContain('Invalid Twitter');
+      expect(data.error).toContain('Invalid tweet URL');
     });
 
     it('rejects when balance is 0 ETH', async () => {
@@ -509,7 +511,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@alice' },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://x.com/alice/status/123456789' },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(403);
@@ -521,11 +523,11 @@ describe('Waitlist System', () => {
       mockBalance = BigInt('5000000000000000'); // exactly 0.005 ETH
 
       const addr = randomAddr();
-      const handle = randomHandle();
+      const { url } = randomTweetUrl();
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: handle },
+        body: { turnstileToken: 'tok', tweetUrl: url },
         headers: { 'x-siwe-address': addr },
       }));
       const data = await res.json();
@@ -535,14 +537,13 @@ describe('Waitlist System', () => {
       expect(data.count).toBe(1);
     });
 
-    it('handles @ prefix in twitter handle', async () => {
+    it('accepts both x.com and twitter.com URLs', async () => {
       mockBalance = BigInt('10000000000000000'); // 0.01 ETH
 
-      const addr = randomAddr();
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: '@MyHandle' },
-        headers: { 'x-siwe-address': addr },
+        body: { turnstileToken: 'tok', tweetUrl: 'https://twitter.com/MyHandle/status/999' },
+        headers: { 'x-siwe-address': randomAddr() },
       }));
       const data = await res.json();
       expect(data.ok).toBe(true);
@@ -555,14 +556,14 @@ describe('Waitlist System', () => {
       // First registration
       await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: randomHandle() },
+        body: { turnstileToken: 'tok', tweetUrl: randomTweetUrl().url },
         headers: { 'x-siwe-address': addr },
       }));
 
       // Second registration — same wallet
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: randomHandle() },
+        body: { turnstileToken: 'tok', tweetUrl: randomTweetUrl().url },
         headers: { 'x-siwe-address': addr },
       }));
       const data = await res.json();
@@ -571,21 +572,21 @@ describe('Waitlist System', () => {
       expect(data.count).toBe(1); // Still 1
     });
 
-    it('rejects duplicate twitter handle from different wallet', async () => {
+    it('rejects duplicate handle from different wallet (same username in URL)', async () => {
       mockBalance = BigInt('5000000000000000');
-      const handle = randomHandle();
+      const handle = 'shareduser';
 
-      // First wallet registers handle
+      // First wallet registers
       await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: handle },
+        body: { turnstileToken: 'tok', tweetUrl: `https://x.com/${handle}/status/111` },
         headers: { 'x-siwe-address': randomAddr() },
       }));
 
       // Second wallet tries same handle
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: handle },
+        body: { turnstileToken: 'tok', tweetUrl: `https://x.com/${handle}/status/222` },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(409);
@@ -612,12 +613,12 @@ describe('Waitlist System', () => {
       // Register 5 random wallets
       for (let i = 0; i < 5; i++) {
         const addr = randomAddr();
-        const handle = randomHandle();
+        const { url, handle } = randomTweetUrl();
         wallets.push({ addr, handle });
 
         await waitlistPOST(makeRequest('/api/waitlist', {
           method: 'POST',
-          body: { turnstileToken: 'tok', twitterHandle: handle },
+          body: { turnstileToken: 'tok', tweetUrl: url },
           headers: { 'x-siwe-address': addr },
         }));
       }
@@ -658,8 +659,8 @@ describe('Waitlist System', () => {
         expect(data.addresses).toContain(w.addr.toLowerCase());
         const entry = data.entries.find((e: { address: string }) => e.address === w.addr.toLowerCase());
         expect(entry).toBeTruthy();
-        // w.handle is "@xyz", Redis stores "xyz", export returns "@xyz"
-        expect(entry.twitter).toBe(w.handle);
+        // w.handle is "xyz" (from URL), Redis stores "xyz", export returns "@xyz"
+        expect(entry.twitter).toBe(`@${w.handle}`);
       }
     });
 
@@ -691,7 +692,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: randomHandle() },
+        body: { turnstileToken: 'tok', tweetUrl: randomTweetUrl().url },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       expect(res.status).toBe(403);
@@ -702,7 +703,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: randomHandle() },
+        body: { turnstileToken: 'tok', tweetUrl: randomTweetUrl().url },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       const data = await res.json();
@@ -714,7 +715,7 @@ describe('Waitlist System', () => {
 
       const res = await waitlistPOST(makeRequest('/api/waitlist', {
         method: 'POST',
-        body: { turnstileToken: 'tok', twitterHandle: randomHandle() },
+        body: { turnstileToken: 'tok', tweetUrl: randomTweetUrl().url },
         headers: { 'x-siwe-address': randomAddr() },
       }));
       const data = await res.json();
@@ -722,8 +723,8 @@ describe('Waitlist System', () => {
     });
   });
 
-  // ── Twitter handle validation ──
-  describe('Twitter handle validation', () => {
+  // ── Tweet URL validation ──
+  describe('Tweet URL validation', () => {
     beforeEach(async () => {
       mockBalance = BigInt('5000000000000000');
       await adminPOST(makeRequest('/api/waitlist/admin', {
@@ -733,14 +734,28 @@ describe('Waitlist System', () => {
       }));
     });
 
-    const validHandles = ['@alice', '@Bob_123', '@_test', '@a', '@max15characters'];
-    const invalidHandles = ['', 'no_at_prefix', '@has space', '@@double', '@way_too_long_handle_name', '@hello!', '@café'];
+    const validUrls = [
+      'https://x.com/alice/status/1234567890',
+      'https://twitter.com/Bob_123/status/9876543210',
+      'https://x.com/_test/status/111/',
+      'https://twitter.com/a/status/222?s=20',
+      'https://x.com/max15characters/status/333',
+    ];
 
-    for (const handle of validHandles) {
-      it(`accepts valid handle: "${handle}"`, async () => {
+    const invalidUrls = [
+      '',
+      'https://x.com/alice',
+      'https://facebook.com/alice/status/123',
+      'https://x.com/alice/status/',
+      'not-a-url',
+      'https://x.com/way_too_long_handle_name/status/123',
+    ];
+
+    for (const url of validUrls) {
+      it(`accepts valid URL: "${url}"`, async () => {
         const res = await waitlistPOST(makeRequest('/api/waitlist', {
           method: 'POST',
-          body: { turnstileToken: 'tok', twitterHandle: handle },
+          body: { turnstileToken: 'tok', tweetUrl: url },
           headers: { 'x-siwe-address': randomAddr() },
         }));
         const data = await res.json();
@@ -748,11 +763,11 @@ describe('Waitlist System', () => {
       });
     }
 
-    for (const handle of invalidHandles) {
-      it(`rejects invalid handle: "${handle || '(empty)'}"`, async () => {
+    for (const url of invalidUrls) {
+      it(`rejects invalid URL: "${url || '(empty)'}"`, async () => {
         const res = await waitlistPOST(makeRequest('/api/waitlist', {
           method: 'POST',
-          body: { turnstileToken: 'tok', twitterHandle: handle },
+          body: { turnstileToken: 'tok', tweetUrl: url },
           headers: { 'x-siwe-address': randomAddr() },
         }));
         expect(res.status).toBeGreaterThanOrEqual(400);

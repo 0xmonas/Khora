@@ -11,6 +11,12 @@ import { Footer } from '@/components/layouts/Footer';
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const SHAPE_CHAIN_ID = 360;
 
+const TWEET_TEXT = `I just joined the BOOA NFTs by @khorafun waitlist 👨‍🎤`;
+// Quote tweet the announcement post — update this URL when the announcement tweet is live
+const ANNOUNCEMENT_TWEET_URL = process.env.NEXT_PUBLIC_WAITLIST_TWEET_URL || 'https://x.com/0xmonas/status/2034280892516962400';
+const TWEET_INTENT_URL = `https://twitter.com/intent/tweet?text=${encodeURIComponent(TWEET_TEXT)}&url=${encodeURIComponent(ANNOUNCEMENT_TWEET_URL)}`;
+const TWEET_URL_REGEX = /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/;
+
 declare global {
   interface Window {
     turnstile?: {
@@ -46,7 +52,9 @@ export default function WaitlistPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [twitterHandle, setTwitterHandle] = useState('');
+  const [tweetUrl, setTweetUrl] = useState('');
+  const [hasShared, setHasShared] = useState(false);
+  const [parsedHandle, setParsedHandle] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReady, setTurnstileReady] = useState(false);
   const [addingChain, setAddingChain] = useState(false);
@@ -103,7 +111,7 @@ export default function WaitlistPage() {
   };
 
   const handleRegister = async () => {
-    if (!turnstileToken || !twitterHandle.trim()) return;
+    if (!turnstileToken || !parsedHandle) return;
     setLoading(true);
     setError(null);
 
@@ -111,7 +119,7 @@ export default function WaitlistPage() {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turnstileToken, twitterHandle: `@${twitterHandle.replace(/^@/, '').trim()}` }),
+        body: JSON.stringify({ turnstileToken, tweetUrl: tweetUrl.trim() }),
       });
 
       const data = await res.json();
@@ -152,9 +160,7 @@ export default function WaitlistPage() {
   const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
   const secondsLeft = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-  const handleClean = twitterHandle.replace(/^@/, '').trim();
-  const isValidHandle = /^[a-zA-Z0-9_]{1,15}$/.test(handleClean) && handleClean.length > 0;
-  const canSubmit = turnstileToken && isValidHandle && status?.balanceOk && !loading && !status?.isPaused;
+  const canSubmit = turnstileToken && parsedHandle && hasShared && status?.balanceOk && !loading && !status?.isPaused;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -291,30 +297,55 @@ export default function WaitlistPage() {
                   )}
                 </div>
 
-                {/* Twitter handle */}
+                {/* Share on X */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wider" style={font}>
-                    Twitter / X Handle *
+                    Share on X *
                   </label>
-                  <div className="flex items-center border-2 border-neutral-700 dark:border-neutral-200">
-                    <span className="pl-3 text-sm text-muted-foreground" style={font}>@</span>
-                    <input
-                      type="text"
-                      value={twitterHandle.replace(/^@/, '')}
-                      onChange={(e) => setTwitterHandle(e.target.value.replace(/^@/, ''))}
-                      placeholder="handle"
-                      maxLength={15}
-                      className="flex-1 h-10 px-2 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/30"
-                      style={font}
-                      disabled={!status?.balanceOk}
-                    />
-                  </div>
-                  {twitterHandle && !isValidHandle && (
-                    <p className="text-[10px] text-red-500" style={font}>
-                      Letters, numbers, underscores only. Max 15 chars.
-                    </p>
-                  )}
+                  <button
+                    onClick={() => {
+                      window.open(TWEET_INTENT_URL, '_blank', 'noopener,noreferrer');
+                      setHasShared(true);
+                    }}
+                    disabled={!status?.balanceOk}
+                    className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 text-sm text-foreground hover:bg-neutral-50 dark:hover:bg-white/[0.02] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    style={font}
+                  >
+                    {hasShared ? '\u2713 Shared \u2014 open again?' : 'Share on X'}
+                  </button>
                 </div>
+
+                {/* Paste tweet URL */}
+                {hasShared && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider" style={font}>
+                      Paste your tweet URL *
+                    </label>
+                    <input
+                      type="url"
+                      value={tweetUrl}
+                      onChange={(e) => {
+                        const url = e.target.value.trim();
+                        setTweetUrl(url);
+                        const match = url.match(TWEET_URL_REGEX);
+                        setParsedHandle(match ? match[2] : null);
+                      }}
+                      placeholder="https://x.com/yourhandle/status/..."
+                      className="w-full h-10 px-3 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/30"
+                      style={font}
+                    />
+                    {parsedHandle && (
+                      <p className="text-[10px] text-green-600 dark:text-green-500" style={font}>
+                        &#10003; Detected: @{parsedHandle}
+                      </p>
+                    )}
+                    {tweetUrl && !parsedHandle && (
+                      <p className="text-[10px] text-red-500" style={font}>
+                        Invalid URL. Expected: https://x.com/handle/status/...
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Turnstile */}
                 {status?.balanceOk && (

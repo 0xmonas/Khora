@@ -5,6 +5,7 @@ export const maxDuration = 15;
 
 const WAITLIST_KEY = 'waitlist:addresses';
 const WAITLIST_HANDLES_KEY = 'waitlist:handles';
+const WAITLIST_TWEETS_KEY = 'waitlist:tweets';
 const WAITLIST_META_KEY = 'waitlist:meta';
 const ADMIN_SECRET = process.env.WAITLIST_ADMIN_SECRET;
 
@@ -31,9 +32,10 @@ export async function GET(request: NextRequest) {
   }
 
   const redis = getRedis();
-  const [addresses, handles, meta] = await Promise.all([
+  const [addresses, handles, tweets, meta] = await Promise.all([
     redis.smembers(WAITLIST_KEY),
     redis.hgetall(WAITLIST_HANDLES_KEY) as Promise<Record<string, string> | null>,
+    redis.hgetall(WAITLIST_TWEETS_KEY) as Promise<Record<string, string> | null>,
     redis.get<WaitlistMeta>(WAITLIST_META_KEY),
   ]);
 
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest) {
   const entries = addresses.sort().map((addr) => ({
     address: addr,
     twitter: handleMap[addr] ? `@${handleMap[addr]}` : null,
+    tweetUrl: tweets?.[addr] ?? null,
   }));
 
   return NextResponse.json({
