@@ -11,10 +11,10 @@ import { Footer } from '@/components/layouts/Footer';
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const SHAPE_CHAIN_ID = 360;
 
-const TWEET_TEXT = `I just joined the BOOA NFTs by @khorafun waitlist 👨‍🎤`;
-// Quote tweet the announcement post — update this URL when the announcement tweet is live
-const ANNOUNCEMENT_TWEET_URL = process.env.NEXT_PUBLIC_WAITLIST_TWEET_URL || 'https://x.com/0xmonas/status/2034280892516962400';
-const TWEET_INTENT_URL = `https://twitter.com/intent/tweet?text=${encodeURIComponent(TWEET_TEXT)}&url=${encodeURIComponent(ANNOUNCEMENT_TWEET_URL)}`;
+const TWEET_TEXT = `I just joined the BOOA NFTs by @khorafun waitlist 👨‍🎤
+
+https://www.khora.fun/waitlist`;
+const TWEET_INTENT_URL = `https://twitter.com/intent/tweet?text=${encodeURIComponent(TWEET_TEXT)}`;
 const TWEET_URL_REGEX = /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/;
 
 declare global {
@@ -377,6 +377,8 @@ export default function WaitlistPage() {
           <div className="space-y-1 text-center">
             <p className="text-[10px] text-muted-foreground/40" style={font}>
               One wallet per registration. No gas required. Min 0.005 ETH balance.
+              <br />
+              Tweets will be reviewed within 48 hours. Do not delete your tweet.
             </p>
           </div>
         </div>
