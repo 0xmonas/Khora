@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAI } from '@/lib/server/gemini';
 const MODEL_TEXT = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap } from '@/lib/ratelimit';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    // ── Global daily cap ──
-    const daily = await checkDailyCap();
-    if (!daily.allowed) {
-      return NextResponse.json(
-        { error: 'Daily generation limit reached. Please try again tomorrow.' },
-        { status: 503 },
-      );
-    }
-
-    // Rate limit: 5 agent generations per 60s per IP
+    // ── IP rate limit first (cheap, no counter burn) ──
     const ip = getIP(request);
     const rl = await generationLimiter.limit(ip);
     if (!rl.success) {
@@ -26,7 +17,17 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders(rl) },
       );
     }
-    // Per-wallet generation quota
+
+    // ── Global daily cap (atomic INCR — only after IP check passes) ──
+    const daily = await checkDailyCap();
+    if (!daily.allowed) {
+      return NextResponse.json(
+        { error: 'Daily generation limit reached. Please try again tomorrow.' },
+        { status: 503 },
+      );
+    }
+
+    // ── Per-wallet generation quota (atomic INCR) ──
     const walletAddress = request.headers.get('x-siwe-address');
     if (walletAddress) {
       const quota = await checkGenerationQuota(walletAddress);
@@ -147,11 +148,6 @@ COHERENCE RULES:
     // Validate skills/domains against OASF taxonomy — filter out hallucinated entries
     agent.skills = (agent.skills || []).filter((s: string) => ALL_OASF_SKILLS.has(s));
     agent.domains = (agent.domains || []).filter((d: string) => ALL_OASF_DOMAINS.has(d));
-
-    if (walletAddress) {
-      await incrementGenerationCount(walletAddress);
-    }
-    await incrementDailyCap();
 
     return NextResponse.json({ agent });
   } catch (error) {

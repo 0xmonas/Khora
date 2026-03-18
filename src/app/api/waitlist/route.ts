@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   let registered = false;
   let balanceOk = false;
-  let balances: Record<string, string> = {};
+  const balances: Record<string, string> = {};
 
   if (address) {
     registered = await redis.sismember(WAITLIST_KEY, address) === 1;

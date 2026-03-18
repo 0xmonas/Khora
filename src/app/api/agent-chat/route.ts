@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { checkChatQuota, incrementChatCount } from '@/lib/ratelimit';
+import { checkChatQuota } from '@/lib/ratelimit';
 import { getRedis } from '@/lib/server/redis';
 
 export const maxDuration = 30;
@@ -300,9 +300,6 @@ export async function POST(request: NextRequest) {
     if (!reply) {
       return NextResponse.json({ error: 'Agent could not generate a response' }, { status: 500 });
     }
-
-    // Increment chat counter
-    await incrementChatCount(walletAddress);
 
     return NextResponse.json({
       reply,

@@ -94,11 +94,6 @@ export async function checkGenerationQuota(address: string): Promise<{ allowed: 
   return { allowed: true, remaining: Math.max(0, GEN_QUOTA_MAX - newCount) };
 }
 
-/** @deprecated Use checkGenerationQuota which now atomically increments */
-export async function incrementGenerationCount(_address: string): Promise<void> {
-  // No-op: checkGenerationQuota now handles incrementing atomically
-}
-
 export async function resetGenerationQuota(address: string): Promise<void> {
   const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
   await redis.del(key);
@@ -127,11 +122,6 @@ export async function checkDailyCap(): Promise<{ allowed: boolean; count: number
   return { allowed: true, count: newCount };
 }
 
-/** @deprecated Use checkDailyCap which now atomically increments */
-export async function incrementDailyCap(): Promise<void> {
-  // No-op: checkDailyCap now handles incrementing atomically
-}
-
 /**
  * Per-wallet daily chat message quota.
  * Limits how many messages a wallet can send to agent chat per day.
@@ -156,7 +146,3 @@ export async function checkChatQuota(address: string): Promise<{ allowed: boolea
   return { allowed: true, remaining: Math.max(0, CHAT_QUOTA_MAX - newCount) };
 }
 
-/** @deprecated Use checkChatQuota which now atomically increments */
-export async function incrementChatCount(_address: string): Promise<void> {
-  // No-op: checkChatQuota now handles incrementing atomically
-}

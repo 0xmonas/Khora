@@ -3,7 +3,7 @@ import { toHex } from 'viem';
 import type { Hex } from 'viem';
 import { GoogleGenAI } from '@google/genai';
 import Replicate from 'replicate';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap } from '@/lib/ratelimit';
 import { signMintPacket, createDeadline } from '@/lib/server/signer';
 import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
@@ -151,16 +151,7 @@ Output ONLY the JSON object.`;
 
 export async function POST(request: NextRequest) {
   try {
-    // ── Global daily cap (hard spending limit) ──
-    const daily = await checkDailyCap();
-    if (!daily.allowed) {
-      return NextResponse.json(
-        { error: 'Daily generation limit reached. Please try again tomorrow.' },
-        { status: 503 },
-      );
-    }
-
-    // ── Rate limiting ──
+    // ── IP rate limit first (cheap, no counter burn) ──
     const ip = getIP(request);
     const rl = await generationLimiter.limit(ip);
     if (!rl.success) {
@@ -170,11 +161,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Wallet auth + quota ──
+    // ── Wallet auth (cheap, no counter burn) ──
     const walletAddress = request.headers.get('x-siwe-address');
     if (!walletAddress) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    // ── Global daily cap (atomic INCR — only after cheap checks pass) ──
+    const daily = await checkDailyCap();
+    if (!daily.allowed) {
+      return NextResponse.json(
+        { error: 'Daily generation limit reached. Please try again tomorrow.' },
+        { status: 503 },
+      );
+    }
+
+    // ── Per-wallet generation quota (atomic INCR) ──
     const quota = await checkGenerationQuota(walletAddress);
     if (!quota.allowed) {
       return NextResponse.json(
@@ -446,9 +448,6 @@ export async function POST(request: NextRequest) {
 
     const signature = await signMintPacket(imageDataHex, traitsDataHex, minterAddress, deadline, chainId);
 
-    // ── Quotas: count generation + daily cap (no reset — wallet has 6 total lifetime) ──
-    await incrementGenerationCount(walletAddress);
-    await incrementDailyCap();
 
     // ══════════════════════════════════════════════════
     //  STEP 5: Return signed packet to frontend
