@@ -473,11 +473,11 @@ export default function BannerBuilderPage() {
                       Your Agents ({ownedNfts.length})
                     </label>
                     <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-                      {ownedNfts.map((nft) => {
+                      {ownedNfts.map((nft, idx) => {
                         const sel = isSelected(nft.tokenId);
                         return (
                           <button
-                            key={nft.tokenId}
+                            key={`${nft.tokenId}-${idx}`}
                             onClick={() => sel ? removeNft(nft.tokenId) : addNft(nft)}
                             className={`relative aspect-square border-2 transition-all ${
                               sel

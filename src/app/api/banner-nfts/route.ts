@@ -41,28 +41,39 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = new URL(`https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`);
-    url.searchParams.set('owner', address);
-    url.searchParams.set('withMetadata', 'true');
-    url.searchParams.set('pageSize', '100');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allOwnedNfts: Record<string, unknown>[] = [];
+    let pageKey: string | undefined;
+    const MAX_PAGES = 10; // safety: max 1000 NFTs
 
-    // Filter to BOOA contracts only
-    for (const contract of BOOA_CONTRACTS) {
-      url.searchParams.append('contractAddresses[]', contract);
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const url = new URL(`https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`);
+      url.searchParams.set('owner', address);
+      url.searchParams.set('withMetadata', 'true');
+      url.searchParams.set('pageSize', '100');
+      if (pageKey) url.searchParams.set('pageKey', pageKey);
+
+      for (const contract of BOOA_CONTRACTS) {
+        url.searchParams.append('contractAddresses[]', contract);
+      }
+
+      const res = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) {
+        return NextResponse.json({ error: 'Failed to fetch from Alchemy' }, { status: 502 });
+      }
+
+      const data = await res.json();
+      allOwnedNfts.push(...(data.ownedNfts || []));
+
+      pageKey = data.pageKey;
+      if (!pageKey) break;
     }
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to fetch from Alchemy' }, { status: 502 });
-    }
-
-    const data = await res.json();
-
-    const nfts: BannerNft[] = (data.ownedNfts || []).map((nft: Record<string, unknown>) => {
+    const nfts: BannerNft[] = allOwnedNfts.map((nft) => {
       const raw = nft.raw as Record<string, unknown> || {};
       const metadata = raw.metadata as Record<string, unknown> || {};
       const image = nft.image as Record<string, unknown> || {};
