@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
+import { getRedis } from '@/lib/server/redis';
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+export const maxDuration = 15;
+
+const redis = getRedis();
 
 // Allowed chainIds to prevent Redis key poisoning
 const VALID_CHAIN_IDS = new Set([

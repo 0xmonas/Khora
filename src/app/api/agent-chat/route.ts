@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { Redis } from '@upstash/redis';
 import { checkChatQuota, incrementChatCount } from '@/lib/ratelimit';
+import { getRedis } from '@/lib/server/redis';
 
 export const maxDuration = 30;
 
-const MODEL = 'gemini-3.1-flash-lite-preview';
+const MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-flash-lite-preview';
 
 // Gemini singleton
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
@@ -17,10 +17,7 @@ function getAI(): InstanceType<typeof GoogleGenAI> {
   return _ai;
 }
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+const redis = getRedis();
 
 // Shape RPC URLs for ownerOf verification
 const SHAPE_RPCS: Record<number, string> = {

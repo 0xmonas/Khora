@@ -3,6 +3,8 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 
+export const maxDuration = 15;
+
 const OWNER_OF_ABI = [
   {
     inputs: [{ name: 'tokenId', type: 'uint256' }],

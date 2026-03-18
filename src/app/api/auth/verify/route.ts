@@ -6,6 +6,8 @@ import { shape, shapeSepolia } from 'viem/chains';
 import { parseSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { sessionOptions, type SessionData } from '@/lib/session';
 
+export const maxDuration = 15;
+
 const CHAINS = {
   [shape.id]: shape,
   [shapeSepolia.id]: shapeSepolia,

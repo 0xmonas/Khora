@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAI } from '@/lib/server/gemini';
-const MODEL_TEXT = 'gemini-3-flash-preview';
+const MODEL_TEXT = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview';
 import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, incrementGenerationCount, GEN_QUOTA_MAX, checkDailyCap, incrementDailyCap } from '@/lib/ratelimit';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 

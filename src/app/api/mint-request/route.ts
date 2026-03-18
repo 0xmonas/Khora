@@ -29,11 +29,11 @@ function getReplicate(): Replicate {
   return _replicate;
 }
 
-const FLUX_LORA_MODEL = '0xmonas/y2:418c546e6143c2f46c6e774a625472e6ae71e78bac4d5cadede1ce3d31d3700d' as const;
+const FLUX_LORA_MODEL = process.env.REPLICATE_FLUX_MODEL || '0xmonas/y2:418c546e6143c2f46c6e774a625472e6ae71e78bac4d5cadede1ce3d31d3700d';
 
 export const maxDuration = 300; // AI pipeline: Gemini + Replicate + encoding (~30-60s typical)
 
-const MODEL_TEXT = 'gemini-3.1-flash-lite-preview';
+const MODEL_TEXT = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview';
 
 // Fixed reference prefix — every image prompt MUST start with this exact phrase
 const PORTRAIT_REFERENCE_PREFIX = 'A clean retro digital illustration portrait in PC-98 and C64 aesthetic, featuring flat color blocks with bold clean outlines, limited color palette with 2-5 dominant saturated colors, hard-edged cel-shading with no smooth gradients, front-facing shoulders-up composition looking directly at the viewer with face and upper body clearly visible, clean crisp linework, no glitch effects, no distortion, no noise artifacts';
@@ -471,7 +471,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('mint-request error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to generate mint data';
+    const raw = error instanceof Error ? error.message : '';
+    // Return user-friendly messages without leaking internal details
+    let message = 'Failed to generate mint data. Please try again.';
+    if (raw.includes('timed out') || raw.includes('aborted')) message = 'Image generation timed out. Please try again.';
+    else if (raw.includes('No response from Gemini')) message = 'AI generation failed. Please try again.';
+    else if (raw.includes('Incomplete agent data')) message = 'AI produced incomplete data. Please try again.';
+    else if (raw.includes('No image generated')) message = 'Image generation failed. Please try again.';
+    else if (raw.includes('Failed to download')) message = 'Image download failed. Please try again.';
     return NextResponse.json(
       { error: message },
       { status: 500 },

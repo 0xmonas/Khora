@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
 
 function getRegistryForChain(chain: SupportedChain): `0x${string}` {
   const chainId = CHAIN_CONFIG[chain].chainId;
@@ -149,28 +150,12 @@ function extractMetaFromDataURI(uri: string): AgentMeta {
   }
 }
 
-/** Block SSRF: only allow safe external HTTPS URLs */
-function isSafeURL(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return false;
-    const hostname = parsed.hostname.toLowerCase();
-    if (
-      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' ||
-      hostname.startsWith('10.') || hostname.startsWith('172.') || hostname.startsWith('192.168.') ||
-      hostname === '169.254.169.254' ||
-      hostname.endsWith('.internal') || hostname.endsWith('.local') || hostname === '[::1]'
-    ) return false;
-    return true;
-  } catch { return false; }
-}
-
 /** Fetch agent metadata from an HTTP agentURI (ERC-8004 registration JSON). */
 async function fetchMetaFromHTTP(uri: string): Promise<AgentMeta> {
   if (!uri.startsWith('http://') && !uri.startsWith('https://')) return { name: null, image: null, description: null };
   if (!isSafeURL(uri)) return { name: null, image: null, description: null };
   try {
-    const res = await fetch(uri, { signal: AbortSignal.timeout(5000) });
+    const res = await safeFetch(uri, 5000);
     if (!res.ok) return { name: null, image: null, description: null };
     const parsed = await res.json();
     return {
@@ -382,5 +367,7 @@ export async function GET(request: NextRequest) {
     return a.tokenId - b.tokenId;
   });
 
-  return NextResponse.json({ agents, errors, totalCount: agents.length });
+  return NextResponse.json({ agents, errors, totalCount: agents.length }, {
+    headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
+  });
 }

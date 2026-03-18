@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAI } from '@/lib/server/gemini';
-const MODEL_TEXT = 'gemini-3-flash-preview';
+const MODEL_TEXT = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview';
 import { validateInput } from '@/lib/api/api-helpers';
 import { enrichAgentSchema } from '@/lib/validation/schemas';
 import { generationLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';

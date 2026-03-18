@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateInput } from '@/lib/api/api-helpers';
+import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
 import { fetchAgentSchema } from '@/lib/validation/schemas';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
@@ -41,34 +42,6 @@ async function callTokenURI(chain: SupportedChain, agentId: number): Promise<str
   return agentURI as string;
 }
 
-/** Block SSRF: only allow https://, ipfs:// gateway, and ar:// gateway URLs */
-function isSafeURL(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    // Only HTTPS allowed
-    if (parsed.protocol !== 'https:') return false;
-    // Block internal/private IPs and metadata endpoints
-    const hostname = parsed.hostname.toLowerCase();
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('172.') ||
-      hostname.startsWith('192.168.') ||
-      hostname === '169.254.169.254' ||       // AWS metadata
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local') ||
-      hostname === '[::1]'
-    ) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function fetchRegistration(agentURI: string) {
   let registration;
 
@@ -92,7 +65,7 @@ async function fetchRegistration(agentURI: string) {
       throw new Error('Blocked: URI points to a disallowed destination');
     }
 
-    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const response = await safeFetch(url, 10000);
     if (!response.ok) {
       throw new Error(`Failed to fetch registration: ${response.status}`);
     }
@@ -135,7 +108,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ registration });
+    return NextResponse.json({ registration }, {
+      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' },
+    });
   } catch (error) {
     console.error('fetch-agent error:', error);
     const message = error instanceof Error ? error.message : '';

@@ -48,6 +48,18 @@ export async function middleware(request: NextRequest) {
 
   // Public read-only routes — skip auth, already rate-limited above
   if (PUBLIC_READ_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'))) {
+    // Handle CORS preflight (OPTIONS) requests
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
     const response = NextResponse.next();
     response.headers.set('Access-Control-Allow-Origin', '*');
     response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');

@@ -75,18 +75,31 @@ const GEN_QUOTA_PREFIX = 'gen:wallet:';
 export const GEN_QUOTA_MAX = 6; // ) 3 mint + 3 error margin
 const GEN_QUOTA_TTL = 24 * 60 * 60; // 1 day (no commit deadline in V2, shorter TTL)
 
+/**
+ * Atomically check AND increment generation quota in a single INCR call.
+ * Returns whether this request is allowed and the remaining count.
+ * The INCR-first pattern prevents race conditions from parallel requests.
+ */
 export async function checkGenerationQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
   const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
-  const count = (await redis.get<number>(key)) ?? 0;
-  return { allowed: count < GEN_QUOTA_MAX, remaining: Math.max(0, GEN_QUOTA_MAX - count) };
-}
-
-export async function incrementGenerationCount(address: string): Promise<void> {
-  const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
+  // Atomic: increment first, then check if over limit
   const newCount = await redis.incr(key);
+  // Set TTL on first increment (atomic with pipeline would be ideal, but this is safe:
+  // worst case a key without TTL gets an extra TTL set on next request)
   if (newCount === 1) {
     await redis.expire(key, GEN_QUOTA_TTL);
   }
+  if (newCount > GEN_QUOTA_MAX) {
+    // Over limit — roll back the increment
+    await redis.decr(key);
+    return { allowed: false, remaining: 0 };
+  }
+  return { allowed: true, remaining: Math.max(0, GEN_QUOTA_MAX - newCount) };
+}
+
+/** @deprecated Use checkGenerationQuota which now atomically increments */
+export async function incrementGenerationCount(_address: string): Promise<void> {
+  // No-op: checkGenerationQuota now handles incrementing atomically
 }
 
 export async function resetGenerationQuota(address: string): Promise<void> {
@@ -102,16 +115,24 @@ export async function resetGenerationQuota(address: string): Promise<void> {
 const DAILY_CAP_KEY = 'gen:daily:global';
 export const DAILY_CAP_MAX = 5000; // max 5000 generations/day = ~$250/day
 
+/**
+ * Atomically check AND increment daily cap in a single INCR call.
+ */
 export async function checkDailyCap(): Promise<{ allowed: boolean; count: number }> {
-  const count = (await redis.get<number>(DAILY_CAP_KEY)) ?? 0;
-  return { allowed: count < DAILY_CAP_MAX, count };
-}
-
-export async function incrementDailyCap(): Promise<void> {
   const newCount = await redis.incr(DAILY_CAP_KEY);
   if (newCount === 1) {
-    await redis.expire(DAILY_CAP_KEY, 86400); // 24 hours TTL
+    await redis.expire(DAILY_CAP_KEY, 86400);
   }
+  if (newCount > DAILY_CAP_MAX) {
+    await redis.decr(DAILY_CAP_KEY);
+    return { allowed: false, count: newCount - 1 };
+  }
+  return { allowed: true, count: newCount };
+}
+
+/** @deprecated Use checkDailyCap which now atomically increments */
+export async function incrementDailyCap(): Promise<void> {
+  // No-op: checkDailyCap now handles incrementing atomically
 }
 
 /**
@@ -122,16 +143,23 @@ const CHAT_QUOTA_PREFIX = 'chat:daily:';
 export const CHAT_QUOTA_MAX = 50;
 const CHAT_QUOTA_TTL = 24 * 60 * 60; // 24 hours
 
+/**
+ * Atomically check AND increment chat quota in a single INCR call.
+ */
 export async function checkChatQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
-  const key = `${CHAT_QUOTA_PREFIX}${address.toLowerCase()}`;
-  const count = (await redis.get<number>(key)) ?? 0;
-  return { allowed: count < CHAT_QUOTA_MAX, remaining: Math.max(0, CHAT_QUOTA_MAX - count) };
-}
-
-export async function incrementChatCount(address: string): Promise<void> {
   const key = `${CHAT_QUOTA_PREFIX}${address.toLowerCase()}`;
   const newCount = await redis.incr(key);
   if (newCount === 1) {
     await redis.expire(key, CHAT_QUOTA_TTL);
   }
+  if (newCount > CHAT_QUOTA_MAX) {
+    await redis.decr(key);
+    return { allowed: false, remaining: 0 };
+  }
+  return { allowed: true, remaining: Math.max(0, CHAT_QUOTA_MAX - newCount) };
+}
+
+/** @deprecated Use checkChatQuota which now atomically increments */
+export async function incrementChatCount(_address: string): Promise<void> {
+  // No-op: checkChatQuota now handles incrementing atomically
 }

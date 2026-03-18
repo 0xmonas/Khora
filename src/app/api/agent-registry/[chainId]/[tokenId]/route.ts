@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import type { KhoraAgent } from '@/types/agent';
 import { BOOA_NFT_ABI, isMainnetChain } from '@/lib/contracts/booa';
 import type { Chain } from 'viem';
+import { getRedis } from '@/lib/server/redis';
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+export const maxDuration = 30;
+
+const redis = getRedis();
 
 // Allowed chainIds to prevent Redis key poisoning
 const VALID_CHAIN_IDS = new Set([
