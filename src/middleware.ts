@@ -3,18 +3,21 @@ import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/session';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit-edge';
 
-// Routes that skip session entirely (no auth needed, no headers injected)
-const SKIP_PATHS = [
+// Routes that skip SIWE session but ARE rate-limited.
+// Auth routes handle their own security (nonce matching, signature verification, Bearer token).
+const AUTH_PATHS = [
   '/api/auth/nonce',
   '/api/auth/verify',
   '/api/auth/session',
   '/api/auth/logout',
+  '/api/waitlist/admin',
 ];
 
 // Routes that work both authenticated and unauthenticated.
 // Session is read and headers injected if logged in, but 401 is NOT returned.
 const SOFT_AUTH_PATHS = [
   '/api/agent-metadata',
+  '/api/waitlist',
 ];
 
 // Public read-only routes — no auth required, rate-limited
@@ -30,12 +33,7 @@ const PUBLIC_READ_PATHS = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth routes entirely
-  if (SKIP_PATHS.some((path) => pathname === path)) {
-    return NextResponse.next();
-  }
-
-  // ── Rate limiting (applied to all API routes) ──
+  // ── Rate limiting (applied to ALL API routes, no exceptions) ──
   const ip = getIP(request);
   const isWrite = request.method !== 'GET';
   const rl = await (isWrite ? writeLimiter : generalLimiter).limit(ip);
@@ -44,6 +42,11 @@ export async function middleware(request: NextRequest) {
       { error: 'Too many requests. Please try again later.' },
       { status: 429, headers: rateLimitHeaders(rl) },
     );
+  }
+
+  // Auth routes — rate-limited above, skip SIWE (they handle their own auth)
+  if (AUTH_PATHS.some((path) => pathname === path)) {
+    return NextResponse.next();
   }
 
   // Public read-only routes — skip auth, already rate-limited above
