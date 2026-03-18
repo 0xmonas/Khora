@@ -5,12 +5,14 @@ export const maxDuration = 30;
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
 
 // BOOA contract addresses to filter
+const isAddress = (v: string) => /^0x[a-fA-F0-9]{40}$/.test(v);
+
 const BOOA_CONTRACTS = [
   process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS,
   process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET,
   process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS,
   process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET,
-].filter(Boolean).map(a => a!.toLowerCase());
+].filter((a): a is string => !!a && isAddress(a)).map(a => a.toLowerCase());
 
 const CHAIN_TO_NETWORK: Record<string, string> = {
   shape: 'shape-mainnet',
