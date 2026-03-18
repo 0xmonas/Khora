@@ -103,6 +103,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, closed: true });
   }
 
+  if (action === 'reset') {
+    await Promise.all([
+      redis.del(WAITLIST_KEY),
+      redis.del(WAITLIST_HANDLES_KEY),
+      redis.del(WAITLIST_TWEETS_KEY),
+      redis.del(WAITLIST_META_KEY),
+    ]);
+    return NextResponse.json({ ok: true, reset: true });
+  }
+
   if (action === 'pause') {
     const meta = await redis.get<WaitlistMeta>(WAITLIST_META_KEY);
     if (!meta) {
@@ -158,5 +168,5 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use "open", "close", "pause", or "resume"' }, { status: 400 });
+  return NextResponse.json({ error: 'Invalid action. Use "open", "close", "pause", "resume", or "reset"' }, { status: 400 });
 }
