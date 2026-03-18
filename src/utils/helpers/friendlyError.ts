@@ -1,6 +1,5 @@
 /** Maps raw error messages to user-friendly messages */
 export function friendlyError(raw: string): string {
-  console.warn('[friendlyError] raw:', raw);
   const lower = raw.toLowerCase();
 
   // Rate limiting / quota

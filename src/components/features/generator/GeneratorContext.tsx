@@ -100,7 +100,7 @@ async function saveAgentMetadataToAPI(
       body: JSON.stringify({ address, chainId, tokenId, agent }),
     });
     if (!res.ok) {
-      console.error('agent-metadata save failed:', res.status, await res.text().catch(() => ''));
+      console.error('agent-metadata save failed:', res.status);
     }
   } catch (err) {
     console.error('agent-metadata save error:', err);
