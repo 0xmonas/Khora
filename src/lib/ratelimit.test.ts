@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 // Mock Redis before importing ratelimit
 const mockGet = vi.fn();
@@ -7,28 +7,39 @@ const mockDecr = vi.fn();
 const mockExpire = vi.fn();
 const mockDel = vi.fn();
 
-vi.mock('@upstash/redis', () => ({
-  Redis: class MockRedis {
-    get = mockGet;
-    incr = mockIncr;
-    decr = mockDecr;
-    expire = mockExpire;
-    del = mockDel;
-  },
+vi.mock('@/lib/server/redis', () => ({
+  getRedis: () => ({
+    get: mockGet,
+    incr: mockIncr,
+    decr: mockDecr,
+    expire: mockExpire,
+    del: mockDel,
+  }),
 }));
 
 vi.mock('@upstash/ratelimit', () => ({
   Ratelimit: class MockRatelimit {
     static slidingWindow() { return {}; }
-    limit = vi.fn().mockResolvedValue({ success: true, limit: 60, remaining: 59, reset: 0 });
+    limit = vi.fn().mockResolvedValue({ success: true, limit: 60, remaining: 59, reset: 0, pending: Promise.resolve() });
   },
 }));
 
-// Set env vars before import
-process.env.UPSTASH_REDIS_REST_URL = 'https://test.upstash.io';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+let checkGenerationQuota: Awaited<typeof import('./ratelimit')>['checkGenerationQuota'];
+let checkDailyCap: Awaited<typeof import('./ratelimit')>['checkDailyCap'];
+let checkChatQuota: Awaited<typeof import('./ratelimit')>['checkChatQuota'];
+let GEN_QUOTA_MAX: number;
+let DAILY_CAP_MAX: number;
+let CHAT_QUOTA_MAX: number;
 
-const { checkGenerationQuota, checkDailyCap, checkChatQuota, GEN_QUOTA_MAX, DAILY_CAP_MAX, CHAT_QUOTA_MAX } = await import('./ratelimit');
+beforeAll(async () => {
+  const mod = await import('./ratelimit');
+  checkGenerationQuota = mod.checkGenerationQuota;
+  checkDailyCap = mod.checkDailyCap;
+  checkChatQuota = mod.checkChatQuota;
+  GEN_QUOTA_MAX = mod.GEN_QUOTA_MAX;
+  DAILY_CAP_MAX = mod.DAILY_CAP_MAX;
+  CHAT_QUOTA_MAX = mod.CHAT_QUOTA_MAX;
+});
 
 describe('Atomic quota checks', () => {
   beforeEach(() => {

@@ -1,10 +1,7 @@
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
+import { getRedis } from '@/lib/server/redis';
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+const redis = getRedis();
 
 /**
  * General API rate limiter: 60 requests per 60 seconds per IP.

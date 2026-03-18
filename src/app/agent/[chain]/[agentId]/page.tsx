@@ -7,14 +7,11 @@ import { AgentCard } from './AgentCard';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import type { Metadata } from 'next';
-import { Redis } from '@upstash/redis';
+import { getRedis } from '@/lib/server/redis';
 
 export const revalidate = 60;
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+const redis = getRedis();
 
 interface OnChainTrait {
   trait_type: string;

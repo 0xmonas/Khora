@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Menu, X } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { shape, shapeSepolia } from 'wagmi/chains';
 
@@ -113,58 +113,137 @@ function WalletButton() {
   );
 }
 
+const NAV_LINKS: { href: string; label: string; highlight?: boolean }[] = [
+  { href: '/booa', label: 'BOOA' },
+  { href: '/bridge', label: 'Bridge' },
+  { href: '/studio', label: 'Studio' },
+  { href: '/waitlist', label: 'Waitlist', highlight: true },
+  { href: '/blog', label: 'Blog' },
+];
+
 export function Header() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Lock body scroll when menu is open
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
 
   return (
-    <div className="p-4 md:p-8 lg:p-12 bg-background">
-      <div className="w-full lg:grid lg:grid-cols-12">
-        <div className="hidden lg:block lg:col-span-1" />
-        <div className="lg:col-span-10">
-          <div className="flex items-center justify-between relative">
-            <div
-              style={{ width: '48px', height: '48px', position: 'relative' }}
-              onClick={() => router.replace('/')}
-              className="cursor-pointer"
-            >
-              <Image
-                src="/khoralogo.svg"
-                alt="Logo"
-                fill
-                sizes="48px"
-                loading="eager"
-                className="object-contain dark:brightness-0 dark:invert"
-              />
-            </div>
-            <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">
-              <Link href="/booa" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
-                BOOA
-              </Link>
-              <Link href="/bridge" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
-                Bridge
-              </Link>
-              <Link href="/studio" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
-                Studio
-              </Link>
-              <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors" style={walletFont}>
-                Blog
-              </Link>
-            </nav>
-            <div className="flex items-center gap-4">
+    <>
+      <div className="p-4 md:p-8 lg:p-12 bg-background">
+        <div className="w-full lg:grid lg:grid-cols-12">
+          <div className="hidden lg:block lg:col-span-1" />
+          <div className="lg:col-span-10">
+            <div className="flex items-center justify-between relative">
+              {/* Hamburger — mobile only */}
               <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="h-10 sm:h-12 px-4 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
-                aria-label="Toggle theme"
+                onClick={() => setMenuOpen(true)}
+                className="md:hidden h-10 w-10 flex items-center justify-center text-foreground"
+                aria-label="Open menu"
               >
-                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                <Menu size={24} />
               </button>
-              <WalletButton />
+
+              <div
+                style={{ width: '48px', height: '48px', position: 'relative' }}
+                onClick={() => router.replace('/')}
+                className="cursor-pointer"
+              >
+                <Image
+                  src="/khoralogo.svg"
+                  alt="Logo"
+                  fill
+                  sizes="48px"
+                  loading="eager"
+                  className="object-contain dark:brightness-0 dark:invert"
+                />
+              </div>
+              <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">
+                {NAV_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`text-sm transition-colors ${
+                      link.highlight
+                        ? 'text-green-600 dark:text-green-500 hover:text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    style={walletFont}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="h-10 sm:h-12 px-4 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <WalletButton />
+              </div>
             </div>
           </div>
+          <div className="hidden lg:block lg:col-span-1" />
         </div>
-        <div className="hidden lg:block lg:col-span-1" />
       </div>
-    </div>
+
+      {/* Mobile slide-in menu */}
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-50 bg-black/60 transition-opacity duration-300 md:hidden ${
+          menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setMenuOpen(false)}
+      />
+
+      {/* Panel */}
+      <div
+        className={`fixed top-0 left-0 z-50 h-full w-[80%] max-w-xs bg-background border-r-2 border-neutral-700 dark:border-neutral-200 transition-transform duration-300 ease-out md:hidden ${
+          menuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-neutral-700/30 dark:border-neutral-200/30">
+          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={walletFont}>
+            MENU
+          </p>
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="h-10 w-10 flex items-center justify-center text-foreground"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="flex flex-col p-6 gap-6">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setMenuOpen(false)}
+              className={`text-lg transition-colors ${
+                link.highlight
+                  ? 'text-green-600 dark:text-green-500 hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              style={walletFont}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </>
   );
 }

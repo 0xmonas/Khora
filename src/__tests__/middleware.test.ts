@@ -10,7 +10,7 @@ vi.mock('iron-session', () => ({
 }));
 
 // Mock rate limiter so tests don't hit real Upstash Redis
-const mockRateLimitResult = { success: true, limit: 60, remaining: 59, reset: Date.now() + 60000 };
+const mockRateLimitResult = { success: true, limit: 60, remaining: 59, reset: Date.now() + 60000, pending: Promise.resolve() };
 vi.mock('@/lib/ratelimit', () => ({
   generalLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
   writeLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
@@ -154,7 +154,7 @@ describe('Middleware', () => {
 
   it('should return 429 when rate limited', async () => {
     const ratelimit = await import('@/lib/ratelimit');
-    const blockedResult = { success: false, limit: 60, remaining: 0, reset: Date.now() + 60000 };
+    const blockedResult = { success: false, limit: 60, remaining: 0, reset: Date.now() + 60000, pending: Promise.resolve() };
     vi.mocked(ratelimit.generalLimiter.limit).mockResolvedValueOnce(blockedResult);
 
     const { middleware } = await import('@/middleware');
