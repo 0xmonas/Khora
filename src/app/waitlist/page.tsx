@@ -16,6 +16,7 @@ const TWEET_TEXT = `I just joined the BOOA NFTs by @khorafun waitlist 👨‍�
 https://www.khora.fun/waitlist`;
 const TWEET_INTENT_URL = `https://twitter.com/intent/tweet?text=${encodeURIComponent(TWEET_TEXT)}`;
 const TWEET_URL_REGEX = /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/;
+const RESERVED_HANDLES = new Set(['i', 'intent', 'search', 'explore', 'home', 'notifications', 'messages', 'settings', 'compose']);
 
 declare global {
   interface Window {
@@ -328,7 +329,8 @@ export default function WaitlistPage() {
                         const url = e.target.value.trim();
                         setTweetUrl(url);
                         const match = url.match(TWEET_URL_REGEX);
-                        setParsedHandle(match ? match[2] : null);
+                        const h = match ? match[2] : null;
+                        setParsedHandle(h && !RESERVED_HANDLES.has(h.toLowerCase()) ? h : null);
                       }}
                       placeholder="https://x.com/yourhandle/status/..."
                       className="w-full h-10 px-3 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/30"
@@ -341,7 +343,7 @@ export default function WaitlistPage() {
                     )}
                     {tweetUrl && !parsedHandle && (
                       <p className="text-[10px] text-red-500" style={font}>
-                        Invalid URL. Expected: https://x.com/handle/status/...
+                        {tweetUrl.match(/x\.com\/(i|intent|search|explore)\//) ? 'Mobile tweet links are not supported. Please try from desktop.' : 'Invalid URL. Expected: https://x.com/handle/status/...'}
                       </p>
                     )}
                   </div>

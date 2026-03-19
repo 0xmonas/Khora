@@ -129,6 +129,12 @@ export async function POST(request: NextRequest) {
     }
     const handle = tweetMatch[2].toLowerCase();
 
+    // Block Twitter system paths that aren't real usernames (mobile share URLs)
+    const RESERVED_HANDLES = new Set(['i', 'intent', 'search', 'explore', 'home', 'notifications', 'messages', 'settings', 'compose']);
+    if (RESERVED_HANDLES.has(handle)) {
+      return NextResponse.json({ error: 'Mobile tweet links are not supported. Please try from desktop.' }, { status: 400 });
+    }
+
     // 4. Verify Turnstile
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
     const isHuman = await verifyTurnstile(turnstileToken, ip);

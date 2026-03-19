@@ -749,6 +749,8 @@ describe('Waitlist System', () => {
       'https://x.com/alice/status/',
       'not-a-url',
       'https://x.com/way_too_long_handle_name/status/123',
+      'https://x.com/i/status/123456789',
+      'https://x.com/intent/status/123456789',
     ];
 
     for (const url of validUrls) {

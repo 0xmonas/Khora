@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "wagmi-development": {
+      "source": "wevm/wagmi",
+      "sourceType": "github",
+      "computedHash": "9267a4d968f71734d2dece0b4b93028c301325e5f32470a725f86688067486b8"
+    }
+  }
+}
