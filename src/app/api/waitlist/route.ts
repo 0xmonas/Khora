@@ -12,6 +12,8 @@ const WAITLIST_TWEETS_KEY = 'waitlist:tweets'; // address → tweetUrl mapping
 const WAITLIST_META_KEY = 'waitlist:meta';
 const MIN_BALANCE = BigInt('5000000000000000'); // 0.005 ETH
 const MAX_WAITLIST = 1000;
+const TWEET_URL_REGEX = /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/;
+const RESERVED_HANDLES = new Set(['i', 'intent', 'search', 'explore', 'home', 'notifications', 'messages', 'settings', 'compose']);
 
 const CHAINS = {
   [mainnet.id]: { chain: mainnet, rpc: undefined },
@@ -121,16 +123,13 @@ export async function POST(request: NextRequest) {
     if (!tweetUrl || typeof tweetUrl !== 'string') {
       return NextResponse.json({ error: 'Tweet URL is required' }, { status: 400 });
     }
-    const tweetMatch = tweetUrl.trim().match(
-      /^https?:\/\/(x\.com|twitter\.com)\/([a-zA-Z0-9_]{1,15})\/status\/(\d+)\/?(\?.*)?$/
-    );
+    const tweetMatch = tweetUrl.trim().match(TWEET_URL_REGEX);
     if (!tweetMatch) {
       return NextResponse.json({ error: 'Invalid tweet URL. Expected: https://x.com/handle/status/...' }, { status: 400 });
     }
     const handle = tweetMatch[2].toLowerCase();
 
     // Block Twitter system paths that aren't real usernames (mobile share URLs)
-    const RESERVED_HANDLES = new Set(['i', 'intent', 'search', 'explore', 'home', 'notifications', 'messages', 'settings', 'compose']);
     if (RESERVED_HANDLES.has(handle)) {
       return NextResponse.json({ error: 'Mobile tweet links are not supported. Please try from desktop.' }, { status: 400 });
     }

@@ -54,6 +54,7 @@ export default function WaitlistPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [tweetUrl, setTweetUrl] = useState('');
+  const [urlError, setUrlError] = useState<'mobile' | 'invalid' | null>(null);
   const [hasShared, setHasShared] = useState(false);
   const [parsedHandle, setParsedHandle] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -330,7 +331,16 @@ export default function WaitlistPage() {
                         setTweetUrl(url);
                         const match = url.match(TWEET_URL_REGEX);
                         const h = match ? match[2] : null;
-                        setParsedHandle(h && !RESERVED_HANDLES.has(h.toLowerCase()) ? h : null);
+                        if (h && RESERVED_HANDLES.has(h.toLowerCase())) {
+                          setParsedHandle(null);
+                          setUrlError('mobile');
+                        } else if (h) {
+                          setParsedHandle(h);
+                          setUrlError(null);
+                        } else {
+                          setParsedHandle(null);
+                          setUrlError(url ? 'invalid' : null);
+                        }
                       }}
                       placeholder="https://x.com/yourhandle/status/..."
                       className="w-full h-10 px-3 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/30"
@@ -341,9 +351,9 @@ export default function WaitlistPage() {
                         &#10003; Detected: @{parsedHandle}
                       </p>
                     )}
-                    {tweetUrl && !parsedHandle && (
+                    {tweetUrl && !parsedHandle && urlError && (
                       <p className="text-[10px] text-red-500" style={font}>
-                        {tweetUrl.match(/x\.com\/(i|intent|search|explore)\//) ? 'Mobile tweet links are not supported. Please try from desktop.' : 'Invalid URL. Expected: https://x.com/handle/status/...'}
+                        {urlError === 'mobile' ? 'Mobile tweet links are not supported. Please try from desktop.' : 'Invalid URL. Expected: https://x.com/handle/status/...'}
                       </p>
                     )}
                   </div>
