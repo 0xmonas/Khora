@@ -63,6 +63,8 @@ export function AgentChat() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [userApiKey, setUserApiKey] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -167,9 +169,14 @@ export function AgentChat() {
       // Remove last entry since it's the current message
       historyForApi.pop();
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userApiKey) {
+        headers['x-gemini-key'] = userApiKey;
+      }
+
       const res = await fetch('/api/agent-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           tokenId: Number(selectedTokenId),
           chainId: targetChainId,
@@ -181,10 +188,16 @@ export function AgentChat() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.quotaExceeded) {
+          setQuotaExceeded(true);
+        }
         setError(data.error || 'Failed to get response');
-        // Keep user message but don't add agent reply
         saveHistory(targetChainId, selectedTokenId, newMessages);
         return;
+      }
+
+      if (data.usingOwnKey) {
+        setQuotaExceeded(true);
       }
 
       const agentMsg: ChatMessage = { role: 'model', text: data.reply, timestamp: Date.now() };
@@ -386,6 +399,28 @@ export function AgentChat() {
         <div ref={chatEndRef} />
       </div>
 
+      {/* API Key input — shown when quota exceeded */}
+      {quotaExceeded && (
+        <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-2">
+          <div className="flex gap-2 items-center">
+            <input
+              type="password"
+              value={userApiKey}
+              onChange={(e) => setUserApiKey(e.target.value.trim())}
+              placeholder="Paste your Gemini API key to continue..."
+              className="flex-1 px-3 py-1.5 text-[10px] bg-neutral-50 dark:bg-neutral-800/40 rounded text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-neutral-300 dark:focus:ring-neutral-600"
+              style={font}
+            />
+            {userApiKey && (
+              <span className="text-[10px] text-green-600 dark:text-green-500" style={font}>&#10003;</span>
+            )}
+          </div>
+          <p className="text-[9px] text-muted-foreground/40 mt-1" style={font}>
+            Your key is never stored on our servers. Get one free at ai.google.dev
+          </p>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-3">
         <div className="flex gap-2">
@@ -394,16 +429,16 @@ export function AgentChat() {
             value={input}
             onChange={(e) => setInput(e.target.value.slice(0, 500))}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={quotaExceeded && !userApiKey ? 'Add your API key above to continue...' : 'Type a message...'}
             rows={1}
             className="flex-1 px-3 py-2 text-xs bg-neutral-50 dark:bg-neutral-800/40 rounded-lg text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow"
             style={font}
-            disabled={isLoading}
+            disabled={isLoading || (quotaExceeded && !userApiKey)}
             autoFocus
           />
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || (quotaExceeded && !userApiKey)}
             className="px-3 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Send className="w-3.5 h-3.5" />
@@ -414,7 +449,7 @@ export function AgentChat() {
             {input.length}/500
           </span>
           <span className="text-[10px] text-muted-foreground/35" style={font}>
-            Enter to send
+            {quotaExceeded && userApiKey ? 'Using your API key' : 'Enter to send'}
           </span>
         </div>
       </div>
@@ -422,4 +457,4 @@ export function AgentChat() {
   );
 }
 
-const CHAT_QUOTA_MAX_DISPLAY = 50;
+const CHAT_QUOTA_MAX_DISPLAY = 10;

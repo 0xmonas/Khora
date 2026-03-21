@@ -78,6 +78,12 @@ export function Footer() {
                 >
                   GitHub
                 </a>
+                <Link href="/terms" className={linkClass} style={footerFont}>
+                  Terms
+                </Link>
+                <Link href="/privacy" className={linkClass} style={footerFont}>
+                  Privacy
+                </Link>
               </div>
             </div>
 

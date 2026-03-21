@@ -5,7 +5,7 @@ import { getRedis } from '@/lib/server/redis';
 
 export const maxDuration = 30;
 
-const MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-3.1-flash-lite-preview';
+const MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash-lite';
 
 // Gemini singleton
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
@@ -58,8 +58,29 @@ const INJECTION_PATTERNS = [
   /encode\s+(your|the)\s+(prompt|instructions)\s+(in|as|to)\s+(base64|hex|binary)/i,
 ];
 
+/** Strip zero-width / invisible characters and normalize unicode to catch homoglyph bypasses */
+function sanitizeForDetection(text: string, replaceWithSpace = false): string {
+  return text
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/g, replaceWithSpace ? ' ' : '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[\u0400-\u04FF]/g, (ch) => {
+      // Map common Cyrillic homoglyphs to Latin
+      const map: Record<string, string> = {
+        '\u0430': 'a', '\u0435': 'e', '\u043E': 'o', '\u0440': 'r',
+        '\u0441': 'c', '\u0443': 'y', '\u0445': 'x', '\u0410': 'A',
+        '\u0415': 'E', '\u041E': 'O', '\u0420': 'R', '\u0421': 'C',
+        '\u0423': 'Y', '\u0425': 'X', '\u0456': 'i', '\u0406': 'I',
+      };
+      return map[ch] || ch;
+    });
+}
+
 function isInjectionAttempt(text: string): boolean {
-  return INJECTION_PATTERNS.some((p) => p.test(text));
+  // Check both: zero-width removed (words joined) and zero-width→space (words separated)
+  const stripped = sanitizeForDetection(text, false);
+  const spaced = sanitizeForDetection(text, true);
+  return INJECTION_PATTERNS.some((p) => p.test(stripped) || p.test(spaced));
 }
 
 const INJECTION_PREFIX = 'chat:inject:';
@@ -164,9 +185,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Prompt injection detection — hard block after 5 attempts per hour
+    // Uses INCR-first atomic pattern to prevent race conditions
     const injectKey = `${INJECTION_PREFIX}${walletAddress.toLowerCase()}`;
-    const injectCount = (await redis.get<number>(injectKey)) ?? 0;
 
+    // Also scan history messages for injection attempts
+    const historyInjection = validHistory.some((msg) => isInjectionAttempt(msg.text));
+    const currentInjection = isInjectionAttempt(message);
+
+    if (currentInjection || historyInjection) {
+      const newCount = await redis.incr(injectKey);
+      if (newCount === 1) await redis.expire(injectKey, INJECTION_TTL);
+
+      if (newCount >= INJECTION_MAX) {
+        return NextResponse.json(
+          { error: 'Chat temporarily locked due to repeated policy violations. Try again later.' },
+          { status: 403 },
+        );
+      }
+
+      const attemptsLeft = INJECTION_MAX - newCount;
+      return NextResponse.json(
+        { error: `This message was blocked. ${attemptsLeft} warning${attemptsLeft !== 1 ? 's' : ''} remaining before temporary lock.` },
+        { status: 400 },
+      );
+    }
+
+    // Check if already locked (no injection in current request but previously locked)
+    const injectCount = (await redis.get<number>(injectKey)) ?? 0;
     if (injectCount >= INJECTION_MAX) {
       return NextResponse.json(
         { error: 'Chat temporarily locked due to repeated policy violations. Try again later.' },
@@ -174,29 +219,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (isInjectionAttempt(message)) {
-      const newCount = await redis.incr(injectKey);
-      if (newCount === 1) await redis.expire(injectKey, INJECTION_TTL);
-
-      const attemptsLeft = INJECTION_MAX - newCount;
-      if (attemptsLeft <= 0) {
-        return NextResponse.json(
-          { error: 'Chat temporarily locked due to repeated policy violations. Try again later.' },
-          { status: 403 },
-        );
-      }
-
-      return NextResponse.json(
-        { error: `This message was blocked. ${attemptsLeft} warning${attemptsLeft !== 1 ? 's' : ''} remaining before temporary lock.` },
-        { status: 400 },
-      );
-    }
-
-    // Rate limit: 50 messages/day/wallet
+    // Rate limit: 10 messages/day/wallet (free tier)
+    // Users can bypass quota by providing their own Gemini API key
+    const userApiKey = request.headers.get('x-gemini-key');
     const quota = await checkChatQuota(walletAddress);
-    if (!quota.allowed) {
+    const usingOwnKey = !quota.allowed && !!userApiKey;
+
+    if (!quota.allowed && !userApiKey) {
       return NextResponse.json(
-        { error: 'Daily chat limit reached (50 messages/day)', remaining: 0 },
+        { error: 'Daily chat limit reached (10 messages/day). Add your own Gemini API key to continue.', remaining: 0, quotaExceeded: true },
         { status: 429 },
       );
     }
@@ -284,8 +315,8 @@ export async function POST(request: NextRequest) {
       { role: 'user' as const, parts: [{ text: message.trim() }] },
     ];
 
-    // Call Gemini
-    const ai = getAI();
+    // Call Gemini — use user's own key if quota exceeded
+    const ai = usingOwnKey ? new GoogleGenAI({ apiKey: userApiKey! }) : getAI();
     const response = await ai.models.generateContent({
       model: MODEL,
       contents,
@@ -303,7 +334,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       reply,
-      remaining: quota.remaining - 1,
+      remaining: usingOwnKey ? -1 : quota.remaining - 1,
+      usingOwnKey,
     });
   } catch (error) {
     console.error('agent-chat error:', error instanceof Error ? error.message : error);

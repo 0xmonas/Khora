@@ -127,7 +127,7 @@ export async function checkDailyCap(): Promise<{ allowed: boolean; count: number
  * Limits how many messages a wallet can send to agent chat per day.
  */
 const CHAT_QUOTA_PREFIX = 'chat:daily:';
-export const CHAT_QUOTA_MAX = 50;
+export const CHAT_QUOTA_MAX = 10;
 const CHAT_QUOTA_TTL = 24 * 60 * 60; // 24 hours
 
 /**
