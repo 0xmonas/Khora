@@ -87,8 +87,8 @@ export default function TermsOfUsePage() {
                 BOOA NFT holders can chat with their agents using AI. The chat feature:
               </p>
               <ul className="space-y-1.5 list-disc list-inside">
-                <li>Provides 10 free messages per day per wallet</li>
-                <li>Allows unlimited messaging with your own Gemini API key (BYOK)</li>
+                <li>Includes a limited number of free messages per day per wallet (subject to change)</li>
+                <li>Allows continued messaging with your own Gemini API key (BYOK) after the free limit</li>
                 <li>Is powered by Google Gemini AI — responses are generated, not curated</li>
                 <li>Includes prompt injection detection and content filtering</li>
                 <li>Does not store chat history on our servers — history is kept in your browser only</li>
