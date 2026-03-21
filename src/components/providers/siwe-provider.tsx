@@ -6,11 +6,8 @@ import {
   RainbowKitAuthenticationProvider,
   type AuthenticationStatus,
 } from '@rainbow-me/rainbowkit';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
-import { HIDE_TESTNETS } from '@/utils/constants/chains';
-
-const SHAPE_MAINNET_ID = 360;
 
 const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
 export function useSiweStatus() { return useContext(SiweStatusContext); }
@@ -21,12 +18,6 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthenticationStatus>('loading');
   const prevAddressRef = useRef<string | undefined>(undefined);
   const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-
-  // In production, block SIWE until user is on Shape mainnet
-  const isWrongChain = HIDE_TESTNETS && chainId !== SHAPE_MAINNET_ID;
-  const isWrongChainRef = useRef(isWrongChain);
-  isWrongChainRef.current = isWrongChain;
 
   // Sign out the old session so RainbowKit auto-prompts SIWE for new wallet
   const signOutSession = useCallback(async () => {
@@ -106,9 +97,6 @@ export function SiweProvider({ children }: { children: ReactNode }) {
         },
 
         verify: async ({ message, signature }) => {
-          // Block SIWE on wrong chain — let user switch first
-          if (isWrongChainRef.current) return false;
-
           verifyingRef.current = true;
 
           try {
@@ -141,14 +129,9 @@ export function SiweProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // Wrong chain → tell RainbowKit we're 'loading' so it does NOT open SIWE modal
-  // RainbowKit ConnectButton will show "Wrong network" + switch button instead
-  // Once user switches to Shape, real status flows through → SIWE auto-prompts
-  const rainbowKitStatus: AuthenticationStatus = (isConnected && isWrongChain) ? 'loading' : status;
-
   return (
     <SiweStatusContext.Provider value={status}>
-      <RainbowKitAuthenticationProvider adapter={adapter} status={rainbowKitStatus}>
+      <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
         {children}
       </RainbowKitAuthenticationProvider>
     </SiweStatusContext.Provider>

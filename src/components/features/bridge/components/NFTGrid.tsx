@@ -7,13 +7,14 @@ import { NFTCard } from './NFTCard';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 import type { DiscoveredAgent } from '@/types/agent';
-import { VISIBLE_CHAIN_OPTIONS } from '@/utils/constants/chains';
 
 const CHAIN_IDS: Record<string, number> = Object.fromEntries(
   Object.entries(CHAIN_CONFIG).map(([key, val]) => [key, val.chainId])
 );
 
-const CHAIN_OPTIONS = VISIBLE_CHAIN_OPTIONS;
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 const PAGE_SIZE = 20;
 

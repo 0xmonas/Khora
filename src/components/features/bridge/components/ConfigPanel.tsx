@@ -6,9 +6,10 @@ import { useBridge } from '../BridgeContext';
 import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASFCategory } from '@/lib/oasf-taxonomy';
 import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 import type { AgentService } from '@/types/agent';
-import { VISIBLE_CHAIN_OPTIONS } from '@/utils/constants/chains';
 
-const CHAIN_OPTIONS = VISIBLE_CHAIN_OPTIONS;
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 const SERVICE_TYPES = ['web', 'A2A', 'MCP', 'OASF', 'ENS', 'DID', 'email'] as const;
 const TRUST_OPTIONS = ['reputation', 'crypto-economic', 'tee-attestation'] as const;

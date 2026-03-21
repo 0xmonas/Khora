@@ -41,9 +41,9 @@ function isValidImageURI(uri: string): boolean {
   catch { return false; }
 }
 
-import { VISIBLE_CHAIN_OPTIONS, VISIBLE_CHAINS } from '@/utils/constants/chains';
-
-const CHAIN_OPTIONS = VISIBLE_CHAIN_OPTIONS;
+const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
+  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
+);
 
 export function InputForm() {
   const {
@@ -188,7 +188,7 @@ export function InputForm() {
     setDiscoveredAgents([]);
 
     // Scan all chains in parallel — API accepts one chain at a time
-    const chains = VISIBLE_CHAINS;
+    const chains = Object.keys(CHAIN_CONFIG) as SupportedChain[];
     Promise.allSettled(
       chains.map((chain) =>
         fetch(`/api/discover-agents?address=${address}&chain=${chain}`)
@@ -374,7 +374,7 @@ export function InputForm() {
                 {discoveryLoading ? (
                   <div className="w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="animate-pulse">Scanning {VISIBLE_CHAINS.length} chains...</span>
+                      <span className="animate-pulse">Scanning {Object.keys(CHAIN_CONFIG).length} chains...</span>
                     </div>
                   </div>
                 ) : discoveredAgents.length === 0 ? (
