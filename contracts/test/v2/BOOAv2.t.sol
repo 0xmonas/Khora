@@ -1072,10 +1072,12 @@ contract BOOATest is Test {
         minter.mint{value: PUBLIC_PRICE}(validBitmap, validTraits, deadline, sig, emptyProof);
     }
 
-    function test_access_rejectPlainETH() public {
+    function test_access_acceptsETH() public {
+        // BOOA accepts ETH via receive() for Gasback v2 rebates
         vm.prank(user);
         (bool ok,) = address(booa).call{value: 1 ether}("");
-        assertFalse(ok);
+        assertTrue(ok);
+        assertEq(address(booa).balance, 1 ether);
     }
 
     function test_access_minterAcceptsETH() public {

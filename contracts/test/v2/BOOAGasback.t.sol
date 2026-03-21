@@ -227,6 +227,30 @@ contract BOOAGasbackTest is Test {
     }
 
     // ========================
+    // Receive function (ETH rebates)
+    // ========================
+
+    function test_gasback_canReceiveETH() public {
+        // BOOA should accept ETH (gasback rebates)
+        vm.deal(address(this), 1 ether);
+        (bool ok,) = address(booa).call{value: 0.1 ether}("");
+        assertEq(ok, true);
+        assertEq(address(booa).balance, 0.1 ether);
+    }
+
+    function test_gasback_receivedETHWithdrawable() public {
+        // Send ETH to BOOA, then owner withdraws
+        vm.deal(address(this), 1 ether);
+        (bool ok,) = address(booa).call{value: 0.5 ether}("");
+        assertEq(ok, true);
+
+        uint256 ownerBefore = address(this).balance;
+        booa.withdraw();
+        assertEq(address(booa).balance, 0);
+        assertEq(address(this).balance, ownerBefore + 0.5 ether);
+    }
+
+    // ========================
     // Helpers
     // ========================
 
@@ -245,6 +269,9 @@ contract BOOAGasbackTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, ethHash);
         return abi.encodePacked(r, s, v);
     }
+
+    // Allow test contract to receive ETH from withdraw
+    receive() external payable {}
 
     function _makeBitmap(uint8 color) internal pure returns (bytes memory) {
         bytes memory bmp = new bytes(2048);

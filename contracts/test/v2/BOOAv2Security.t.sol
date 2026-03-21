@@ -126,7 +126,7 @@ contract BurnReentrant {
     uint256 public tokenToBurn;
     bool public attacked;
 
-    constructor(address _booa) {
+    constructor(address payable _booa) {
         booa = BOOA(_booa);
     }
 
@@ -1240,10 +1240,12 @@ contract BOOADeepSecurityTest is Test {
     }
 
     /// @dev BOOA contract has no receive/fallback — can't receive plain ETH
-    function test_eth_booaRejectsETH() public {
+    function test_eth_booaAcceptsETH() public {
+        // BOOA accepts ETH via receive() for Gasback v2 rebates
         vm.prank(attacker);
         (bool ok,) = address(booa).call{value: 1 ether}("");
-        assertFalse(ok);
+        assertTrue(ok);
+        assertEq(address(booa).balance, 1 ether);
     }
 
     // ═══════════════════════════════════════════════════════════════════

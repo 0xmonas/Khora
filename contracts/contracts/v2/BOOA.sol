@@ -164,6 +164,9 @@ contract BOOA is ERC721, ERC2981, Ownable {
         return from;
     }
 
+    /// @dev Accept ETH from Gasback rebates
+    receive() external payable {}
+
     function renounceOwnership() public pure override {
         revert("Cannot renounce");
     }
