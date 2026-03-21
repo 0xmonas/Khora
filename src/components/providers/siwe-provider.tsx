@@ -6,7 +6,7 @@ import {
   RainbowKitAuthenticationProvider,
   type AuthenticationStatus,
 } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 
 const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
@@ -17,35 +17,42 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   const verifyingRef = useRef(false);
   const [status, setStatus] = useState<AuthenticationStatus>('loading');
   const prevAddressRef = useRef<string | undefined>(undefined);
+  const prevChainIdRef = useRef<number | undefined>(undefined);
   const { address, isConnected } = useAccount();
+  const walletChainId = useChainId();
 
-  // Sign out the old session so RainbowKit auto-prompts SIWE for new wallet
-  const signOutSession = useCallback(async () => {
+  // Debounced sign-out: multiple triggers (address change + chain change)
+  // collapse into a single logout call to prevent nonce race conditions
+  const signOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signOutSession = useCallback(() => {
     setStatus('unauthenticated');
-    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* noop */ }
+    // Debounce: if multiple triggers fire within 200ms, only one logout executes
+    if (signOutTimerRef.current) clearTimeout(signOutTimerRef.current);
+    signOutTimerRef.current = setTimeout(async () => {
+      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* noop */ }
+      signOutTimerRef.current = null;
+    }, 200);
   }, []);
 
-  // Detect wallet address changes and invalidate session
+  // Detect wallet address OR chain changes and invalidate session
   useEffect(() => {
     // Skip initial mount — let the session check handle it
     if (prevAddressRef.current === undefined) {
       prevAddressRef.current = address;
+      prevChainIdRef.current = walletChainId;
       return;
     }
 
-    // Address actually changed (switched wallet or disconnected)
-    if (address !== prevAddressRef.current) {
-      prevAddressRef.current = address;
+    const addressChanged = address !== prevAddressRef.current;
+    const chainChanged = walletChainId !== prevChainIdRef.current;
 
-      if (!address || !isConnected) {
-        // Wallet disconnected
-        signOutSession();
-      } else {
-        // Wallet switched — sign out old session so SIWE re-prompts
-        signOutSession();
-      }
+    if (addressChanged) prevAddressRef.current = address;
+    if (chainChanged) prevChainIdRef.current = walletChainId;
+
+    if (addressChanged || chainChanged) {
+      signOutSession();
     }
-  }, [address, isConnected, signOutSession]);
+  }, [address, isConnected, walletChainId, signOutSession]);
 
   // Check session on page load + window focus (official RainbowKit pattern)
   useEffect(() => {
