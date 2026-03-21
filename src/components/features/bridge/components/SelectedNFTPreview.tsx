@@ -1,6 +1,8 @@
 'use client';
 
+import Image from 'next/image';
 import { useBridge } from '../BridgeContext';
+import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
 
 export function SelectedNFTPreview() {
   const {
@@ -48,9 +50,20 @@ export function SelectedNFTPreview() {
       {/* Token Info */}
       <div className="space-y-1">
         {isExistingAgent ? (
-          <p className="font-mono text-[10px] text-neutral-400">
-            Agent ID: {selectedNFT.tokenId} &middot; {selectedNFT.chain}
-          </p>
+          <div className="space-y-1">
+            <p className="font-mono text-[10px] text-neutral-400">
+              Agent ID: {selectedNFT.tokenId} &middot; {selectedNFT.chain}
+            </p>
+            <a
+              href={`${CHAIN_CONFIG[selectedNFT.chain as SupportedChain]?.chainId === 84532 || CHAIN_CONFIG[selectedNFT.chain as SupportedChain]?.chainId === 11011 ? 'https://testnet.8004scan.io' : 'https://www.8004scan.io'}/agents/${selectedNFT.chain}/${selectedNFT.tokenId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+            >
+              <Image src="/8004scan.svg" alt="" width={14} height={14} className="dark:invert" />
+              <span>View on 8004scan</span>
+            </a>
+          </div>
         ) : (
           <>
             <p className="font-mono text-[10px] text-neutral-400">
