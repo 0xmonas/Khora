@@ -15,7 +15,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 
-const allowlistPath = resolve(__dirname, 'allowlist.json');
+const allowlistPath = resolve(__dirname, '..', 'docs', 'allowlist.json');
 const outputPath = resolve(__dirname, '..', 'public', 'allowlist-proofs.json');
 
 const addresses: string[] = JSON.parse(readFileSync(allowlistPath, 'utf-8'));
