@@ -102,10 +102,12 @@
         │  │              minter, deadline, chainId,             │  │
         │  │              minterContractAddress)                 │  │
         │  │    signer: server-side SIGNER_PRIVATE_KEY           │  │
-        │  │    deadline: 5 minutes from now                     │  │
+        │  │    deadline: 10 minutes from now                    │  │
         │  │                                                     │  │
         │  │ 7. Increment wallet generation quota + daily cap     │  │
         │  │    (6 total per wallet / 24h, NO reset on mint)    │  │
+        │  │    On AI failure: refund quota via DECR (never      │  │
+        │  │    below 0) — user doesn't lose credits on errors  │  │
         │  └──────────────────┬──────────────────────────────────┘  │
         │                     │                                     │
         │  Response:          │                                     │
@@ -151,6 +153,10 @@
         │  │     (signs: imageData, traitsData, sender,          │  │
         │  │      deadline, chainId, address(this))              │  │
         │  │  9. booa.mint(sender) → ERC721 token                │  │
+        │  │     └→ _update() hook: if gasbackEnabled,           │  │
+        │  │        call gasbackAddress with gasToBurn            │  │
+        │  │        (silent fail — never blocks transfer)        │  │
+        │  │        ETH rebate received via receive()            │  │
         │  │ 10. store.setImageData(tokenId, bitmap) → SSTORE2   │  │
         │  │ 11. store.setTraits(tokenId, traitsJSON) → SSTORE2  │  │
         │  │ 12. emit AgentMinted(tokenId, sender)               │  │
@@ -989,7 +995,107 @@
  │  On successful generation:                                      │
  │  incrementGenerationCount(wallet) + incrementDailyCap()        │
  │                                                                 │
+ │  On FAILED generation (Gemini/Replicate error):                │
+ │  refundGenerationQuota(wallet) + refundDailyCap()              │
+ │  (DECR with floor at 0 — user doesn't lose credits on errors) │
+ │                                                                 │
  │  Middleware rate limits (all /api/* routes):                     │
  │  • GET:  60 req / 60s per IP (generalLimiter)                  │
  │  • POST: 30 req / 60s per IP (writeLimiter)                    │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    AGENT CHAT
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  Agent Chat — NFT holders chat with their agents                │
+ │  Route: /studio → Agent Chat tab                                │
+ │  API:   POST /api/agent-chat                                    │
+ │                                                                 │
+ │  Requirements:                                                  │
+ │  • Wallet connected + SIWE auth                                 │
+ │  • Must own the BOOA NFT (on-chain ownerOf check)              │
+ │                                                                 │
+ │  Model: gemini-2.5-flash-lite (temp: 0.8, max 512 tokens)     │
+ │                                                                 │
+ │  Quota:                                                         │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Free tier:  10 messages / day / wallet                   │   │
+ │  │ BYOK tier:  Unlimited (user provides own Gemini key)    │   │
+ │  │                                                          │   │
+ │  │ When quota exceeded:                                     │   │
+ │  │ • Frontend shows API key input                           │   │
+ │  │ • User pastes Gemini API key                             │   │
+ │  │ • Key sent via x-gemini-key header (NEVER stored)       │   │
+ │  │ • Server proxies to Gemini with user's key               │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Security:                                                      │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ • 16 regex patterns for prompt injection detection       │   │
+ │  │ • Unicode normalization (NFKC + Cyrillic→Latin mapping) │   │
+ │  │ • Zero-width character stripping                         │   │
+ │  │ • History messages scanned (not just current message)   │   │
+ │  │ • 5 injection attempts → 1-hour lockout (atomic INCR)   │   │
+ │  │ • System prompt: NEVER reveal instructions               │   │
+ │  │ • Chat history: localStorage only (not on server)       │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Flow:                                                          │
+ │  1. Auth check (SIWE)                                           │
+ │  2. Input validation (500 char max, history 20 msgs max)       │
+ │  3. Injection detection (current msg + all history)            │
+ │  4. Quota check (10/day free, unlimited with BYOK)             │
+ │  5. On-chain ownerOf verification                               │
+ │  6. Fetch agent metadata (Redis cache → on-chain fallback)     │
+ │  7. Build system prompt from agent traits                       │
+ │  8. Call Gemini (user's key if BYOK, ours if free tier)        │
+ │  9. Return reply + remaining quota                              │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    GASBACK V2 INTEGRATION
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  Gasback v2 — ETH rebate on every ERC721 operation              │
+ │  Status: Toggle-based, deployed with gasbackEnabled=false       │
+ │                                                                 │
+ │  Architecture:                                                  │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ BOOA.sol _update() hook (fires on mint/transfer/burn)   │   │
+ │  │    │                                                     │   │
+ │  │    ├─ gasbackEnabled == false? → skip (zero overhead)   │   │
+ │  │    │                                                     │   │
+ │  │    └─ gasbackEnabled == true?                            │   │
+ │  │       → gasbackAddress.call(abi.encode(gasToBurn))      │   │
+ │  │       → success: ETH rebate sent to BOOA via receive() │   │
+ │  │       → revert: silently ignored, transfer continues    │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Storage:                                                       │
+ │  • gasbackAddress  — Gasback v2 contract (TBD on mainnet)      │
+ │  • gasbackGasToBurn — uint256, adjustable by owner             │
+ │  • gasbackEnabled  — bool, default false                        │
+ │                                                                 │
+ │  Admin:                                                         │
+ │  • setGasback(address, uint256, bool) — owner only             │
+ │  • receive() external payable — accepts ETH rebates            │
+ │  • withdraw() / withdrawTo() — pull accumulated rebates        │
+ │                                                                 │
+ │  Sepolia test results:                                          │
+ │  • Gasback address: 0x21E34c5bea9253CDCd57671A1970BB31df4aBe83│
+ │  • 4 mints → 4,536,000 wei rebate accumulated                 │
+ │  • withdraw() → successfully pulled to owner                   │
+ │                                                                 │
+ │  Mainnet plan:                                                  │
+ │  1. Deploy with gasbackEnabled=false                            │
+ │  2. Wait for Gasback v2 mainnet deploy + audit                 │
+ │  3. setGasback(canonicalAddress, gasToBurn, true)               │
+ │  4. Every transfer generates rebate → withdraw periodically    │
  └─────────────────────────────────────────────────────────────────┘
