@@ -141,11 +141,14 @@ export function SiweProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // When on wrong chain, report 'unauthenticated' but block verify in adapter
-  // RainbowKit will show "Wrong network" + switch button from wagmi config
+  // Wrong chain → tell RainbowKit we're 'loading' so it does NOT open SIWE modal
+  // RainbowKit ConnectButton will show "Wrong network" + switch button instead
+  // Once user switches to Shape, real status flows through → SIWE auto-prompts
+  const rainbowKitStatus: AuthenticationStatus = (isConnected && isWrongChain) ? 'loading' : status;
+
   return (
     <SiweStatusContext.Provider value={status}>
-      <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
+      <RainbowKitAuthenticationProvider adapter={adapter} status={rainbowKitStatus}>
         {children}
       </RainbowKitAuthenticationProvider>
     </SiweStatusContext.Provider>
