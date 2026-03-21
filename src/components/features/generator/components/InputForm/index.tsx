@@ -41,9 +41,9 @@ function isValidImageURI(uri: string): boolean {
   catch { return false; }
 }
 
-const CHAIN_OPTIONS: { value: SupportedChain; label: string }[] = Object.entries(CHAIN_CONFIG).map(
-  ([key, val]) => ({ value: key as SupportedChain, label: val.name })
-);
+import { VISIBLE_CHAIN_OPTIONS, VISIBLE_CHAINS, HIDE_TESTNETS } from '@/utils/constants/chains';
+
+const CHAIN_OPTIONS = VISIBLE_CHAIN_OPTIONS;
 
 export function InputForm() {
   const {
@@ -93,8 +93,10 @@ export function InputForm() {
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const SUPPORTED_CHAIN_IDS = new Set<number>([shape.id, shapeSepolia.id]);
-  const isWrongNetwork = isConnected && !SUPPORTED_CHAIN_IDS.has(chainId);
+  const SUPPORTED_MINT_CHAINS = HIDE_TESTNETS
+    ? new Set<number>([shape.id])
+    : new Set<number>([shape.id, shapeSepolia.id]);
+  const isWrongNetwork = isConnected && !SUPPORTED_MINT_CHAINS.has(chainId);
 
   // Agent discovery state (local to InputForm)
   const [discoveredAgents, setDiscoveredAgents] = useState<DiscoveredAgent[]>([]);
@@ -188,7 +190,7 @@ export function InputForm() {
     setDiscoveredAgents([]);
 
     // Scan all chains in parallel — API accepts one chain at a time
-    const chains = Object.keys(CHAIN_CONFIG) as SupportedChain[];
+    const chains = VISIBLE_CHAINS;
     Promise.allSettled(
       chains.map((chain) =>
         fetch(`/api/discover-agents?address=${address}&chain=${chain}`)
@@ -374,7 +376,7 @@ export function InputForm() {
                 {discoveryLoading ? (
                   <div className="w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="animate-pulse">Scanning {Object.keys(CHAIN_CONFIG).length} chains...</span>
+                      <span className="animate-pulse">Scanning {VISIBLE_CHAINS.length} chains...</span>
                     </div>
                   </div>
                 ) : discoveredAgents.length === 0 ? (

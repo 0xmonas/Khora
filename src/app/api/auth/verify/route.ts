@@ -2,16 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { createPublicClient, http } from 'viem';
-import { shape, shapeSepolia } from 'viem/chains';
+import { shape, shapeSepolia, mainnet, base, arbitrum, optimism, polygon, avalanche, bsc, celo, gnosis, scroll, linea, mantle } from 'viem/chains';
 import { parseSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { sessionOptions, type SessionData } from '@/lib/session';
 
 export const maxDuration = 15;
 
-const CHAINS = {
+// Accept SIWE from any supported chain — auth is chain-agnostic,
+// the user just needs to prove wallet ownership
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CHAINS: Record<number, any> = {
   [shape.id]: shape,
   [shapeSepolia.id]: shapeSepolia,
-} as const;
+  [mainnet.id]: mainnet,
+  [base.id]: base,
+  [arbitrum.id]: arbitrum,
+  [optimism.id]: optimism,
+  [polygon.id]: polygon,
+  [avalanche.id]: avalanche,
+  [bsc.id]: bsc,
+  [celo.id]: celo,
+  [gnosis.id]: gnosis,
+  [scroll.id]: scroll,
+  [linea.id]: linea,
+  [mantle.id]: mantle,
+};
 
 export async function POST(request: NextRequest) {
   try {
