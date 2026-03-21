@@ -100,6 +100,24 @@ export async function resetGenerationQuota(address: string): Promise<void> {
 }
 
 /**
+ * Refund one generation quota slot (e.g. when AI call fails after quota was incremented).
+ * Uses DECR but never goes below 0.
+ */
+export async function refundGenerationQuota(address: string): Promise<void> {
+  const key = `${GEN_QUOTA_PREFIX}${address.toLowerCase()}`;
+  const val = await redis.decr(key);
+  if (val < 0) await redis.set(key, 0); // safety: never go negative
+}
+
+/**
+ * Refund one daily cap slot (e.g. when AI call fails after cap was incremented).
+ */
+export async function refundDailyCap(): Promise<void> {
+  const val = await redis.decr(DAILY_CAP_KEY);
+  if (val < 0) await redis.set(DAILY_CAP_KEY, 0);
+}
+
+/**
  * Global daily generation cap — hard spending limit.
  * Prevents runaway costs regardless of per-wallet or per-IP limits.
  * Resets daily via TTL (86400s from first increment).

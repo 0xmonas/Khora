@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAI } from '@/lib/server/gemini';
 const MODEL_TEXT = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap, refundGenerationQuota, refundDailyCap } from '@/lib/ratelimit';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  let walletAddress: string | null = null;
+
   try {
     // ── IP rate limit first (cheap, no counter burn) ──
     const ip = getIP(request);
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Per-wallet generation quota (atomic INCR) ──
-    const walletAddress = request.headers.get('x-siwe-address');
+    walletAddress = request.headers.get('x-siwe-address');
     if (walletAddress) {
       const quota = await checkGenerationQuota(walletAddress);
       if (!quota.allowed) {
@@ -151,6 +153,12 @@ COHERENCE RULES:
 
     return NextResponse.json({ agent });
   } catch (error) {
+    // Refund quota slots — AI failed, user shouldn't lose their generation rights
+    if (walletAddress) {
+      await refundGenerationQuota(walletAddress).catch(() => {});
+    }
+    await refundDailyCap().catch(() => {});
+
     console.error('generate-agent error:', error);
     return NextResponse.json(
       { error: 'Failed to generate agent' },

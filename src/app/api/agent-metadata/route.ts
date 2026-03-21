@@ -25,7 +25,7 @@ function makeKey(chainId: number, tokenId: number) {
 }
 
 // GET /api/agent-metadata?chainId=84532&tokenId=1&address=0x...
-// Only the minter (token owner) can retrieve full metadata
+// Only the authenticated minter can retrieve full metadata
 export async function GET(req: NextRequest) {
   const ip = getIP(req);
   const rl = await generalLimiter.limit(ip);
@@ -34,6 +34,12 @@ export async function GET(req: NextRequest) {
       { error: 'Too many requests' },
       { status: 429, headers: rateLimitHeaders(rl) },
     );
+  }
+
+  // Require SIWE authentication
+  const sessionAddress = req.headers.get('x-siwe-address');
+  if (!sessionAddress) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   const { searchParams } = req.nextUrl;
@@ -47,6 +53,11 @@ export async function GET(req: NextRequest) {
 
   if (!isValidAddress(address)) {
     return NextResponse.json({ error: 'Invalid address format' }, { status: 400 });
+  }
+
+  // Verify the requesting address matches the authenticated session
+  if (address.toLowerCase() !== sessionAddress.toLowerCase()) {
+    return NextResponse.json({ found: false }, { headers: rateLimitHeaders(rl) });
   }
 
   const chainIdNum = Number(chainId);
@@ -71,8 +82,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ found: false }, { headers: rateLimitHeaders(rl) });
   }
 
+  // Strip internal fields before returning
+  const { _minter, _savedAt, _updatedAt, _chainId, _tokenId, ...publicMetadata } = entry;
+  void _minter; void _savedAt; void _updatedAt; void _chainId; void _tokenId;
+
   return NextResponse.json(
-    { found: true, metadata: entry },
+    { found: true, metadata: publicMetadata },
     { headers: rateLimitHeaders(rl) },
   );
 }

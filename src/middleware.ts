@@ -16,7 +16,6 @@ const AUTH_PATHS = [
 // Routes that work both authenticated and unauthenticated.
 // Session is read and headers injected if logged in, but 401 is NOT returned.
 const SOFT_AUTH_PATHS = [
-  '/api/agent-metadata',
   '/api/waitlist',
 ];
 

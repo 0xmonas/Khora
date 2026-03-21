@@ -3,7 +3,7 @@ import { toHex } from 'viem';
 import type { Hex } from 'viem';
 import { GoogleGenAI } from '@google/genai';
 import Replicate from 'replicate';
-import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap } from '@/lib/ratelimit';
+import { generationLimiter, getIP, rateLimitHeaders, checkGenerationQuota, GEN_QUOTA_MAX, checkDailyCap, refundGenerationQuota, refundDailyCap } from '@/lib/ratelimit';
 import { signMintPacket, createDeadline } from '@/lib/server/signer';
 import { encodeBitmapServer, pixelateImageServer } from '@/lib/server/bitmap';
 import { ALL_OASF_SKILLS, ALL_OASF_DOMAINS } from '@/lib/oasf-taxonomy';
@@ -150,6 +150,9 @@ Output ONLY the JSON object.`;
 // ── Route handler ──
 
 export async function POST(request: NextRequest) {
+  // Declare outside try so catch can access for refund
+  let walletAddress: string | null = null;
+
   try {
     // ── IP rate limit first (cheap, no counter burn) ──
     const ip = getIP(request);
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Wallet auth (cheap, no counter burn) ──
-    const walletAddress = request.headers.get('x-siwe-address');
+    walletAddress = request.headers.get('x-siwe-address');
     if (!walletAddress) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
@@ -469,6 +472,12 @@ export async function POST(request: NextRequest) {
       quotaRemaining: quota.remaining - 1,
     });
   } catch (error) {
+    // Refund quota slots — AI failed, user shouldn't lose their generation rights
+    if (walletAddress) {
+      await refundGenerationQuota(walletAddress).catch(() => {});
+    }
+    await refundDailyCap().catch(() => {});
+
     console.error('mint-request error:', error);
     const raw = error instanceof Error ? error.message : '';
     // Return user-friendly messages without leaking internal details

@@ -42,6 +42,54 @@ async function callTokenURI(chain: SupportedChain, agentId: number): Promise<str
   return agentURI as string;
 }
 
+const MAX_REGISTRATION_SIZE = 100_000; // 100KB max for on-chain/IPFS registration data
+
+/** Sanitize registration JSON — enforce size limits on individual fields without stripping unknown fields */
+function sanitizeRegistration(raw: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [key, val] of Object.entries(raw)) {
+    // Block prototype pollution
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+
+    // Truncate long strings
+    if (typeof val === 'string') {
+      result[key] = val.slice(0, key === 'image' ? 50_000 : 2000);
+    }
+    // Cap arrays
+    else if (Array.isArray(val)) {
+      result[key] = val.slice(0, 50).map((item: unknown) => {
+        if (typeof item === 'string') return item.slice(0, 2000);
+        if (typeof item === 'object' && item !== null) {
+          // Sanitize nested objects (e.g. services array items)
+          const nested: Record<string, unknown> = {};
+          for (const [nk, nv] of Object.entries(item as Record<string, unknown>)) {
+            if (nk === '__proto__' || nk === 'constructor' || nk === 'prototype') continue;
+            if (typeof nv === 'string') nested[nk] = nv.slice(0, 2000);
+            else if (Array.isArray(nv)) nested[nk] = nv.slice(0, 20).filter((v): v is string => typeof v === 'string').map(v => v.slice(0, 200));
+            else nested[nk] = nv;
+          }
+          return nested;
+        }
+        return item;
+      });
+    }
+    // Pass through booleans, numbers, simple objects
+    else if (typeof val === 'boolean' || typeof val === 'number') {
+      result[key] = val;
+    }
+    // Shallow objects (e.g. supportedTrust)
+    else if (typeof val === 'object' && val !== null) {
+      const serialized = JSON.stringify(val);
+      if (serialized.length <= 10_000) {
+        result[key] = val;
+      }
+    }
+  }
+
+  return result;
+}
+
 async function fetchRegistration(agentURI: string) {
   let registration;
 
@@ -49,6 +97,9 @@ async function fetchRegistration(agentURI: string) {
   if (agentURI.startsWith('data:')) {
     const base64 = agentURI.split(',')[1];
     const json = Buffer.from(base64, 'base64').toString('utf-8');
+    if (json.length > MAX_REGISTRATION_SIZE) {
+      throw new Error('Registration data too large');
+    }
     registration = JSON.parse(json);
   } else {
     // Handle IPFS URIs
@@ -70,7 +121,11 @@ async function fetchRegistration(agentURI: string) {
       throw new Error(`Failed to fetch registration: ${response.status}`);
     }
 
-    registration = await response.json();
+    const text = await response.text();
+    if (text.length > MAX_REGISTRATION_SIZE) {
+      throw new Error('Registration data too large');
+    }
+    registration = JSON.parse(text);
   }
 
   // endpoints → services migration (ERC-8004 Jan 2026)
@@ -79,7 +134,7 @@ async function fetchRegistration(agentURI: string) {
     delete registration.endpoints;
   }
 
-  return registration;
+  return sanitizeRegistration(registration);
 }
 
 export async function POST(request: NextRequest) {
