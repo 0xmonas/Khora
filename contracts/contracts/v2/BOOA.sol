@@ -35,6 +35,13 @@ contract BOOA is ERC721, ERC2981, Ownable {
     IBOOAStorage public dataStore;
     mapping(address => bool) public authorizedMinters;
 
+    /// @notice Gasback v2 integration (toggle-based, default off)
+    address public gasbackAddress;
+    uint256 public gasbackGasToBurn;
+    bool public gasbackEnabled;
+
+    event GasbackUpdated(address indexed gasback, uint256 gasToBurn, bool enabled);
+
     error NotAuthorizedMinter();
     error MintingPaused();
     error NotTokenOwner();
@@ -134,6 +141,27 @@ contract BOOA is ERC721, ERC2981, Ownable {
         require(to != address(0), "Zero address");
         (bool ok,) = to.call{value: address(this).balance}("");
         require(ok, "Withdraw failed");
+    }
+
+    /// @notice Set Gasback v2 parameters. Toggle on when v2 goes live on Shape.
+    function setGasback(address _gasback, uint256 _gasToBurn, bool _enabled) external onlyOwner {
+        gasbackAddress = _gasback;
+        gasbackGasToBurn = _gasToBurn;
+        gasbackEnabled = _enabled;
+        emit GasbackUpdated(_gasback, _gasToBurn, _enabled);
+    }
+
+    /// @dev Hook called on every transfer (mint, transfer, burn). Calls Gasback if enabled.
+    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+        address from = super._update(to, tokenId, auth);
+        if (gasbackEnabled && gasbackAddress != address(0)) {
+            // Gasback v2: call with exactly 32 bytes (uint256 gasToBurn)
+            // slither-disable-next-line low-level-calls
+            (bool ok,) = gasbackAddress.call(abi.encode(gasbackGasToBurn));
+            // Silently ignore failures — gasback is non-critical
+            (ok);
+        }
+        return from;
     }
 
     function renounceOwnership() public pure override {
