@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
+import { HIDE_TESTNETS } from '@/utils/constants/chains';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 export default function AgentsPage() {
   const router = useRouter();
   const [tokenId, setTokenId] = useState('');
-  const [network, setNetwork] = useState<'mainnet' | 'testnet'>('testnet');
+  const [network, setNetwork] = useState<'mainnet' | 'testnet'>(HIDE_TESTNETS ? 'mainnet' : 'testnet');
   const [error, setError] = useState('');
 
   const chain = network === 'mainnet' ? 'shape' : 'shape-sepolia';
@@ -65,38 +66,40 @@ export default function AgentsPage() {
               {/* Search Card — centered in full col-span-10 */}
               <div className="mt-8 flex justify-center">
                 <div className="w-full max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
-                  {/* Network toggle */}
-                  <div>
-                    <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>
-                      Network
-                    </label>
-                    <div className="flex">
-                      <button
-                        type="button"
-                        onClick={() => setNetwork('mainnet')}
-                        className={`flex-1 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
-                          network === 'mainnet'
-                            ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                            : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                        }`}
-                        style={font}
-                      >
-                        Shape
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNetwork('testnet')}
-                        className={`flex-1 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
-                          network === 'testnet'
-                            ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                            : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                        }`}
-                        style={font}
-                      >
-                        Shape Sepolia
-                      </button>
+                  {/* Network toggle — hidden in production */}
+                  {!HIDE_TESTNETS && (
+                    <div>
+                      <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>
+                        Network
+                      </label>
+                      <div className="flex">
+                        <button
+                          type="button"
+                          onClick={() => setNetwork('mainnet')}
+                          className={`flex-1 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
+                            network === 'mainnet'
+                              ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                              : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                          }`}
+                          style={font}
+                        >
+                          Shape
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNetwork('testnet')}
+                          className={`flex-1 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
+                            network === 'testnet'
+                              ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                              : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                          }`}
+                          style={font}
+                        >
+                          Shape Sepolia
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Token ID input */}
                   <div>
