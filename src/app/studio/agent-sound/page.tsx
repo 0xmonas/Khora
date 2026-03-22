@@ -6,6 +6,7 @@ import { ArrowLeft, Play, Pause, Volume2, SkipBack, SkipForward } from 'lucide-r
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { HIDE_TESTNETS } from '@/utils/constants/chains';
+import { TokenLookup } from '@/components/ui/TokenLookup';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const PINK = '#c27a90';
@@ -310,7 +311,7 @@ function PixelGridCanvas({ grid, currentRow }: { grid: number[][] | null; curren
 
 export default function AgentSoundPage() {
   const [tokenId, setTokenId] = useState('');
-  const [network, setNetwork] = useState<'mainnet' | 'testnet'>(HIDE_TESTNETS ? 'mainnet' : 'testnet');
+  const [currentChain, setCurrentChain] = useState<'shape' | 'shape-sepolia'>(HIDE_TESTNETS ? 'shape' : 'shape-sepolia');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [grid, setGrid] = useState<number[][] | null>(null);
@@ -332,8 +333,9 @@ export default function AgentSoundPage() {
     }
   };
 
-  const fetchAgent = useCallback(async (id?: number) => {
+  const fetchAgent = useCallback(async (id?: number, chain?: 'shape' | 'shape-sepolia') => {
     const targetId = id ?? Number(tokenId);
+    const network = (chain || currentChain) === 'shape' ? 'mainnet' : 'testnet';
     if (!Number.isInteger(targetId) || targetId < 0) { setError('Enter a valid Token ID'); return; }
     setError(''); setLoading(true); setGrid(null); setAgentName(''); setAgentImage(''); setCurrentRow(-1);
     if (synthRef.current) { synthRef.current.stopFlag.stopped = true; synthRef.current.ctx.close(); synthRef.current = null; setIsPlaying(false); }
@@ -343,13 +345,14 @@ export default function AgentSoundPage() {
       const data = await res.json();
       const imageUri: string = data.image || '';
       setTokenId(String(targetId)); setAgentName(data.name || `BOOA #${targetId}`); setAgentImage(imageUri);
+      if (chain) setCurrentChain(chain);
       let svg = '';
       if (imageUri.startsWith('data:image/svg+xml;base64,')) svg = atob(imageUri.split(',')[1]);
       else if (imageUri.startsWith('data:image/svg+xml,')) svg = decodeURIComponent(imageUri.split(',')[1]);
       if (!svg) throw new Error('No SVG data found — this token may not have pixel art');
       setGrid(svgToPixelGrid(svg));
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to load token'); } finally { setLoading(false); }
-  }, [tokenId, network]);
+  }, [tokenId, currentChain]);
 
   const handlePrev = () => { const id = Number(tokenId); if (id > 0) fetchAgent(id - 1); };
   const handleNext = () => fetchAgent(Number(tokenId) + 1);
@@ -391,44 +394,13 @@ export default function AgentSoundPage() {
               {/* Idle: Search Card — centered */}
               {!grid && (
                 <div className="mt-8 flex justify-center">
-                  <div className="w-full max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
-                    <div>
-                      {!HIDE_TESTNETS && (
-                        <>
-                          <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>Network</label>
-                          <div className="flex">
-                            <button type="button" onClick={() => setNetwork('mainnet')}
-                              className={`flex-1 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
-                                network === 'mainnet'
-                                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                                  : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                              }`} style={font}>Shape</button>
-                            <button type="button" onClick={() => setNetwork('testnet')}
-                              className={`flex-1 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
-                                network === 'testnet'
-                                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                                  : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                              }`} style={font}>Shape Sepolia</button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>Token ID</label>
-                      <input type="number" min="0" value={tokenId}
-                        onChange={(e) => { setTokenId(e.target.value); setError(''); }}
-                        onKeyDown={(e) => e.key === 'Enter' && fetchAgent()}
-                        placeholder="0"
-                        className="w-full p-2.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 text-sm outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
-                        style={font} />
-                    </div>
-                    {error && <p className="text-[10px] text-red-500" style={font}>{error}</p>}
-                    <button onClick={() => fetchAgent()} disabled={!tokenId || loading}
-                      className="w-full h-11 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={font}>
-                      {loading ? 'LOADING...' : 'LOAD AGENT'}
-                    </button>
-                  </div>
+                  <TokenLookup
+                    onSubmit={(id, chain) => fetchAgent(Number(id), chain)}
+                    loading={loading}
+                    error={error}
+                    buttonLabel="LOAD AGENT"
+                    loadingLabel="LOADING..."
+                  />
                 </div>
               )}
 
