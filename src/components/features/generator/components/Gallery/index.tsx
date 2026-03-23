@@ -197,7 +197,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         tokenId: Number(token.tokenId),
         originalOwner: address,
       } : undefined;
-      const registryAddr = chainId === shape.id ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const registryAddr = getRegistryAddress(chainId);
       const registryInfo: RegistryInfo = { agentRegistry: `eip155:${chainId}:${registryAddr}` };
       const registration = toERC8004(agent, nftOrigin, registryInfo);
 

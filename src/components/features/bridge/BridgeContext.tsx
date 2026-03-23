@@ -358,7 +358,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
       // Add registrations array for bidirectional on-chain link (IA004)
-      const regAddr = targetChainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const regAddr = getRegistryAddress(targetChainId);
       (registration as Record<string, unknown>).registrations = [{ agentRegistry: `eip155:${targetChainId}:${regAddr}` }];
 
       const agentURI = toAgentDataURI(registration);
@@ -449,7 +449,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Registration data too large. Please reduce services, skills, or image size.');
       }
       // Add registrations array with agentId for bidirectional on-chain link (IA004)
-      const regAddr = agentChainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const regAddr = getRegistryAddress(agentChainId);
       (registration as Record<string, unknown>).registrations = [{
         agentId: agentTokenId,
         agentRegistry: `eip155:${agentChainId}:${regAddr}`,

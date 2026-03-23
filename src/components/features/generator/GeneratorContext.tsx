@@ -357,7 +357,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       };
 
       // Build ERC-8004 registration JSON with bidirectional link (IA004)
-      const regAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+      const regAddr = getRegistryAddress(chainId);
       const registryInfo: RegistryInfo = {
         agentRegistry: `eip155:${chainId}:${regAddr}`,
         ...(mode === 'import' && importedRegistryTokenId ? { agentId: importedRegistryTokenId } : {}),
@@ -764,7 +764,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         }
         if (registryAgentId !== null) {
           const chainId = mint.chainId;
-          const registryAddr = chainId === 360 ? IDENTITY_REGISTRY_MAINNET : IDENTITY_REGISTRY_TESTNET;
+          const registryAddr = getRegistryAddress(chainId);
           registration.registrations = [{
             agentId: Number(registryAgentId),
             agentRegistry: `eip155:${chainId}:${registryAddr}`,

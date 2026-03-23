@@ -5,9 +5,29 @@ import { useChainId } from 'wagmi';
 import { shape } from 'wagmi/chains';
 import { useBridge } from '../BridgeContext';
 
+const EXPLORERS: Record<number, string> = {
+  360: 'https://shapescan.xyz',
+  11011: 'https://explorer-sepolia.shape.network',
+  1: 'https://etherscan.io',
+  8453: 'https://basescan.org',
+  42161: 'https://arbiscan.io',
+  10: 'https://optimistic.etherscan.io',
+  137: 'https://polygonscan.com',
+  43114: 'https://snowscan.xyz',
+  56: 'https://bscscan.com',
+  42220: 'https://celoscan.io',
+  100: 'https://gnosisscan.io',
+  534352: 'https://scrollscan.com',
+  59144: 'https://lineascan.build',
+  5000: 'https://mantlescan.xyz',
+  1088: 'https://andromeda-explorer.metis.io',
+  2741: 'https://abscan.org',
+  143: 'https://monad.explorer.caldera.xyz',
+};
+
 function getExplorerUrl(chainId: number, hash: string): string {
-  if (chainId === shape.id) return `https://shapescan.xyz/tx/${hash}`;
-  return `https://explorer-sepolia.shape.network/tx/${hash}`;
+  const base = EXPLORERS[chainId] || 'https://shapescan.xyz';
+  return `${base}/tx/${hash}`;
 }
 
 export function RegisterModal() {
