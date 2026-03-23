@@ -15,8 +15,10 @@ import {IBOOAStorage} from "./interfaces/IBOOAStorage.sol";
 //    ██████╔╝╚██████╔╝╚██████╔╝██║  ██║
 //    ╚═════╝  ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 //
-//    on-chain AI agent PFPs by Khora
+//    on-chain AI agent PFPs
 //    64x64 · C64 palette · SSTORE2 bitmap
+//
+//    @khorafun · @0xmonas
 //
 
 /// @title BOOA
@@ -58,7 +60,7 @@ contract BOOA is ERC721, ERC2981, Ownable {
     constructor(
         address royaltyReceiver,
         uint96 royaltyFeeNumerator
-    ) ERC721("BOOA by Khora", "BOOA") Ownable(msg.sender) {
+    ) ERC721("BOOA", "BOOA") Ownable(msg.sender) {
         _setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
     }
 
