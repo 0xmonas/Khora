@@ -603,7 +603,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
 }
 
 export function Gallery() {
-  const { tokens, isLoading, totalSupply, refetch } = useGalleryTokens();
+  const { tokens, isLoading, totalSupply, hasMore, loadMore, refetch } = useGalleryTokens();
   const { currentStep } = useGenerator();
   const [selectedToken, setSelectedToken] = useState<GalleryToken | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -713,16 +713,31 @@ export function Gallery() {
                 <p className="font-mono text-sm text-neutral-500">No matching agents</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
-                {filteredTokens.map((token) => (
-                  <GalleryThumbnail
-                    key={token.tokenId.toString()}
-                    tokenId={token.tokenId}
-                    svg={token.svg}
-                    isOwned={token.isOwned}
-                    onClick={() => setSelectedToken(token)}
-                  />
-                ))}
+              <div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
+                  {filteredTokens.map((token) => (
+                    <GalleryThumbnail
+                      key={token.tokenId.toString()}
+                      tokenId={token.tokenId}
+                      svg={token.svg}
+                      isOwned={token.isOwned}
+                      onClick={() => setSelectedToken(token)}
+                    />
+                  ))}
+                </div>
+                {hasMore && !isLoading && (
+                  <div className="flex justify-center p-3">
+                    <button
+                      onClick={loadMore}
+                      className="px-4 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs font-mono hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                {isLoading && tokens.length > 0 && (
+                  <p className="text-center text-xs text-neutral-500 font-mono p-3">Loading...</p>
+                )}
               </div>
             )}
           </CustomScrollArea>

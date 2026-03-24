@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     url.searchParams.set('contractAddress', contract);
     url.searchParams.set('withMetadata', 'true');
     url.searchParams.set('refreshCache', 'true');
-    url.searchParams.set('limit', '100');
+    const limit = request.nextUrl.searchParams.get('limit') || '100';
+    url.searchParams.set('limit', limit);
     if (startToken) url.searchParams.set('startToken', startToken);
 
     const res = await fetch(url.toString(), {

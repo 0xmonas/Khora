@@ -5,6 +5,8 @@ import { useAccount, useChainId, useReadContracts } from 'wagmi';
 import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
 import { shape } from 'wagmi/chains';
 
+const PAGE_SIZE = 50;
+
 export interface GalleryToken {
   tokenId: bigint;
   svg: string | null;
@@ -12,8 +14,8 @@ export interface GalleryToken {
 }
 
 /**
- * Fetches gallery tokens via /api/gallery (Alchemy getNFTsForContract) for metadata/SVG,
- * and uses on-chain ownerOf calls for accurate ownership detection.
+ * Fetches gallery tokens with pagination (50 per page).
+ * Uses /api/gallery (Alchemy) for metadata + on-chain ownerOf for ownership.
  */
 export function useGalleryTokens() {
   const { address } = useAccount();
@@ -24,57 +26,65 @@ export function useGalleryTokens() {
 
   const [galleryData, setGalleryData] = useState<{ tokenId: string; svg: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const nextTokenRef = useRef<string | undefined>(undefined);
   const fetchedRef = useRef(false);
 
   const chain = chainId === shape.id ? 'shape' : 'shape-sepolia';
 
-  // Step 1: Fetch all tokens (metadata + SVG) via Alchemy API
-  const fetchGallery = useCallback(async () => {
-    if (!enabled) return;
+  // Fetch one page of tokens
+  const fetchPage = useCallback(async (isInitial = false) => {
+    if (!enabled || isLoading) return;
+    if (!isInitial && !hasMore) return;
 
     setIsLoading(true);
     try {
-      const allTokens: { tokenId: string; svg: string | null }[] = [];
-      let startToken: string | undefined;
+      const url = new URL('/api/gallery', window.location.origin);
+      url.searchParams.set('contract', contractAddress);
+      url.searchParams.set('chain', chain);
+      url.searchParams.set('limit', String(PAGE_SIZE));
+      if (!isInitial && nextTokenRef.current) {
+        url.searchParams.set('startToken', nextTokenRef.current);
+      }
 
-      do {
-        const url = new URL('/api/gallery', window.location.origin);
-        url.searchParams.set('contract', contractAddress);
-        url.searchParams.set('chain', chain);
-        if (startToken) url.searchParams.set('startToken', startToken);
+      const res = await fetch(url.toString());
+      if (!res.ok) return;
 
-        const res = await fetch(url.toString());
-        if (!res.ok) break;
+      const data = await res.json();
+      const newTokens = (data.tokens || []).map((t: { tokenId: string; svg: string | null }) => ({
+        tokenId: t.tokenId,
+        svg: t.svg || null,
+      }));
 
-        const data = await res.json();
+      if (isInitial) {
+        setGalleryData(newTokens);
+      } else {
+        setGalleryData(prev => [...prev, ...newTokens]);
+      }
 
-        for (const token of data.tokens || []) {
-          allTokens.push({
-            tokenId: token.tokenId,
-            svg: token.svg || null,
-          });
-        }
-
-        startToken = data.nextToken || undefined;
-      } while (startToken);
-
-      setGalleryData(allTokens);
+      nextTokenRef.current = data.nextToken || undefined;
+      setHasMore(!!data.nextToken);
     } catch {
       // Keep existing data on error
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, contractAddress, chain]);
+  }, [enabled, contractAddress, chain, isLoading, hasMore]);
 
   // Initial fetch
   useEffect(() => {
     if (!fetchedRef.current && enabled) {
       fetchedRef.current = true;
-      fetchGallery();
+      fetchPage(true);
     }
-  }, [enabled, fetchGallery]);
+  }, [enabled, fetchPage]);
 
-  // Step 2: On-chain ownerOf batch — this is lightweight (just address returns, not SVG data)
+  // Load more (called by UI on scroll/button)
+  const loadMore = useCallback(() => {
+    if (hasMore && !isLoading) fetchPage(false);
+  }, [hasMore, isLoading, fetchPage]);
+
+  // On-chain ownerOf batch — only for currently loaded tokens
   const allTokenIds = galleryData.map((t) => BigInt(t.tokenId));
 
   const ownerCalls = allTokenIds.map((tokenId) => ({
@@ -108,13 +118,18 @@ export function useGalleryTokens() {
 
   const refetch = useCallback(async () => {
     fetchedRef.current = false;
-    await fetchGallery();
-  }, [fetchGallery]);
+    nextTokenRef.current = undefined;
+    setHasMore(true);
+    setGalleryData([]);
+    await fetchPage(true);
+  }, [fetchPage]);
 
   return {
     tokens,
     totalSupply: galleryData.length,
-    isLoading: isLoading || (galleryData.length > 0 && !!address && !ownerResults),
+    isLoading,
+    hasMore,
+    loadMore,
     refetch,
   };
 }
