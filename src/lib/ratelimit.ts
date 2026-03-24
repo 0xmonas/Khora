@@ -123,7 +123,7 @@ export async function refundDailyCap(): Promise<void> {
  * Resets daily via TTL (86400s from first increment).
  */
 const DAILY_CAP_KEY = 'gen:daily:global';
-export const DAILY_CAP_MAX = 5000; // max 5000 generations/day = ~$250/day
+export const DAILY_CAP_MAX = 6666; // max 6666 generations/day (~3333 supply × 2 attempts)
 
 /**
  * Atomically check AND increment daily cap in a single INCR call.
