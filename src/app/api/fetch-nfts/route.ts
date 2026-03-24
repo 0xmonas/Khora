@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address');
   const chain = request.nextUrl.searchParams.get('chain') || 'shape';
   const pageKey = request.nextUrl.searchParams.get('pageKey') || undefined;
+  const contractFilter = request.nextUrl.searchParams.get('contract') || undefined;
 
   if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
     return NextResponse.json({ error: 'Invalid address' }, { status: 400 });
@@ -96,6 +97,9 @@ export async function GET(request: NextRequest) {
     url.searchParams.set('withMetadata', 'true');
     url.searchParams.set('pageSize', '50');
     if (pageKey) url.searchParams.set('pageKey', pageKey);
+    if (contractFilter && /^0x[a-fA-F0-9]{40}$/.test(contractFilter)) {
+      url.searchParams.append('contractAddresses[]', contractFilter);
+    }
 
     const res = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },

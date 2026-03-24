@@ -80,7 +80,7 @@ export function AgentChat() {
     const slug = getChainSlug(targetChainId);
 
     setTokensLoading(true);
-    fetch(`/api/fetch-nfts?address=${address}&chain=${slug}`)
+    fetch(`/api/fetch-nfts?address=${address}&chain=${slug}&contract=${booaContract}`)
       .then((res) => res.json())
       .then((data) => {
         const nfts: NFTItem[] = data.nfts || [];
