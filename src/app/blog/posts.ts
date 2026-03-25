@@ -17,37 +17,56 @@ export const POSTS: BlogPost[] = [
     tags: ['engineering', 'api'],
     content: `BOOA NFT data and ERC-8004 agent identities have always been public. Every bitmap, trait, registration, and transfer lives on-chain. But public and accessible are not the same thing. Reading a 2,048-byte bitmap from SSTORE2 or decoding a base64 agentURI from the Identity Registry requires deep contract knowledge. That has kept many good ideas on the sidelines.
 
-Today we are opening our data APIs and documenting them in a single reference.
+Today we are opening our data APIs and documenting them in a single reference. No API key required. Rate limit is 60 requests per 60 seconds per IP.
 
-What the APIs cover
+Endpoints
 
-Agent identities — /api/agent-card returns a complete ERC-8004 agent identity for any registered agent on any of 18 supported chains. Name, description, image, services, skills, domains, x402 payment support, trust mechanisms, and computed agent scores — all from a single GET request.
+1. Agent identity — get a complete ERC-8004 agent profile in one call:
 
-Agent discovery — /api/discover-agents scans a specific chain for all agents owned by a wallet address. It uses multicall with sparse-then-dense probing to efficiently find token IDs without a subgraph. Pass an address and a chain, get back every agent that wallet controls.
+curl https://khora.fun/api/agent-card?chain=shape&agentId=0
 
-BOOA collection — /api/gallery returns all BOOA NFTs in a contract, including on-chain SVG art rendered from the bitmap. /api/fetch-nfts returns all NFTs owned by a wallet on any supported chain.
+Returns: name, description, image, services, skills, domains, x402 support, trust mechanisms, and agent scores.
 
-All endpoints are documented at khora.fun/llms.txt — a plain text reference designed to be dropped into an LLM context window. This is the fastest way to start building.
+2. Agent discovery — find all agents owned by a wallet on a specific chain:
+
+curl https://khora.fun/api/discover-agents?address=0x...&chain=shape
+
+Scans the chain using multicall, returns every agent that wallet controls.
+
+3. Collection browser — paginated BOOA NFTs with on-chain SVG art:
+
+curl https://khora.fun/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
+
+Returns tokenId, raw SVG, image URL, and name for each token. Pass startToken for pagination.
+
+4. Wallet NFTs — all NFTs owned by a wallet on any supported chain:
+
+curl https://khora.fun/api/fetch-nfts?address=0x...&chain=shape
+
+Filter by contract with &contract=0x... to get only BOOA tokens.
+
+5. Single token — metadata for a specific BOOA token:
+
+curl https://khora.fun/api/booa-token?network=mainnet&tokenId=0
+
+Returns name, description, image, and traits for one NFT.
+
+Full reference
+
+Every endpoint, parameter, and response format is documented at khora.fun/llms.txt — a plain text file designed to be dropped into an LLM context window. If you are building an AI agent that needs to interact with BOOA data, start there.
 
 Use cases
 
-AI agents that can answer "what skills does agent #9 on Base Sepolia have?" by hitting a single endpoint. Drop /llms.txt into a context window and the agent already knows what to call.
+— AI agents that answer "what skills does agent #42 have?" by hitting a single endpoint
+— Agent directories that aggregate ERC-8004 registrations across chains
+— Rarity tools and analytics dashboards for the BOOA collection
+— Alternative galleries and viewers — the on-chain SVG art is fully available
+— Wallet integrations showing agent identities alongside NFTs
+— Bots that track new registrations, transfers, and metadata updates
 
-Agent directories and marketplaces that aggregate ERC-8004 registrations across chains. The discover-agents endpoint handles the multicall plumbing so you can focus on the product.
+Supported chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad.
 
-Analytics dashboards that track agent registrations, skill distributions, and identity completeness scores across the 18 supported chains.
-
-Alternative frontends for BOOA — the on-chain SVG art, traits, and metadata are all available via the gallery endpoint. The best BOOA viewer might not exist yet.
-
-Wallet integrations that show a user's registered agent identities alongside their NFTs.
-
-Getting started
-
-Start with /llms.txt. It covers every endpoint, parameter, and response format in a single file. No API key required. Rate limit is 60 requests per 60 seconds per IP.
-
-Supported chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad, Base Sepolia, Shape Sepolia.
-
-ERC-8004 Identity Registry is deployed at the same deterministic CREATE2 address on all chains. BOOA NFTs live on Shape.
+ERC-8004 Identity Registry: 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432 (same address on all chains via CREATE2). BOOA NFTs live on Shape.
 
 What's next
 
