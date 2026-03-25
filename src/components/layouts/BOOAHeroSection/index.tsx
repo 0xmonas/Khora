@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Github } from 'lucide-react';
 import { useGalleryTokens } from '@/hooks/useGalleryTokens';
 import { useReadContract, useChainId } from 'wagmi';
-import { BOOA_V2_ABI, BOOA_V2_MINTER_ABI, getV2Address, getV2MinterAddress, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -24,7 +23,6 @@ const IMPORT_STEPS = [
 function LiveStats() {
   const chainId = useChainId();
   const booaAddress = getV2Address(chainId);
-  const minterAddress = getV2MinterAddress(chainId);
   const targetChainId = getV2ChainId(chainId);
   const enabled = !!booaAddress && booaAddress.length > 2;
 
@@ -36,16 +34,7 @@ function LiveStats() {
     query: { enabled },
   });
 
-  const { data: mintPrice } = useReadContract({
-    address: minterAddress,
-    abi: BOOA_V2_MINTER_ABI,
-    functionName: 'mintPrice',
-    chainId: targetChainId,
-    query: { enabled: !!minterAddress && minterAddress.length > 2 },
-  });
-
   const count = totalSupply !== undefined ? Number(totalSupply) : null;
-  const price = mintPrice !== undefined ? Number(mintPrice) / 1e18 : null;
 
   if (!enabled) return null;
 
@@ -57,14 +46,10 @@ function LiveStats() {
           <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>agents minted</p>
         </div>
       )}
-      {price !== null && (
-        <div className="text-center">
-          <p className="text-2xl sm:text-3xl text-foreground" style={font}>
-            {price === 0 ? 'FREE' : `${price} ETH`}
-          </p>
-          <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>mint price</p>
-        </div>
-      )}
+      <div className="text-center">
+        <p className="text-2xl sm:text-3xl text-foreground" style={font}>SOLD OUT</p>
+        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>3,333 supply</p>
+      </div>
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>100%</p>
         <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>on-chain</p>
@@ -114,9 +99,6 @@ function RecentMints() {
 }
 
 function AboutSection() {
-  const [activeMode, setActiveMode] = useState<'create' | 'import'>('create');
-  const steps = activeMode === 'create' ? CREATE_STEPS : IMPORT_STEPS;
-
   return (
     <div className="mt-20 max-w-2xl mx-auto space-y-12">
 
@@ -140,43 +122,7 @@ function AboutSection() {
         </p>
       </div>
 
-      {/* How it works */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg text-foreground" style={font}>How it works</h2>
-          <div className="flex gap-2">
-            {(['create', 'import'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setActiveMode(m)}
-                className={`px-2 py-0.5 font-mono text-[10px] border transition-colors ${
-                  activeMode === m
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground'
-                }`}
-                style={font}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-3">
-          {steps.map((step) => (
-            <div key={step.num} className="flex gap-3">
-              <span className="text-xs text-muted-foreground mt-0.5 flex-shrink-0" style={font}>
-                {step.num}
-              </span>
-              <div>
-                <span className="text-sm text-foreground" style={font}>{step.title}</span>
-                <p className="text-sm text-muted-foreground leading-relaxed mt-0.5" style={font}>
-                  {step.desc}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* How it works — removed post-launch */}
 
       {/* Studio callout */}
       <div className="space-y-2">
@@ -296,8 +242,6 @@ function FAQ() {
 }
 
 export function BOOAHeroSection() {
-  const router = useRouter();
-
   return (
     <div className="flex-1 flex flex-col">
       <div className="p-4 md:p-8 lg:p-12">
@@ -323,13 +267,13 @@ export function BOOAHeroSection() {
                 Born On-chain Owned Agents
               </p>
               <div className="flex gap-4 mt-8">
-                <button
-                  onClick={() => router.replace('/booa/mint')}
-                  className="h-10 sm:h-12 px-6 border-2 border-primary bg-background text-foreground hover:bg-accent transition-colors w-fit"
+                <Link
+                  href="/booa/mint"
+                  className="h-10 sm:h-12 px-6 border-2 border-primary bg-background text-foreground hover:bg-accent transition-colors flex items-center"
                   style={font}
                 >
-                  Mint a BOOA
-                </button>
+                  View Collection
+                </Link>
                 <Link
                   href="/booa/about"
                   className="h-10 sm:h-12 px-6 border border-neutral-300 dark:border-neutral-600 bg-background text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center"

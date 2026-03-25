@@ -117,7 +117,6 @@ const NAV_LINKS: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/booa', label: 'BOOA' },
   { href: '/bridge', label: 'Bridge' },
   { href: '/studio', label: 'Studio' },
-  { href: '/allowlist', label: 'AL Checker', highlight: true },
   { href: '/blog', label: 'Blog' },
 ];
 
