@@ -60,6 +60,14 @@ const TOOLS: ToolCard[] = [
     media: 'agent-chat.png',
     tag: 'NEW',
   },
+  {
+    id: 'inner-circle',
+    title: 'Inner Circle',
+    description: 'Exclusive X group chat for BOOA holders. Hold 3+ BOOAs to join.',
+    href: '/studio/inner-circle',
+    media: 'inner-circle.png',
+    tag: 'NEW',
+  },
 ];
 
 function isVideo(filename: string) {

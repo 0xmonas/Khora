@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Moon, Sun, Menu, X } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
-import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { shape, shapeSepolia } from 'wagmi/chains';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
@@ -121,46 +120,6 @@ const NAV_LINKS: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/blog', label: 'Blog' },
 ];
 
-function InnerCircleButton({ className = '' }: { className?: string }) {
-  const siweStatus = useSiweStatus();
-  const [loading, setLoading] = useState(false);
-
-  const handleClick = useCallback(async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/holders-chat');
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
-      } else if (res.status === 401) {
-        alert('Please sign in first.');
-      } else if (res.status === 403) {
-        alert(`You need at least ${data.required} BOOAs to join. You have ${data.current}.`);
-      } else {
-        alert('Something went wrong.');
-      }
-    } catch {
-      alert('Something went wrong.');
-    } finally {
-      setLoading(false);
-    }
-  }, [loading]);
-
-  if (siweStatus !== 'authenticated') return null;
-
-  return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={`text-sm transition-colors text-green-600 dark:text-green-500 hover:text-foreground disabled:opacity-50 ${className}`}
-      style={walletFont}
-    >
-      {loading ? '...' : 'Inner Circle'}
-    </button>
-  );
-}
-
 export function Header() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -221,7 +180,6 @@ export function Header() {
                     {link.label}
                   </Link>
                 ))}
-                <InnerCircleButton />
               </nav>
               <div className="flex items-center gap-4">
                 <button
@@ -283,7 +241,6 @@ export function Header() {
               {link.label}
             </Link>
           ))}
-          <InnerCircleButton className="text-lg text-left" />
         </nav>
       </div>
     </>
