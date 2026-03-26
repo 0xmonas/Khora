@@ -1,4 +1,33 @@
-// Agent Score Calculator — computes scores from on-chain + registry data
+export async function fetch8004ScanScore(chainId: number, tokenId: number): Promise<AgentScores | null> {
+  try {
+    const res = await fetch(`https://api.8004scan.io/api/v1/agents/scores/v5/${chainId}/${tokenId}`, {
+      signal: AbortSignal.timeout(5000),
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.total_score && data.total_score !== 0) return null;
+
+    const overall = Math.round(data.total_score);
+    let rank: string;
+    if (overall >= 85) rank = 'S';
+    else if (overall >= 70) rank = 'A';
+    else if (overall >= 50) rank = 'B';
+    else if (overall >= 30) rank = 'C';
+    else rank = 'D';
+
+    return {
+      identity: Math.round(((data.engagement?.score ?? 0) + (data.publisher?.score ?? 0)) / 2),
+      service: Math.round(data.service?.score ?? 0),
+      trust: Math.round(data.compliance?.score ?? 0),
+      reach: Math.round(data.momentum?.score ?? 0),
+      overall,
+      rank,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export interface AgentScoreInput {
   name: string | null;

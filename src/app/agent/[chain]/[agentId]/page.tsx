@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getV2Address, getV2StorageAddress, BOOA_V2_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
-import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
+import { calculateAgentScores, fetch8004ScanScore, type AgentScoreInput } from '@/utils/agent-score';
 import { AgentCard } from './AgentCard';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -28,7 +28,7 @@ interface AgentData {
   creature: string;
   vibe: string;
   emoji: string;
-  image: string; // SVG data URI
+  image: string;
   skills: string[];
   domains: string[];
   personality: string[];
@@ -44,7 +44,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
     const config = CHAIN_CONFIG[chain];
     const chainId = config.chainId;
 
-    // Only Shape and Shape Sepolia have BOOA contracts
     if (chain !== 'shape' && chain !== 'shape-sepolia') return null;
 
     const booaAddress = getV2Address(chainId);
@@ -56,7 +55,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       transport: fallback(config.rpcUrls.map((url) => http(url))),
     });
 
-    // Fetch owner and traits in parallel
     const [owner, traitsHex] = await Promise.all([
       client.readContract({
         address: booaAddress,
@@ -72,7 +70,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       }) as Promise<string>,
     ]);
 
-    // Parse traits from hex bytes
     let traits: OnChainTrait[] = [];
     if (traitsHex && traitsHex !== '0x') {
       try {
@@ -89,7 +86,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
     const get = (type: string, max = 200) => clamp(traits.find(t => t.trait_type === type)?.value || '', max);
     const getAll = (type: string, max = 100) => traits.filter(t => t.trait_type === type).map(t => clamp(t.value, max));
 
-    // Get on-chain tokenURI for SVG image
     let image = '';
     try {
       const tokenURI = await client.readContract({
@@ -106,7 +102,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       }
     } catch { /* empty */ }
 
-    // Check registry status from Redis
     let registryAgentId: number | null = null;
     let services: AgentData['services'] = [];
     let x402Support = false;
@@ -118,7 +113,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       const registryData = await redis.get<{ agentId: number }>(registryKey);
       if (registryData) registryAgentId = registryData.agentId;
 
-      // Load full metadata from Upstash if available
       const metadataKey = `agent:metadata:${chainId}:${tokenId}`;
       const metadata = await redis.get<Record<string, unknown>>(metadataKey);
       if (metadata) {
@@ -197,23 +191,28 @@ export default async function AgentPage({
   const agent = await fetchBOOAAgent(chain as SupportedChain, Number(agentId));
   if (!agent) notFound();
 
-  const scoreInput: AgentScoreInput = {
-    name: agent.name,
-    description: agent.description || null,
-    skills: agent.skills,
-    domains: agent.domains,
-    services: agent.services,
-    x402Support: agent.x402Support,
-    supportedTrust: agent.supportedTrust,
-    chainCount: agent.registryAgentId !== null ? 1 : 0,
-    hasImage: !!agent.image,
-    personality: agent.personality,
-    boundaries: [],
-  };
-
-  const scores = calculateAgentScores(scoreInput);
-
   const chainId = CHAIN_CONFIG[chain as SupportedChain].chainId;
+
+  let scores = agent.registryAgentId !== null
+    ? await fetch8004ScanScore(chainId, agent.registryAgentId)
+    : null;
+
+  if (!scores) {
+    const scoreInput: AgentScoreInput = {
+      name: agent.name,
+      description: agent.description || null,
+      skills: agent.skills,
+      domains: agent.domains,
+      services: agent.services,
+      x402Support: agent.x402Support,
+      supportedTrust: agent.supportedTrust,
+      chainCount: agent.registryAgentId !== null ? 1 : 0,
+      hasImage: !!agent.image,
+      personality: agent.personality,
+      boundaries: [],
+    };
+    scores = calculateAgentScores(scoreInput);
+  }
   const isMainnet = chainId !== 84532 && chainId !== 11011;
   const scan8004Url = agent.registryAgentId !== null
     ? isMainnet
@@ -225,11 +224,13 @@ export default async function AgentPage({
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <AgentCard
-          agent={agent}
-          scores={scores}
-          scan8004Url={scan8004Url}
-        />
+        <div className="flex flex-col items-center gap-4">
+          <AgentCard
+            agent={agent}
+            scores={scores}
+            scan8004Url={scan8004Url}
+          />
+        </div>
       </main>
       <Footer />
     </div>
