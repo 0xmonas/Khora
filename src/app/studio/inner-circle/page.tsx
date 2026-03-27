@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useAccount, useReadContract, useChainId } from 'wagmi';
+import { useState, useCallback } from 'react';
+import { useAccount, useReadContract } from 'wagmi';
 import { shape } from 'wagmi/chains';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -17,7 +17,6 @@ const MIN_HOLDINGS = 3;
 export default function InnerCirclePage() {
   const siweStatus = useSiweStatus();
   const { address, isConnected } = useAccount();
-  const chainId = useChainId();
   const contractAddress = getV2Address(shape.id);
 
   const [loading, setLoading] = useState(false);
@@ -43,32 +42,26 @@ export default function InnerCirclePage() {
     setLoading(true);
     setError(null);
 
-    // Open window synchronously (within user gesture) to avoid popup blockers
-    const newWindow = window.open('about:blank', '_blank');
-
     try {
       const res = await fetch('/api/holders-chat');
       const data = await res.json();
       if (res.ok && data.url) {
-        if (newWindow) {
-          newWindow.location.href = data.url;
-        } else {
-          // Fallback: popup was blocked, redirect current page
-          window.location.href = data.url;
-        }
+        // Use location.href — reliable on both mobile and desktop
+        window.location.href = data.url;
+        return;
+      } else if (res.status === 401) {
+        setError('Please connect your wallet and sign in first.');
+      } else if (res.status === 403) {
+        setError(`You need at least ${data.required} BOOAs to join. You currently hold ${data.current}.`);
+      } else if (res.status === 500) {
+        setError('RPC error — could not verify your holdings. Please try again.');
+      } else if (res.status === 503) {
+        setError('Inner Circle is not configured yet. Please try again later.');
       } else {
-        if (newWindow) newWindow.close();
-        if (res.status === 401) {
-          setError('Please connect your wallet and sign in first.');
-        } else if (res.status === 403) {
-          setError(`You need at least ${data.required} BOOAs to join. You currently hold ${data.current}.`);
-        } else {
-          setError('Something went wrong. Please try again.');
-        }
+        setError(`Unexpected error (${res.status}). Please try again.`);
       }
     } catch {
-      if (newWindow) newWindow.close();
-      setError('Something went wrong. Please try again.');
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
