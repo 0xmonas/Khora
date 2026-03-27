@@ -603,11 +603,11 @@ function TokenDetail({ token }: { token: GalleryToken }) {
 }
 
 export function Gallery() {
-  const { tokens, isLoading, totalSupply, hasMore, loadMore, refetch } = useGalleryTokens();
   const { currentStep } = useGenerator();
   const [selectedToken, setSelectedToken] = useState<GalleryToken | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'newest' | 'oldest' | 'mine'>('newest');
+  const { tokens, isLoading, totalSupply, hasMore, loadMore, refetch } = useGalleryTokens(filter);
 
   // Refetch when a new token is minted — staggered to handle RPC cache delay
   useEffect(() => {
@@ -628,14 +628,9 @@ export function Gallery() {
       );
     }
 
-    if (filter === 'mine') {
-      result = result.filter(t => t.isOwned);
-    }
-
     if (filter === 'oldest') {
       result.sort((a, b) => Number(a.tokenId - b.tokenId));
     } else {
-      // newest and mine both sort newest first
       result.sort((a, b) => Number(b.tokenId - a.tokenId));
     }
 
