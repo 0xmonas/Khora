@@ -11,7 +11,6 @@ import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 const MIN_HOLDINGS = 3;
 
 export async function GET(request: NextRequest) {
-  // Rate limit: prevent brute-force / RPC abuse
   const ip = getIP(request);
   const rl = await generalLimiter.limit(ip);
   if (!rl.success) {
@@ -29,8 +28,7 @@ export async function GET(request: NextRequest) {
   let session: SessionData;
   try {
     session = await getIronSession<SessionData>(await cookies(), sessionOptions);
-  } catch (e) {
-    console.error('holders-chat session error:', e);
+  } catch {
     return NextResponse.json({ error: 'Session error' }, { status: 401 });
   }
 
@@ -40,15 +38,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const config = CHAIN_CONFIG['shape'];
-    if (!config) {
-      console.error('holders-chat: shape chain config not found');
-      return NextResponse.json({ error: 'Chain config error' }, { status: 500 });
-    }
-
     const contractAddress = getV2Address(shape.id);
-    if (!contractAddress || contractAddress.length <= 2) {
-      console.error('holders-chat: BOOA contract address not configured');
-      return NextResponse.json({ error: 'Contract not configured' }, { status: 500 });
+    if (!config || !contractAddress || contractAddress.length <= 2) {
+      return NextResponse.json({ error: 'Not configured' }, { status: 500 });
     }
 
     const client = createPublicClient({
@@ -70,8 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ url: inviteUrl });
-  } catch (e) {
-    console.error('holders-chat RPC error:', e);
+  } catch {
     return NextResponse.json({ error: 'Failed to verify holdings' }, { status: 500 });
   }
 }
