@@ -1,45 +1,78 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useAccount } from 'wagmi';
+import { useState, useCallback, useEffect } from 'react';
+import { useAccount, useReadContract, useChainId } from 'wagmi';
+import { shape } from 'wagmi/chains';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
+import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const goldBloom = { color: '#c8b439', textShadow: '0 0 8px rgba(200,180,57,0.6), 0 0 20px rgba(200,180,57,0.2)' };
 const dimText = { color: '#999' };
 
+const MIN_HOLDINGS = 3;
+
 export default function InnerCirclePage() {
   const siweStatus = useSiweStatus();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const contractAddress = getV2Address(shape.id);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // On-chain balance check
+  const { data: balance } = useReadContract({
+    address: contractAddress,
+    abi: BOOA_V2_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: shape.id,
+    query: { enabled: !!address && contractAddress.length > 2 },
+  });
+
+  const holdingCount = balance ? Number(balance) : 0;
+  const hasEnough = holdingCount >= MIN_HOLDINGS;
+  const isAuth = siweStatus === 'authenticated';
+
+  // Mobile-safe: open blank window BEFORE async fetch, then set its location
   const handleJoin = useCallback(async () => {
     if (loading) return;
     setLoading(true);
     setError(null);
+
+    // Open window synchronously (within user gesture) to avoid popup blockers
+    const newWindow = window.open('about:blank', '_blank');
+
     try {
       const res = await fetch('/api/holders-chat');
       const data = await res.json();
       if (res.ok && data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
-      } else if (res.status === 401) {
-        setError('Please connect your wallet and sign in first.');
-      } else if (res.status === 403) {
-        setError(`You need at least ${data.required} BOOAs to join. You currently hold ${data.current}.`);
+        if (newWindow) {
+          newWindow.location.href = data.url;
+        } else {
+          // Fallback: popup was blocked, redirect current page
+          window.location.href = data.url;
+        }
       } else {
-        setError('Something went wrong. Please try again.');
+        if (newWindow) newWindow.close();
+        if (res.status === 401) {
+          setError('Please connect your wallet and sign in first.');
+        } else if (res.status === 403) {
+          setError(`You need at least ${data.required} BOOAs to join. You currently hold ${data.current}.`);
+        } else {
+          setError('Something went wrong. Please try again.');
+        }
       }
     } catch {
+      if (newWindow) newWindow.close();
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   }, [loading]);
-
-  const isAuth = siweStatus === 'authenticated';
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -55,7 +88,7 @@ export default function InnerCirclePage() {
               Inner Circle
             </h1>
             <p className="text-xs leading-relaxed text-muted-foreground max-w-sm mx-auto">
-              Exclusive X group chat for BOOA holders. Minimum 3 BOOAs required to join.
+              Exclusive X group chat for BOOA holders. Minimum {MIN_HOLDINGS} BOOAs required to join.
             </p>
           </div>
 
@@ -78,9 +111,9 @@ export default function InnerCirclePage() {
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="w-2 h-2 rounded-full bg-neutral-600 shrink-0" />
+                <span className={`w-2 h-2 rounded-full shrink-0 ${hasEnough ? 'bg-green-500' : 'bg-neutral-600'}`} />
                 <span className="text-xs text-muted-foreground">
-                  Hold 3+ BOOAs
+                  Hold {MIN_HOLDINGS}+ BOOAs{isAuth && ` (you have ${holdingCount})`}
                 </span>
               </div>
             </div>
@@ -90,10 +123,18 @@ export default function InnerCirclePage() {
           <div className="space-y-3">
             <button
               onClick={handleJoin}
-              disabled={loading || !isAuth}
+              disabled={loading || !isAuth || !hasEnough}
               className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {loading ? 'Verifying...' : !isConnected ? 'Connect Wallet First' : !isAuth ? 'Sign In First' : 'Join Inner Circle'}
+              {loading
+                ? 'Verifying...'
+                : !isConnected
+                  ? 'Connect Wallet First'
+                  : !isAuth
+                    ? 'Sign In First'
+                    : !hasEnough
+                      ? `Need ${MIN_HOLDINGS - holdingCount} More BOOAs`
+                      : 'Join Inner Circle'}
             </button>
 
             {error && (
