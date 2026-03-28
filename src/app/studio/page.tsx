@@ -65,7 +65,15 @@ const TOOLS: ToolCard[] = [
     title: 'Inner Circle',
     description: 'Exclusive X group chat for BOOA holders. Hold 3+ BOOAs to join.',
     href: '/studio/inner-circle',
-    media: 'inner-circle.png',
+    media: 'inner-circle.gif',
+    tag: 'NEW',
+  },
+  {
+    id: 'persona-quiz',
+    title: 'Persona Quiz',
+    description: 'Answer 7 questions and find your BOOA match among 3,333 agents.',
+    href: '/studio/persona-quiz',
+    media: 'persona-quiz.png',
     tag: 'NEW',
   },
 ];
@@ -98,6 +106,7 @@ function ToolMedia({ src, alt, priority }: { src: string; alt: string; priority?
       alt={alt}
       fill
       priority={priority}
+      unoptimized={src.endsWith('.gif')}
       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
       className="object-cover"
       style={{ imageRendering: src.endsWith('.png') ? 'pixelated' : 'auto' }}

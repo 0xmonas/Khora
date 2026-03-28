@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { useAccount, useReadContract } from 'wagmi';
 import { shape } from 'wagmi/chains';
 import { Header } from '@/components/layouts/Header';
@@ -9,8 +11,6 @@ import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
-const goldBloom = { color: '#c8b439', textShadow: '0 0 8px rgba(200,180,57,0.6), 0 0 20px rgba(200,180,57,0.2)' };
-const dimText = { color: '#999' };
 
 const MIN_HOLDINGS = 3;
 
@@ -22,7 +22,6 @@ export default function InnerCirclePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // On-chain balance check
   const { data: balance } = useReadContract({
     address: contractAddress,
     abi: BOOA_V2_ABI,
@@ -36,7 +35,6 @@ export default function InnerCirclePage() {
   const hasEnough = holdingCount >= MIN_HOLDINGS;
   const isAuth = siweStatus === 'authenticated';
 
-  // Mobile-safe: open blank window BEFORE async fetch, then set its location
   const handleJoin = useCallback(async () => {
     if (loading) return;
     setLoading(true);
@@ -46,7 +44,6 @@ export default function InnerCirclePage() {
       const res = await fetch('/api/holders-chat');
       const data = await res.json();
       if (res.ok && data.url) {
-        // Use location.href — reliable on both mobile and desktop
         window.location.href = data.url;
         return;
       } else if (res.status === 401) {
@@ -70,77 +67,83 @@ export default function InnerCirclePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md space-y-8" style={font}>
-          {/* Header */}
-          <div className="text-center space-y-3">
-            <p className="text-[10px] uppercase tracking-widest" style={dimText}>
-              BOOA HOLDERS ONLY
-            </p>
-            <h1 className="text-2xl sm:text-3xl" style={goldBloom}>
-              Inner Circle
-            </h1>
-            <p className="text-xs leading-relaxed text-muted-foreground max-w-sm mx-auto">
-              Exclusive X group chat for BOOA holders. Minimum {MIN_HOLDINGS} BOOAs required to join.
-            </p>
-          </div>
+      <main className="flex-1">
+        <div className="p-4 md:p-8 lg:p-12">
+          <div className="w-full lg:grid lg:grid-cols-12">
+            <div className="hidden lg:block lg:col-span-1" />
+            <div className="lg:col-span-10">
+              {/* Back + Title */}
+              <div className="space-y-3 mb-8">
+                <Link
+                  href="/studio"
+                  className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                  style={font}
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  Studio
+                </Link>
+                <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>
+                  Inner Circle
+                </h1>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
+                  Exclusive X group chat for BOOA holders. Minimum {MIN_HOLDINGS} BOOAs required to join.
+                </p>
+              </div>
 
-          {/* Requirements */}
-          <div className="border-2 border-neutral-700 dark:border-neutral-200 p-6 space-y-4">
-            <p className="text-[10px] uppercase tracking-widest" style={dimText}>
-              REQUIREMENTS
-            </p>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-neutral-600'}`} />
-                <span className="text-xs text-muted-foreground">
-                  Connect wallet
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isAuth ? 'bg-green-500' : 'bg-neutral-600'}`} />
-                <span className="text-xs text-muted-foreground">
-                  Sign in (SIWE)
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${hasEnough ? 'bg-green-500' : 'bg-neutral-600'}`} />
-                <span className="text-xs text-muted-foreground">
-                  Hold {MIN_HOLDINGS}+ BOOAs{isAuth && ` (you have ${holdingCount})`}
-                </span>
+              {/* Content */}
+              <div className="max-w-md mx-auto space-y-6">
+                {/* Requirements */}
+                <div className="border-2 border-neutral-700 dark:border-neutral-200 p-6 space-y-4">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50" style={font}>
+                    REQUIREMENTS
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-neutral-600'}`} />
+                      <span className="text-xs text-muted-foreground" style={font}>Connect wallet</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${isAuth ? 'bg-green-500' : 'bg-neutral-600'}`} />
+                      <span className="text-xs text-muted-foreground" style={font}>Sign in (SIWE)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${hasEnough ? 'bg-green-500' : 'bg-neutral-600'}`} />
+                      <span className="text-xs text-muted-foreground" style={font}>
+                        Hold {MIN_HOLDINGS}+ BOOAs{isAuth && ` (you have ${holdingCount})`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action */}
+                <button
+                  onClick={handleJoin}
+                  disabled={loading || !isAuth || !hasEnough}
+                  className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={font}
+                >
+                  {loading
+                    ? 'Verifying...'
+                    : !isConnected
+                      ? 'Connect Wallet First'
+                      : !isAuth
+                        ? 'Sign In First'
+                        : !hasEnough
+                          ? `Need ${MIN_HOLDINGS - holdingCount} More BOOAs`
+                          : 'Join Inner Circle'}
+                </button>
+
+                {error && (
+                  <p className="text-xs text-red-500 dark:text-red-400" style={font}>{error}</p>
+                )}
+
+                <p className="text-[9px] text-muted-foreground/40 leading-relaxed" style={font}>
+                  Your wallet balance is verified on-chain. The invite link is never exposed in the browser — it is only returned from the server after verification.
+                </p>
               </div>
             </div>
+            <div className="hidden lg:block lg:col-span-1" />
           </div>
-
-          {/* Action */}
-          <div className="space-y-3">
-            <button
-              onClick={handleJoin}
-              disabled={loading || !isAuth || !hasEnough}
-              className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-transparent text-sm text-foreground hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {loading
-                ? 'Verifying...'
-                : !isConnected
-                  ? 'Connect Wallet First'
-                  : !isAuth
-                    ? 'Sign In First'
-                    : !hasEnough
-                      ? `Need ${MIN_HOLDINGS - holdingCount} More BOOAs`
-                      : 'Join Inner Circle'}
-            </button>
-
-            {error && (
-              <p className="text-xs text-red-500 dark:text-red-400 text-center">
-                {error}
-              </p>
-            )}
-          </div>
-
-          {/* Note */}
-          <p className="text-[9px] text-center text-muted-foreground/50 leading-relaxed">
-            Your wallet balance is verified on-chain. The invite link is never exposed in the browser — it is only returned from the server after verification.
-          </p>
         </div>
       </main>
       <Footer />
