@@ -5,11 +5,12 @@ import { useState } from 'react';
 interface GalleryThumbnailProps {
   tokenId: bigint;
   svg: string | null;
+  name: string;
   isOwned: boolean;
   onClick?: () => void;
 }
 
-export function GalleryThumbnail({ tokenId, svg, isOwned, onClick }: GalleryThumbnailProps) {
+export function GalleryThumbnail({ tokenId, svg, name, isOwned, onClick }: GalleryThumbnailProps) {
   const [hovered, setHovered] = useState(false);
 
   const borderClass = isOwned
@@ -37,8 +38,8 @@ export function GalleryThumbnail({ tokenId, svg, isOwned, onClick }: GalleryThum
 
       {hovered && (
         <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center">
-          <span className="text-[10px] font-mono text-white">
-            #{tokenId.toString()}
+          <span className="text-[10px] font-mono text-white truncate block">
+            #{tokenId.toString()} {name && !name.startsWith('#') ? name : ''}
           </span>
         </div>
       )}

@@ -53,6 +53,7 @@ export function NFTGrid() {
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>('latest');
   const [agentVisibleCount, setAgentVisibleCount] = useState(PAGE_SIZE);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch agents only for the selected chain
   useEffect(() => {
@@ -116,60 +117,76 @@ export function NFTGrid() {
   }, [tab, hasMore, loading, loadMore, agentHasMore, agentsLoading, loadMoreAgents]);
 
   const isLoading = tab === 'nfts' ? loading : agentsLoading;
-  const items = tab === 'nfts' ? nfts : agentItems;
+  const rawItems = tab === 'nfts' ? nfts : agentItems;
+  const items = useMemo(() => {
+    if (!searchQuery.trim()) return rawItems;
+    const q = searchQuery.trim().toLowerCase();
+    return rawItems.filter(nft =>
+      nft.tokenId.toLowerCase().includes(q) ||
+      (nft.name && nft.name.toLowerCase().includes(q)) ||
+      (nft.collection && nft.collection.toLowerCase().includes(q))
+    );
+  }, [rawItems, searchQuery]);
   const isEmpty = !isLoading && items.length === 0;
   const showSentinel = tab === 'nfts' ? hasMore : agentHasMore;
   const chainLabel = CHAIN_OPTIONS.find(c => c.value === selectedChain)?.label || selectedChain;
 
   return (
     <div className="space-y-3">
-      {/* Tab toggle + sort + chain filter */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex">
-          <button
-            type="button"
-            onClick={() => setTab('nfts')}
-            className={`px-4 py-2 border-2 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
-              tab === 'nfts'
-                ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
-            }`}
-          >
-            NFTs
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('agents')}
-            className={`px-4 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
-              tab === 'agents'
-                ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
-            }`}
-          >
-            Agents
-          </button>
+      {/* Tab toggle + search + sort + chain filter */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => setTab('nfts')}
+              className={`px-4 py-2 border-2 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
+                tab === 'nfts'
+                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
+              }`}
+            >
+              NFTs
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('agents')}
+              className={`px-4 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
+                tab === 'agents'
+                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
+              }`}
+            >
+              Agents
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              className="p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
+            >
+              <option value="latest">Latest</option>
+              <option value="oldest">Oldest</option>
+            </select>
+            <select
+              value={selectedChain}
+              onChange={(e) => setSelectedChain(e.target.value as typeof selectedChain)}
+              className="w-32 p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
+            >
+              {CHAIN_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Sort filter */}
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-            className="p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
-          >
-            <option value="latest">Latest</option>
-            <option value="oldest">Oldest</option>
-          </select>
-          {/* Chain filter */}
-          <select
-            value={selectedChain}
-            onChange={(e) => setSelectedChain(e.target.value as typeof selectedChain)}
-            className="w-32 p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
-          >
-            {CHAIN_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name, id, or collection..."
+          className="w-full p-2 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-xs text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400 outline-none"
+        />
       </div>
 
       {/* Item count */}

@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
 
     interface AlchemyOwnedNFT {
       tokenId?: string;
-      raw?: { metadata?: { image?: string } };
+      name?: string;
+      raw?: { metadata?: { image?: string; attributes?: { trait_type: string; value: string }[] } };
       image?: { cachedUrl?: string; thumbnailUrl?: string; originalUrl?: string };
     }
 
@@ -74,7 +75,8 @@ export async function GET(request: NextRequest) {
 
       const imageUrl = image.cachedUrl || image.thumbnailUrl || image.originalUrl || metadataImage || '';
 
-      return { tokenId, svg, imageUrl };
+      const name = nft.name || metadata.attributes?.find((a: { trait_type: string; value: string }) => a.trait_type === 'Name')?.value || `#${tokenId}`;
+      return { tokenId, svg, imageUrl, name };
     });
 
     return NextResponse.json({ tokens }, {

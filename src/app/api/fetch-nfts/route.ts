@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         name: (nft.name as string) || (metadata.name as string) || `#${nft.tokenId}`,
         description: (nft.description as string) || (metadata.description as string) || '',
         image: imageUrl,
-        collection: (contract.name as string) || (contract.openSeaMetadata as Record<string, unknown>)?.collectionName as string || 'Unknown Collection',
+        collection: (contract.name as string) || ((contract.openSeaMetadata as Record<string, unknown>)?.collectionName as string) || (contract.symbol as string) || `${((contract.address as string) || '').slice(0, 6)}...${((contract.address as string) || '').slice(-4)}`,
         tokenType: ((nft.tokenType as string) || 'ERC721') as 'ERC721' | 'ERC1155',
         chain,
         chainId,

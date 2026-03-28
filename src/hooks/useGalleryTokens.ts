@@ -10,6 +10,7 @@ const PAGE_SIZE = 50;
 export interface GalleryToken {
   tokenId: bigint;
   svg: string | null;
+  name: string;
   isOwned: boolean;
 }
 
@@ -25,8 +26,8 @@ export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest'
   const targetChainId = getV2ChainId(chainId);
   const enabled = !!contractAddress && contractAddress.length > 2;
 
-  const [galleryData, setGalleryData] = useState<{ tokenId: string; svg: string | null }[]>([]);
-  const [ownedData, setOwnedData] = useState<{ tokenId: string; svg: string | null }[]>([]);
+  const [galleryData, setGalleryData] = useState<{ tokenId: string; svg: string | null; name: string }[]>([]);
+  const [ownedData, setOwnedData] = useState<{ tokenId: string; svg: string | null; name: string }[]>([]);
   const [ownedLoading, setOwnedLoading] = useState(false);
   const [ownedFetched, setOwnedFetched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,9 +56,10 @@ export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest'
       if (!res.ok) return;
 
       const data = await res.json();
-      const newTokens = (data.tokens || []).map((t: { tokenId: string; svg: string | null }) => ({
+      const newTokens = (data.tokens || []).map((t: { tokenId: string; svg: string | null; name?: string }) => ({
         tokenId: t.tokenId,
         svg: t.svg || null,
+        name: t.name || `#${t.tokenId}`,
       }));
 
       if (isInitial) {
@@ -89,9 +91,10 @@ export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest'
       if (!res.ok) return;
 
       const data = await res.json();
-      setOwnedData((data.tokens || []).map((t: { tokenId: string; svg: string | null }) => ({
+      setOwnedData((data.tokens || []).map((t: { tokenId: string; svg: string | null; name?: string }) => ({
         tokenId: t.tokenId,
         svg: t.svg || null,
+        name: t.name || `#${t.tokenId}`,
       })));
       setOwnedFetched(true);
     } catch {
@@ -156,11 +159,13 @@ export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest'
     ? ownedData.map((t) => ({
         tokenId: BigInt(t.tokenId),
         svg: t.svg,
+        name: t.name,
         isOwned: true,
       }))
     : galleryData.map((t) => ({
         tokenId: BigInt(t.tokenId),
         svg: t.svg,
+        name: t.name,
         isOwned: ownedSet.has(t.tokenId),
       }));
 

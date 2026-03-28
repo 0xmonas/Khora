@@ -623,8 +623,10 @@ export function Gallery() {
     let result = [...tokens];
 
     if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
       result = result.filter(t =>
-        t.tokenId.toString().includes(searchQuery.trim())
+        t.tokenId.toString().includes(q) ||
+        t.name.toLowerCase().includes(q)
       );
     }
 
@@ -677,7 +679,7 @@ export function Gallery() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="search by id..."
+                placeholder="search by id or name..."
                 className="w-full bg-transparent font-mono text-xs py-1 outline-none text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400"
               />
             </div>
@@ -715,6 +717,7 @@ export function Gallery() {
                       key={token.tokenId.toString()}
                       tokenId={token.tokenId}
                       svg={token.svg}
+                      name={token.name}
                       isOwned={token.isOwned}
                       onClick={() => setSelectedToken(token)}
                     />
