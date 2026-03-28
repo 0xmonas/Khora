@@ -152,7 +152,7 @@ function AboutSection() {
           GitHub
         </a>
         <a
-          href="https://opensea.io/collection/booa-nft"
+          href="https://opensea.io/collection/booa"
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-2 text-sm text-foreground border-b border-foreground hover:opacity-70 transition-opacity"
