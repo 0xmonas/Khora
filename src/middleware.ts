@@ -27,6 +27,7 @@ const PUBLIC_READ_PATHS = [
   '/api/gallery',
   '/api/agent-card',
   '/api/agent-registry',
+  '/api/stats',
 ];
 
 export async function middleware(request: NextRequest) {
