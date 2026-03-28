@@ -5,7 +5,7 @@ import { useAccount, useChainId, useWriteContract, usePublicClient, useSwitchCha
 import { getPublicClient } from '@wagmi/core';
 import { decodeEventLog } from 'viem';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { toAgentDataURI } from '@/utils/helpers/exportFormats';
@@ -399,8 +399,14 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       setRegistryAgentId(registeredAgentId);
       setStep('complete');
+
+      // Notify server to persist registry data in Redis
+      fetch(`/api/agent-registry/${targetChainId}/${selectedNFT.tokenId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-siwe-address': address },
+        body: JSON.stringify({ address, registryAgentId: Number(registeredAgentId), txHash: hash }),
+      }).catch(() => {});
     } catch (err) {
-      console.error('bridge register error:', err);
       const msg = err instanceof Error ? err.message : 'Registration failed';
       if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
         setStep('configure');
@@ -474,7 +480,6 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setRegistryAgentId(BigInt(agentTokenId));
       setStep('complete');
     } catch (err) {
-      console.error('bridge update error:', err);
       const msg = err instanceof Error ? err.message : 'Update failed';
       if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
         setStep('configure');

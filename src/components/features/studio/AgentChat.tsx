@@ -213,7 +213,7 @@ export function AgentChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, selectedTokenId, messages, isLoading, targetChainId]);
+  }, [input, selectedTokenId, messages, isLoading, targetChainId, userApiKey]);
 
   const clearChat = useCallback(() => {
     if (!selectedTokenId) return;

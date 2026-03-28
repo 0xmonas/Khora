@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, Plus, X as XIcon } from 'lucide-react';
 import { useBridge } from '../BridgeContext';
 import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASFCategory } from '@/lib/oasf-taxonomy';
-import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
+import type { SupportedChain } from '@/types/agent';
 import type { AgentService } from '@/types/agent';
 import { VISIBLE_CHAIN_OPTIONS } from '@/utils/constants/chains';
 

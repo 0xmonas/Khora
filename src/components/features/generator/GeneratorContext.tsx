@@ -8,7 +8,7 @@ import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
 import { CHAIN_CONFIG } from '@/types/agent';
-import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { toERC8004, toAgentDataURI, type NFTOriginInput, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import { friendlyError } from '@/utils/helpers/friendlyError';

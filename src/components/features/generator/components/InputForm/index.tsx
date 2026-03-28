@@ -6,7 +6,6 @@ import { Image as ImageIcon, FileCode, FileJson, Archive, FileText, ChevronDown,
 import { formatEther } from 'viem';
 import { useGenerator } from '../../GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
-import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, AgentService, DiscoveredAgent } from '@/types/agent';
 import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASFCategory } from '@/lib/oasf-taxonomy';
 

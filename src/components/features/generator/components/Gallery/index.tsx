@@ -12,7 +12,7 @@ import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
-import { IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { toERC8004, toAgentDataURI, utf8ToBase64, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import type { KhoraAgent } from '@/types/agent';
 

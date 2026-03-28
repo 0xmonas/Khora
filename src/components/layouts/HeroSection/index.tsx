@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Github, ArrowRight } from 'lucide-react';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
 
@@ -10,6 +12,101 @@ const micro = 'text-[9px] uppercase tracking-[0.2em]';
 /* ═══════════════════════════════════════
    DATA — reflects the full Khora ecosystem
    ═══════════════════════════════════════ */
+
+const SUPPORTED_CHAINS = [
+  { name: 'Ethereum', chainId: 1, logo: '/chains/ethereum.png' },
+  { name: 'Base', chainId: 8453, logo: '/chains/base.png' },
+  { name: 'Shape', chainId: 360, logo: '/chains/shape.png' },
+  { name: 'Polygon', chainId: 137, logo: '/chains/polygon.png' },
+  { name: 'Arbitrum', chainId: 42161, logo: '/chains/arbitrum.png' },
+  { name: 'OP Mainnet', chainId: 10, logo: '/chains/optimism.png' },
+  { name: 'Avalanche', chainId: 43114, logo: '/chains/avalanche.png' },
+  { name: 'BNB Chain', chainId: 56, logo: '/chains/bnb.png' },
+  { name: 'Celo', chainId: 42220, logo: '/chains/celo.png' },
+  { name: 'Gnosis', chainId: 100, logo: '/chains/gnosis.png' },
+  { name: 'Scroll', chainId: 534352, logo: '/chains/scroll.png' },
+  { name: 'Linea', chainId: 59144, logo: '/chains/linea.png' },
+  { name: 'Mantle', chainId: 5000, logo: '/chains/mantle.png' },
+  { name: 'Metis', chainId: 1088, logo: '/chains/metis.png' },
+  { name: 'Abstract', chainId: 2741, logo: '/chains/abstract.png' },
+  { name: 'Monad', chainId: 143, logo: '/chains/monad.png' },
+];
+
+function LiveStats() {
+  const [stats, setStats] = useState<{ booaMinted: number; agentsRegistered: number; chainsSupported: number } | null>(null);
+  const [selectedChain, setSelectedChain] = useState<number | null>(null);
+
+  useEffect(() => {
+    const url = selectedChain ? `/api/stats?chainId=${selectedChain}` : '/api/stats';
+    fetch(url)
+      .then(r => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, [selectedChain]);
+
+  const selectedName = selectedChain
+    ? SUPPORTED_CHAINS.find(c => c.chainId === selectedChain)?.name
+    : null;
+
+  const items = [
+    { label: 'BOOA Minted', value: stats?.booaMinted ?? '—' },
+    {
+      label: 'Agents Registered',
+      value: stats?.agentsRegistered ?? '—',
+      sub: selectedName ? `on ${selectedName}` : 'via Khora',
+    },
+    { label: 'Chains Supported', value: stats?.chainsSupported ?? '—' },
+  ];
+
+  return (
+    <div className="px-4 md:px-8 lg:px-12 mt-20 md:mt-24">
+      <div className="w-full lg:grid lg:grid-cols-12">
+        <div className="hidden lg:block lg:col-span-1" />
+        <div className="lg:col-span-10 space-y-6">
+          <p className={`${micro} text-muted-foreground/50`} style={font}>Live</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-neutral-200 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800">
+            {items.map((item) => (
+              <div key={item.label} className="bg-background p-6 flex flex-col gap-1">
+                <span className="text-2xl sm:text-3xl text-foreground tabular-nums" style={font}>
+                  {typeof item.value === 'number' ? item.value.toLocaleString() : item.value}
+                </span>
+                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider" style={font}>
+                  {item.label}
+                </span>
+                {item.sub && (
+                  <span className="text-[9px] text-muted-foreground/30 uppercase" style={font}>{item.sub}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {SUPPORTED_CHAINS.map((chain) => {
+              const isActive = selectedChain === chain.chainId;
+              return (
+                <button
+                  key={chain.name}
+                  onClick={() => setSelectedChain(isActive ? null : chain.chainId)}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 border text-[10px] transition-colors ${
+                    isActive
+                      ? 'border-foreground text-foreground bg-foreground/5'
+                      : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground/60 hover:border-neutral-400 dark:hover:border-neutral-600'
+                  }`}
+                  style={font}
+                >
+                  <Image src={chain.logo} alt={chain.name} width={14} height={14} className="w-3.5 h-3.5 rounded-full" />
+                  {chain.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="hidden lg:block lg:col-span-1" />
+      </div>
+    </div>
+  );
+}
 
 const PRODUCTS = [
   {
@@ -98,6 +195,11 @@ export function HeroSection() {
           <div className="hidden lg:block lg:col-span-1" />
         </div>
       </div>
+
+      {/* ══════════════════════════════════════
+          LIVE STATS
+         ══════════════════════════════════════ */}
+      <LiveStats />
 
       {/* ══════════════════════════════════════
           PRODUCTS

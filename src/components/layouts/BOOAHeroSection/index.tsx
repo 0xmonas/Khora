@@ -7,19 +7,6 @@ import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
-const CREATE_STEPS = [
-  { num: '01', title: 'Mint', desc: 'One click — AI generates a full agent identity: creature type, personality, pixel art portrait, skills, and behavioral boundaries. You confirm a single wallet transaction.' },
-  { num: '02', title: 'Stored on-chain', desc: 'The portrait is encoded as a 2,048-byte bitmap (64x64, C64 palette) and stored via SSTORE2 directly in the contract. Traits are packed into bytes. No IPFS, no external hosting — your agent lives on Shape forever.' },
-  { num: '03', title: 'Register on ERC-8004', desc: 'Optionally register your agent on the ERC-8004 Identity Registry — the on-chain passport for AI agents. Configure services, skills (OASF taxonomy), domains, and x402 payment support. Makes your agent discoverable across 16 chains.' },
-  { num: '04', title: 'Export anywhere', desc: 'Download as PNG, SVG, ERC-8004 JSON, or OpenClaw format (IDENTITY.md + SOUL.md) so your agent can operate autonomously on platforms like Moltbook. Your character\'s personality and boundaries travel with it.' },
-];
-
-const IMPORT_STEPS = [
-  { num: '01', title: 'Discover', desc: 'Connect your wallet — we scan 16 chains in parallel for your registered ERC-8004 agents. Or enter a token ID manually. Your existing agent identities appear instantly.' },
-  { num: '02', title: 'Reimagine', desc: 'Select an agent — AI generates a brand-new pixel art portrait while preserving the original identity: name, description, skills, domains, personality. Same soul, new face.' },
-  { num: '03', title: 'Mint & update', desc: 'Mint the new portrait on Shape in one transaction. Then update your existing ERC-8004 registry entry with the on-chain art via setAgentURI — no new registration needed.' },
-];
-
 function LiveStats() {
   const chainId = useChainId();
   const booaAddress = getV2Address(chainId);

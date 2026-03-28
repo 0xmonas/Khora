@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useChainId } from 'wagmi';
-import { shape } from 'wagmi/chains';
 import { useBridge } from '../BridgeContext';
 
 const EXPLORERS: Record<number, string> = {

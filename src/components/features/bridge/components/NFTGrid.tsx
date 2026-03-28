@@ -5,7 +5,7 @@ import { useAccount } from 'wagmi';
 import { useBridge } from '../BridgeContext';
 import { NFTCard } from './NFTCard';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
-import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import type { DiscoveredAgent } from '@/types/agent';
 import { VISIBLE_CHAIN_OPTIONS } from '@/utils/constants/chains';
 

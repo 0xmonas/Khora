@@ -191,15 +191,17 @@ export async function POST(
 
   // Verify the registration TX on-chain
   try {
-    const { createPublicClient, http, decodeEventLog } = await import('viem');
-    const { shape, shapeSepolia } = await import('viem/chains');
+    const { createPublicClient, http, fallback, decodeEventLog } = await import('viem');
     const { IDENTITY_REGISTRY_ABI } = await import('@/lib/contracts/identity-registry');
+    const { CHAIN_CONFIG } = await import('@/types/agent');
 
-    const chainMap: Record<number, Chain> = {
-      [shape.id]: shape, [shapeSepolia.id]: shapeSepolia,
-    };
-    const chain = chainMap[chainIdNum] || shapeSepolia;
-    const client = createPublicClient({ chain, transport: http() });
+    const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+    if (!chainEntry) {
+      return NextResponse.json({ error: 'Unsupported chain' }, { status: 400 });
+    }
+    const client = createPublicClient({
+      transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
+    });
 
     const receipt = await client.getTransactionReceipt({
       hash: txHash as `0x${string}`,
