@@ -36,7 +36,7 @@ export interface ERC8004Registration {
   registrations?: { agentId?: number; agentRegistry: string }[];
   supportedTrust?: string[];
   updatedAt?: number;
-  // Links this 8004 agent to its source NFT (immutable in Registered event log)
+  registeredVia?: string;
   nftOrigin?: {
     contract: string;  // CAIP-10 format: eip155:{chainId}:{address}
     tokenId: number;

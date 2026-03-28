@@ -80,6 +80,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
     x402Support: agent.x402Support ?? false,
     supportedTrust: agent.supportedTrust?.length ? agent.supportedTrust : undefined,
     updatedAt: Math.floor(Date.now() / 1000),
+    registeredVia: 'https://khora.fun',
     // Immutable link to source NFT — preserved in Registered event log forever
     ...(nftOrigin ? {
       nftOrigin: {
