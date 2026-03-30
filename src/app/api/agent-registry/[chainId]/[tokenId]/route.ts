@@ -45,7 +45,7 @@ export async function GET(
 
   // Check registry status first (works even without metadata)
   const registryKey = `agent:registry:${chainIdNum}:${tokenIdNum}`;
-  const registryData = await redis.get<{ agentId: number }>(registryKey);
+  const registryData = await redis.get<{ agentId: number; registeredBy?: string; registeredAt?: number; txHash?: string }>(registryKey);
 
   // Load agent metadata from Upstash
   const metadataKey = `agent:metadata:${chainIdNum}:${tokenIdNum}`;
@@ -64,6 +64,7 @@ export async function GET(
         agentId: registryData!.agentId,
         agentRegistry: `eip155:${chainIdNum}:${registryAddr}`,
       }],
+      registeredBy: registryData!.registeredBy || null,
     }, {
       headers: {
         'Cache-Control': 'public, max-age=300',
@@ -124,7 +125,10 @@ export async function GET(
     }];
   }
 
-  return NextResponse.json(registration, {
+  return NextResponse.json({
+    ...registration,
+    registeredBy: registryData?.registeredBy || null,
+  }, {
     headers: {
       'Cache-Control': 'public, max-age=300',
       ...rateLimitHeaders(rl),

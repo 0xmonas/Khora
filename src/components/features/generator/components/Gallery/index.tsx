@@ -155,7 +155,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Registration state
-  const [registerStatus, setRegisterStatus] = useState<'idle' | 'registering' | 'success' | 'error' | 'already_registered'>('idle');
+  const [registerStatus, setRegisterStatus] = useState<'idle' | 'registering' | 'success' | 'error' | 'already_registered' | 'registered_by_other'>('idle');
   const [registryCheckLoading, setRegistryCheckLoading] = useState(true);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
@@ -172,13 +172,20 @@ function TokenDetail({ token }: { token: GalleryToken }) {
       .then(data => {
         if (!cancelled && data?.registrations?.length > 0) {
           setRegistryAgentId(BigInt(data.registrations[0].agentId));
-          if (token.isOwned) setRegisterStatus('already_registered');
+          if (token.isOwned) {
+            const registeredBy = (data.registeredBy || '').toLowerCase();
+            if (address && registeredBy && registeredBy !== address.toLowerCase()) {
+              setRegisterStatus('registered_by_other');
+            } else {
+              setRegisterStatus('already_registered');
+            }
+          }
         }
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setRegistryCheckLoading(false); });
     return () => { cancelled = true; };
-  }, [chainId, token.tokenId, token.isOwned]);
+  }, [chainId, token.tokenId, token.isOwned, address]);
 
   const handleRegister = useCallback(async () => {
     if (!token.isOwned || !publicClient) return;
@@ -506,6 +513,23 @@ function TokenDetail({ token }: { token: GalleryToken }) {
             )}
             <p className="font-mono text-xs text-green-600 dark:text-green-400">
               Registered on ERC-8004 protocol.
+            </p>
+          </div>
+        )}
+
+        {token.isOwned && !registryCheckLoading && registerStatus === 'registered_by_other' && (
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
+            <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
+              8004 identity registered by a previous owner.
+            </p>
+            <button
+              onClick={handleRegister}
+              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
+            >
+              REGISTER AS NEW OWNER
+            </button>
+            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1">
+              creates a new 8004 identity under your wallet
             </p>
           </div>
         )}

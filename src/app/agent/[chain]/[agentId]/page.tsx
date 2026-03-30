@@ -36,6 +36,7 @@ interface AgentData {
   x402Support: boolean;
   supportedTrust: string[];
   registryAgentId: number | null;
+  registeredBy: string | null;
 }
 
 async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<AgentData | null> {
@@ -103,6 +104,7 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
     } catch { /* empty */ }
 
     let registryAgentId: number | null = null;
+    let registeredBy: string | null = null;
     let services: AgentData['services'] = [];
     let x402Support = false;
     let supportedTrust: string[] = [];
@@ -110,8 +112,11 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
 
     try {
       const registryKey = `agent:registry:${chainId}:${tokenId}`;
-      const registryData = await redis.get<{ agentId: number }>(registryKey);
-      if (registryData) registryAgentId = registryData.agentId;
+      const registryData = await redis.get<{ agentId: number; registeredBy?: string }>(registryKey);
+      if (registryData) {
+        registryAgentId = registryData.agentId;
+        registeredBy = registryData.registeredBy || null;
+      }
 
       const metadataKey = `agent:metadata:${chainId}:${tokenId}`;
       const metadata = await redis.get<Record<string, unknown>>(metadataKey);
@@ -141,6 +146,7 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       x402Support,
       supportedTrust,
       registryAgentId,
+      registeredBy,
     };
   } catch {
     return null;
@@ -230,6 +236,11 @@ export default async function AgentPage({
             scores={scores}
             scan8004Url={scan8004Url}
           />
+          {agent.registeredBy && agent.owner && agent.registeredBy.toLowerCase() !== agent.owner.toLowerCase() && (
+            <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400 text-center max-w-xs">
+              8004 identity registered by {agent.registeredBy.slice(0, 6)}...{agent.registeredBy.slice(-4)}
+            </p>
+          )}
         </div>
       </main>
       <Footer />
