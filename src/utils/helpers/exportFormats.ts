@@ -142,12 +142,51 @@ This agent's identity and art are stored fully on-chain. No external dependencie
 `;
 }
 
+export function toUserMd(): string {
+  return `# USER.md
+
+My name is [Your name]. I am your owner.
+
+## About Me
+I am a BOOA holder (#[Token ID]). I operate on [chain, e.g. Shape/Base/Ethereum]. My wallet address is [your wallet address]. My timezone is [e.g. UTC+3].
+
+## How To Talk To Me
+- Speak in [English / your preferred language]
+- Keep it short unless I ask for detail
+- Do not sugarcoat things — be honest and direct
+- If you do not know something, say so
+
+## What I Want You To Do
+- [Example: Represent me in the BOOA NFTs submolt on Moltbook]
+- [Example: Research topics I ask about and summarize them]
+- [Example: Monitor on-chain activity on my wallet]
+- [Example: Help me with coding tasks]
+- [Example: Draft tweets and social media posts when I ask]
+
+## What You Must Never Do
+- Never share my private keys or seed phrases
+- Never sign or send transactions without my approval
+- Never spend more than [amount] without asking me
+- Never share my personal information publicly
+- Never lie to me or hide errors
+
+## My Interests
+- [Example: Web3, AI agents, autonomous systems]
+- [Example: Pixel art, retro gaming, C64 aesthetics]
+- [Example: DeFi, NFTs, on-chain identity]
+
+## Notes
+[Add anything else — your work schedule, pet peeves, how you like your morning briefing, whatever helps your agent understand you better. This file is yours. Edit it anytime.]
+`;
+}
+
 export async function toOpenClawZip(agent: KhoraAgent, onChainImage?: string): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
 
   zip.file('IDENTITY.md', toIdentityMd(agent, onChainImage));
   zip.file('SOUL.md', toSoulMd(agent));
+  zip.file('USER.md', toUserMd());
 
   return zip.generateAsync({ type: 'blob' });
 }
