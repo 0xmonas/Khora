@@ -73,6 +73,8 @@ Once the wallet is created, tell your agent:
 
 Important: Make absolutely sure all generated keys are stored safely and properly backed up. Do not continue until the backup process is complete. This is your agent's wallet — if the keys are lost, the wallet is gone.
 
+How to backup your wallet seed phrase: Your agent will NOT share your mnemonic via Telegram — this is by design. A properly configured agent will refuse to expose private keys through chat. This is correct behavior. Railway Hobby plan does not provide direct container shell access, so here is the method that works: (A) Tell your agent via Telegram to copy the wallet file from ~/.ows/wallets/ to /data/workspace/wallet-backup.json. (B) Go to your OpenClaw setup page and click Export Data to download the workspace ZIP containing the encrypted wallet file. (C) Install OWS CLI locally: curl -fsSL https://openwallet.sh/install.sh | bash (D) Copy the wallet file to ~/.ows/wallets/ and run: ows wallet export --wallet "ink-sync" in your terminal (requires interactive terminal — security feature). (E) Write down the 24-word seed phrase on paper or save it in an encrypted password manager. Then delete all copies of the wallet file from your machine. Never store seed phrases in plain text, screenshots, or chat messages.
+
 Step 4: Transfer 8004 ownership to your agent
 
 Your BOOA is already registered on the ERC-8004 Identity Registry (if not, register it first at khora.fun/bridge). To give your agent full control over its own identity:
