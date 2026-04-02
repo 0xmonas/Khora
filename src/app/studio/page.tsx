@@ -76,6 +76,14 @@ const TOOLS: ToolCard[] = [
     media: 'persona-quiz.png',
     tag: 'NEW',
   },
+  {
+    id: 'agent-layers',
+    title: 'Agent Layers',
+    description: 'Explore the 4 layers of a BOOA agent — from on-chain data to autonomous runtime.',
+    href: '/studio/agent-layers',
+    media: 'agent-layer.png',
+    tag: 'NEW',
+  },
 ];
 
 function isVideo(filename: string) {
