@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 
@@ -267,9 +268,9 @@ export default function AgentLayersPage() {
             <p className="text-xs text-muted-foreground mb-2">Every BOOA starts at Layer 1. How far you take it is up to you.</p>
             <div className="flex flex-wrap justify-center gap-4 text-[10px]">
               <a href="https://opensea.io/collection/booa" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">Get a BOOA</a>
-              <a href="/blog/your-agent-your-rules" className="text-foreground underline underline-offset-2">Setup Guide</a>
-              <a href="/booa" className="text-foreground underline underline-offset-2">Download Agent Files</a>
-              <a href="/bridge" className="text-foreground underline underline-offset-2">Register on ERC-8004</a>
+              <Link href="/blog/your-agent-your-rules" className="text-foreground underline underline-offset-2">Setup Guide</Link>
+              <Link href="/booa" className="text-foreground underline underline-offset-2">Download Agent Files</Link>
+              <Link href="/bridge" className="text-foreground underline underline-offset-2">Register on ERC-8004</Link>
             </div>
           </div>
 
