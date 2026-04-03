@@ -43,9 +43,98 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
-  // Check registry status first (works even without metadata)
+  // Check registry status from Redis first
   const registryKey = `agent:registry:${chainIdNum}:${tokenIdNum}`;
-  const registryData = await redis.get<{ agentId: number; registeredBy?: string; registeredAt?: number; txHash?: string }>(registryKey);
+  let registryData = await redis.get<{ agentId: number; registeredBy?: string; registeredAt?: number; txHash?: string }>(registryKey);
+
+  // On-chain fallback: if Redis has no registry data, check chain directly
+  // This catches agents registered outside our Bridge UI (direct contract calls, ownership transfers, etc.)
+  if (!registryData) {
+    try {
+      const { createPublicClient, http, fallback } = await import('viem');
+      const { IDENTITY_REGISTRY_ABI } = await import('@/lib/contracts/identity-registry');
+      const { CHAIN_CONFIG } = await import('@/types/agent');
+
+      const registryAddr = getRegistryAddress(chainIdNum);
+      const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+      if (chainEntry) {
+        const client = createPublicClient({
+          transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
+        });
+
+        // Scan recent agentIds to find one with nftOrigin matching this tokenId
+        // Check agentId 0..maxId by reading tokenURI and parsing nftOrigin
+        const maxCheck = 3000; // reasonable upper bound for current registry size
+        const BATCH = 200;
+
+        for (let start = 0; start < maxCheck; start += BATCH) {
+          const contracts = [];
+          for (let id = start; id < Math.min(start + BATCH, maxCheck); id++) {
+            contracts.push({
+              address: registryAddr,
+              abi: IDENTITY_REGISTRY_ABI,
+              functionName: 'tokenURI' as const,
+              args: [BigInt(id)],
+            });
+          }
+
+          const results = await client.multicall({
+            contracts,
+            multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11' as `0x${string}`,
+            allowFailure: true,
+          });
+
+          for (let i = 0; i < results.length; i++) {
+            const r = results[i] as { status: string; result?: string };
+            if (r.status !== 'success' || !r.result) continue;
+
+            const uri = r.result as string;
+            try {
+              let parsed: Record<string, unknown> | null = null;
+              if (uri.startsWith('data:')) {
+                const b64 = uri.split(',')[1];
+                parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+              }
+              if (parsed?.nftOrigin) {
+                const origin = parsed.nftOrigin as { tokenId?: number; contract?: string };
+                if (origin.tokenId === tokenIdNum) {
+                  // Found matching agent — get current owner
+                  const agentId = start + i;
+                  let currentOwner: string | null = null;
+                  try {
+                    currentOwner = await client.readContract({
+                      address: registryAddr,
+                      abi: IDENTITY_REGISTRY_ABI,
+                      functionName: 'ownerOf',
+                      args: [BigInt(agentId)],
+                    }) as string;
+                  } catch { /* agent may be burned */ }
+
+                  registryData = {
+                    agentId,
+                    registeredBy: currentOwner?.toLowerCase(),
+                  };
+
+                  // Cache in Redis for future requests
+                  await redis.set(registryKey, {
+                    agentId,
+                    registeredAt: Date.now(),
+                    registeredBy: currentOwner?.toLowerCase() || '',
+                    txHash: '',
+                  });
+                  break;
+                }
+              }
+            } catch { /* parsing failed, skip */ }
+          }
+
+          if (registryData) break;
+        }
+      }
+    } catch (err) {
+      console.error('On-chain registry fallback error:', err);
+    }
+  }
 
   // Load agent metadata from Upstash
   const metadataKey = `agent:metadata:${chainIdNum}:${tokenIdNum}`;

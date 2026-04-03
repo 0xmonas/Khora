@@ -49,6 +49,13 @@ export const IDENTITY_REGISTRY_ABI = [
   },
   {
     type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
     name: 'tokenURI',
     stateMutability: 'view',
     inputs: [{ name: 'tokenId', type: 'uint256' }],
