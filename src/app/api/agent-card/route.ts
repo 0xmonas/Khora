@@ -98,6 +98,37 @@ export async function GET(request: NextRequest) {
 
     const scores = calculateAgentScores(scoreInput);
 
+    // Verify: check if 8004 owner or originalOwner matches NFT owner on Shape
+    let verified = false;
+    let currentNftOwner: string | null = null;
+    const nftOrigin = registration.nftOrigin as { tokenId?: number; originalOwner?: string; contract?: string } | undefined;
+
+    if (nftOrigin?.tokenId !== undefined) {
+      try {
+        const { shape, shapeSepolia } = await import('viem/chains');
+        const { BOOA_V2_ABI } = await import('@/lib/contracts/booa-v2');
+        const booaContract = chainId === 360
+          ? process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS
+          : process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET;
+
+        if (booaContract) {
+          const { createPublicClient: createPC, http: httpT } = await import('viem');
+          const shapeChain = chainId === 360 ? shape : shapeSepolia;
+          const shapeClient = createPC({ chain: shapeChain, transport: httpT() });
+          currentNftOwner = (await shapeClient.readContract({
+            address: booaContract as `0x${string}`,
+            abi: BOOA_V2_ABI,
+            functionName: 'ownerOf',
+            args: [BigInt(nftOrigin.tokenId)],
+          }) as string).toLowerCase();
+
+          const ownerLower = owner.toLowerCase();
+          const originalOwner = nftOrigin.originalOwner?.toLowerCase();
+          verified = ownerLower === currentNftOwner || originalOwner === currentNftOwner;
+        }
+      } catch { /* NFT lookup failed — leave verified false */ }
+    }
+
     return NextResponse.json({
       agent: {
         id: agentId,
@@ -115,6 +146,8 @@ export async function GET(request: NextRequest) {
         supportedTrust: registration.supportedTrust || [],
         active: registration.active || false,
         registrations: registration.registrations || [],
+        verified,
+        currentNftOwner,
       },
       scores,
     }, {

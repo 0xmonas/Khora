@@ -173,8 +173,8 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         if (!cancelled && data?.registrations?.length > 0) {
           setRegistryAgentId(BigInt(data.registrations[0].agentId));
           if (token.isOwned) {
-            const registeredBy = (data.registeredBy || '').toLowerCase();
-            if (address && registeredBy && registeredBy !== address.toLowerCase()) {
+            if (data.verified === false) {
+              // 8004 exists but current NFT owner doesn't match — orphan or previous owner's registration
               setRegisterStatus('registered_by_other');
             } else {
               setRegisterStatus('already_registered');
