@@ -137,6 +137,88 @@ async function findAllRegistrations(tokenIdNum: number, chainIdNum: number): Pro
 }
 
 /**
+ * Fallback: find 8004 registrations by agent name when nftOrigin is missing.
+ * Only matches registrations from khora.fun with matching name AND owner.
+ */
+async function findRegistrationsByName(
+  agentName: string,
+  chainIdNum: number,
+  currentNftOwner: string | null,
+): Promise<RegistrationMatch[]> {
+  try {
+    const { createPublicClient, http, fallback } = await import('viem');
+    const { IDENTITY_REGISTRY_ABI } = await import('@/lib/contracts/identity-registry');
+    const { CHAIN_CONFIG } = await import('@/types/agent');
+
+    const registryAddr = getRegistryAddress(chainIdNum);
+    const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+    if (!chainEntry) return [];
+
+    const client = createPublicClient({
+      transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
+    });
+
+    const maxCheck = 3000;
+    const BATCH = 200;
+    const found: RegistrationMatch[] = [];
+
+    for (let start = 0; start < maxCheck; start += BATCH) {
+      const contracts = [];
+      for (let id = start; id < Math.min(start + BATCH, maxCheck); id++) {
+        contracts.push({
+          address: registryAddr,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'tokenURI' as const,
+          args: [BigInt(id)],
+        });
+      }
+
+      const results = await client.multicall({
+        contracts,
+        multicallAddress: MULTICALL3,
+        allowFailure: true,
+      });
+
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i] as { status: string; result?: string };
+        if (r.status !== 'success' || !r.result) continue;
+
+        const uri = r.result as string;
+        try {
+          if (!uri.startsWith('data:')) continue;
+          const b64 = uri.split(',')[1];
+          const parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+
+          if (parsed?.name === agentName && parsed?.registeredVia === 'https://khora.fun') {
+            const agentId = start + i;
+            let current8004Owner: string | null = null;
+            try {
+              current8004Owner = (await client.readContract({
+                address: registryAddr,
+                abi: IDENTITY_REGISTRY_ABI,
+                functionName: 'ownerOf',
+                args: [BigInt(agentId)],
+              }) as string).toLowerCase();
+            } catch { /* burned */ }
+
+            found.push({
+              agentId,
+              current8004Owner,
+              originalOwner: parsed?.nftOrigin?.originalOwner?.toLowerCase() || null,
+            });
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    return found;
+  } catch (err) {
+    console.error('findRegistrationsByName error:', err);
+    return [];
+  }
+}
+
+/**
  * Find the verified 8004 registration for a BOOA token.
  * Uses Redis first, falls back to on-chain scan.
  * Single pass: no duplicate RPC calls.
@@ -204,8 +286,21 @@ async function resolveAndVerify(
     }
   }
 
-  // No cache — full on-chain scan
-  const allRegs = await findAllRegistrations(tokenIdNum, chainIdNum);
+  // No cache — full on-chain scan by nftOrigin
+  let allRegs = await findAllRegistrations(tokenIdNum, chainIdNum);
+
+  // Fallback: if nftOrigin scan found nothing, try name-based matching
+  // This handles registrations made before nftOrigin was added
+  if (allRegs.length === 0) {
+    const metadataKey = `agent:metadata:${chainIdNum}:${tokenIdNum}`;
+    const metadata = await redis.get<Record<string, unknown>>(metadataKey);
+    const agentName = metadata?.name as string | undefined;
+
+    if (agentName) {
+      allRegs = await findRegistrationsByName(agentName, chainIdNum, currentNftOwner);
+    }
+  }
+
   if (allRegs.length === 0) {
     return { verified: false, currentNftOwner, agentId: null, registeredBy: null };
   }
