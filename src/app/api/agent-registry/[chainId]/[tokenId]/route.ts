@@ -137,13 +137,13 @@ async function findAllRegistrations(tokenIdNum: number, chainIdNum: number): Pro
 }
 
 /**
- * Fallback: find 8004 registrations by agent name when nftOrigin is missing.
- * Only matches registrations from khora.fun with matching name AND owner.
+ * Fallback: find 8004 registrations owned by the NFT owner that match by name.
+ * Scoped to owner's agents only — no global name search.
  */
-async function findRegistrationsByName(
+async function findRegistrationsByOwner(
   agentName: string,
   chainIdNum: number,
-  currentNftOwner: string | null,
+  ownerAddress: string,
 ): Promise<RegistrationMatch[]> {
   try {
     const { createPublicClient, http, fallback } = await import('viem');
@@ -158,17 +158,31 @@ async function findRegistrationsByName(
       transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
     });
 
+    // Check how many 8004 tokens this owner has
+    let balance = 0;
+    try {
+      balance = Number(await client.readContract({
+        address: registryAddr,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'balanceOf',
+        args: [ownerAddress as `0x${string}`],
+      }));
+    } catch { return []; }
+
+    if (balance === 0) return [];
+
+    // Scan to find owner's agentIds via ownerOf multicall
     const maxCheck = 3000;
     const BATCH = 200;
-    const found: RegistrationMatch[] = [];
+    const ownedIds: number[] = [];
 
-    for (let start = 0; start < maxCheck; start += BATCH) {
+    for (let start = 0; start < maxCheck && ownedIds.length < balance; start += BATCH) {
       const contracts = [];
       for (let id = start; id < Math.min(start + BATCH, maxCheck); id++) {
         contracts.push({
           address: registryAddr,
           abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'tokenURI' as const,
+          functionName: 'ownerOf' as const,
           args: [BigInt(id)],
         });
       }
@@ -181,39 +195,41 @@ async function findRegistrationsByName(
 
       for (let i = 0; i < results.length; i++) {
         const r = results[i] as { status: string; result?: string };
-        if (r.status !== 'success' || !r.result) continue;
-
-        const uri = r.result as string;
-        try {
-          if (!uri.startsWith('data:')) continue;
-          const b64 = uri.split(',')[1];
-          const parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
-
-          if (parsed?.name === agentName && parsed?.registeredVia === 'https://khora.fun') {
-            const agentId = start + i;
-            let current8004Owner: string | null = null;
-            try {
-              current8004Owner = (await client.readContract({
-                address: registryAddr,
-                abi: IDENTITY_REGISTRY_ABI,
-                functionName: 'ownerOf',
-                args: [BigInt(agentId)],
-              }) as string).toLowerCase();
-            } catch { /* burned */ }
-
-            found.push({
-              agentId,
-              current8004Owner,
-              originalOwner: parsed?.nftOrigin?.originalOwner?.toLowerCase() || null,
-            });
-          }
-        } catch { /* skip */ }
+        if (r.status === 'success' && (r.result as string)?.toLowerCase() === ownerAddress.toLowerCase()) {
+          ownedIds.push(start + i);
+        }
       }
+    }
+
+    if (ownedIds.length === 0) return [];
+
+    // Read tokenURI for owned agentIds and match by name
+    const found: RegistrationMatch[] = [];
+    for (const agentId of ownedIds) {
+      try {
+        const uri = await client.readContract({
+          address: registryAddr,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'tokenURI',
+          args: [BigInt(agentId)],
+        }) as string;
+
+        if (!uri.startsWith('data:')) continue;
+        const parsed = JSON.parse(Buffer.from(uri.split(',')[1], 'base64').toString('utf-8'));
+
+        if (parsed?.name === agentName) {
+          found.push({
+            agentId,
+            current8004Owner: ownerAddress.toLowerCase(),
+            originalOwner: parsed?.nftOrigin?.originalOwner?.toLowerCase() || null,
+          });
+        }
+      } catch { /* skip */ }
     }
 
     return found;
   } catch (err) {
-    console.error('findRegistrationsByName error:', err);
+    console.error('findRegistrationsByOwner error:', err);
     return [];
   }
 }
@@ -297,7 +313,7 @@ async function resolveAndVerify(
     const agentName = metadata?.name as string | undefined;
 
     if (agentName) {
-      allRegs = await findRegistrationsByName(agentName, chainIdNum, currentNftOwner);
+      allRegs = await findRegistrationsByOwner(agentName, chainIdNum, currentNftOwner);
     }
   }
 
