@@ -4,17 +4,28 @@
 
 ## Overview
 
-Khora provides public APIs for querying BOOA NFTs (fully on-chain AI agent PFPs on Shape) and ERC-8004 agent identities across 18 EVM chains. All data is read directly from on-chain contracts. No API key required.
+Khora provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Shape Network) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
+
+## Collection Status
+
+BOOA: 3,333 / 3,333 minted (sold out). CC0 artwork, MIT contracts.
+Secondary: opensea.io/collection/booa
+ERC-8004 registered: 1,600+ agents
 
 ## Supported Chains
 
 Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract, monad
-Testnets: base-sepolia, shape-sepolia
+
+## On-Chain Contracts (Shape Mainnet, Chain ID: 360)
+
+BOOA NFT (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
+BOOAMinter: 0xec96E4C7457B884f4624bA1272470a9bCB1992e8
+BOOAStorage: 0x966aB07b061d75b8b30Ae4D06853dDf26d0f4EB0
+BOOARenderer: 0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8
 
 ## ERC-8004 Identity Registry
 
-Mainnet address (all chains): 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
-Testnet address (all chains): 0x8004A818BFB912233c491871b3d84c89A494BD9e
+Mainnet address (all 16 chains): 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 Deployed via deterministic CREATE2 — same address on every EVM chain.
 
 ---
@@ -26,33 +37,33 @@ Deployed via deterministic CREATE2 — same address on every EVM chain.
 Fetch a complete ERC-8004 agent identity with computed scores.
 
 Parameters:
-- chain (required): Chain slug (e.g. "shape", "base", "ethereum", "shape-sepolia")
+- chain (required): Chain slug (e.g. "shape", "base", "ethereum")
 - agentId (required): Non-negative integer token ID on the Identity Registry
 
 Response:
 {
   "agent": {
-    "id": 9,
-    "chain": "base-sepolia",
-    "chainId": 84532,
-    "chainName": "Base Sepolia",
+    "id": 42,
+    "chain": "shape",
+    "chainId": 360,
+    "chainName": "Shape",
     "owner": "0x...",
-    "name": "MyAgent",
-    "description": "A helpful DeFi agent",
+    "name": "Ink-Sync",
+    "description": "A cybernetically-enhanced Cephalopod-Human hybrid...",
     "image": "data:image/png;base64,...",
     "services": [
       {
         "name": "OASF",
         "version": "0.8.0",
-        "skills": ["text-generation", "swap-execution"],
-        "domains": ["defi"]
+        "skills": ["task-decomposition", "multi-agent-planning"],
+        "domains": ["automation", "cybersecurity"]
       }
     ],
-    "skills": ["text-generation", "swap-execution"],
-    "domains": ["defi"],
+    "skills": ["task-decomposition", "multi-agent-planning"],
+    "domains": ["automation", "cybersecurity"],
     "x402Support": false,
     "supportedTrust": ["reputation"],
-    "active": false,
+    "active": true,
     "registrations": []
   },
   "scores": {
@@ -68,7 +79,7 @@ Errors: 400 (invalid params), 404 (agent not found), 500 (server error)
 Cache: 60 seconds
 
 Example:
-GET /api/agent-card?chain=base-sepolia&agentId=9
+GET /api/agent-card?chain=shape&agentId=42
 
 ---
 
@@ -84,12 +95,12 @@ Response:
 {
   "agents": [
     {
-      "chain": "base-sepolia",
-      "chainName": "Base Sepolia",
-      "tokenId": 9,
-      "name": "MyAgent",
+      "chain": "shape",
+      "chainName": "Shape",
+      "tokenId": 42,
+      "name": "Ink-Sync",
       "image": "data:image/png;base64,...",
-      "description": "A helpful DeFi agent",
+      "description": "A cybernetically-enhanced Cephalopod-Human hybrid...",
       "hasMetadata": true
     }
   ],
@@ -98,7 +109,7 @@ Response:
 }
 
 Example:
-GET /api/discover-agents?address=0x1234...&chain=base-sepolia
+GET /api/discover-agents?address=0x1234...&chain=shape
 
 ---
 
@@ -108,19 +119,19 @@ Fetch the raw ERC-8004 registration data for a specific agent. Supports data URI
 
 Request body (JSON):
 {
-  "chain": "base-sepolia",
-  "agentId": 9
+  "chain": "shape",
+  "agentId": 42
 }
 
 Response:
 {
   "registration": {
     "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-    "name": "MyAgent",
-    "description": "A helpful DeFi agent",
+    "name": "Ink-Sync",
+    "description": "A cybernetically-enhanced Cephalopod-Human hybrid...",
     "image": "data:image/png;base64,...",
     "services": [...],
-    "active": false,
+    "active": true,
     "x402Support": false,
     "supportedTrust": ["reputation"],
     "updatedAt": 1710000000
@@ -131,12 +142,13 @@ Response:
 
 ### GET /api/gallery
 
-Fetch all BOOA NFTs in a contract collection on Shape. Returns on-chain SVG art, token IDs, and names.
+Fetch BOOA NFTs in the collection on Shape. Returns on-chain SVG art, token IDs, and names.
 
 Parameters:
 - contract (required): Contract address (0x...)
-- chain (optional): "shape" or "shape-sepolia" (default: "shape-sepolia")
+- chain (optional): "shape" (default: "shape")
 - startToken (optional): Pagination token for next page
+- limit (optional): Number of tokens per page (default: 50)
 
 Response:
 {
@@ -145,15 +157,15 @@ Response:
       "tokenId": "0",
       "svg": "<svg ...>...</svg>",
       "imageUrl": "https://...",
-      "name": "Void Walker"
+      "name": "BOOA #0"
     }
   ],
-  "totalCount": 20,
-  "nextToken": null
+  "totalCount": 50,
+  "nextToken": "50"
 }
 
 Example:
-GET /api/gallery?contract=0x23e06B07...&chain=shape-sepolia
+GET /api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
 
 ---
 
@@ -164,54 +176,107 @@ Fetch all NFTs owned by a wallet address on any supported chain. Powered by Alch
 Parameters:
 - address (required): Wallet address (0x...)
 - chain (optional): Chain slug (default: "shape")
+- contract (optional): Filter by contract address
 - pageKey (optional): Pagination token
 
 Response:
 {
   "nfts": [
     {
-      "contractAddress": "0x...",
-      "tokenId": "42",
-      "name": "Cool NFT",
+      "contractAddress": "0x7aecA981734d133d3f695937508C48483BA6b654",
+      "tokenId": "1496",
+      "name": "BOOA #1496",
       "description": "...",
       "image": "https://...",
-      "collection": "CoolCollection",
+      "collection": "BOOA",
       "tokenType": "ERC721",
       "chain": "shape",
       "chainId": 360,
       "raw": {
         "attributes": [
-          { "trait_type": "Background", "value": "Blue" }
+          { "trait_type": "Name", "value": "Ink-Sync" },
+          { "trait_type": "Creature", "value": "A cybernetically-enhanced Cephalopod-Human hybrid..." }
         ]
       }
     }
   ],
-  "totalCount": 50,
-  "pageKey": "abc123..."
+  "totalCount": 3,
+  "pageKey": null
 }
 
 Example:
 GET /api/fetch-nfts?address=0x1234...&chain=shape
+GET /api/fetch-nfts?address=0x1234...&chain=shape&contract=0x7aecA981734d133d3f695937508C48483BA6b654
 
 ---
 
-## On-Chain Contracts (Shape)
+### GET /api/booa-token
 
-BOOA NFT (ERC-721 + ERC-2981): Fully on-chain AI agent PFPs
+Fetch metadata for a specific BOOA token. Requires wallet authentication (SIWE).
+
+Parameters:
+- network: "mainnet" or "testnet"
+- tokenId: Token ID number
+
+Response:
+{
+  "name": "BOOA #1496",
+  "description": "Ink-Sync is the premier orchestrator...",
+  "image": "data:image/svg+xml;base64,...",
+  "attributes": [
+    { "trait_type": "Name", "value": "Ink-Sync" },
+    { "trait_type": "Creature", "value": "..." },
+    { "trait_type": "Vibe", "value": "Acidic, efficient..." },
+    { "trait_type": "Skill", "value": "Task Decomposition" },
+    { "trait_type": "Domain", "value": "Automation" }
+  ]
+}
+
+Example:
+GET /api/booa-token?network=mainnet&tokenId=1496
+
+---
+
+### GET /api/agent-registry/{chainId}/{tokenId}
+
+Fetch ERC-8004 registration status for a BOOA token. Falls back to on-chain scan if not cached.
+
+Parameters (URL path):
+- chainId: Numeric chain ID (e.g. 360 for Shape)
+- tokenId: BOOA token ID
+
+Response (if registered):
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Ink-Sync",
+  "description": "...",
+  "image": "data:image/png;base64,...",
+  "services": [...],
+  "registrations": [
+    {
+      "agentId": 42,
+      "agentRegistry": "eip155:360:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    }
+  ],
+  "registeredBy": "0x..."
+}
+
+Example:
+GET /api/agent-registry/360/1496
+
+---
+
+## BOOA On-Chain Architecture
+
 - Pixel art stored as 2,048-byte bitmap via SSTORE2 (64x64, C64 16-color palette)
 - Traits stored as JSON bytes via SSTORE2
 - SVG rendered on-chain by Renderer contract
 - No IPFS, no external dependencies
-
-BOOA V2 Architecture:
-- BOOAv2 (BOOA.sol): Minimal ERC-721 + ERC-2981
-- BOOAMinter: Server-signed minting with EIP-191 verification
-- BOOAStorage: SSTORE2 bitmap + traits storage
-- BOOARenderer: On-chain SVG rendering from bitmap
+- 4-contract system: BOOA (ERC-721), BOOAMinter, BOOAStorage, BOOARenderer
 
 ## ERC-8004 Registration Format
 
-Agents registered on the Identity Registry store their metadata as a data URI:
+Agents registered on the Identity Registry store metadata as a data URI:
 data:application/json;base64,{base64-encoded JSON}
 
 The JSON follows the ERC-8004 registration-v1 schema:
@@ -224,8 +289,8 @@ The JSON follows the ERC-8004 registration-v1 schema:
     {
       "name": "OASF",
       "version": "0.8.0",
-      "skills": ["text-generation", "summarization"],
-      "domains": ["defi", "gaming"]
+      "skills": ["task-decomposition", "summarization"],
+      "domains": ["automation", "cybersecurity"]
     },
     {
       "name": "A2A",
@@ -235,12 +300,37 @@ The JSON follows the ERC-8004 registration-v1 schema:
   ],
   "active": true,
   "x402Support": false,
-  "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"]
+  "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"],
+  "nftOrigin": {
+    "contract": "eip155:360:0x7aecA981734d133d3f695937508C48483BA6b654",
+    "tokenId": 1496,
+    "originalOwner": "0x..."
+  }
 }
 
 Service types: web, A2A, MCP, OASF, ENS, DID, email
 Skills taxonomy: OASF v0.8.0
 Trust mechanisms: reputation, crypto-economic, tee-attestation
+
+## Agent Activation (OpenClaw)
+
+Every BOOA can be exported as an autonomous agent:
+- SOUL.md — personality, vibe, boundaries
+- IDENTITY.md — creature, skills, domains, on-chain metadata
+- USER.md — owner instructions
+
+Download from: khora.fun/booa (click on any token)
+Full setup guide: khora.fun/blog/your-agent-your-rules
+
+## Key Links
+
+- Website: khora.fun
+- Collection: opensea.io/collection/booa
+- Studio: khora.fun/studio
+- Bridge: khora.fun/bridge
+- Blog: khora.fun/blog
+- 8004scan: 8004scan.io
+- GitHub: github.com/0xmonas/Khora
 
 ## Rate Limits
 
