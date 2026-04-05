@@ -30,6 +30,7 @@ export enum ToolType {
   LINE = 'LINE',
   RECTANGLE = 'RECTANGLE',
   CIRCLE = 'CIRCLE',
+  CHROMA_KEY = 'CHROMA_KEY',
 }
 
 export const CANVAS_PRESETS = [16, 32, 64, 128] as const;

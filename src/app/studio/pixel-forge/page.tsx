@@ -6,7 +6,7 @@ import {
   Pencil, Eraser, Pipette, Download, BoxSelect,
   Wand2, Upload, Loader2, Undo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
-  Minus, Circle, Square, ChevronUp, ChevronDown,
+  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -104,6 +104,30 @@ export default function PixelForgePage() {
     } else {
       handleUpdateLayer(activeLayerId, '');
     }
+  };
+
+  const handleChromaKey = () => {
+    const active = layers.find(l => l.id === activeLayerId);
+    if (!active || active.isLocked || !active.data) return;
+    const cvs = document.createElement('canvas');
+    cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const isChroma = r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3;
+        if (isChroma) d[i + 3] = 0;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      handleUpdateLayer(activeLayerId, cvs.toDataURL());
+      sfx.playSuccess();
+    };
+    img.src = active.data;
   };
 
   const handleMoveLayer = (id: string, direction: 'up' | 'down') => {
@@ -361,6 +385,13 @@ export default function PixelForgePage() {
                     title="Grid"
                   >
                     <Grid3X3 className="w-3.5 h-3.5 mx-auto" />
+                  </button>
+                  <button
+                    onClick={() => { sfx.playClick(); handleChromaKey(); }}
+                    className="p-2 border border-neutral-700 dark:border-neutral-600 hover:border-foreground/50 transition-colors"
+                    title="Remove green background"
+                  >
+                    <Droplet className="w-3.5 h-3.5 mx-auto" />
                   </button>
                 </div>
 
