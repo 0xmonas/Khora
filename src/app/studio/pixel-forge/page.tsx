@@ -153,10 +153,11 @@ export default function PixelForgePage() {
           const active = layers.find(l => l.id === activeLayerId);
           if (active && !active.data) handleUpdateLayer(activeLayerId, pngData);
           else handleAddLayer(`BOOA #${id}`, pngData);
+          sfx.playSuccess();
         }
         URL.revokeObjectURL(url);
       };
-      img.onerror = () => { setTokenError('Failed to load SVG'); URL.revokeObjectURL(url); };
+      img.onerror = () => { sfx.playError(); setTokenError('Failed to load SVG'); URL.revokeObjectURL(url); };
       img.src = url;
     } catch {
       setTokenError('Failed to fetch token');
