@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Send, Trash2, ChevronDown } from 'lucide-react';
-import { useAccount, useChainId } from 'wagmi';
+import { useChainId } from 'wagmi';
 import { getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { useAuth } from '@/hooks/useAuth';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -49,7 +50,7 @@ function getChainSlug(chainId: number): string {
 }
 
 export function AgentChat() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useAuth();
   const chainId = useChainId();
   const targetChainId = getV2ChainId(chainId);
 

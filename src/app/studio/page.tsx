@@ -84,6 +84,14 @@ const TOOLS: ToolCard[] = [
     media: 'agent-layer.png',
     tag: 'NEW',
   },
+  {
+    id: 'pixel-forge',
+    title: 'Pixel Forge',
+    description: 'Import your BOOA, draw over it, generate new assets with AI. Same palette, your creativity.',
+    href: '/studio/pixel-forge',
+    media: 'pixel-forge.png',
+    tag: 'NEW',
+  },
 ];
 
 function isVideo(filename: string) {

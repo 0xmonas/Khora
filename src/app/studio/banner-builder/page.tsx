@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Plus, Minus, Download, GripVertical } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { HIDE_TESTNETS } from '@/utils/constants/chains';
@@ -257,7 +257,7 @@ function SortableStrip({
 // ══════════════════════════════════════════════════════════════
 
 export default function BannerBuilderPage() {
-  const { address: connectedAddress } = useAccount();
+  const { address: connectedAddress } = useAuth();
   const [addressInput, setAddressInput] = useState('');
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>(HIDE_TESTNETS ? 'mainnet' : 'testnet');
   const [loading, setLoading] = useState(false);

@@ -254,9 +254,7 @@ describe('agent-registry GET: verified field', () => {
       txHash: '0xdef',
     };
 
-    let callCount = 0;
     mockReadContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
-      callCount++;
       if (functionName === 'ownerOf') {
         // Both NFT and 8004 owned by agent_wallet
         return '0xagent_wallet';

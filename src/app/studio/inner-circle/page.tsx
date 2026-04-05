@@ -3,37 +3,20 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { useAccount, useReadContract } from 'wagmi';
-import { shape } from 'wagmi/chains';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
-import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
+import { useHolderAuth } from '@/hooks/useAuth';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 const MIN_HOLDINGS = 3;
 
 export default function InnerCirclePage() {
-  const siweStatus = useSiweStatus();
-  const { address, isConnected } = useAccount();
-  const contractAddress = getV2Address(shape.id);
+  const { isConnected, isAuthenticated: isAuth, holdingCount } = useHolderAuth(MIN_HOLDINGS);
+  const hasEnough = holdingCount >= MIN_HOLDINGS;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { data: balance } = useReadContract({
-    address: contractAddress,
-    abi: BOOA_V2_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: shape.id,
-    query: { enabled: !!address && contractAddress.length > 2 },
-  });
-
-  const holdingCount = balance ? Number(balance) : 0;
-  const hasEnough = holdingCount >= MIN_HOLDINGS;
-  const isAuth = siweStatus === 'authenticated';
 
   const handleJoin = useCallback(async () => {
     if (loading) return;

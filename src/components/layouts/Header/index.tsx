@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun, Menu, X } from 'lucide-react';
+import { Moon, Sun, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
+import { sfx } from '@/lib/sounds';
 import { shape, shapeSepolia } from 'wagmi/chains';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
@@ -124,6 +125,7 @@ export function Header() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => sfx.isEnabled());
 
   // Lock body scroll when menu is open
   useEffect(() => {
@@ -183,8 +185,20 @@ export function Header() {
               </nav>
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="h-10 sm:h-12 px-4 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
+                  onClick={() => {
+                    const next = !soundOn;
+                    setSoundOn(next);
+                    sfx.setEnabled(next);
+                    if (next) sfx.playToggle(true);
+                  }}
+                  className="h-10 sm:h-12 px-2 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
+                  aria-label="Toggle sound"
+                >
+                  {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                </button>
+                <button
+                  onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); sfx.playClick(); }}
+                  className="h-10 sm:h-12 px-2 text-neutral-500 hover:text-black dark:hover:text-white transition-colors w-fit"
                   aria-label="Toggle theme"
                 >
                   {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
