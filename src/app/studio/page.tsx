@@ -101,6 +101,17 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'booa-skill-synergy',
+    title: 'BOOA Skill Synergy',
+    description: 'Find the perfect match between on-chain agents. Discover complementary skills and collaboration opportunities across the BOOA collection and ERC-8004 registry.',
+    href: 'https://booa-skill-synergy.vercel.app',
+    media: 'skills.s.jpg',
+    external: true,
+    creator: '@OsayKancuno',
+    creatorUrl: 'https://x.com/OsayKancuno',
+    github: 'https://github.com/osaykancuno/booa-skill-synergy',
+  },
+  {
     id: 'booas-wanted',
     title: 'BOOAS WANTED',
     description: 'Turn any BOOA into a pixel-style "WANTED" poster. Load by token ID, edit text, export as PNG. CC0.',
