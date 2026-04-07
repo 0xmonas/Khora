@@ -69,14 +69,6 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
-    id: 'inner-circle',
-    title: 'Inner Circle',
-    description: 'Exclusive X group chat for BOOA holders. Hold 3+ BOOAs to join.',
-    href: '/studio/inner-circle',
-    media: 'inner-circle.gif',
-    tag: 'NEW',
-  },
-  {
     id: 'persona-quiz',
     title: 'Persona Quiz',
     description: 'Answer 7 questions and find your BOOA match among 3,333 agents.',

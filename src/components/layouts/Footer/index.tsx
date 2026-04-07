@@ -70,6 +70,15 @@ export function Footer() {
                   X
                 </a>
                 <a
+                  href="https://discord.gg/ZkvSD5aVbR"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={linkClass}
+                  style={footerFont}
+                >
+                  Discord
+                </a>
+                <a
                   href="https://github.com/0xmonas/Khora"
                   target="_blank"
                   rel="noreferrer"
