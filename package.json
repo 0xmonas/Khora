@@ -41,6 +41,7 @@
     "replicate": "^1.4.0",
     "tailwind-merge": "^1.14.0",
     "tailwind-scrollbar": "^3.1.0",
+    "textmode.js": "^0.10.0",
     "viem": "^2.45.2",
     "wagmi": "^2.19.5",
     "zod": "^3.24.1"

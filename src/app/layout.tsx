@@ -9,6 +9,11 @@ const departureMono = localFont({
   variable: '--font-departure-mono',
 });
 
+const c64Pro = localFont({
+  src: './fonts/C64_Pro_Mono.woff2',
+  variable: '--font-c64',
+});
+
 export const metadata = {
   metadataBase: new URL('https://khora.fun'),
   title: 'Khôra',
@@ -36,7 +41,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${departureMono.variable} font-mono min-h-screen flex flex-col`}>
+      <body className={`${departureMono.variable} ${c64Pro.variable} font-mono min-h-screen flex flex-col`}>
         <Providers>{children}</Providers>
         <Analytics />
       </body>
