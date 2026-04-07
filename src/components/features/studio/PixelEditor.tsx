@@ -183,12 +183,16 @@ export function PixelEditor({
     const imageData = layerPixels.get(activeLayerId);
     if (!imageData) return;
     const data = imageData.data;
-    const fillR = parseInt(fillColor.slice(1, 3), 16);
-    const fillG = parseInt(fillColor.slice(3, 5), 16);
-    const fillB = parseInt(fillColor.slice(5, 7), 16);
+
+    const isTransparent = fillColor === 'transparent';
+    const fillR = isTransparent ? 0 : parseInt(fillColor.slice(1, 3), 16);
+    const fillG = isTransparent ? 0 : parseInt(fillColor.slice(3, 5), 16);
+    const fillB = isTransparent ? 0 : parseInt(fillColor.slice(5, 7), 16);
+    const fillA = isTransparent ? 0 : 255;
+
     const startIdx = (startY * CANVAS_SIZE + startX) * 4;
     const targetR = data[startIdx], targetG = data[startIdx + 1], targetB = data[startIdx + 2], targetA = data[startIdx + 3];
-    if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === 255) return;
+    if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === fillA) return;
 
     const stack = [[startX, startY]];
     const visited = new Set<string>();
@@ -202,7 +206,7 @@ export function PixelEditor({
       if (visited.has(key)) continue;
       const idx = (cy * CANVAS_SIZE + cx) * 4;
       if (newData[idx] === targetR && newData[idx + 1] === targetG && newData[idx + 2] === targetB && newData[idx + 3] === targetA) {
-        newData[idx] = fillR; newData[idx + 1] = fillG; newData[idx + 2] = fillB; newData[idx + 3] = 255;
+        newData[idx] = fillR; newData[idx + 1] = fillG; newData[idx + 2] = fillB; newData[idx + 3] = fillA;
         visited.add(key);
         stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
       }
@@ -229,9 +233,10 @@ export function PixelEditor({
     const sy = isEven ? y : y - halfSize;
     const ey = isEven ? y + brushSize - 1 : y + halfSize;
 
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
+    const isTransparent = color === 'transparent';
+    const r = isTransparent ? 0 : parseInt(color.slice(1, 3), 16);
+    const g = isTransparent ? 0 : parseInt(color.slice(3, 5), 16);
+    const b = isTransparent ? 0 : parseInt(color.slice(5, 7), 16);
 
     for (let py = sy; py <= ey; py++) {
       for (let px = sx; px <= ex; px++) {
@@ -239,7 +244,11 @@ export function PixelEditor({
         if (selection && (px < selection.x || px >= selection.x + selection.w || py < selection.y || py >= selection.y + selection.h)) continue;
         const idx = (py * CANVAS_SIZE + px) * 4;
         if (toolType === ToolType.PENCIL) {
-          data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = 255;
+          if (isTransparent) {
+            data[idx + 3] = 0;
+          } else {
+            data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = 255;
+          }
         } else if (toolType === ToolType.ERASER) {
           data[idx + 3] = 0;
         }
@@ -431,7 +440,7 @@ export function PixelEditor({
             style={{
               left: cursorPos.x * pixelSize, top: cursorPos.y * pixelSize,
               width: cursorSize * pixelSize, height: cursorSize * pixelSize,
-              backgroundColor: activeTool === ToolType.ERASER ? 'rgba(255,255,255,0.2)' : `${primaryColor}33`,
+              backgroundColor: activeTool === ToolType.ERASER || primaryColor === 'transparent' ? 'rgba(255,255,255,0.2)' : `${primaryColor}33`,
             }}
           />
         )}

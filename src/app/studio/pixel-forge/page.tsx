@@ -409,6 +409,31 @@ export default function PixelForgePage() {
                   ))}
                 </div>
 
+                {/* Custom color + transparent */}
+                <p className="text-[9px] text-muted-foreground/50 mt-2" style={font}>Custom</p>
+                <div className="flex gap-1 items-center">
+                  <input
+                    type="color"
+                    value={primaryColor === 'transparent' ? '#ffffff' : primaryColor}
+                    onChange={e => { sfx.playClick(); setPrimaryColor(e.target.value); }}
+                    className="h-6 w-10 border border-neutral-700 dark:border-neutral-600 bg-background cursor-pointer"
+                    title="Pick custom color"
+                  />
+                  <button
+                    onClick={() => { sfx.playClick(); setPrimaryColor('transparent'); }}
+                    className={`flex-1 h-6 border text-[9px] uppercase ${primaryColor === 'transparent' ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600 hover:border-foreground/50'}`}
+                    style={{
+                      ...font,
+                      backgroundImage: 'linear-gradient(45deg, #888 25%, transparent 25%), linear-gradient(-45deg, #888 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #888 75%), linear-gradient(-45deg, transparent 75%, #888 75%)',
+                      backgroundSize: '6px 6px',
+                      backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px',
+                    }}
+                    title="Transparent (erase with pencil/fill)"
+                  >
+                    None
+                  </button>
+                </div>
+
                 {/* Brush Size */}
                 <div className="mt-2">
                   <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
