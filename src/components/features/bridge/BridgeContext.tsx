@@ -102,6 +102,11 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [selectedNFT, setSelectedNFT] = useState<NFTItem | null>(null);
   const [isExistingAgent, setIsExistingAgent] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const [preservedNftOrigin, setPreservedNftOrigin] = useState<{
+    contract: string;
+    tokenId: number;
+    originalOwner: string;
+  } | null>(null);
 
   // 8004 config
   const [agentName, setAgentName] = useState('');
@@ -218,16 +223,31 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
           if (allDomainSlugs.length) setSelectedDomains(Array.from(new Set(domainSlugsToLabels(allDomainSlugs))));
           if (reg.x402Support !== undefined) setX402Support(!!reg.x402Support);
           if (reg.supportedTrust?.length) setSupportedTrust(reg.supportedTrust);
+
+          if (reg.nftOrigin && typeof reg.nftOrigin === 'object') {
+            const o = reg.nftOrigin as { contract?: unknown; tokenId?: unknown; originalOwner?: unknown };
+            if (typeof o.contract === 'string' && typeof o.tokenId === 'number' && typeof o.originalOwner === 'string') {
+              setPreservedNftOrigin({
+                contract: o.contract,
+                tokenId: o.tokenId,
+                originalOwner: o.originalOwner,
+              });
+            }
+          }
         }
       } catch { /* silent — basic info already set */ }
       finally { setConfigLoading(false); }
     } else {
-      // New NFT — map attributes to skills/domains
-      setAgentName(nft.name || `${nft.collection} #${nft.tokenId}`);
-      setAgentDescription(nft.description || '');
+      const attrs = nft.raw.attributes || [];
+      const findAttr = (key: string) => attrs.find(a => a.trait_type?.toLowerCase() === key.toLowerCase())?.value;
+      const isBOOA = nft.collection?.toLowerCase().includes('booa') || /^BOOA #\d+$/i.test(nft.name || '');
+      const characterName = isBOOA ? (findAttr('Name') as string | undefined) : undefined;
+      const characterDesc = isBOOA ? (findAttr('Description') as string | undefined) : undefined;
+
+      setAgentName(characterName || nft.name || `${nft.collection} #${nft.tokenId}`);
+      setAgentDescription(characterDesc || nft.description || '');
       setAgentImage(nft.image || '');
 
-      const attrs = nft.raw.attributes || [];
       const skillTypes = new Set(['skill', 'ability', 'power', 'class', 'trait']);
       const domainTypes = new Set(['domain', 'category', 'type', 'faction', 'realm']);
 
@@ -236,6 +256,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setErc8004Services([]);
       setX402Support(false);
       setSupportedTrust([]);
+      setPreservedNftOrigin(null);
       setConfigLoading(false);
       setStep('configure');
     }
@@ -253,6 +274,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     setSelectedDomains([]);
     setX402Support(false);
     setSupportedTrust([]);
+    setPreservedNftOrigin(null);
     setError(null);
     setStep('select');
   }, []);
@@ -295,16 +317,18 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Include nftOrigin for immutable event log linking (only for new NFTs, not existing 8004 agents)
-    const nftOriginData = selectedNFT && !isExistingAgent && address
-      ? {
-          nftOrigin: {
-            contract: `eip155:${selectedNFT.chainId}:${selectedNFT.contractAddress}`,
-            tokenId: Number(selectedNFT.tokenId),
-            originalOwner: address.toLowerCase(),
-          },
-        }
-      : {};
+    let nftOriginData: { nftOrigin: { contract: string; tokenId: number; originalOwner: string } } | Record<string, never> = {};
+    if (preservedNftOrigin) {
+      nftOriginData = { nftOrigin: preservedNftOrigin };
+    } else if (selectedNFT && selectedNFT.contractAddress !== '0x8004' && address) {
+      nftOriginData = {
+        nftOrigin: {
+          contract: `eip155:${selectedNFT.chainId}:${selectedNFT.contractAddress}`,
+          tokenId: Number(selectedNFT.tokenId),
+          originalOwner: address.toLowerCase(),
+        },
+      };
+    }
 
     return {
       type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1' as const,
@@ -319,7 +343,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       registeredVia: 'https://khora.fun',
       ...nftOriginData,
     };
-  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust, selectedNFT, isExistingAgent, address]);
+  }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust, selectedNFT, address, preservedNftOrigin]);
 
   // Register NEW agent on Identity Registry
   const register = useCallback(async () => {

@@ -3,6 +3,7 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
+import { getAgentsByOwner } from '@/lib/server/eight004scan';
 
 function getRegistryForChain(chain: SupportedChain): `0x${string}` {
   const chainId = CHAIN_CONFIG[chain].chainId;
@@ -239,6 +240,22 @@ async function discoverOnChain(
   address: string,
 ): Promise<{ agents: DiscoveredAgent[]; error?: string }> {
   const config = CHAIN_CONFIG[chain];
+
+  const eight004 = await getAgentsByOwner(address).catch(() => null);
+  if (eight004 !== null) {
+    const onChain = eight004.filter((a) => a.chainId === config.chainId);
+    const agents: DiscoveredAgent[] = onChain.map((a) => ({
+      chain,
+      chainName: config.name,
+      tokenId: Number(a.tokenId),
+      name: a.name,
+      image: a.imageUrl,
+      description: a.description,
+      hasMetadata: !!(a.name || a.imageUrl),
+    }));
+    return { agents };
+  }
+
   const registryAddress = getRegistryForChain(chain);
   const { createPublicClient, http, fallback } = await import('viem');
   const client = createPublicClient({
