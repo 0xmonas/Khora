@@ -12,7 +12,7 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
-import { Layer, ToolType, CANVAS_SIZE, C64_PALETTE, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, C64_PALETTE, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -26,6 +26,9 @@ export default function PixelForgePage() {
   const [activeLayerId, setActiveLayerId] = useState('base');
   const [history, setHistory] = useState<Layer[][]>([INITIAL_LAYERS]);
   const [historyIndex, setHistoryIndex] = useState(0);
+
+  const [canvasWidth, setCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
+  const [canvasHeight, setCanvasHeight] = useState(DEFAULT_CANVAS_HEIGHT);
 
   const [tool, setTool] = useState<ToolType>(ToolType.PENCIL);
   const [brushSize, setBrushSize] = useState(1);
@@ -90,7 +93,7 @@ export default function PixelForgePage() {
     if (!active || active.isLocked) return;
     if (selection && active.data) {
       const cvs = document.createElement('canvas');
-      cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+      cvs.width = canvasWidth; cvs.height = canvasHeight;
       const ctx = cvs.getContext('2d');
       if (ctx) {
         const img = new Image();
@@ -110,13 +113,13 @@ export default function PixelForgePage() {
     const active = layers.find(l => l.id === activeLayerId);
     if (!active || active.isLocked || !active.data) return;
     const cvs = document.createElement('canvas');
-    cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+    cvs.width = canvasWidth; cvs.height = canvasHeight;
     const ctx = cvs.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
       const d = imageData.data;
       for (let i = 0; i < d.length; i += 4) {
         const r = d[i], g = d[i + 1], b = d[i + 2];
@@ -168,11 +171,11 @@ export default function PixelForgePage() {
       const img = new Image();
       img.onload = () => {
         const cvs = document.createElement('canvas');
-        cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+        cvs.width = canvasWidth; cvs.height = canvasHeight;
         const ctx = cvs.getContext('2d');
         if (ctx) {
           ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
           const pngData = cvs.toDataURL('image/png');
           const active = layers.find(l => l.id === activeLayerId);
           if (active && !active.data) handleUpdateLayer(activeLayerId, pngData);
@@ -193,14 +196,14 @@ export default function PixelForgePage() {
   // Composite image for AI + download
   const getCompositeImage = async (): Promise<string> => {
     const cvs = document.createElement('canvas');
-    cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+    cvs.width = canvasWidth; cvs.height = canvasHeight;
     const ctx = cvs.getContext('2d');
     if (!ctx) throw new Error('Cannot create context');
     for (const layer of [...layers].reverse()) {
       if (layer.visible && layer.data) {
         const img = new Image();
         img.src = layer.data;
-        await new Promise<void>(r => { img.onload = () => { ctx.globalAlpha = layer.opacity; ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE); r(); }; img.onerror = () => r(); });
+        await new Promise<void>(r => { img.onload = () => { ctx.globalAlpha = layer.opacity; ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight); r(); }; img.onerror = () => r(); });
       }
     }
     return cvs.toDataURL('image/png');
@@ -215,14 +218,14 @@ export default function PixelForgePage() {
     setGenState({ isGenerating: true, error: null });
     try {
       const composite = await getCompositeImage();
-      const result = await generatePixelAsset(apiKey, prompt, composite);
+      const result = await generatePixelAsset(apiKey, prompt, canvasWidth, canvasHeight, composite);
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
       const cvs = document.createElement('canvas');
-      cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+      cvs.width = canvasWidth; cvs.height = canvasHeight;
       const ctx = cvs.getContext('2d');
-      if (ctx) { ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE); handleAddLayer(`AI: ${prompt}`, cvs.toDataURL('image/png')); }
+      if (ctx) { ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight); handleAddLayer(`AI: ${prompt}`, cvs.toDataURL('image/png')); }
       else handleAddLayer(`AI: ${prompt}`, result);
       sfx.playSuccess();
     } catch (e) {
@@ -242,8 +245,8 @@ export default function PixelForgePage() {
       const img = new Image();
       img.onload = () => {
         const cvs = document.createElement('canvas');
-        cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
-        cvs.getContext('2d')?.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        cvs.width = canvasWidth; cvs.height = canvasHeight;
+        cvs.getContext('2d')?.drawImage(img, 0, 0, canvasWidth, canvasHeight);
         const data = cvs.toDataURL('image/png');
         const active = layers.find(l => l.id === activeLayerId);
         if (active && !active.data) handleUpdateLayer(activeLayerId, data);
@@ -261,17 +264,18 @@ export default function PixelForgePage() {
 
   const handleDownload = async () => {
     const composite = await getCompositeImage();
-    const size = CANVAS_SIZE * downloadScale;
+    const sizeW = canvasWidth * downloadScale;
+    const sizeH = canvasHeight * downloadScale;
     const cvs = document.createElement('canvas');
-    cvs.width = size; cvs.height = size;
+    cvs.width = sizeW; cvs.height = sizeH;
     const ctx = cvs.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
     const img = new Image();
     img.onload = () => {
-      ctx.drawImage(img, 0, 0, size, size);
+      ctx.drawImage(img, 0, 0, sizeW, sizeH);
       const link = document.createElement('a');
-      link.download = `pixel-forge-${size}x${size}.png`;
+      link.download = `pixel-forge-${sizeW}x${sizeH}.png`;
       link.href = cvs.toDataURL('image/png');
       link.click();
     };
@@ -372,7 +376,7 @@ export default function PixelForgePage() {
                   {tools.map(({ type, icon: Icon, label }) => (
                     <button
                       key={type}
-                      onClick={() => { sfx.playClick(); setTool(type); if (type !== ToolType.SELECT) setSelection(null); }}
+                      onClick={() => { sfx.playClick(); setTool(type); if (type !== ToolType.SELECT && type !== ToolType.MOVE) setSelection(null); }}
                       className={`p-2 border transition-colors ${tool === type ? 'border-foreground bg-foreground/10' : 'border-neutral-700 dark:border-neutral-600 hover:border-foreground/50'}`}
                       title={label}
                     >
@@ -511,7 +515,7 @@ export default function PixelForgePage() {
                     style={font}
                   >
                     {SCALE_OPTIONS.map(s => (
-                      <option key={s} value={s}>{s}x ({CANVAS_SIZE * s}px)</option>
+                      <option key={s} value={s}>{s}x ({canvasWidth * s}x{canvasHeight * s}px)</option>
                     ))}
                   </select>
                   <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="flex-1 flex items-center justify-center gap-2 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
@@ -523,8 +527,45 @@ export default function PixelForgePage() {
 
             {/* Canvas */}
             <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] flex flex-col">
-              <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground/50" style={font}>{CANVAS_SIZE}x{CANVAS_SIZE} · C64 palette</span>
+              <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex justify-between items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={MIN_CANVAS_SIZE}
+                    max={MAX_CANVAS_SIZE}
+                    value={canvasWidth}
+                    onChange={e => setCanvasWidth(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
+                    className="w-14 sm:w-16 bg-transparent border border-neutral-600 dark:border-neutral-500 px-2 py-1 text-[10px] sm:text-xs text-foreground text-center focus:outline-none focus:border-foreground"
+                    style={font}
+                  />
+                  <span className="text-[10px] text-muted-foreground/50" style={font}>x</span>
+                  <input
+                    type="number"
+                    min={MIN_CANVAS_SIZE}
+                    max={MAX_CANVAS_SIZE}
+                    value={canvasHeight}
+                    onChange={e => setCanvasHeight(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
+                    className="w-14 sm:w-16 bg-transparent border border-neutral-600 dark:border-neutral-500 px-2 py-1 text-[10px] sm:text-xs text-foreground text-center focus:outline-none focus:border-foreground"
+                    style={font}
+                  />
+                  <span className="text-[10px] text-muted-foreground/30" style={font}>px</span>
+                </div>
+                <div className="flex gap-0.5">
+                  {CANVAS_PRESETS.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { sfx.playClick(); setCanvasWidth(s); setCanvasHeight(s); }}
+                      className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
+                        canvasWidth === s && canvasHeight === s
+                          ? 'border-foreground bg-foreground/10 text-foreground'
+                          : 'border-neutral-600 dark:border-neutral-500 text-muted-foreground/50 hover:border-foreground/50'
+                      }`}
+                      style={font}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex-1 overflow-hidden">
                 <PixelEditor
@@ -536,6 +577,8 @@ export default function PixelForgePage() {
                   zoom={zoom}
                   bgOpacity={bgOpacity}
                   showGrid={showGrid}
+                  canvasWidth={canvasWidth}
+                  canvasHeight={canvasHeight}
                   onUpdateLayer={handleUpdateLayer}
                   onPickColor={c => { setPrimaryColor(c); setTool(ToolType.PENCIL); }}
                   selection={selection}

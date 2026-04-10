@@ -362,6 +362,23 @@ export function ConfigPanel() {
                   ))}
                 </div>
               </div>
+
+              {/* Agent Wallet */}
+              <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                <h3 className="text-xs font-mono mb-1 text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Agent Wallet</h3>
+                <p className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500 leading-relaxed">
+                  Set a separate operational wallet for your agent (SIWA, x402, on-chain actions).
+                  This can be configured on{' '}
+                  <a
+                    href="https://8004scan.io/my-agents"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-foreground underline underline-offset-2 hover:opacity-70 transition-opacity"
+                  >
+                    8004scan.io/my-agents
+                  </a>
+                </p>
+              </div>
             </div>
           )}
         </div>

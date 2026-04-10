@@ -1,4 +1,7 @@
-export const CANVAS_SIZE = 64;
+export const DEFAULT_CANVAS_WIDTH = 64;
+export const DEFAULT_CANVAS_HEIGHT = 64;
+export const MAX_CANVAS_SIZE = 128;
+export const MIN_CANVAS_SIZE = 8;
 
 // C64 16-color palette — same order as BOOA NFT on-chain bitmap
 export const C64_PALETTE: string[] = [

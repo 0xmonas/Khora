@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Layer, ToolType, CANVAS_SIZE, Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, Rect } from '@/lib/pixel-forge/types';
 
 interface PixelEditorProps {
   layers: Layer[];
@@ -12,6 +12,8 @@ interface PixelEditorProps {
   zoom: number;
   bgOpacity: number;
   showGrid: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
   onUpdateLayer: (id: string, newData: string) => void;
   onPickColor: (color: string) => void;
   selection: Rect | null;
@@ -20,7 +22,7 @@ interface PixelEditorProps {
 
 export function PixelEditor({
   layers, activeLayerId, activeTool, primaryColor, brushSize,
-  zoom, bgOpacity, showGrid, onUpdateLayer, onPickColor, selection, setSelection,
+  zoom, bgOpacity, showGrid, canvasWidth, canvasHeight, onUpdateLayer, onPickColor, selection, setSelection,
 }: PixelEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pixelSize = zoom;
@@ -31,15 +33,15 @@ export function PixelEditor({
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [layerPixels, setLayerPixels] = useState<Map<string, ImageData>>(new Map());
 
-  // Mutable refs for drawing — avoids stale state during fast mouse moves
   const isDrawingRef = useRef(false);
   const lastPixelRef = useRef<{ x: number; y: number } | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-  // Scratch buffer: mutable copy used during a single draw stroke
   const scratchRef = useRef<ImageData | null>(null);
-  // Shape tool state
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [shapePreview, setShapePreview] = useState<{ x: number; y: number } | null>(null);
+  const moveStartRef = useRef<{ x: number; y: number } | null>(null);
+  const moveBufferRef = useRef<ImageData | null>(null);
+  const moveOrigSelRef = useRef<Rect | null>(null);
 
   useEffect(() => {
     const loadLayers = async () => {
@@ -51,12 +53,17 @@ export function PixelEditor({
           await new Promise<void>((resolve) => {
             img.onload = () => {
               const cvs = document.createElement('canvas');
-              cvs.width = CANVAS_SIZE; cvs.height = CANVAS_SIZE;
+              cvs.width = canvasWidth; cvs.height = canvasHeight;
               const ctx = cvs.getContext('2d', { willReadFrequently: true });
               if (ctx) {
-                ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                newLayerPixels.set(layer.id, ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE));
+                ctx.imageSmoothingEnabled = false;
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                if (img.naturalWidth > canvasWidth || img.naturalHeight > canvasHeight) {
+                  ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+                } else {
+                  ctx.drawImage(img, 0, 0);
+                }
+                newLayerPixels.set(layer.id, ctx.getImageData(0, 0, canvasWidth, canvasHeight));
               }
               resolve();
             };
@@ -67,7 +74,7 @@ export function PixelEditor({
       setLayerPixels(newLayerPixels);
     };
     loadLayers();
-  }, [layers]);
+  }, [layers, canvasWidth, canvasHeight]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -78,29 +85,26 @@ export function PixelEditor({
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Checkerboard bg
     ctx.globalAlpha = bgOpacity;
-    for (let y = 0; y < CANVAS_SIZE; y++) {
-      for (let x = 0; x < CANVAS_SIZE; x++) {
+    for (let y = 0; y < canvasHeight; y++) {
+      for (let x = 0; x < canvasWidth; x++) {
         ctx.fillStyle = (x + y) % 2 === 0 ? '#1a1a1a' : '#2a2a2a';
         ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
       }
     }
     ctx.globalAlpha = 1.0;
 
-    // Layers bottom-to-top
     [...layers].reverse().forEach(layer => {
       if (!layer.visible) return;
-      // Use scratch buffer if we're actively drawing on this layer
       const imageData = (isDrawingRef.current && layer.id === activeLayerId && scratchRef.current)
         ? scratchRef.current
         : layerPixels.get(layer.id);
       if (!imageData) return;
       ctx.globalAlpha = layer.opacity;
       const data = imageData.data;
-      for (let y = 0; y < CANVAS_SIZE; y++) {
-        for (let x = 0; x < CANVAS_SIZE; x++) {
-          const idx = (y * CANVAS_SIZE + x) * 4;
+      for (let y = 0; y < canvasHeight; y++) {
+        for (let x = 0; x < canvasWidth; x++) {
+          const idx = (y * canvasWidth + x) * 4;
           const a = data[idx + 3];
           if (a > 0) {
             ctx.fillStyle = `rgba(${data[idx]},${data[idx + 1]},${data[idx + 2]},${a / 255})`;
@@ -111,7 +115,20 @@ export function PixelEditor({
       ctx.globalAlpha = 1.0;
     });
 
-    // Selection
+    if (moveBufferRef.current && selection) {
+      const buf = moveBufferRef.current;
+      for (let sy = 0; sy < buf.height; sy++) {
+        for (let sx = 0; sx < buf.width; sx++) {
+          const idx = (sy * buf.width + sx) * 4;
+          const a = buf.data[idx + 3];
+          if (a > 0) {
+            ctx.fillStyle = `rgba(${buf.data[idx]},${buf.data[idx + 1]},${buf.data[idx + 2]},${a / 255})`;
+            ctx.fillRect((selection.x + sx) * pixelSize, (selection.y + sy) * pixelSize, pixelSize, pixelSize);
+          }
+        }
+      }
+    }
+
     if (selection) {
       ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
       ctx.fillRect(selection.x * pixelSize, selection.y * pixelSize, selection.w * pixelSize, selection.h * pixelSize);
@@ -122,25 +139,21 @@ export function PixelEditor({
       ctx.setLineDash([]);
     }
 
-    // Grid
     if (showGrid && pixelSize >= 4) {
-      // Use separate canvas for grid overlay to avoid blending with pixel colors
       ctx.save();
       ctx.strokeStyle = pixelSize >= 8 ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = pixelSize >= 8 ? 0.5 : 0.3;
       ctx.beginPath();
-      for (let i = 1; i < CANVAS_SIZE; i++) {
+      const maxDim = Math.max(canvasWidth, canvasHeight);
+      for (let i = 1; i < maxDim; i++) {
         const p = i * pixelSize;
-        ctx.moveTo(p, 0);
-        ctx.lineTo(p, CANVAS_SIZE * pixelSize);
-        ctx.moveTo(0, p);
-        ctx.lineTo(CANVAS_SIZE * pixelSize, p);
+        if (i < canvasWidth) { ctx.moveTo(p, 0); ctx.lineTo(p, canvasHeight * pixelSize); }
+        if (i < canvasHeight) { ctx.moveTo(0, p); ctx.lineTo(canvasWidth * pixelSize, p); }
       }
       ctx.stroke();
       ctx.restore();
     }
 
-    // Shape preview overlay
     if (shapePreview && shapeStartRef.current && (activeTool === ToolType.LINE || activeTool === ToolType.RECTANGLE || activeTool === ToolType.CIRCLE)) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.lineWidth = 1;
@@ -165,7 +178,7 @@ export function PixelEditor({
       }
       ctx.setLineDash([]);
     }
-  }, [layers, layerPixels, activeLayerId, selection, pixelSize, bgOpacity, showGrid, activeTool, shapePreview]);
+  }, [layers, layerPixels, activeLayerId, selection, pixelSize, bgOpacity, showGrid, activeTool, shapePreview, canvasWidth, canvasHeight]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -175,9 +188,9 @@ export function PixelEditor({
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((event.clientX - rect.left) / pixelSize);
     const y = Math.floor((event.clientY - rect.top) / pixelSize);
-    if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) return { x, y };
+    if (x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight) return { x, y };
     return null;
-  }, [pixelSize]);
+  }, [pixelSize, canvasWidth, canvasHeight]);
 
   const floodFill = useCallback((startX: number, startY: number, fillColor: string) => {
     const imageData = layerPixels.get(activeLayerId);
@@ -190,7 +203,7 @@ export function PixelEditor({
     const fillB = isTransparent ? 0 : parseInt(fillColor.slice(5, 7), 16);
     const fillA = isTransparent ? 0 : 255;
 
-    const startIdx = (startY * CANVAS_SIZE + startX) * 4;
+    const startIdx = (startY * canvasWidth + startX) * 4;
     const targetR = data[startIdx], targetG = data[startIdx + 1], targetB = data[startIdx + 2], targetA = data[startIdx + 3];
     if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === fillA) return;
 
@@ -200,11 +213,11 @@ export function PixelEditor({
 
     while (stack.length > 0) {
       const [cx, cy] = stack.pop()!;
-      if (cx < 0 || cx >= CANVAS_SIZE || cy < 0 || cy >= CANVAS_SIZE) continue;
+      if (cx < 0 || cx >= canvasWidth || cy < 0 || cy >= canvasHeight) continue;
       if (selection && (cx < selection.x || cx >= selection.x + selection.w || cy < selection.y || cy >= selection.y + selection.h)) continue;
       const key = `${cx},${cy}`;
       if (visited.has(key)) continue;
-      const idx = (cy * CANVAS_SIZE + cx) * 4;
+      const idx = (cy * canvasWidth + cx) * 4;
       if (newData[idx] === targetR && newData[idx + 1] === targetG && newData[idx + 2] === targetB && newData[idx + 3] === targetA) {
         newData[idx] = fillR; newData[idx + 1] = fillG; newData[idx + 2] = fillB; newData[idx + 3] = fillA;
         visited.add(key);
@@ -212,18 +225,14 @@ export function PixelEditor({
       }
     }
 
-    const updated = new ImageData(newData, CANVAS_SIZE, CANVAS_SIZE);
+    const updated = new ImageData(newData, canvasWidth, canvasHeight);
     setLayerPixels(prev => { const next = new Map(prev); next.set(activeLayerId, updated); return next; });
     const tmp = document.createElement('canvas');
-    tmp.width = CANVAS_SIZE; tmp.height = CANVAS_SIZE;
+    tmp.width = canvasWidth; tmp.height = canvasHeight;
     const tmpCtx = tmp.getContext('2d');
     if (tmpCtx) { tmpCtx.putImageData(updated, 0, 0); onUpdateLayer(activeLayerId, tmp.toDataURL('image/png')); }
-  }, [activeLayerId, layerPixels, selection, onUpdateLayer]);
+  }, [activeLayerId, layerPixels, selection, onUpdateLayer, canvasWidth, canvasHeight]);
 
-  /**
-   * Paint a single brush stamp onto the scratch buffer (mutable, no React state).
-   * Called many times per stroke — must be fast.
-   */
   const stampPixel = (scratch: ImageData, x: number, y: number, toolType: ToolType, color: string) => {
     const data = scratch.data;
     const halfSize = Math.floor(brushSize / 2);
@@ -240,9 +249,9 @@ export function PixelEditor({
 
     for (let py = sy; py <= ey; py++) {
       for (let px = sx; px <= ex; px++) {
-        if (px < 0 || px >= CANVAS_SIZE || py < 0 || py >= CANVAS_SIZE) continue;
+        if (px < 0 || px >= canvasWidth || py < 0 || py >= canvasHeight) continue;
         if (selection && (px < selection.x || px >= selection.x + selection.w || py < selection.y || py >= selection.y + selection.h)) continue;
-        const idx = (py * CANVAS_SIZE + px) * 4;
+        const idx = (py * canvasWidth + px) * 4;
         if (toolType === ToolType.PENCIL) {
           if (isTransparent) {
             data[idx + 3] = 0;
@@ -256,7 +265,6 @@ export function PixelEditor({
     }
   };
 
-  /** Bresenham line: stamp every pixel between two points */
   const stampLine = (scratch: ImageData, x0: number, y0: number, x1: number, y1: number, toolType: ToolType, color: string) => {
     const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
@@ -271,7 +279,6 @@ export function PixelEditor({
     }
   };
 
-  /** Stamp rectangle outline onto scratch buffer */
   const stampRect = (scratch: ImageData, x1: number, y1: number, x2: number, y2: number, color: string) => {
     const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
     const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
@@ -284,7 +291,6 @@ export function PixelEditor({
     }
   };
 
-  /** Stamp circle outline via Bresenham */
   const stampCircle = (scratch: ImageData, cx: number, cy: number, ex: number, ey: number, color: string) => {
     const radius = Math.round(Math.sqrt(Math.pow(ex - cx, 2) + Math.pow(ey - cy, 2)));
     const plot = (px: number, py: number) => stampPixel(scratch, px, py, ToolType.PENCIL, color);
@@ -308,14 +314,39 @@ export function PixelEditor({
     if (!coords) return;
 
     if (activeTool === ToolType.MOVE) {
-      setIsPanning(true); setPanStart({ x: event.clientX, y: event.clientY });
+      if (selection && coords.x >= selection.x && coords.x < selection.x + selection.w && coords.y >= selection.y && coords.y < selection.y + selection.h) {
+        const existing = layerPixels.get(activeLayerId);
+        if (existing) {
+          const buf = new ImageData(selection.w, selection.h);
+          const scratch = new ImageData(new Uint8ClampedArray(existing.data), canvasWidth, canvasHeight);
+          for (let sy = 0; sy < selection.h; sy++) {
+            for (let sx = 0; sx < selection.w; sx++) {
+              const srcIdx = ((selection.y + sy) * canvasWidth + (selection.x + sx)) * 4;
+              const dstIdx = (sy * selection.w + sx) * 4;
+              buf.data[dstIdx] = existing.data[srcIdx];
+              buf.data[dstIdx + 1] = existing.data[srcIdx + 1];
+              buf.data[dstIdx + 2] = existing.data[srcIdx + 2];
+              buf.data[dstIdx + 3] = existing.data[srcIdx + 3];
+              scratch.data[srcIdx + 3] = 0;
+            }
+          }
+          moveBufferRef.current = buf;
+          moveOrigSelRef.current = { ...selection };
+          scratchRef.current = scratch;
+          isDrawingRef.current = true;
+          moveStartRef.current = coords;
+          drawCanvas();
+        }
+      } else {
+        setIsPanning(true); setPanStart({ x: event.clientX, y: event.clientY });
+      }
     } else if (activeTool === ToolType.SELECT) {
       setSelection({ x: coords.x, y: coords.y, w: 1, h: 1 });
       dragStartRef.current = coords;
     } else if (activeTool === ToolType.EYEDROPPER) {
       const imageData = layerPixels.get(activeLayerId);
       if (imageData) {
-        const idx = (coords.y * CANVAS_SIZE + coords.x) * 4;
+        const idx = (coords.y * canvasWidth + coords.x) * 4;
         if (imageData.data[idx + 3] > 0) {
           onPickColor('#' + ((1 << 24) + (imageData.data[idx] << 16) + (imageData.data[idx + 1] << 8) + imageData.data[idx + 2]).toString(16).slice(1));
         }
@@ -328,8 +359,8 @@ export function PixelEditor({
     } else if (activeTool === ToolType.PENCIL || activeTool === ToolType.ERASER) {
       const existing = layerPixels.get(activeLayerId);
       const scratch = existing
-        ? new ImageData(new Uint8ClampedArray(existing.data), CANVAS_SIZE, CANVAS_SIZE)
-        : new ImageData(CANVAS_SIZE, CANVAS_SIZE);
+        ? new ImageData(new Uint8ClampedArray(existing.data), canvasWidth, canvasHeight)
+        : new ImageData(canvasWidth, canvasHeight);
       scratchRef.current = scratch;
       isDrawingRef.current = true;
       lastPixelRef.current = coords;
@@ -344,7 +375,13 @@ export function PixelEditor({
     if (!coords) return;
     setMousePos(coords);
 
-    if (isPanning && panStart && activeTool === ToolType.MOVE) {
+    if (activeTool === ToolType.MOVE && moveStartRef.current && moveBufferRef.current && scratchRef.current && moveOrigSelRef.current) {
+      const dx = coords.x - moveStartRef.current.x;
+      const dy = coords.y - moveStartRef.current.y;
+      const origSel = moveOrigSelRef.current;
+      setSelection({ x: origSel.x + dx, y: origSel.y + dy, w: origSel.w, h: origSel.h });
+      drawCanvas();
+    } else if (isPanning && panStart && activeTool === ToolType.MOVE) {
       setPanOffset({ x: event.clientX - panStart.x, y: event.clientY - panStart.y });
     } else if (isDrawingRef.current && scratchRef.current && (activeTool === ToolType.PENCIL || activeTool === ToolType.ERASER)) {
       const last = lastPixelRef.current;
@@ -365,25 +402,48 @@ export function PixelEditor({
   const commitScratch = (scratch: ImageData) => {
     setLayerPixels(prev => { const next = new Map(prev); next.set(activeLayerId, scratch); return next; });
     const tmp = document.createElement('canvas');
-    tmp.width = CANVAS_SIZE; tmp.height = CANVAS_SIZE;
+    tmp.width = canvasWidth; tmp.height = canvasHeight;
     const tmpCtx = tmp.getContext('2d');
     if (tmpCtx) { tmpCtx.putImageData(scratch, 0, 0); onUpdateLayer(activeLayerId, tmp.toDataURL('image/png')); }
   };
 
   const handleMouseUp = (event?: React.MouseEvent<HTMLCanvasElement>) => {
-    // Commit pencil/eraser stroke
+    if (moveBufferRef.current && scratchRef.current && selection) {
+      const buf = moveBufferRef.current;
+      const scratch = scratchRef.current;
+      for (let sy = 0; sy < buf.height; sy++) {
+        for (let sx = 0; sx < buf.width; sx++) {
+          const tx = selection.x + sx;
+          const ty = selection.y + sy;
+          if (tx < 0 || tx >= canvasWidth || ty < 0 || ty >= canvasHeight) continue;
+          const srcIdx = (sy * buf.width + sx) * 4;
+          const dstIdx = (ty * canvasWidth + tx) * 4;
+          scratch.data[dstIdx] = buf.data[srcIdx];
+          scratch.data[dstIdx + 1] = buf.data[srcIdx + 1];
+          scratch.data[dstIdx + 2] = buf.data[srcIdx + 2];
+          scratch.data[dstIdx + 3] = buf.data[srcIdx + 3];
+        }
+      }
+      commitScratch(scratch);
+      moveBufferRef.current = null;
+      moveOrigSelRef.current = null;
+      moveStartRef.current = null;
+      isDrawingRef.current = false;
+      scratchRef.current = null;
+      return;
+    }
+
     if (isDrawingRef.current && scratchRef.current) {
       commitScratch(scratchRef.current);
     }
 
-    // Commit shape tool
     if (shapeStartRef.current && shapePreview && event && (activeTool === ToolType.LINE || activeTool === ToolType.RECTANGLE || activeTool === ToolType.CIRCLE)) {
       const coords = getPixelCoordinates(event);
       if (coords) {
         const existing = layerPixels.get(activeLayerId);
         const scratch = existing
-          ? new ImageData(new Uint8ClampedArray(existing.data), CANVAS_SIZE, CANVAS_SIZE)
-          : new ImageData(CANVAS_SIZE, CANVAS_SIZE);
+          ? new ImageData(new Uint8ClampedArray(existing.data), canvasWidth, canvasHeight)
+          : new ImageData(canvasWidth, canvasHeight);
         const sp = shapeStartRef.current;
         if (activeTool === ToolType.LINE) {
           stampLine(scratch, sp.x, sp.y, coords.x, coords.y, ToolType.PENCIL, primaryColor);
@@ -418,16 +478,16 @@ export function PixelEditor({
       <div
         className="relative outline outline-2 outline-neutral-700 dark:outline-neutral-200"
         style={{
-          width: CANVAS_SIZE * pixelSize, height: CANVAS_SIZE * pixelSize,
-          minWidth: CANVAS_SIZE * pixelSize, minHeight: CANVAS_SIZE * pixelSize,
+          width: canvasWidth * pixelSize, height: canvasHeight * pixelSize,
+          minWidth: canvasWidth * pixelSize, minHeight: canvasHeight * pixelSize,
           transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
           transition: isPanning ? 'none' : 'transform 0.1s ease-out',
         }}
       >
         <canvas
           ref={canvasRef}
-          width={CANVAS_SIZE * pixelSize}
-          height={CANVAS_SIZE * pixelSize}
+          width={canvasWidth * pixelSize}
+          height={canvasHeight * pixelSize}
           style={{ imageRendering: 'pixelated', cursor: activeTool === ToolType.MOVE ? (isPanning ? 'grabbing' : 'grab') : 'crosshair' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -446,7 +506,7 @@ export function PixelEditor({
         )}
       </div>
       <div className="absolute bottom-4 right-4 border border-neutral-700 dark:border-neutral-600 px-3 py-1.5 text-[10px] text-muted-foreground" style={{ fontFamily: 'var(--font-departure-mono)' }}>
-        {mousePos ? `X:${mousePos.x.toString().padStart(2, '0')} Y:${mousePos.y.toString().padStart(2, '0')}` : 'IDLE'} · {Math.round(zoom)}X
+        {mousePos ? `X:${mousePos.x.toString().padStart(2, '0')} Y:${mousePos.y.toString().padStart(2, '0')}` : 'IDLE'} · {canvasWidth}x{canvasHeight} · {Math.round(zoom)}X
       </div>
     </div>
   );
