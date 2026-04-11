@@ -76,6 +76,7 @@ export default function PixelForgePage() {
   const [apiKey, setApiKey] = useState('');
 
   // Token import
+  const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
   const [tokenIdInput, setTokenIdInput] = useState('');
   const [tokenLoading, setTokenLoading] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -196,42 +197,82 @@ export default function PixelForgePage() {
     if (activeLayerId === id) setActiveLayerId(newLayers[0].id);
   };
 
-  // Import BOOA NFT by token ID
+  const COLLECTIONS = {
+    booa: { label: 'BOOA', max: 3333, size: 64 },
+    punk: { label: 'CryptoPunk', max: 9999, size: 24 },
+    normie: { label: 'Normie', max: 9999, size: 40 },
+  } as const;
+
   const handleImportToken = async () => {
     const id = Number(tokenIdInput);
-    if (!Number.isInteger(id) || id < 0 || id > 3333) {
-      setTokenError('Enter a valid token ID (0-3333)');
+    const col = COLLECTIONS[importCollection];
+    if (!Number.isInteger(id) || id < 0 || id > col.max) {
+      setTokenError(`Enter a valid ID (0-${col.max})`);
       return;
     }
     setTokenLoading(true);
     setTokenError(null);
     try {
-      const res = await fetch(`/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&startToken=${id}&limit=1`);
-      const data = await res.json();
-      const token = data.tokens?.find((t: { tokenId: string }) => t.tokenId === String(id));
-      if (!token?.svg) { sfx.playError(); setTokenError('Token not found'); return; }
-
-      // SVG to canvas to PNG
-      const svgBlob = new Blob([token.svg], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(svgBlob);
-      const img = new Image();
-      img.onload = () => {
-        const cvs = document.createElement('canvas');
-        cvs.width = canvasWidth; cvs.height = canvasHeight;
-        const ctx = cvs.getContext('2d');
-        if (ctx) {
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-          const pngData = cvs.toDataURL('image/png');
-          const active = layers.find(l => l.id === activeLayerId);
-          if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
-          else handleAddLayer(`BOOA #${id}`, pngData, true);
-          sfx.playSuccess();
-        }
-        URL.revokeObjectURL(url);
-      };
-      img.onerror = () => { sfx.playError(); setTokenError('Failed to load SVG'); URL.revokeObjectURL(url); };
-      img.src = url;
+      if (importCollection === 'booa') {
+        const res = await fetch(`/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&startToken=${id}&limit=1`);
+        const data = await res.json();
+        const token = data.tokens?.find((t: { tokenId: string }) => t.tokenId === String(id));
+        if (!token?.svg) { sfx.playError(); setTokenError('Token not found'); return; }
+        const svgBlob = new Blob([token.svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          setCanvasWidth(col.size); setCanvasHeight(col.size);
+          const cvs = document.createElement('canvas');
+          cvs.width = col.size; cvs.height = col.size;
+          const ctx = cvs.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, col.size, col.size);
+            const pngData = cvs.toDataURL('image/png');
+            const active = layers.find(l => l.id === activeLayerId);
+            if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+            else handleAddLayer(`BOOA #${id}`, pngData, true);
+            sfx.playSuccess();
+          }
+          URL.revokeObjectURL(url);
+        };
+        img.onerror = () => { sfx.playError(); setTokenError('Failed to load'); URL.revokeObjectURL(url); };
+        img.src = url;
+      } else {
+        const imgUrl = `/api/pixel-forge-import?collection=${importCollection}&id=${id}`;
+        const img = new Image();
+        img.onload = () => {
+          setCanvasWidth(col.size); setCanvasHeight(col.size);
+          const cvs = document.createElement('canvas');
+          cvs.width = col.size; cvs.height = col.size;
+          const ctx = cvs.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, col.size, col.size);
+            const imageData = ctx.getImageData(0, 0, col.size, col.size);
+            const d = imageData.data;
+            const colorSet = new Set<string>();
+            for (let i = 0; i < d.length; i += 4) {
+              if (d[i + 3] < 128) continue;
+              const hex = '#' + ((1 << 24) + (d[i] << 16) + (d[i + 1] << 8) + d[i + 2]).toString(16).slice(1).toUpperCase();
+              colorSet.add(hex);
+            }
+            const extracted = Array.from(colorSet);
+            setCustomColors(extracted);
+            setActivePalette({ name: '__custom__', colors: [] });
+            const pngData = cvs.toDataURL('image/png');
+            const active = layers.find(l => l.id === activeLayerId);
+            if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+            else handleAddLayer(`${col.label} #${id}`, pngData, true);
+            sfx.playSuccess();
+          }
+          setTokenLoading(false);
+        };
+        img.onerror = () => { sfx.playError(); setTokenError('Token not found'); setTokenLoading(false); };
+        img.src = imgUrl;
+        return;
+      }
     } catch {
       setTokenError('Failed to fetch token');
     } finally {
@@ -290,35 +331,60 @@ export default function PixelForgePage() {
     ctx.putImageData(imageData, 0, 0);
   };
 
-  const paletteKey = allColors.join(',') + `|${contrast}|${brightness}`;
-  const prevPaletteKey = useRef(paletteKey);
+  const [quantizeTrigger, setQuantizeTrigger] = useState(0);
+  const quantizeKey = activePalette.name + '|' + activePalette.colors.join(',') + `|${contrast}|${brightness}|${quantizeTrigger}`;
+  const isFirstRender = useRef(true);
+  const layersRef = useRef(layers);
+  const originalsRef = useRef(originalLayerData);
+  layersRef.current = layers;
+  originalsRef.current = originalLayerData;
+
   useEffect(() => {
-    if (prevPaletteKey.current === paletteKey) return;
-    prevPaletteKey.current = paletteKey;
-    const currentLayers = layers;
-    const originals = originalLayerData;
-    currentLayers.forEach(layer => {
-      const src = originals.get(layer.id) || layer.data;
-      if (!src) return;
-      if (allColors.length === 0) {
-        if (originals.has(layer.id) && layer.data !== src) {
-          pushToHistory(currentLayers.map(l => l.id === layer.id ? { ...l, data: src } : l));
-        }
-        return;
-      }
-      const img = new Image();
-      img.src = src;
-      img.onload = () => {
-        const cvs = document.createElement('canvas');
-        cvs.width = canvasWidth; cvs.height = canvasHeight;
-        const ctx = cvs.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0);
-        quantizeToPalette(ctx, canvasWidth, canvasHeight, contrast, brightness);
-        pushToHistory(currentLayers.map(l => l.id === layer.id ? { ...l, data: cvs.toDataURL('image/png') } : l));
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const currentLayers = layersRef.current;
+    const originals = originalsRef.current;
+    const hasOriginals = currentLayers.some(l => originals.has(l.id));
+    if (!hasOriginals) return;
+
+    const colors = [...activePalette.colors, ...customColors];
+
+    const applyQuantize = () => {
+      const updated = [...currentLayers];
+      let changed = false;
+      let pending = 0;
+      const done = () => {
+        pending--;
+        if (pending <= 0 && changed) pushToHistory(updated);
       };
-    });
-  });
+      currentLayers.forEach((layer, idx) => {
+        const src = originals.get(layer.id);
+        if (!src) return;
+        if (colors.length === 0) {
+          if (layer.data !== src) { updated[idx] = { ...layer, data: src }; changed = true; }
+          return;
+        }
+        pending++;
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+          const cvs = document.createElement('canvas');
+          cvs.width = canvasWidth; cvs.height = canvasHeight;
+          const ctx = cvs.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            quantizeToPalette(ctx, canvasWidth, canvasHeight, contrast, brightness);
+            updated[idx] = { ...layer, data: cvs.toDataURL('image/png') };
+            changed = true;
+          }
+          done();
+        };
+        img.onerror = () => done();
+      });
+      if (pending === 0 && changed) pushToHistory(updated);
+    };
+    applyQuantize();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantizeKey]);
 
   // AI generation
   const handleGenerate = async () => {
@@ -469,16 +535,32 @@ export default function PixelForgePage() {
             {/* Left sidebar */}
             <div className="w-full lg:w-56 space-y-3 shrink-0">
 
-              {/* Import BOOA */}
+              {/* Import Token */}
               <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Import BOOA</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Import</p>
+                <div className="flex gap-0.5">
+                  {(Object.keys(COLLECTIONS) as Array<keyof typeof COLLECTIONS>).map(key => (
+                    <button
+                      key={key}
+                      onClick={() => { sfx.playClick(); setImportCollection(key); setTokenError(null); }}
+                      className={`flex-1 py-1 text-[9px] uppercase border transition-colors ${
+                        importCollection === key
+                          ? 'border-foreground bg-foreground/10 text-foreground'
+                          : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/50 hover:border-foreground/50'
+                      }`}
+                      style={font}
+                    >
+                      {COLLECTIONS[key].label}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex gap-1">
                   <input
                     type="text"
                     value={tokenIdInput}
                     onChange={e => setTokenIdInput(e.target.value.replace(/\D/g, ''))}
                     onKeyDown={e => e.key === 'Enter' && handleImportToken()}
-                    placeholder="Token ID"
+                    placeholder={`ID (0-${COLLECTIONS[importCollection].max})`}
                     className="flex-1 border border-neutral-700 dark:border-neutral-600 bg-background px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground placeholder:text-muted-foreground/30"
                     style={font}
                   />
@@ -649,15 +731,24 @@ export default function PixelForgePage() {
                   <PixelSlider label="Brightness" value={brightness} min={-128} max={128} onChange={setBrightness} />
                 </div>
 
-                {(contrast !== 0 || brightness !== 0) && (
+                <div className="flex gap-1">
                   <button
-                    onClick={() => { sfx.playClick(); setContrast(0); setBrightness(0); }}
-                    className="w-full border border-neutral-700 dark:border-neutral-600 p-1 text-[9px] uppercase hover:bg-foreground/5 transition-colors"
+                    onClick={() => { sfx.playClick(); setQuantizeTrigger(v => v + 1); }}
+                    className="flex-1 border border-neutral-700 dark:border-neutral-600 p-1 text-[9px] uppercase hover:bg-foreground/5 transition-colors"
                     style={font}
                   >
-                    Reset
+                    Apply
                   </button>
-                )}
+                  {(contrast !== 0 || brightness !== 0) && (
+                    <button
+                      onClick={() => { sfx.playClick(); setContrast(0); setBrightness(0); }}
+                      className="flex-1 border border-neutral-700 dark:border-neutral-600 p-1 text-[9px] uppercase hover:bg-foreground/5 transition-colors"
+                      style={font}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
 
                 <PixelSlider label="BG Opacity" value={bgOpacity} min={0} max={1} step={0.1} display={`${Math.round(bgOpacity * 100)}%`} onChange={v => { setBgOpacity(v); sfx.playSlider(v); }} />
               </div>

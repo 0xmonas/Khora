@@ -28,6 +28,7 @@ const PUBLIC_READ_PATHS = [
   '/api/agent-card',
   '/api/agent-registry',
   '/api/stats',
+  '/api/pixel-forge-import',
 ];
 
 export async function middleware(request: NextRequest) {
