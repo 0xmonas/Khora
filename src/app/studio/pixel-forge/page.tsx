@@ -17,6 +17,33 @@ import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
+function PixelSlider({ label, value, min, max, step = 1, display, onChange }: {
+  label: string; value: number; min: number; max: number; step?: number;
+  display?: string; onChange: (v: number) => void;
+}) {
+  const percent = ((value - min) / (max - min)) * 100;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.15em] text-muted-foreground" style={font}>
+        <span>{label}</span>
+        <span>{display ?? value}</span>
+      </div>
+      <div className="relative h-5">
+        <div className="absolute left-0 right-0 top-1/2 h-[2px] -translate-y-1/2 bg-foreground/20" />
+        <div
+          className="absolute top-1/2 h-[8px] w-[8px] -translate-x-1/2 -translate-y-1/2 border border-foreground bg-background"
+          style={{ left: `${percent}%` }}
+        />
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </div>
+    </div>
+  );
+}
+
 const INITIAL_LAYERS: Layer[] = [
   { id: 'base', name: 'Base Layer', data: null, visible: true, opacity: 1, isLocked: false },
 ];
@@ -263,12 +290,20 @@ export default function PixelForgePage() {
     ctx.putImageData(imageData, 0, 0);
   };
 
+  const paletteKey = allColors.join(',') + `|${contrast}|${brightness}`;
+  const prevPaletteKey = useRef(paletteKey);
   useEffect(() => {
-    layers.forEach(layer => {
-      const src = originalLayerData.get(layer.id) || layer.data;
+    if (prevPaletteKey.current === paletteKey) return;
+    prevPaletteKey.current = paletteKey;
+    const currentLayers = layers;
+    const originals = originalLayerData;
+    currentLayers.forEach(layer => {
+      const src = originals.get(layer.id) || layer.data;
       if (!src) return;
       if (allColors.length === 0) {
-        if (originalLayerData.has(layer.id) && layer.data !== src) handleUpdateLayer(layer.id, src);
+        if (originals.has(layer.id) && layer.data !== src) {
+          pushToHistory(currentLayers.map(l => l.id === layer.id ? { ...l, data: src } : l));
+        }
         return;
       }
       const img = new Image();
@@ -280,11 +315,10 @@ export default function PixelForgePage() {
         if (!ctx) return;
         ctx.drawImage(img, 0, 0);
         quantizeToPalette(ctx, canvasWidth, canvasHeight, contrast, brightness);
-        handleUpdateLayer(layer.id, cvs.toDataURL('image/png'));
+        pushToHistory(currentLayers.map(l => l.id === layer.id ? { ...l, data: cvs.toDataURL('image/png') } : l));
       };
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allColors.join(','), contrast, brightness]);
+  });
 
   // AI generation
   const handleGenerate = async () => {
@@ -608,36 +642,11 @@ export default function PixelForgePage() {
                   </button>
                 </div>
 
-                {/* Brush Size */}
-                <div className="mt-2">
-                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
-                    <span>Brush</span><span>{brushSize}px</span>
-                  </div>
-                  <input type="range" min="1" max="10" value={brushSize} onChange={e => { const v = Number(e.target.value); setBrushSize(v); sfx.playSlider(v / 10); }} className="w-full" />
-                </div>
-
-                {/* Zoom */}
-                <div>
-                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
-                    <span>Zoom</span><span>{zoom}x</span>
-                  </div>
-                  <input type="range" min="4" max="16" value={zoom} onChange={e => { const v = Number(e.target.value); setZoom(v); sfx.playSlider(v / 16); }} className="w-full" />
-                </div>
-
-                {/* Contrast */}
-                <div>
-                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
-                    <span>Contrast</span><span>{contrast}</span>
-                  </div>
-                  <input type="range" min="-128" max="128" value={contrast} onChange={e => { setContrast(Number(e.target.value)); }} className="w-full" />
-                </div>
-
-                {/* Brightness */}
-                <div>
-                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
-                    <span>Brightness</span><span>{brightness}</span>
-                  </div>
-                  <input type="range" min="-128" max="128" value={brightness} onChange={e => { setBrightness(Number(e.target.value)); }} className="w-full" />
+                <div className="mt-2 space-y-2">
+                  <PixelSlider label="Brush" value={brushSize} min={1} max={10} display={`${brushSize}px`} onChange={v => { setBrushSize(v); sfx.playSlider(v / 10); }} />
+                  <PixelSlider label="Zoom" value={zoom} min={4} max={16} display={`${zoom}x`} onChange={v => { setZoom(v); sfx.playSlider(v / 16); }} />
+                  <PixelSlider label="Contrast" value={contrast} min={-128} max={128} onChange={setContrast} />
+                  <PixelSlider label="Brightness" value={brightness} min={-128} max={128} onChange={setBrightness} />
                 </div>
 
                 {(contrast !== 0 || brightness !== 0) && (
@@ -650,13 +659,7 @@ export default function PixelForgePage() {
                   </button>
                 )}
 
-                {/* BG Opacity */}
-                <div>
-                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
-                    <span>BG Opacity</span><span>{Math.round(bgOpacity * 100)}%</span>
-                  </div>
-                  <input type="range" min="0" max="1" step="0.1" value={bgOpacity} onChange={e => { const v = Number(e.target.value); setBgOpacity(v); sfx.playSlider(v); }} className="w-full" />
-                </div>
+                <PixelSlider label="BG Opacity" value={bgOpacity} min={0} max={1} step={0.1} display={`${Math.round(bgOpacity * 100)}%`} onChange={v => { setBgOpacity(v); sfx.playSlider(v); }} />
               </div>
 
               {/* Layers */}
