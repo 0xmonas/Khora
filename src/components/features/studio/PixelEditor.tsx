@@ -25,7 +25,27 @@ export function PixelEditor({
   zoom, bgOpacity, showGrid, canvasWidth, canvasHeight, onUpdateLayer, onPickColor, selection, setSelection,
 }: PixelEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pixelSize = zoom;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setContainerSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const autoZoom = containerSize
+    ? Math.max(1, Math.floor(Math.min(
+        (containerSize.w - 32) / canvasWidth,
+        (containerSize.h - 32) / canvasHeight,
+      )))
+    : zoom;
+  const pixelSize = Math.min(zoom, autoZoom);
 
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -474,7 +494,7 @@ export function PixelEditor({
   const cursorPos = getCursorPos();
 
   return (
-    <div className="w-full h-full flex items-center justify-center relative p-4">
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center relative p-4">
       <div
         className="relative outline outline-2 outline-neutral-700 dark:outline-neutral-200"
         style={{
