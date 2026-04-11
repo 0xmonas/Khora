@@ -54,7 +54,7 @@ async function extractPalette(bitmaps: (ImageBitmap | null)[]): Promise<string[]
   }
 
   // Sort by frequency
-  const sorted = [...counts.entries()]
+  const sorted = Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([key]) => {
       const [r, g, b] = key.split(',').map(Number);
