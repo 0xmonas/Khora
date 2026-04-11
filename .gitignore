@@ -58,6 +58,9 @@ docs/
 # data
 data/
 
+# contracts
+contracts/
+
 # test scripts (contain model references, run locally only)
 scripts/tests/
 
