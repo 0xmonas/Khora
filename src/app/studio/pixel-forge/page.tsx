@@ -12,7 +12,7 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
-import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, C64_PALETTE, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -30,11 +30,18 @@ export default function PixelForgePage() {
   const [canvasWidth, setCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
   const [canvasHeight, setCanvasHeight] = useState(DEFAULT_CANVAS_HEIGHT);
 
+  const [activePalette, setActivePalette] = useState(PALETTE_PRESETS[0]);
+  const [customColors, setCustomColors] = useState<string[]>([]);
+  const [originalLayerData, setOriginalLayerData] = useState<Map<string, string>>(new Map());
+  const allColors = [...activePalette.colors, ...customColors];
+
   const [tool, setTool] = useState<ToolType>(ToolType.PENCIL);
   const [brushSize, setBrushSize] = useState(1);
   const [selection, setSelection] = useState<Rect | null>(null);
-  const [primaryColor, setPrimaryColor] = useState(C64_PALETTE[4]); // White
+  const [primaryColor, setPrimaryColor] = useState(PALETTE_PRESETS[0].colors[4]);
   const [zoom, setZoom] = useState(8);
+  const [contrast, setContrast] = useState(0);
+  const [brightness, setBrightness] = useState(0);
   const [bgOpacity, setBgOpacity] = useState(0.5);
   const [showGrid, setShowGrid] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -75,17 +82,29 @@ export default function PixelForgePage() {
   }, [handleUndo]);
 
   // Layer ops
-  const handleAddLayer = (name = 'New Layer', data: string | null = null) => {
+  const handleAddLayer = (name = 'New Layer', data: string | null = null, isOriginal = false) => {
     const newLayer: Layer = {
       id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       name, data, visible: true, opacity: 1, isLocked: false,
     };
+    if (isOriginal && data) {
+      setOriginalLayerData(prev => { const next = new Map(prev); next.set(newLayer.id, data); return next; });
+    }
     pushToHistory([newLayer, ...layers]);
     setActiveLayerId(newLayer.id);
   };
 
   const handleUpdateLayer = (id: string, newData: string) => {
     pushToHistory(layers.map(l => l.id === id ? { ...l, data: newData } : l));
+  };
+
+  const saveOriginal = (id: string, data: string) => {
+    setOriginalLayerData(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.set(id, data);
+      return next;
+    });
   };
 
   const handleClearLayer = () => {
@@ -178,8 +197,8 @@ export default function PixelForgePage() {
           ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
           const pngData = cvs.toDataURL('image/png');
           const active = layers.find(l => l.id === activeLayerId);
-          if (active && !active.data) handleUpdateLayer(activeLayerId, pngData);
-          else handleAddLayer(`BOOA #${id}`, pngData);
+          if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+          else handleAddLayer(`BOOA #${id}`, pngData, true);
           sfx.playSuccess();
         }
         URL.revokeObjectURL(url);
@@ -209,6 +228,64 @@ export default function PixelForgePage() {
     return cvs.toDataURL('image/png');
   };
 
+  const quantizeToPalette = (ctx: CanvasRenderingContext2D, w: number, h: number, c = 0, b = 0) => {
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    if (c !== 0 || b !== 0) {
+      const factor = (259 * (c + 255)) / (255 * (259 - c));
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 128) continue;
+        d[i]     = Math.max(0, Math.min(255, factor * (d[i] - 128) + 128 + b));
+        d[i + 1] = Math.max(0, Math.min(255, factor * (d[i + 1] - 128) + 128 + b));
+        d[i + 2] = Math.max(0, Math.min(255, factor * (d[i + 2] - 128) + 128 + b));
+      }
+    }
+    const palette = allColors.map(hex => [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ]);
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) { d[i + 3] = 0; continue; }
+      let bestDist = Infinity, bestIdx = 0;
+      for (let p = 0; p < palette.length; p++) {
+        const dr = d[i] - palette[p][0];
+        const dg = d[i + 1] - palette[p][1];
+        const db = d[i + 2] - palette[p][2];
+        const dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) { bestDist = dist; bestIdx = p; }
+      }
+      d[i] = palette[bestIdx][0];
+      d[i + 1] = palette[bestIdx][1];
+      d[i + 2] = palette[bestIdx][2];
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  };
+
+  useEffect(() => {
+    layers.forEach(layer => {
+      const src = originalLayerData.get(layer.id) || layer.data;
+      if (!src) return;
+      if (allColors.length === 0) {
+        if (originalLayerData.has(layer.id) && layer.data !== src) handleUpdateLayer(layer.id, src);
+        return;
+      }
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        const cvs = document.createElement('canvas');
+        cvs.width = canvasWidth; cvs.height = canvasHeight;
+        const ctx = cvs.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        quantizeToPalette(ctx, canvasWidth, canvasHeight, contrast, brightness);
+        handleUpdateLayer(layer.id, cvs.toDataURL('image/png'));
+      };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allColors.join(','), contrast, brightness]);
+
   // AI generation
   const handleGenerate = async () => {
     if (!prompt.trim() || !apiKey.trim()) {
@@ -218,15 +295,24 @@ export default function PixelForgePage() {
     setGenState({ isGenerating: true, error: null });
     try {
       const composite = await getCompositeImage();
-      const result = await generatePixelAsset(apiKey, prompt, canvasWidth, canvasHeight, composite);
+      const result = await generatePixelAsset(apiKey, prompt, canvasWidth, canvasHeight, allColors, composite);
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
       const cvs = document.createElement('canvas');
       cvs.width = canvasWidth; cvs.height = canvasHeight;
       const ctx = cvs.getContext('2d');
-      if (ctx) { ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight); handleAddLayer(`AI: ${prompt}`, cvs.toDataURL('image/png')); }
-      else handleAddLayer(`AI: ${prompt}`, result);
+      if (ctx) {
+          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+          const origData = cvs.toDataURL('image/png');
+          if (allColors.length > 0) quantizeToPalette(ctx, canvasWidth, canvasHeight);
+          const layerName = `AI: ${prompt}`;
+          const newId = `layer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+          const newLayer: Layer = { id: newId, name: layerName, data: cvs.toDataURL('image/png'), visible: true, opacity: 1, isLocked: false };
+          setOriginalLayerData(prev => { const next = new Map(prev); next.set(newId, origData); return next; });
+          pushToHistory([newLayer, ...layers]);
+          setActiveLayerId(newId);
+        }
       sfx.playSuccess();
     } catch (e) {
       sfx.playError();
@@ -240,17 +326,34 @@ export default function PixelForgePage() {
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
+    if (fullColor) setActivePalette(fullColor);
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
+        const FIT = 64;
+        const ratio = img.naturalWidth / img.naturalHeight;
+        let fitW: number, fitH: number;
+        if (ratio >= 1) {
+          fitW = Math.min(FIT, img.naturalWidth);
+          fitH = Math.round(fitW / ratio);
+        } else {
+          fitH = Math.min(FIT, img.naturalHeight);
+          fitW = Math.round(fitH * ratio);
+        }
+        fitW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitW));
+        fitH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitH));
+        setCanvasWidth(fitW);
+        setCanvasHeight(fitH);
         const cvs = document.createElement('canvas');
-        cvs.width = canvasWidth; cvs.height = canvasHeight;
-        cvs.getContext('2d')?.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+        cvs.width = fitW; cvs.height = fitH;
+        const ctx = cvs.getContext('2d');
+        if (ctx) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0, fitW, fitH); }
         const data = cvs.toDataURL('image/png');
         const active = layers.find(l => l.id === activeLayerId);
-        if (active && !active.data) handleUpdateLayer(activeLayerId, data);
-        else handleAddLayer(file.name, data);
+        if (active && !active.data) { saveOriginal(activeLayerId, data); handleUpdateLayer(activeLayerId, data); }
+        else handleAddLayer(file.name, data, true);
         sfx.playSuccess();
       };
       img.src = ev.target?.result as string;
@@ -399,30 +502,97 @@ export default function PixelForgePage() {
                   </button>
                 </div>
 
-                {/* C64 Palette */}
-                <p className="text-[9px] text-muted-foreground/50 mt-2" style={font}>C64 Palette</p>
+                {/* Palette selector */}
+                <div className="mt-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    <select
+                      value={activePalette.name}
+                      onChange={e => {
+                        sfx.playSelect();
+                        if (e.target.value === '__custom__') {
+                          setActivePalette({ name: '__custom__', colors: [] });
+                        } else {
+                          const p = PALETTE_PRESETS.find(p => p.name === e.target.value);
+                          if (p) setActivePalette(p);
+                        }
+                      }}
+                      className="flex-1 bg-transparent border border-neutral-700 dark:border-neutral-600 text-[9px] text-foreground px-1 py-0.5 cursor-pointer focus:outline-none"
+                      style={font}
+                    >
+                      {PALETTE_PRESETS.map(p => (
+                        <option key={p.name} value={p.name}>{p.name} ({p.colors.length})</option>
+                      ))}
+                      {customColors.length > 0 && (
+                        <option value="__custom__">Custom ({customColors.length})</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-8 gap-0.5">
-                  {C64_PALETTE.map((color, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
-                      className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
+                  {activePalette.colors.map((color, i) => (
+                    <div key={`p-${i}`} className="relative group">
+                      <button
+                        onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
+                        className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                      <button
+                        onClick={e => {
+                          e.stopPropagation(); sfx.playClick();
+                          const remaining = activePalette.colors.filter((_, j) => j !== i);
+                          setCustomColors([...remaining, ...customColors]);
+                          setActivePalette({ name: '__custom__', colors: [] });
+                        }}
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[7px] leading-none rounded-full hidden group-hover:flex items-center justify-center"
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                  {customColors.map((color, i) => (
+                    <div key={`c-${i}`} className="relative group">
+                      <button
+                        onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
+                        className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                      <button
+                        onClick={e => { e.stopPropagation(); sfx.playClick(); setCustomColors(prev => prev.filter((_, j) => j !== i)); }}
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[7px] leading-none rounded-full hidden group-hover:flex items-center justify-center"
+                      >
+                        x
+                      </button>
+                    </div>
                   ))}
                 </div>
 
                 {/* Custom color + transparent */}
-                <p className="text-[9px] text-muted-foreground/50 mt-2" style={font}>Custom</p>
-                <div className="flex gap-1 items-center">
+                <div className="flex gap-1 items-center mt-1.5">
                   <input
                     type="color"
                     value={primaryColor === 'transparent' ? '#ffffff' : primaryColor}
                     onChange={e => { sfx.playClick(); setPrimaryColor(e.target.value); }}
-                    className="h-6 w-10 border border-neutral-700 dark:border-neutral-600 bg-background cursor-pointer"
-                    title="Pick custom color"
+                    className="h-6 w-8 border border-neutral-700 dark:border-neutral-600 bg-background cursor-pointer"
+                    title="Pick color"
                   />
+                  <button
+                    onClick={() => {
+                      sfx.playClick();
+                      const c = primaryColor === 'transparent' ? '#ffffff' : primaryColor;
+                      if (!allColors.includes(c)) {
+                        const merged = [...allColors, c];
+                        setCustomColors(merged);
+                        setActivePalette({ name: '__custom__', colors: [] });
+                      }
+                    }}
+                    className="border border-neutral-700 dark:border-neutral-600 px-1.5 h-6 text-[9px] hover:border-foreground/50 transition-colors"
+                    style={font}
+                    title="Add current color to palette"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                  </button>
                   <button
                     onClick={() => { sfx.playClick(); setPrimaryColor('transparent'); }}
                     className={`flex-1 h-6 border text-[9px] uppercase ${primaryColor === 'transparent' ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600 hover:border-foreground/50'}`}
@@ -432,7 +602,7 @@ export default function PixelForgePage() {
                       backgroundSize: '6px 6px',
                       backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px',
                     }}
-                    title="Transparent (erase with pencil/fill)"
+                    title="Transparent"
                   >
                     None
                   </button>
@@ -453,6 +623,32 @@ export default function PixelForgePage() {
                   </div>
                   <input type="range" min="4" max="16" value={zoom} onChange={e => { const v = Number(e.target.value); setZoom(v); sfx.playSlider(v / 16); }} className="w-full" />
                 </div>
+
+                {/* Contrast */}
+                <div>
+                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
+                    <span>Contrast</span><span>{contrast}</span>
+                  </div>
+                  <input type="range" min="-128" max="128" value={contrast} onChange={e => { setContrast(Number(e.target.value)); }} className="w-full" />
+                </div>
+
+                {/* Brightness */}
+                <div>
+                  <div className="flex justify-between text-[9px] text-muted-foreground" style={font}>
+                    <span>Brightness</span><span>{brightness}</span>
+                  </div>
+                  <input type="range" min="-128" max="128" value={brightness} onChange={e => { setBrightness(Number(e.target.value)); }} className="w-full" />
+                </div>
+
+                {(contrast !== 0 || brightness !== 0) && (
+                  <button
+                    onClick={() => { sfx.playClick(); setContrast(0); setBrightness(0); }}
+                    className="w-full border border-neutral-700 dark:border-neutral-600 p-1 text-[9px] uppercase hover:bg-foreground/5 transition-colors"
+                    style={font}
+                  >
+                    Reset
+                  </button>
+                )}
 
                 {/* BG Opacity */}
                 <div>
@@ -528,37 +724,36 @@ export default function PixelForgePage() {
             {/* Canvas */}
             <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] flex flex-col">
               <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex justify-between items-center gap-2">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <input
                     type="number"
                     min={MIN_CANVAS_SIZE}
                     max={MAX_CANVAS_SIZE}
                     value={canvasWidth}
                     onChange={e => setCanvasWidth(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
-                    className="w-14 sm:w-16 bg-transparent border border-neutral-600 dark:border-neutral-500 px-2 py-1 text-[10px] sm:text-xs text-foreground text-center focus:outline-none focus:border-foreground"
+                    className="w-9 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[9px] text-foreground text-center focus:outline-none focus:border-foreground"
                     style={font}
                   />
-                  <span className="text-[10px] text-muted-foreground/50" style={font}>x</span>
+                  <span className="text-[9px] text-muted-foreground/40" style={font}>x</span>
                   <input
                     type="number"
                     min={MIN_CANVAS_SIZE}
                     max={MAX_CANVAS_SIZE}
                     value={canvasHeight}
                     onChange={e => setCanvasHeight(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
-                    className="w-14 sm:w-16 bg-transparent border border-neutral-600 dark:border-neutral-500 px-2 py-1 text-[10px] sm:text-xs text-foreground text-center focus:outline-none focus:border-foreground"
+                    className="w-9 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[9px] text-foreground text-center focus:outline-none focus:border-foreground"
                     style={font}
                   />
-                  <span className="text-[10px] text-muted-foreground/30" style={font}>px</span>
                 </div>
-                <div className="flex gap-0.5">
+                <div className="flex gap-px">
                   {CANVAS_PRESETS.map(s => (
                     <button
                       key={s}
                       onClick={() => { sfx.playClick(); setCanvasWidth(s); setCanvasHeight(s); }}
-                      className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
+                      className={`px-1 py-0.5 text-[8px] border transition-colors ${
                         canvasWidth === s && canvasHeight === s
                           ? 'border-foreground bg-foreground/10 text-foreground'
-                          : 'border-neutral-600 dark:border-neutral-500 text-muted-foreground/50 hover:border-foreground/50'
+                          : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
                       }`}
                       style={font}
                     >

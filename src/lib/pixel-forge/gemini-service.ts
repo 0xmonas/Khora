@@ -5,8 +5,10 @@ export async function generatePixelAsset(
   prompt: string,
   width: number,
   height: number,
+  paletteColors: string[],
   referenceImageBase64?: string,
 ): Promise<string> {
+  const paletteHex = paletteColors.join(', ');
   const ai = new GoogleGenAI({ apiKey });
   const model = 'gemini-3-pro-image-preview';
 
@@ -23,14 +25,14 @@ RULES:
 2. Place the item where it belongs on the character (hat on head, sword in hand).
 3. Output must be exactly ${width}x${height} pixels.
 4. Pure pixel art style. No anti-aliasing, no blur. Hard pixel edges only.
-5. Use the C64 16-color palette ONLY: #000000, #626262, #898989, #ADADAD, #FFFFFF, #9F4E44, #CB7E75, #6D5412, #A1683C, #C9D487, #9AE29B, #5CAB5E, #6ABFC6, #887ECB, #50459B, #A057A3.
+5. Use ONLY these colors: ${paletteHex}.
 6. Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`,
     });
   } else {
     parts.push({
       text: `Generate a ${width}x${height} pixel art sprite of: ${prompt}.
 Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.
-Use ONLY the C64 16-color palette: #000000, #626262, #898989, #ADADAD, #FFFFFF, #9F4E44, #CB7E75, #6D5412, #A1683C, #C9D487, #9AE29B, #5CAB5E, #6ABFC6, #887ECB, #50459B, #A057A3.
+Use ONLY these colors: ${paletteHex}.
 Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`,
     });
   }
