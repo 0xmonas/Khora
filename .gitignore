@@ -55,6 +55,9 @@ docs/
 .cursor/
 .vscode/
 
+# data
+data/
+
 # test scripts (contain model references, run locally only)
 scripts/tests/
 
