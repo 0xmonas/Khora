@@ -29,6 +29,8 @@ const PUBLIC_READ_PATHS = [
   '/api/agent-registry',
   '/api/stats',
   '/api/pixel-forge-import',
+  '/api/agent-files',
+  '/api/booa-token',
 ];
 
 export async function middleware(request: NextRequest) {

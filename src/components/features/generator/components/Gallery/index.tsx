@@ -91,24 +91,7 @@ function TxHashLink({ hash, label, chainId }: { hash: `0x${string}`; label: stri
   );
 }
 
-// Build a KhoraAgent-like object from on-chain traits for downloads
-function traitsToAgent(traits: OnChainTrait[]): KhoraAgent {
-  const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
-  const getAll = (type: string) => traits.filter(t => t.trait_type === type).map(t => t.value);
-  return {
-    name: get('Name') || 'Agent',
-    description: get('Description'),
-    creature: get('Creature'),
-    vibe: get('Vibe'),
-    emoji: get('Emoji'),
-    personality: getAll('Personality'),
-    boundaries: getAll('Boundary'),
-    skills: getAll('Skill'),
-    domains: getAll('Domain'),
-    services: [],
-    image: '',
-  };
-}
+import { traitsToAgent } from '@/utils/helpers/exportFormats';
 
 async function downloadFormat(
   agent: KhoraAgent,

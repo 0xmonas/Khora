@@ -99,16 +99,65 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
   };
 }
 
-export function toIdentityMd(agent: KhoraAgent, onChainImage?: string): string {
+export function traitsToAgent(traits: { trait_type: string; value: string }[]): KhoraAgent {
+  const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
+  const getAll = (type: string) => traits.filter(t => t.trait_type === type).map(t => t.value);
+  return {
+    name: get('Name') || 'Agent',
+    description: get('Description'),
+    creature: get('Creature'),
+    vibe: get('Vibe'),
+    emoji: get('Emoji'),
+    personality: getAll('Personality'),
+    boundaries: getAll('Boundary'),
+    skills: getAll('Skill'),
+    domains: getAll('Domain'),
+    services: [],
+    image: '',
+  };
+}
+
+export function toIdentityMd(agent: KhoraAgent, onChainImage?: string, rawTraits?: { trait_type: string; value: string }[]): string {
   const avatar = onChainImage || '(not minted yet)';
-  return `# IDENTITY
+  const get = (type: string) => rawTraits?.find(t => t.trait_type === type)?.value || '';
+
+  const hair = get('Hair');
+  const eyes = get('Eyes');
+  const mouth = get('Mouth');
+  const facialFeature = get('Facial Feature');
+  const eyewear = get('Eyewear');
+  const outfit = get('Outfit');
+  const skin = get('Skin');
+  const memeCore = get('Meme Core');
+  const traitIntensity = get('Trait Intensity');
+  const palette = get('Palette');
+
+  let md = `# IDENTITY
 
 **Name:** ${agent.name}
 **Creature:** ${agent.creature}
 **Vibe:** ${agent.vibe}
 **Emoji:** ${agent.emoji}
 **Avatar:** ${avatar}
+
+## Appearance
 `;
+  if (skin) md += `- **Skin:** ${skin}\n`;
+  if (hair) md += `- **Hair:** ${hair}\n`;
+  if (eyes) md += `- **Eyes:** ${eyes}\n`;
+  if (mouth) md += `- **Mouth:** ${mouth}\n`;
+  if (facialFeature) md += `- **Facial Feature:** ${facialFeature}\n`;
+  if (eyewear) md += `- **Eyewear:** ${eyewear}\n`;
+  if (outfit) md += `- **Outfit:** ${outfit}\n`;
+
+  if (memeCore || traitIntensity || palette) {
+    md += `\n## Scores\n`;
+    if (memeCore) md += `- **Meme Core:** ${memeCore}\n`;
+    if (traitIntensity) md += `- **Trait Intensity:** ${traitIntensity}\n`;
+    if (palette) md += `- **Palette:** ${palette}\n`;
+  }
+
+  return md;
 }
 
 export function toSoulMd(agent: KhoraAgent): string {
@@ -120,7 +169,15 @@ export function toSoulMd(agent: KhoraAgent): string {
     ? agent.boundaries.map(b => `- ${b}`).join('\n')
     : 'No boundaries defined.';
 
-  return `# SOUL
+  const skillsSection = agent.skills.length > 0
+    ? agent.skills.map(s => `- ${s}`).join('\n')
+    : '';
+
+  const domainsSection = agent.domains.length > 0
+    ? agent.domains.map(d => `- ${d}`).join('\n')
+    : '';
+
+  let md = `# SOUL
 
 > ${agent.description}
 
@@ -131,7 +188,12 @@ ${personalitySection}
 ## Boundaries
 
 ${boundariesSection}
+`;
 
+  if (skillsSection) md += `\n## Skills\n\n${skillsSection}\n`;
+  if (domainsSection) md += `\n## Domains\n\n${domainsSection}\n`;
+
+  md += `
 ## Vibe
 
 ${agent.vibe || 'Not defined.'}
@@ -140,6 +202,7 @@ ${agent.vibe || 'Not defined.'}
 
 This agent's identity and art are stored fully on-chain. No external dependencies.
 `;
+  return md;
 }
 
 export function toUserMd(): string {
