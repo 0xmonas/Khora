@@ -585,16 +585,27 @@ export default function BannerBuilderPage() {
   const [formation, setFormation] = useState<Formation>('auto');
   const [shadow, setShadow] = useState<ShadowConfig>({ enabled: false, offsetX: 8, offsetY: 8, blur: 12, color: '#000000', opacity: 0.65 });
   const [badge, setBadge] = useState<BadgeConfig>({ enabled: false, bgColor: '#000000', textColor: '#ffffff' });
+  const [hiddenNfts, setHiddenNfts] = useState<Set<string>>(new Set());
 
   const getRenderOpts = useCallback((): RenderOptions => ({
     bgColor: customBgColor ?? (bgMode === 'dark' ? '#0a0a0a' : '#ffffff'),
     formation, shadow, badge,
   }), [bgMode, customBgColor, formation, shadow, badge]);
 
+  const visibleNfts = selectedNfts.filter(n => !hiddenNfts.has(n.tokenId));
+
+  const toggleHide = (tokenId: string) => {
+    setHiddenNfts(prev => {
+      const next = new Set(prev);
+      next.has(tokenId) ? next.delete(tokenId) : next.add(tokenId);
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (!canvasRef.current) return;
-    renderBanner(canvasRef.current, selectedNfts, getRenderOpts());
-  }, [selectedNfts, bgMode, customBgColor, formation, shadow, badge, getRenderOpts]);
+    renderBanner(canvasRef.current, visibleNfts, getRenderOpts());
+  }, [visibleNfts, bgMode, customBgColor, formation, shadow, badge, getRenderOpts]);
 
   // Extract color palette from selected agents' bitmaps
   useEffect(() => {
@@ -626,8 +637,8 @@ export default function BannerBuilderPage() {
     setSelectedNfts(prev => { const arr = [...prev]; const [item] = arr.splice(from, 1); arr.splice(to, 0, item); return arr; });
   };
   const handleExport = async () => {
-    if (selectedNfts.length === 0) return;
-    const dataUrl = await exportCanvas(document.createElement('canvas'), selectedNfts, getRenderOpts());
+    if (visibleNfts.length === 0) return;
+    const dataUrl = await exportCanvas(document.createElement('canvas'), visibleNfts, getRenderOpts());
     const link = document.createElement('a'); link.download = 'booa-banner.png'; link.href = dataUrl; link.click();
   };
 
@@ -721,7 +732,8 @@ export default function BannerBuilderPage() {
                       </div>
                       {/* Agent color palette swatches — extracted live from selected agents */}
                       {bgPalette.length > 0 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] uppercase tracking-wider text-muted-foreground/40" style={font}>Agent Colors</span>
                           {bgPalette.map(color => (
                             <button
                               key={color}
@@ -820,7 +832,7 @@ export default function BannerBuilderPage() {
                     <SortableStrip nfts={selectedNfts} onReorder={reorderNfts} onRemove={removeNft} />
                   </div>
 
-                  {/* Owned NFTs — grid */}
+                  {/* Owned NFTs — grid with per-agent toggle */}
                   <div>
                     <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-2 block" style={font}>
                       Your Agents ({ownedNfts.length})
@@ -828,21 +840,45 @@ export default function BannerBuilderPage() {
                     <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
                       {ownedNfts.map((nft, idx) => {
                         const sel = isSelected(nft.tokenId);
+                        const hidden = hiddenNfts.has(nft.tokenId);
                         return (
-                          <button key={`${nft.tokenId}-${idx}`} onClick={() => sel ? removeNft(nft.tokenId) : addNft(nft)}
-                            className={`relative aspect-square border-2 transition-all ${sel ? 'border-neutral-400 dark:border-white ring-1 ring-neutral-400/30 dark:ring-white/30' : 'border-neutral-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400'}`}>
-                            {nft.svg ? (
-                              <img src={`data:image/svg+xml,${encodeURIComponent(nft.svg)}`} alt={nft.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
-                            ) : nft.imageUrl ? (
-                              <img src={nft.imageUrl} alt={nft.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center text-[8px] text-muted-foreground" style={font}>#{nft.tokenId}</div>
+                          <div key={`${nft.tokenId}-${idx}`} className="flex flex-col gap-0.5">
+                            {/* Agent thumbnail */}
+                            <button
+                              onClick={() => sel ? removeNft(nft.tokenId) : addNft(nft)}
+                              className={`relative aspect-square border-2 transition-all ${
+                                sel
+                                  ? 'border-neutral-400 dark:border-white ring-1 ring-neutral-400/30 dark:ring-white/30'
+                                  : 'border-neutral-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400'
+                              } ${hidden ? 'opacity-30' : ''}`}
+                            >
+                              {nft.svg ? (
+                                <img src={`data:image/svg+xml,${encodeURIComponent(nft.svg)}`} alt={nft.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
+                              ) : nft.imageUrl ? (
+                                <img src={nft.imageUrl} alt={nft.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center text-[8px] text-muted-foreground" style={font}>#{nft.tokenId}</div>
+                              )}
+                              <div className={`absolute inset-0 flex items-center justify-center transition-colors ${sel ? 'bg-neutral-500/20 dark:bg-white/20' : 'bg-transparent hover:bg-black/20'}`}>
+                                {sel ? <Minus className="w-4 h-4 text-white drop-shadow" /> : <Plus className="w-4 h-4 text-white opacity-0 hover:opacity-100 drop-shadow" />}
+                              </div>
+                              <span className="absolute bottom-0 left-0 right-0 text-center text-[7px] text-white bg-black/50 truncate px-0.5" style={font}>#{nft.tokenId}</span>
+                            </button>
+                            {/* Per-agent ON/OFF toggle — only shown when selected */}
+                            {sel && (
+                              <button
+                                onClick={() => toggleHide(nft.tokenId)}
+                                className={`w-full text-[7px] py-0.5 border transition-colors ${
+                                  hidden
+                                    ? 'border-neutral-600 text-neutral-600 dark:border-neutral-500 dark:text-neutral-500'
+                                    : 'border-neutral-400 dark:border-neutral-400 text-neutral-400 dark:text-neutral-400 hover:border-neutral-200 hover:text-neutral-200'
+                                }`}
+                                style={font}
+                              >
+                                {hidden ? 'OFF' : 'ON'}
+                              </button>
                             )}
-                            <div className={`absolute inset-0 flex items-center justify-center transition-colors ${sel ? 'bg-neutral-500/20 dark:bg-white/20' : 'bg-transparent hover:bg-black/20'}`}>
-                              {sel ? <Minus className="w-4 h-4 text-white drop-shadow" /> : <Plus className="w-4 h-4 text-white opacity-0 hover:opacity-100 drop-shadow" />}
-                            </div>
-                            <span className="absolute bottom-0 left-0 right-0 text-center text-[7px] text-white bg-black/50 truncate px-0.5" style={font}>#{nft.tokenId}</span>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

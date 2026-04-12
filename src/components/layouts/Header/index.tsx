@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Moon, Sun, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { sfx } from '@/lib/sounds';
@@ -123,9 +123,15 @@ const NAV_LINKS: { href: string; label: string; highlight?: boolean }[] = [
 
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(() => sfx.isEnabled());
+
+  // Show Edit switcher on studio tool pages
+  const isStudioTool = pathname?.startsWith('/studio/') && pathname !== '/studio';
+  const isBanner = pathname?.includes('banner-builder');
+  const isDJ = pathname?.includes('dj-studio');
 
   // Lock body scroll when menu is open
   useEffect(() => {
@@ -184,6 +190,36 @@ export function Header() {
                 ))}
               </nav>
               <div className="flex items-center gap-4">
+                {/* Edit switcher — visible on studio tool pages */}
+                {isStudioTool && (
+                  <div className="hidden sm:flex items-center border border-neutral-300 dark:border-neutral-700">
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 px-2 border-r border-neutral-300 dark:border-neutral-700 h-full flex items-center" style={walletFont}>
+                      Edit
+                    </span>
+                    <Link
+                      href="/studio/banner-builder"
+                      className={`px-3 py-1.5 text-[9px] uppercase tracking-wider transition-colors ${
+                        isBanner
+                          ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      style={walletFont}
+                    >
+                      Banner
+                    </Link>
+                    <Link
+                      href="/studio/dj-studio"
+                      className={`px-3 py-1.5 text-[9px] uppercase tracking-wider transition-colors border-l border-neutral-300 dark:border-neutral-700 ${
+                        isDJ
+                          ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      style={walletFont}
+                    >
+                      Music
+                    </Link>
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     const next = !soundOn;
