@@ -31,6 +31,7 @@ const PUBLIC_READ_PATHS = [
   '/api/pixel-forge-import',
   '/api/agent-files',
   '/api/booa-token',
+  '/api/banner-nfts',
 ];
 
 export async function middleware(request: NextRequest) {
