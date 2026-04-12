@@ -12,10 +12,6 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 const CANVAS_W = 1500;
 const CANVAS_H = 500;
 const PAD = 40;
-const AW = CANVAS_W - PAD * 2;
-const AH = CANVAS_H - PAD * 2;
-
-const MIN_AGENT_SIZE = 36; // never render smaller than this for clarity
 
 // ══════════════════════════════════════════════════════════════
 //  PALETTE EXTRACTION
@@ -87,18 +83,6 @@ interface BannerNft {
   imageUrl: string;
 }
 
-type Formation =
-  | 'auto'
-  | 'line'
-  | 'wedge'
-  | 'diamond'
-  | 'flanks'
-  | 'v-formation'
-  | 'circle'
-  | 'scatter'
-  | 'diagonal'
-  | 'arc'
-  | 'staggered';
 
 interface ShadowConfig {
   enabled: boolean;
@@ -117,205 +101,12 @@ interface BadgeConfig {
 
 interface RenderOptions {
   bgColor: string;
-  formation: Formation;
   shadow: ShadowConfig;
   badge: BadgeConfig;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  FORMATION LOGIC
-// ══════════════════════════════════════════════════════════════
 
-function calcLayout(count: number) {
-  if (count === 0) return { cols: 0, rows: 0, size: 0 };
-  if (count <= 4) {
-    const cols = count;
-    const size = Math.max(MIN_AGENT_SIZE, Math.min(CANVAS_H - PAD * 2, (CANVAS_W - PAD * 2) / cols));
-    return { cols, rows: 1, size };
-  }
-  let bestCols = count;
-  let bestSize = 0;
-  for (let c = 2; c <= count; c++) {
-    const r = Math.ceil(count / c);
-    const s = Math.min((CANVAS_W - PAD * 2) / c, (CANVAS_H - PAD * 2) / r);
-    if (s > bestSize) { bestSize = s; bestCols = c; }
-  }
-  return { cols: bestCols, rows: Math.ceil(count / bestCols), size: Math.max(MIN_AGENT_SIZE, bestSize) };
-}
 
-interface FormationResult {
-  positions: { x: number; y: number }[];
-  size: number;
-}
-
-function computeFormation(count: number, formation: Formation): FormationResult {
-  if (count === 0) return { positions: [], size: 0 };
-
-  if (formation === 'auto') {
-    const { cols, size } = calcLayout(count);
-    const rows = Math.ceil(count / cols);
-    const totalW = cols * size;
-    const totalH = rows * size;
-    const ox = PAD + (AW - totalW) / 2;
-    const oy = PAD + (AH - totalH) / 2;
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => ({
-        x: ox + (i % cols) * size,
-        y: oy + Math.floor(i / cols) * size,
-      })),
-    };
-  }
-
-  if (formation === 'line') {
-    const size = Math.min(AH, AW / count);
-    const totalW = count * size;
-    const ox = PAD + (AW - totalW) / 2;
-    const oy = PAD + (AH - size) / 2;
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => ({ x: ox + i * size, y: oy })),
-    };
-  }
-
-  if (formation === 'wedge') {
-    const rowCounts: number[] = [];
-    let remaining = count;
-    let r = 1;
-    while (remaining > 0) { const n = Math.min(r, remaining); rowCounts.push(n); remaining -= n; r++; }
-    const totalRows = rowCounts.length;
-    const maxRowLen = rowCounts[rowCounts.length - 1];
-    const size = Math.min(AH / maxRowLen, AW / (totalRows + 1));
-    const xStep = (AW - size) / Math.max(1, totalRows);
-    const positions: { x: number; y: number }[] = [];
-    rowCounts.forEach((n, rowIdx) => {
-      const rowX = PAD + (totalRows - 1 - rowIdx) * xStep;
-      const rowH = n * size;
-      const rowOy = PAD + (AH - rowH) / 2;
-      for (let j = 0; j < n; j++) positions.push({ x: rowX, y: rowOy + j * size });
-    });
-    return { size, positions };
-  }
-
-  if (formation === 'diamond') {
-    const sideLen = Math.ceil(Math.sqrt(count));
-    const size = Math.min(AW / (sideLen * 2 + 1), AH / (sideLen + 1));
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
-    const pts: { x: number; y: number }[] = [];
-    outer: for (let dist = 0; dist <= sideLen * 2; dist++) {
-      for (let di = -dist; di <= dist; di++) {
-        const dj_abs = dist - Math.abs(di);
-        const variants = dj_abs === 0 ? [0] : [dj_abs, -dj_abs];
-        for (const dj of variants) {
-          pts.push({ x: cx + di * size - size / 2, y: cy + dj * size - size / 2 });
-          if (pts.length >= count) break outer;
-        }
-      }
-    }
-    return { size, positions: pts.slice(0, count) };
-  }
-
-  if (formation === 'flanks') {
-    const leftCount = Math.ceil(count / 2);
-    const rightCount = count - leftCount;
-    const groupW = AW * 0.38;
-    const lCols = Math.ceil(Math.sqrt(leftCount));
-    const lRows = Math.ceil(leftCount / lCols);
-    const size = Math.min(groupW / lCols, AH / lRows);
-    const positions: { x: number; y: number }[] = [];
-    const lOy = PAD + (AH - lRows * size) / 2;
-    for (let i = 0; i < leftCount; i++) positions.push({ x: PAD + (i % lCols) * size, y: lOy + Math.floor(i / lCols) * size });
-    const rCols = Math.ceil(Math.sqrt(rightCount));
-    const rRows = Math.ceil(rightCount / rCols);
-    const rOx = CANVAS_W - PAD - rCols * size;
-    const rOy = PAD + (AH - rRows * size) / 2;
-    for (let i = 0; i < rightCount; i++) positions.push({ x: rOx + (i % rCols) * size, y: rOy + Math.floor(i / rCols) * size });
-    return { size, positions };
-  }
-
-  if (formation === 'v-formation') {
-    const wingLen = Math.ceil((count - 1) / 2);
-    const size = Math.min(AH / (wingLen + 2), AW / (wingLen + 2));
-    const xStep = Math.min((AW - size) / Math.max(1, wingLen), size * 1.5);
-    const yStep = Math.min((AH / 2 - size) / Math.max(1, wingLen), size * 0.9);
-    const leaderX = PAD;
-    const leaderY = PAD + (AH - size) / 2;
-    const positions: { x: number; y: number }[] = [{ x: leaderX, y: leaderY }];
-    for (let i = 1; i < count; i++) {
-      const wingIdx = Math.ceil(i / 2);
-      const isUpper = i % 2 === 1;
-      positions.push({ x: leaderX + wingIdx * xStep, y: leaderY + (isUpper ? -1 : 1) * wingIdx * yStep });
-    }
-    return { size, positions };
-  }
-
-  if (formation === 'circle') {
-    const radius = Math.min(AW * 0.36, AH * 0.42);
-    const size = Math.min(140, (2 * Math.PI * radius) / Math.max(count, 1) * 0.75);
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => {
-        const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
-        return { x: cx + radius * Math.cos(angle) - size / 2, y: cy + radius * Math.sin(angle) - size / 2 };
-      }),
-    };
-  }
-
-  if (formation === 'scatter') {
-    const phi = (1 + Math.sqrt(5)) / 2;
-    const size = Math.min(140, Math.sqrt((AW * AH) / count) * 0.65);
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => {
-        const r = Math.sqrt((i + 0.5) / count) * Math.min(AW, AH) * 0.46;
-        const theta = 2 * Math.PI * i * phi;
-        return { x: CANVAS_W / 2 + r * Math.cos(theta) - size / 2, y: CANVAS_H / 2 + r * Math.sin(theta) - size / 2 };
-      }),
-    };
-  }
-
-  if (formation === 'diagonal') {
-    const size = Math.min(160, Math.min(AW, AH) / Math.max(count * 0.5, 1));
-    const xStep = count > 1 ? (AW - size) / (count - 1) : 0;
-    const yStep = count > 1 ? (AH - size) / (count - 1) : 0;
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => ({ x: PAD + i * xStep, y: PAD + i * yStep })),
-    };
-  }
-
-  if (formation === 'arc') {
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H * 1.15;
-    const radius = AH * 0.95;
-    const size = Math.min(150, (Math.PI * radius) / Math.max(count, 1) * 0.75);
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => {
-        const t = count > 1 ? i / (count - 1) : 0.5;
-        const angle = Math.PI * 1.1 + t * (Math.PI * 1.9 - Math.PI * 1.1);
-        return { x: cx + radius * Math.cos(angle) - size / 2, y: cy + radius * Math.sin(angle) - size / 2 };
-      }),
-    };
-  }
-
-  if (formation === 'staggered') {
-    const size = Math.min(AH * 0.52, AW / count);
-    const totalW = count * size;
-    const ox = PAD + (AW - totalW) / 2;
-    const y1 = PAD + AH * 0.03;
-    const y2 = PAD + AH * 0.45;
-    return {
-      size,
-      positions: Array.from({ length: count }, (_, i) => ({ x: ox + i * size, y: i % 2 === 0 ? y1 : y2 })),
-    };
-  }
-
-  return computeFormation(count, 'auto');
-}
 
 // ══════════════════════════════════════════════════════════════
 //  CANVAS RENDERER
@@ -380,7 +171,28 @@ async function renderBannerToCtx(
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   if (nfts.length === 0) return;
 
-  const { positions, size } = computeFormation(nfts.length, opts.formation);
+  // Simple auto-grid layout
+  const count = nfts.length;
+  const getCols = (n: number) => {
+    if (n <= 4) return n;
+    let bc = 2, bs = 0;
+    for (let c = 2; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      const s = Math.min((CANVAS_W - PAD * 2) / c, (CANVAS_H - PAD * 2) / r);
+      if (s > bs) { bs = s; bc = c; }
+    }
+    return bc;
+  };
+  const cols = getCols(count);
+  const rows = Math.ceil(count / cols);
+  const size = Math.min((CANVAS_W - PAD * 2) / cols, (CANVAS_H - PAD * 2) / rows);
+  const totalW = cols * size, totalH = rows * size;
+  const ox = PAD + ((CANVAS_W - PAD * 2) - totalW) / 2;
+  const oy = PAD + ((CANVAS_H - PAD * 2) - totalH) / 2;
+  const positions = Array.from({ length: count }, (_, i) => ({
+    x: ox + (i % cols) * size,
+    y: oy + Math.floor(i / cols) * size,
+  }));
   ctx.imageSmoothingEnabled = false;
 
   const bitmaps = await Promise.all(
@@ -443,52 +255,6 @@ function exportCanvas(canvas: HTMLCanvasElement, nfts: BannerNft[], opts: Render
   return renderBannerToCtx(exp, nfts, opts, 1).then(() => exp.toDataURL('image/png'));
 }
 
-// ══════════════════════════════════════════════════════════════
-//  FORMATION PICKER
-// ══════════════════════════════════════════════════════════════
-
-const FORMATIONS: { label: string; value: Formation; category: string }[] = [
-  { label: 'Auto',       value: 'auto',       category: 'Default'         },
-  { label: 'Line',       value: 'line',        category: 'Military'        },
-  { label: 'Wedge',      value: 'wedge',       category: 'Military'        },
-  { label: 'Diamond',    value: 'diamond',     category: 'Military'        },
-  { label: 'Flanks',     value: 'flanks',      category: 'Military'        },
-  { label: 'V-Flight',   value: 'v-formation', category: 'Nature / Animal' },
-  { label: 'Circle',     value: 'circle',      category: 'Nature / Animal' },
-  { label: 'Scatter',    value: 'scatter',     category: 'Nature / Animal' },
-  { label: 'Diagonal',   value: 'diagonal',    category: 'Dance'           },
-  { label: 'Arc',        value: 'arc',         category: 'Dance'           },
-  { label: 'Staggered',  value: 'staggered',   category: 'Dance'           },
-];
-const CATEGORIES = ['Default', 'Military', 'Nature / Animal', 'Dance'];
-
-function FormationPicker({ value, onChange }: { value: Formation; onChange: (f: Formation) => void }) {
-  return (
-    <div className="space-y-3">
-      {CATEGORIES.map(cat => (
-        <div key={cat}>
-          <p className="text-[8px] uppercase tracking-widest text-muted-foreground/50 mb-1.5" style={font}>{cat}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {FORMATIONS.filter(f => f.category === cat).map(f => (
-              <button
-                key={f.value}
-                onClick={() => onChange(f.value)}
-                className={`px-3 py-1.5 border text-[9px] transition-colors ${
-                  value === f.value
-                    ? 'border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
-                    : 'border-neutral-300 dark:border-neutral-600 text-neutral-500 hover:border-neutral-500 hover:text-foreground'
-                }`}
-                style={font}
-              >
-                {f.label.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════
 //  SLIDER ROW
@@ -582,15 +348,14 @@ export default function BannerBuilderPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chain = network === 'mainnet' ? 'shape' : 'shape-sepolia';
 
-  const [formation, setFormation] = useState<Formation>('auto');
   const [shadow, setShadow] = useState<ShadowConfig>({ enabled: false, offsetX: 8, offsetY: 8, blur: 12, color: '#000000', opacity: 0.65 });
   const [badge, setBadge] = useState<BadgeConfig>({ enabled: false, bgColor: '#000000', textColor: '#ffffff' });
   const [hiddenNfts, setHiddenNfts] = useState<Set<string>>(new Set());
 
   const getRenderOpts = useCallback((): RenderOptions => ({
     bgColor: customBgColor ?? (bgMode === 'dark' ? '#0a0a0a' : '#ffffff'),
-    formation, shadow, badge,
-  }), [bgMode, customBgColor, formation, shadow, badge]);
+    shadow, badge,
+  }), [bgMode, customBgColor, shadow, badge]);
 
   const visibleNfts = selectedNfts.filter(n => !hiddenNfts.has(n.tokenId));
 
@@ -605,7 +370,7 @@ export default function BannerBuilderPage() {
   useEffect(() => {
     if (!canvasRef.current) return;
     renderBanner(canvasRef.current, visibleNfts, getRenderOpts());
-  }, [visibleNfts, bgMode, customBgColor, formation, shadow, badge, getRenderOpts]);
+  }, [visibleNfts, bgMode, customBgColor, shadow, badge, getRenderOpts]);
 
   // Extract color palette from selected agents' bitmaps
   useEffect(() => {
@@ -757,13 +522,7 @@ export default function BannerBuilderPage() {
                   </div>
 
                   {/* ── ADVANCED CONTROLS ─────────────────────────────────── */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                    {/* Formation */}
-                    <div className="md:col-span-2 border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground" style={font}>Formation</p>
-                      <FormationPicker value={formation} onChange={setFormation} />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                     {/* Shadow + Badge */}
                     <div className="space-y-4">
