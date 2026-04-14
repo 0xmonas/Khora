@@ -77,6 +77,9 @@ export function Footer() {
                 &copy; 2025 KHORA.FUN
               </p>
               <div className="flex flex-wrap items-center gap-6">
+                <Link href="/docs" className={linkClass} style={footerFont}>
+                  Docs
+                </Link>
                 <Link href="/terms" className={linkClass} style={footerFont}>
                   Terms
                 </Link>
