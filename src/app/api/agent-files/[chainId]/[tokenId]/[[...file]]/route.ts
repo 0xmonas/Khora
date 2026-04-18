@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getV2Address, getV2StorageAddress, BOOA_V2_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
 import { traitsToAgent, toSoulMd, toIdentityMd, toERC8004 } from '@/utils/helpers/exportFormats';
 
 export const maxDuration = 15;
+
+let agentDefenseCache: string | null = null;
+async function getAgentDefense(): Promise<string | null> {
+  if (agentDefenseCache !== null) return agentDefenseCache;
+  try {
+    const filePath = path.join(process.cwd(), 'public', 'agent-defense.md');
+    agentDefenseCache = await readFile(filePath, 'utf-8');
+    return agentDefenseCache;
+  } catch {
+    return null;
+  }
+}
 
 const MAINNET_CHAIN_IDS = new Set(
   Object.values(CHAIN_CONFIG)
@@ -152,6 +166,11 @@ export async function GET(
     const { image: _, ...agentData } = agent;
     zip.file('agent.json', JSON.stringify({ ...agentData, caipRef }, null, 2));
     zip.file('erc8004.json', JSON.stringify(toERC8004(agent), null, 2));
+
+    const agentDefense = await getAgentDefense();
+    if (agentDefense) {
+      zip.file('agent-defense.md', agentDefense);
+    }
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     const safeName = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'agent';

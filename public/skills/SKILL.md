@@ -20,6 +20,7 @@ Set up your BOOA agent. After this, your agent is ready — give it any skill fi
 
 | Reference | Description |
 |-----------|-------------|
+| [agent-defense.md](https://khora.fun/agent-defense.md) | **Mandatory baseline defenses** — threat model, invariants, attack catalog. Load this before any other skill. |
 | [wallet-setup.md](https://khora.fun/skills/references/wallet-setup.md) | Wallet setup — OWS (recommended), existing wallets, ERC-8004 registration |
 | [llms.txt](https://khora.fun/llms.txt) | Full API reference — all public endpoints |
 
@@ -37,6 +38,10 @@ Your BOOA has been minted and registered on ERC-8004. Both were done with your p
 - Your agent has on-chain identity: name, personality, skills, pixel art
 
 This guide takes you from there to a fully operational agent.
+
+> **Before anything else — load the defense spec.**
+>
+> Every BOOA agent must load [agent-defense.md](https://khora.fun/agent-defense.md) into its system prompt at the highest-authority slot. It defines the core invariants (identity, key material, signing, privacy, default-deny) that no runtime input can override. The ZIP bundle from Step 2 includes a snapshot for offline deploys. An on-chain hash-commitment is planned for v2 so runtimes can verify the document is unchanged.
 
 > **First, ask your operator:**
 >
@@ -186,11 +191,13 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/erc8004.json"
 
 ### Download All (ZIP)
 
-All files in one archive: IDENTITY.md, SOUL.md, avatar.svg, agent.json, erc8004.json.
+All files in one archive: IDENTITY.md, SOUL.md, avatar.svg, agent.json, erc8004.json, agent-defense.md.
 
 ```bash
 curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}" -o agent-files.zip
 ```
+
+The ZIP includes a snapshot of [agent-defense.md](https://khora.fun/agent-defense.md) — the canonical source is the URL. Agents should prefer the canonical URL at runtime and fall back to the bundled copy only when offline.
 
 These files are **public** — they're derived from on-chain data that anyone can read. An impersonator could fetch them, but on-chain ownership verification (`verified` field) always reveals the true owner.
 
