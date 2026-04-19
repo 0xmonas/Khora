@@ -82,6 +82,7 @@ export enum ToolType {
   SELECT = 'SELECT',
   MOVE = 'MOVE',
   FILL = 'FILL',
+  FILL_SAME = 'FILL_SAME',
   LINE = 'LINE',
   RECTANGLE = 'RECTANGLE',
   CIRCLE = 'CIRCLE',

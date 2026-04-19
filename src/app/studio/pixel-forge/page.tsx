@@ -6,7 +6,7 @@ import {
   Pencil, Eraser, Pipette, Download, BoxSelect,
   Wand2, Upload, Loader2, Undo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
-  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet,
+  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -197,6 +197,27 @@ export default function PixelForgePage() {
     if (activeLayerId === id) setActiveLayerId(newLayers[0].id);
   };
 
+  const handleDuplicateLayer = (id: string) => {
+    const source = layers.find(l => l.id === id);
+    if (!source) return;
+    const copy: Layer = {
+      ...source,
+      id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      name: `${source.name} copy`,
+      isLocked: false,
+    };
+    const idx = layers.findIndex(l => l.id === id);
+    const newLayers = [...layers.slice(0, idx), copy, ...layers.slice(idx)];
+    pushToHistory(newLayers);
+    if (source.data) {
+      const orig = originalLayerData.get(id);
+      if (orig) {
+        setOriginalLayerData(prev => { const next = new Map(prev); next.set(copy.id, orig); return next; });
+      }
+    }
+    setActiveLayerId(copy.id);
+  };
+
   const COLLECTIONS = {
     booa: { label: 'BOOA', max: 3333, size: 64 },
     punk: { label: 'CryptoPunk', max: 9999, size: 24 },
@@ -210,6 +231,7 @@ export default function PixelForgePage() {
       setTokenError(`Enter a valid ID (0-${col.max})`);
       return;
     }
+    const hasExistingArt = layers.some(l => l.data);
     setTokenLoading(true);
     setTokenError(null);
     try {
@@ -222,17 +244,25 @@ export default function PixelForgePage() {
         const url = URL.createObjectURL(svgBlob);
         const img = new Image();
         img.onload = () => {
-          setCanvasWidth(col.size); setCanvasHeight(col.size);
+          const newCanvasW = hasExistingArt ? Math.max(canvasWidth, col.size) : col.size;
+          const newCanvasH = hasExistingArt ? Math.max(canvasHeight, col.size) : col.size;
+          if (newCanvasW !== canvasWidth || newCanvasH !== canvasHeight) {
+            setCanvasWidth(newCanvasW); setCanvasHeight(newCanvasH);
+          }
           const cvs = document.createElement('canvas');
-          cvs.width = col.size; cvs.height = col.size;
+          cvs.width = newCanvasW; cvs.height = newCanvasH;
           const ctx = cvs.getContext('2d');
           if (ctx) {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, 0, 0, col.size, col.size);
             const pngData = cvs.toDataURL('image/png');
-            const active = layers.find(l => l.id === activeLayerId);
-            if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
-            else handleAddLayer(`BOOA #${id}`, pngData, true);
+            if (hasExistingArt) {
+              handleAddLayer(`BOOA #${id}`, pngData, true);
+            } else {
+              const active = layers.find(l => l.id === activeLayerId);
+              if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+              else handleAddLayer(`BOOA #${id}`, pngData, true);
+            }
             sfx.playSuccess();
           }
           URL.revokeObjectURL(url);
@@ -243,28 +273,38 @@ export default function PixelForgePage() {
         const imgUrl = `/api/pixel-forge-import?collection=${importCollection}&id=${id}`;
         const img = new Image();
         img.onload = () => {
-          setCanvasWidth(col.size); setCanvasHeight(col.size);
+          const newCanvasW = hasExistingArt ? Math.max(canvasWidth, col.size) : col.size;
+          const newCanvasH = hasExistingArt ? Math.max(canvasHeight, col.size) : col.size;
+          if (newCanvasW !== canvasWidth || newCanvasH !== canvasHeight) {
+            setCanvasWidth(newCanvasW); setCanvasHeight(newCanvasH);
+          }
           const cvs = document.createElement('canvas');
-          cvs.width = col.size; cvs.height = col.size;
+          cvs.width = newCanvasW; cvs.height = newCanvasH;
           const ctx = cvs.getContext('2d');
           if (ctx) {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, 0, 0, col.size, col.size);
-            const imageData = ctx.getImageData(0, 0, col.size, col.size);
-            const d = imageData.data;
-            const colorSet = new Set<string>();
-            for (let i = 0; i < d.length; i += 4) {
-              if (d[i + 3] < 128) continue;
-              const hex = '#' + ((1 << 24) + (d[i] << 16) + (d[i + 1] << 8) + d[i + 2]).toString(16).slice(1).toUpperCase();
-              colorSet.add(hex);
+            if (!hasExistingArt) {
+              const imageData = ctx.getImageData(0, 0, col.size, col.size);
+              const d = imageData.data;
+              const colorSet = new Set<string>();
+              for (let i = 0; i < d.length; i += 4) {
+                if (d[i + 3] < 128) continue;
+                const hex = '#' + ((1 << 24) + (d[i] << 16) + (d[i + 1] << 8) + d[i + 2]).toString(16).slice(1).toUpperCase();
+                colorSet.add(hex);
+              }
+              const extracted = Array.from(colorSet);
+              setCustomColors(extracted);
+              setActivePalette({ name: '__custom__', colors: [] });
             }
-            const extracted = Array.from(colorSet);
-            setCustomColors(extracted);
-            setActivePalette({ name: '__custom__', colors: [] });
             const pngData = cvs.toDataURL('image/png');
-            const active = layers.find(l => l.id === activeLayerId);
-            if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
-            else handleAddLayer(`${col.label} #${id}`, pngData, true);
+            if (hasExistingArt) {
+              handleAddLayer(`${col.label} #${id}`, pngData, true);
+            } else {
+              const active = layers.find(l => l.id === activeLayerId);
+              if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+              else handleAddLayer(`${col.label} #${id}`, pngData, true);
+            }
             sfx.playSuccess();
           }
           setTokenLoading(false);
@@ -367,12 +407,14 @@ export default function PixelForgePage() {
         const img = new Image();
         img.src = src;
         img.onload = () => {
+          const w = img.naturalWidth || canvasWidth;
+          const h = img.naturalHeight || canvasHeight;
           const cvs = document.createElement('canvas');
-          cvs.width = canvasWidth; cvs.height = canvasHeight;
+          cvs.width = w; cvs.height = h;
           const ctx = cvs.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0);
-            quantizeToPalette(ctx, canvasWidth, canvasHeight, contrast, brightness);
+            quantizeToPalette(ctx, w, h, contrast, brightness);
             updated[idx] = { ...layer, data: cvs.toDataURL('image/png') };
             changed = true;
           }
@@ -395,7 +437,17 @@ export default function PixelForgePage() {
     setGenState({ isGenerating: true, error: null });
     try {
       const composite = await getCompositeImage();
-      const result = await generatePixelAsset(apiKey, prompt, canvasWidth, canvasHeight, allColors, composite);
+      const hasExistingArt = layers.some(l => l.visible && l.data);
+      const result = await generatePixelAsset(
+        apiKey,
+        prompt,
+        canvasWidth,
+        canvasHeight,
+        allColors,
+        composite,
+        selection,
+        hasExistingArt,
+      );
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
@@ -426,13 +478,16 @@ export default function PixelForgePage() {
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
-    if (fullColor) setActivePalette(fullColor);
+    const hasExistingArt = layers.some(l => l.data);
+    if (!hasExistingArt) {
+      const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
+      if (fullColor) setActivePalette(fullColor);
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
-        const FIT = 64;
+        const FIT = Math.max(canvasWidth, canvasHeight);
         const ratio = img.naturalWidth / img.naturalHeight;
         let fitW: number, fitH: number;
         if (ratio >= 1) {
@@ -444,16 +499,23 @@ export default function PixelForgePage() {
         }
         fitW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitW));
         fitH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitH));
-        setCanvasWidth(fitW);
-        setCanvasHeight(fitH);
+        const newCanvasW = hasExistingArt ? Math.max(canvasWidth, fitW) : fitW;
+        const newCanvasH = hasExistingArt ? Math.max(canvasHeight, fitH) : fitH;
+        if (newCanvasW !== canvasWidth || newCanvasH !== canvasHeight) {
+          setCanvasWidth(newCanvasW); setCanvasHeight(newCanvasH);
+        }
         const cvs = document.createElement('canvas');
-        cvs.width = fitW; cvs.height = fitH;
+        cvs.width = newCanvasW; cvs.height = newCanvasH;
         const ctx = cvs.getContext('2d');
         if (ctx) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0, fitW, fitH); }
         const data = cvs.toDataURL('image/png');
-        const active = layers.find(l => l.id === activeLayerId);
-        if (active && !active.data) { saveOriginal(activeLayerId, data); handleUpdateLayer(activeLayerId, data); }
-        else handleAddLayer(file.name, data, true);
+        if (hasExistingArt) {
+          handleAddLayer(file.name, data, true);
+        } else {
+          const active = layers.find(l => l.id === activeLayerId);
+          if (active && !active.data) { saveOriginal(activeLayerId, data); handleUpdateLayer(activeLayerId, data); }
+          else handleAddLayer(file.name, data, true);
+        }
         sfx.playSuccess();
       };
       img.src = ev.target?.result as string;
@@ -491,6 +553,7 @@ export default function PixelForgePage() {
     { type: ToolType.PENCIL, icon: Pencil, label: 'Pencil' },
     { type: ToolType.ERASER, icon: Eraser, label: 'Eraser' },
     { type: ToolType.FILL, icon: PaintBucket, label: 'Fill' },
+    { type: ToolType.FILL_SAME, icon: Replace, label: 'Fill same' },
     { type: ToolType.EYEDROPPER, icon: Pipette, label: 'Picker' },
     { type: ToolType.LINE, icon: Minus, label: 'Line' },
     { type: ToolType.RECTANGLE, icon: Square, label: 'Rect' },
@@ -759,6 +822,19 @@ export default function PixelForgePage() {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Layers ({layers.length})</p>
                   <button onClick={() => { sfx.playClick(); handleAddLayer(); }} className="text-muted-foreground hover:text-foreground"><Plus className="w-3 h-3" /></button>
                 </div>
+                {activeLayer && (
+                  <div className="pb-1 mb-1 border-b border-neutral-700/40 dark:border-neutral-600/40">
+                    <PixelSlider
+                      label="Layer Opacity"
+                      value={activeLayer.opacity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      display={`${Math.round(activeLayer.opacity * 100)}%`}
+                      onChange={v => { sfx.playSlider(v); setLayers(prev => prev.map(l => l.id === activeLayerId ? { ...l, opacity: v } : l)); }}
+                    />
+                  </div>
+                )}
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {layers.map(layer => (
                     <div
@@ -778,8 +854,11 @@ export default function PixelForgePage() {
                         <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleMoveLayer(layer.id, 'down'); }} className="text-muted-foreground/30 hover:text-foreground" title="Move down">
                           <ChevronDown className="w-3 h-3" />
                         </button>
+                        <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleDuplicateLayer(layer.id); }} className="text-muted-foreground/30 hover:text-foreground" title="Duplicate layer">
+                          <Copy className="w-3 h-3" />
+                        </button>
                         {layers.length > 1 && (
-                          <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleDeleteLayer(layer.id); }} className="text-muted-foreground/30 hover:text-red-500">
+                          <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleDeleteLayer(layer.id); }} className="text-muted-foreground/30 hover:text-red-500" title="Delete layer">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         )}

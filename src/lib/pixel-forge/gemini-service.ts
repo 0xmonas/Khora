@@ -1,5 +1,12 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 
+export interface GenerateSelection {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export async function generatePixelAsset(
   apiKey: string,
   prompt: string,
@@ -7,6 +14,8 @@ export async function generatePixelAsset(
   height: number,
   paletteColors: string[],
   referenceImageBase64?: string,
+  selection?: GenerateSelection | null,
+  hasExistingArt: boolean = false,
 ): Promise<string> {
   const paletteHex = paletteColors.join(', ');
   const ai = new GoogleGenAI({ apiKey });
@@ -14,28 +23,41 @@ export async function generatePixelAsset(
 
   const parts: { text?: string; inlineData?: { data: string; mimeType: string } }[] = [];
 
+  let instruction: string;
+  if (selection) {
+    instruction = `You are a pixel art generator. TASK: "${prompt}".
+
+CONTEXT: The reference image shows the current canvas. You must draw the requested content INSIDE the rectangle region at x=${selection.x}, y=${selection.y}, width=${selection.w}, height=${selection.h} (origin top-left).
+
+RULES:
+1. Output a full ${width}x${height} image.
+2. INSIDE the target rectangle: draw the requested content, respecting existing art where it makes sense (e.g. draw a circle that fits the rectangle).
+3. OUTSIDE the target rectangle: the background must be BRIGHT GREEN (#00FF00) so the pixels outside the rectangle get chroma-keyed away and don't overwrite existing canvas.
+4. Pure pixel art. No anti-aliasing, no blur. Hard pixel edges only.
+5. Use ONLY these colors: ${paletteHex}.`;
+  } else if (hasExistingArt) {
+    instruction = `You are a pixel art generator. TASK: "${prompt}".
+
+CONTEXT: The reference image shows existing pixel art on a ${width}x${height} canvas. Treat the entire canvas as the drawing area — place the requested content wherever makes sense given the existing art. You may augment, extend, or re-arrange; do not ignore the canvas.
+
+RULES:
+1. Output must be exactly ${width}x${height} pixels.
+2. Preserve important existing elements; only overwrite where the new content goes.
+3. Empty/background areas of the output must be BRIGHT GREEN (#00FF00) for chroma key removal.
+4. Pure pixel art. Hard pixel edges only.
+5. Use ONLY these colors: ${paletteHex}.`;
+  } else {
+    instruction = `Generate a ${width}x${height} pixel art sprite of: ${prompt}.
+Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.
+Use ONLY these colors: ${paletteHex}.
+Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`;
+  }
+
   if (referenceImageBase64) {
     const base64Data = referenceImageBase64.replace(/^data:image\/\w+;base64,/, '');
     parts.push({ inlineData: { data: base64Data, mimeType: 'image/png' } });
-    parts.push({
-      text: `You are a pixel art generator. TASK: Generate a TRANSPARENT OVERLAY containing ONLY the requested item: "${prompt}".
-
-RULES:
-1. DO NOT redraw the original character. Output ONLY the new item.
-2. Place the item where it belongs on the character (hat on head, sword in hand).
-3. Output must be exactly ${width}x${height} pixels.
-4. Pure pixel art style. No anti-aliasing, no blur. Hard pixel edges only.
-5. Use ONLY these colors: ${paletteHex}.
-6. Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`,
-    });
-  } else {
-    parts.push({
-      text: `Generate a ${width}x${height} pixel art sprite of: ${prompt}.
-Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.
-Use ONLY these colors: ${paletteHex}.
-Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`,
-    });
   }
+  parts.push({ text: instruction });
 
   try {
     const response = await ai.models.generateContent({

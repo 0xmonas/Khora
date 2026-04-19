@@ -212,6 +212,40 @@ export function PixelEditor({
     return null;
   }, [pixelSize, canvasWidth, canvasHeight]);
 
+  const replaceColor = useCallback((startX: number, startY: number, fillColor: string) => {
+    const imageData = layerPixels.get(activeLayerId);
+    if (!imageData) return;
+    const data = imageData.data;
+
+    const isTransparent = fillColor === 'transparent';
+    const fillR = isTransparent ? 0 : parseInt(fillColor.slice(1, 3), 16);
+    const fillG = isTransparent ? 0 : parseInt(fillColor.slice(3, 5), 16);
+    const fillB = isTransparent ? 0 : parseInt(fillColor.slice(5, 7), 16);
+    const fillA = isTransparent ? 0 : 255;
+
+    const startIdx = (startY * canvasWidth + startX) * 4;
+    const targetR = data[startIdx], targetG = data[startIdx + 1], targetB = data[startIdx + 2], targetA = data[startIdx + 3];
+    if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === fillA) return;
+
+    const newData = new Uint8ClampedArray(data);
+    for (let y = 0; y < canvasHeight; y++) {
+      for (let x = 0; x < canvasWidth; x++) {
+        if (selection && (x < selection.x || x >= selection.x + selection.w || y < selection.y || y >= selection.y + selection.h)) continue;
+        const idx = (y * canvasWidth + x) * 4;
+        if (newData[idx] === targetR && newData[idx + 1] === targetG && newData[idx + 2] === targetB && newData[idx + 3] === targetA) {
+          newData[idx] = fillR; newData[idx + 1] = fillG; newData[idx + 2] = fillB; newData[idx + 3] = fillA;
+        }
+      }
+    }
+
+    const updated = new ImageData(newData, canvasWidth, canvasHeight);
+    setLayerPixels(prev => { const next = new Map(prev); next.set(activeLayerId, updated); return next; });
+    const tmp = document.createElement('canvas');
+    tmp.width = canvasWidth; tmp.height = canvasHeight;
+    const tmpCtx = tmp.getContext('2d');
+    if (tmpCtx) { tmpCtx.putImageData(updated, 0, 0); onUpdateLayer(activeLayerId, tmp.toDataURL('image/png')); }
+  }, [activeLayerId, layerPixels, selection, onUpdateLayer, canvasWidth, canvasHeight]);
+
   const floodFill = useCallback((startX: number, startY: number, fillColor: string) => {
     const imageData = layerPixels.get(activeLayerId);
     if (!imageData) return;
@@ -373,6 +407,8 @@ export function PixelEditor({
       }
     } else if (activeTool === ToolType.FILL) {
       floodFill(coords.x, coords.y, primaryColor);
+    } else if (activeTool === ToolType.FILL_SAME) {
+      replaceColor(coords.x, coords.y, primaryColor);
     } else if (activeTool === ToolType.LINE || activeTool === ToolType.RECTANGLE || activeTool === ToolType.CIRCLE) {
       shapeStartRef.current = coords;
       setShapePreview(coords);
