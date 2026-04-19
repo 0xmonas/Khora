@@ -390,7 +390,7 @@ export default function PixelForgePage() {
   };
 
   const [quantizeTrigger, setQuantizeTrigger] = useState(0);
-  const quantizeKey = activePalette.name + '|' + activePalette.colors.join(',') + `|${contrast}|${brightness}|${quantizeTrigger}`;
+  const quantizeKey = `${contrast}|${brightness}|${quantizeTrigger}`;
   const isFirstRender = useRef(true);
   const layersRef = useRef(layers);
   const originalsRef = useRef(originalLayerData);
@@ -461,7 +461,7 @@ export default function PixelForgePage() {
         prompt,
         canvasWidth,
         canvasHeight,
-        allColors,
+        [],
         composite,
         selection,
         hasExistingArt,
@@ -475,10 +475,9 @@ export default function PixelForgePage() {
       if (ctx) {
           ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
           const origData = cvs.toDataURL('image/png');
-          if (allColors.length > 0) quantizeToPalette(ctx, canvasWidth, canvasHeight);
           const layerName = `AI: ${prompt}`;
           const newId = `layer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-          const newLayer: Layer = { id: newId, name: layerName, data: cvs.toDataURL('image/png'), visible: true, opacity: 1, isLocked: false };
+          const newLayer: Layer = { id: newId, name: layerName, data: origData, visible: true, opacity: 1, isLocked: false };
           setOriginalLayerData(prev => { const next = new Map(prev); next.set(newId, origData); return next; });
           pushToHistory([newLayer, ...layers]);
           setActiveLayerId(newId);
@@ -749,12 +748,30 @@ export default function PixelForgePage() {
                   ))}
                   {customColors.map((color, i) => (
                     <div key={`c-${i}`} className="relative group">
-                      <button
-                        onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
-                        className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
+                      {color ? (
+                        <button
+                          onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
+                          className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ) : (
+                        <label
+                          className="relative block w-full aspect-square border border-dashed border-foreground/40 cursor-pointer hover:border-foreground transition-colors"
+                          style={{
+                            backgroundImage: 'linear-gradient(45deg, #888 25%, transparent 25%), linear-gradient(-45deg, #888 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #888 75%), linear-gradient(-45deg, transparent 75%, #888 75%)',
+                            backgroundSize: '6px 6px',
+                            backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px',
+                          }}
+                          title="Pick a color"
+                        >
+                          <input
+                            type="color"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            onChange={e => { sfx.playClick(); const c = e.target.value; setCustomColors(prev => prev.map((cc, j) => j === i ? c : cc)); setPrimaryColor(c); }}
+                          />
+                        </label>
+                      )}
                       <button
                         onClick={e => { e.stopPropagation(); sfx.playClick(); setCustomColors(prev => prev.filter((_, j) => j !== i)); }}
                         className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[7px] leading-none rounded-full hidden group-hover:flex items-center justify-center"
@@ -777,16 +794,12 @@ export default function PixelForgePage() {
                   <button
                     onClick={() => {
                       sfx.playClick();
-                      const c = primaryColor === 'transparent' ? '#ffffff' : primaryColor;
-                      if (!allColors.includes(c)) {
-                        const merged = [...allColors, c];
-                        setCustomColors(merged);
-                        setActivePalette({ name: '__custom__', colors: [] });
-                      }
+                      setCustomColors(prev => [...prev, '']);
+                      setActivePalette({ name: '__custom__', colors: [] });
                     }}
                     className="border border-neutral-700 dark:border-neutral-600 px-1.5 h-6 text-[9px] hover:border-foreground/50 transition-colors"
                     style={font}
-                    title="Add current color to palette"
+                    title="Add a new color slot"
                   >
                     <Plus className="w-2.5 h-2.5" />
                   </button>
@@ -913,7 +926,7 @@ export default function PixelForgePage() {
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] flex flex-col">
+            <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[900px] lg:self-start flex flex-col">
               <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex justify-between items-center gap-2">
                 <div className="flex items-center gap-1">
                   <input

@@ -17,7 +17,9 @@ export async function generatePixelAsset(
   selection?: GenerateSelection | null,
   hasExistingArt: boolean = false,
 ): Promise<string> {
-  const paletteHex = paletteColors.join(', ');
+  const hasPalette = paletteColors.length > 0;
+  const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
+  const paletteLine = hasPalette ? `\nUse ONLY these colors: ${paletteColors.join(', ')}.` : '';
   const ai = new GoogleGenAI({ apiKey });
   const model = 'gemini-3-pro-image-preview';
 
@@ -33,8 +35,7 @@ RULES:
 1. Output a full ${width}x${height} image.
 2. INSIDE the target rectangle: draw the requested content, respecting existing art where it makes sense (e.g. draw a circle that fits the rectangle).
 3. OUTSIDE the target rectangle: the background must be BRIGHT GREEN (#00FF00) so the pixels outside the rectangle get chroma-keyed away and don't overwrite existing canvas.
-4. Pure pixel art. No anti-aliasing, no blur. Hard pixel edges only.
-5. Use ONLY these colors: ${paletteHex}.`;
+4. Pure pixel art. No anti-aliasing, no blur. Hard pixel edges only.${paletteRule}`;
   } else if (hasExistingArt) {
     instruction = `You are a pixel art generator. TASK: "${prompt}".
 
@@ -44,12 +45,10 @@ RULES:
 1. Output must be exactly ${width}x${height} pixels.
 2. Preserve important existing elements; only overwrite where the new content goes.
 3. Empty/background areas of the output must be BRIGHT GREEN (#00FF00) for chroma key removal.
-4. Pure pixel art. Hard pixel edges only.
-5. Use ONLY these colors: ${paletteHex}.`;
+4. Pure pixel art. Hard pixel edges only.${paletteRule}`;
   } else {
     instruction = `Generate a ${width}x${height} pixel art sprite of: ${prompt}.
-Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.
-Use ONLY these colors: ${paletteHex}.
+Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.${paletteLine}
 Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`;
   }
 
