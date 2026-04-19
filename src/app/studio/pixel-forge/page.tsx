@@ -12,6 +12,7 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
+import { quantizeImageData, rgbToHex, snapToTopKPalette } from '@/lib/pixel-forge/quantize';
 import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
@@ -130,6 +131,54 @@ export default function PixelForgePage() {
       next.delete(id);
       return next;
     });
+  };
+
+  const applySimplify = useCallback(async (k: number) => {
+    const layer = layers.find(l => l.id === activeLayerId);
+    if (!layer?.data) return;
+
+    let sourceData = simplifySourceRef.current.get(activeLayerId);
+    if (!sourceData) sourceData = originalLayerData.get(activeLayerId);
+    if (!sourceData) {
+      sourceData = layer.data;
+      simplifySourceRef.current.set(activeLayerId, sourceData);
+    }
+
+    if (k === 0) {
+      pushToHistory(layers.map(l => l.id === activeLayerId ? { ...l, data: sourceData! } : l));
+      return;
+    }
+
+    const img = new Image();
+    img.src = sourceData;
+    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+    const cvs = document.createElement('canvas');
+    cvs.width = img.naturalWidth || canvasWidth;
+    cvs.height = img.naturalHeight || canvasHeight;
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0);
+    const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
+
+    if (activePalette.colors.length > 0) {
+      snapToTopKPalette(imgData, activePalette.colors, k);
+      ctx.putImageData(imgData, 0, 0);
+      pushToHistory(layers.map(l => l.id === activeLayerId ? { ...l, data: cvs.toDataURL('image/png') } : l));
+    } else {
+      const centroids = quantizeImageData(imgData, k);
+      if (centroids.length === 0) return;
+      ctx.putImageData(imgData, 0, 0);
+      pushToHistory(layers.map(l => l.id === activeLayerId ? { ...l, data: cvs.toDataURL('image/png') } : l));
+      setCustomColors(centroids.map(rgbToHex));
+      setActivePalette({ name: '__custom__', colors: [] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayerId, layers, originalLayerData, canvasWidth, canvasHeight, activePalette]);
+
+  const handleSimplifyChange = (k: number) => {
+    setSimplifyK(k);
+    if (simplifyTimerRef.current) clearTimeout(simplifyTimerRef.current);
+    simplifyTimerRef.current = setTimeout(() => applySimplify(k), 200);
   };
 
   const handleApplySettings = () => {
@@ -354,7 +403,7 @@ export default function PixelForgePage() {
     return cvs.toDataURL('image/png');
   };
 
-  const quantizeToPalette = (ctx: CanvasRenderingContext2D, w: number, h: number, c = 0, b = 0) => {
+  const quantizeToPalette = (ctx: CanvasRenderingContext2D, w: number, h: number, c = 0, b = 0, paletteHexes: string[] = allColors) => {
     const imageData = ctx.getImageData(0, 0, w, h);
     const d = imageData.data;
     if (c !== 0 || b !== 0) {
@@ -366,7 +415,7 @@ export default function PixelForgePage() {
         d[i + 2] = Math.max(0, Math.min(255, factor * (d[i + 2] - 128) + 128 + b));
       }
     }
-    const palette = allColors.map(hex => [
+    const palette = paletteHexes.map(hex => [
       parseInt(hex.slice(1, 3), 16),
       parseInt(hex.slice(3, 5), 16),
       parseInt(hex.slice(5, 7), 16),
@@ -390,6 +439,12 @@ export default function PixelForgePage() {
   };
 
   const [quantizeTrigger, setQuantizeTrigger] = useState(0);
+  const simplifyMax = activePalette.colors.length > 0 ? activePalette.colors.length : 48;
+  const [simplifyK, setSimplifyK] = useState(simplifyMax);
+  const simplifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const simplifySourceRef = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => { setSimplifyK(simplifyMax); }, [activeLayerId, simplifyMax]);
   const quantizeKey = `${contrast}|${brightness}|${quantizeTrigger}`;
   const isFirstRender = useRef(true);
   const layersRef = useRef(layers);
@@ -404,7 +459,9 @@ export default function PixelForgePage() {
     const hasOriginals = currentLayers.some(l => originals.has(l.id));
     if (!hasOriginals) return;
 
-    const colors = [...activePalette.colors, ...customColors];
+    const colors = activePalette.name === '__custom__'
+      ? customColors.filter(c => c)
+      : activePalette.colors;
 
     const applyQuantize = () => {
       const updated = [...currentLayers];
@@ -432,7 +489,7 @@ export default function PixelForgePage() {
           const ctx = cvs.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0);
-            quantizeToPalette(ctx, w, h, contrast, brightness);
+            quantizeToPalette(ctx, w, h, contrast, brightness, colors);
             updated[idx] = { ...layer, data: cvs.toDataURL('image/png') };
             changed = true;
           }
@@ -475,12 +532,42 @@ export default function PixelForgePage() {
       if (ctx) {
           ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
           const origData = cvs.toDataURL('image/png');
+          const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+          let extractedPalette: string[] | null = null;
+          if (activePalette.colors.length > 0) {
+            const d = imgData.data;
+            const pal = activePalette.colors.map(hex => [
+              parseInt(hex.slice(1, 3), 16),
+              parseInt(hex.slice(3, 5), 16),
+              parseInt(hex.slice(5, 7), 16),
+            ]);
+            for (let i = 0; i < d.length; i += 4) {
+              if (d[i + 3] < 128) continue;
+              let bestD = Infinity;
+              let best = pal[0];
+              for (const c of pal) {
+                const dr = d[i] - c[0], dg = d[i + 1] - c[1], db = d[i + 2] - c[2];
+                const dist = dr * dr + dg * dg + db * db;
+                if (dist < bestD) { bestD = dist; best = c; }
+              }
+              d[i] = best[0]; d[i + 1] = best[1]; d[i + 2] = best[2]; d[i + 3] = 255;
+            }
+          } else {
+            const centroids = quantizeImageData(imgData, simplifyK);
+            extractedPalette = centroids.map(rgbToHex);
+          }
+          ctx.putImageData(imgData, 0, 0);
           const layerName = `AI: ${prompt}`;
           const newId = `layer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-          const newLayer: Layer = { id: newId, name: layerName, data: origData, visible: true, opacity: 1, isLocked: false };
+          const newLayer: Layer = { id: newId, name: layerName, data: cvs.toDataURL('image/png'), visible: true, opacity: 1, isLocked: false };
           setOriginalLayerData(prev => { const next = new Map(prev); next.set(newId, origData); return next; });
+          simplifySourceRef.current.set(newId, origData);
           pushToHistory([newLayer, ...layers]);
           setActiveLayerId(newId);
+          if (extractedPalette) {
+            setCustomColors(extractedPalette);
+            setActivePalette({ name: '__custom__', colors: [] });
+          }
         }
       sfx.playSuccess();
     } catch (e) {
@@ -746,32 +833,34 @@ export default function PixelForgePage() {
                       </button>
                     </div>
                   ))}
-                  {customColors.map((color, i) => (
+                  {activePalette.name === '__custom__' && customColors.map((color, i) => {
+                    const isEmpty = !color;
+                    return (
                     <div key={`c-${i}`} className="relative group">
-                      {color ? (
-                        <button
-                          onClick={() => { sfx.playClick(); setPrimaryColor(color); }}
-                          className={`w-full aspect-square border ${primaryColor === color ? 'border-foreground ring-1 ring-foreground' : 'border-neutral-700 dark:border-neutral-600'}`}
-                          style={{ backgroundColor: color }}
-                          title={color}
+                      <label
+                        className={`relative block w-full aspect-square border cursor-pointer transition-colors ${
+                          isEmpty
+                            ? 'border-dashed border-foreground/40 hover:border-foreground'
+                            : primaryColor === color
+                              ? 'border-foreground ring-1 ring-foreground'
+                              : 'border-neutral-700 dark:border-neutral-600 hover:border-foreground/60'
+                        }`}
+                        style={isEmpty ? {
+                          backgroundImage: 'linear-gradient(45deg, #888 25%, transparent 25%), linear-gradient(-45deg, #888 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #888 75%), linear-gradient(-45deg, transparent 75%, #888 75%)',
+                          backgroundSize: '6px 6px',
+                          backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px',
+                        } : { backgroundColor: color }}
+                        title={color || 'Pick a color'}
+                        onClick={() => { if (!isEmpty) { sfx.playClick(); setPrimaryColor(color); } }}
+                      >
+                        <input
+                          type="color"
+                          value={isEmpty ? '#ffffff' : color}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onInput={e => { const c = (e.target as HTMLInputElement).value; setCustomColors(prev => prev.map((cc, j) => j === i ? c : cc)); }}
+                          onChange={e => { const c = e.target.value; setCustomColors(prev => prev.map((cc, j) => j === i ? c : cc)); setPrimaryColor(c); }}
                         />
-                      ) : (
-                        <label
-                          className="relative block w-full aspect-square border border-dashed border-foreground/40 cursor-pointer hover:border-foreground transition-colors"
-                          style={{
-                            backgroundImage: 'linear-gradient(45deg, #888 25%, transparent 25%), linear-gradient(-45deg, #888 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #888 75%), linear-gradient(-45deg, transparent 75%, #888 75%)',
-                            backgroundSize: '6px 6px',
-                            backgroundPosition: '0 0, 0 3px, 3px -3px, -3px 0px',
-                          }}
-                          title="Pick a color"
-                        >
-                          <input
-                            type="color"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            onChange={e => { sfx.playClick(); const c = e.target.value; setCustomColors(prev => prev.map((cc, j) => j === i ? c : cc)); setPrimaryColor(c); }}
-                          />
-                        </label>
-                      )}
+                      </label>
                       <button
                         onClick={e => { e.stopPropagation(); sfx.playClick(); setCustomColors(prev => prev.filter((_, j) => j !== i)); }}
                         className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[7px] leading-none rounded-full hidden group-hover:flex items-center justify-center"
@@ -779,7 +868,8 @@ export default function PixelForgePage() {
                         x
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Custom color + transparent */}
@@ -816,6 +906,10 @@ export default function PixelForgePage() {
                   >
                     None
                   </button>
+                </div>
+
+                <div className="mt-2">
+                  <PixelSlider label="Simplify" value={Math.min(simplifyK, simplifyMax)} min={2} max={simplifyMax} display={`${Math.min(simplifyK, simplifyMax)}`} onChange={handleSimplifyChange} />
                 </div>
 
                 <div className="mt-2 space-y-2">
