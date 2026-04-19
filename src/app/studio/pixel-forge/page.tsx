@@ -950,20 +950,30 @@ export default function PixelForgePage() {
                   />
                 </div>
                 <div className="flex gap-px">
-                  {CANVAS_PRESETS.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => { sfx.playClick(); setCanvasWidth(s); setCanvasHeight(s); }}
-                      className={`px-1 py-0.5 text-[8px] border transition-colors ${
-                        canvasWidth === s && canvasHeight === s
-                          ? 'border-foreground bg-foreground/10 text-foreground'
-                          : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
-                      }`}
-                      style={font}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {CANVAS_PRESETS.map(s => {
+                    const currentMax = Math.max(canvasWidth, canvasHeight);
+                    const isActive = currentMax === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          sfx.playClick();
+                          const ratio = s / currentMax;
+                          const newW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasWidth * ratio)));
+                          const newH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasHeight * ratio)));
+                          setCanvasWidth(newW); setCanvasHeight(newH);
+                        }}
+                        className={`px-1 py-0.5 text-[8px] border transition-colors ${
+                          isActive
+                            ? 'border-foreground bg-foreground/10 text-foreground'
+                            : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
+                        }`}
+                        style={font}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">

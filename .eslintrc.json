@@ -6,7 +6,7 @@
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint"],
   "rules": {
-    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "destructuredArrayIgnorePattern": "^_" }],
     "@typescript-eslint/no-explicit-any": "warn",
     "@next/next/no-img-element": "off",
     "@typescript-eslint/no-namespace": "off",
