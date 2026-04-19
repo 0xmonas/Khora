@@ -1,6 +1,6 @@
 export const DEFAULT_CANVAS_WIDTH = 64;
 export const DEFAULT_CANVAS_HEIGHT = 64;
-export const MAX_CANVAS_SIZE = 128;
+export const MAX_CANVAS_SIZE = 256;
 export const MIN_CANVAS_SIZE = 8;
 
 export interface PalettePreset {
@@ -89,7 +89,7 @@ export enum ToolType {
   CHROMA_KEY = 'CHROMA_KEY',
 }
 
-export const CANVAS_PRESETS = [16, 32, 64, 128] as const;
+export const CANVAS_PRESETS = [16, 32, 64, 128, 256] as const;
 
 export interface Rect {
   x: number;

@@ -124,6 +124,24 @@ export default function PixelForgePage() {
 
   const handleUpdateLayer = (id: string, newData: string) => {
     pushToHistory(layers.map(l => l.id === id ? { ...l, data: newData } : l));
+    setOriginalLayerData(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const handleApplySettings = () => {
+    setOriginalLayerData(prev => {
+      const next = new Map(prev);
+      let changed = false;
+      layers.forEach(l => {
+        if (l.data && !next.has(l.id)) { next.set(l.id, l.data); changed = true; }
+      });
+      return changed ? next : prev;
+    });
+    setQuantizeTrigger(v => v + 1);
   };
 
   const saveOriginal = (id: string, data: string) => {
@@ -796,7 +814,7 @@ export default function PixelForgePage() {
 
                 <div className="flex gap-1">
                   <button
-                    onClick={() => { sfx.playClick(); setQuantizeTrigger(v => v + 1); }}
+                    onClick={() => { sfx.playClick(); handleApplySettings(); }}
                     className="flex-1 border border-neutral-700 dark:border-neutral-600 p-1 text-[9px] uppercase hover:bg-foreground/5 transition-colors"
                     style={font}
                   >
