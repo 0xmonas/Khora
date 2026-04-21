@@ -16,6 +16,7 @@ export async function generatePixelAsset(
   referenceImageBase64?: string,
   selection?: GenerateSelection | null,
   hasExistingArt: boolean = false,
+  transparentBg: boolean = true,
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
@@ -27,6 +28,9 @@ export async function generatePixelAsset(
 
   let instruction: string;
   if (selection) {
+    const outsideRule = transparentBg
+      ? 'OUTSIDE the target rectangle: the background must be BRIGHT GREEN (#00FF00) so the pixels outside the rectangle get chroma-keyed away and don\'t overwrite existing canvas.'
+      : 'OUTSIDE the target rectangle: extend naturally with a fitting backdrop if helpful; avoid pure green (#00FF00).';
     instruction = `You are a pixel art generator. TASK: "${prompt}".
 
 CONTEXT: The reference image shows the current canvas. You must draw the requested content INSIDE the rectangle region at x=${selection.x}, y=${selection.y}, width=${selection.w}, height=${selection.h} (origin top-left).
@@ -34,9 +38,12 @@ CONTEXT: The reference image shows the current canvas. You must draw the request
 RULES:
 1. Output a full ${width}x${height} image.
 2. INSIDE the target rectangle: draw the requested content, respecting existing art where it makes sense (e.g. draw a circle that fits the rectangle).
-3. OUTSIDE the target rectangle: the background must be BRIGHT GREEN (#00FF00) so the pixels outside the rectangle get chroma-keyed away and don't overwrite existing canvas.
+3. ${outsideRule}
 4. Pure pixel art. No anti-aliasing, no blur. Hard pixel edges only.${paletteRule}`;
   } else if (hasExistingArt) {
+    const bgRule = transparentBg
+      ? 'Empty/background areas of the output must be BRIGHT GREEN (#00FF00) for chroma key removal.'
+      : 'Fill empty background areas with a fitting backdrop; avoid pure green (#00FF00).';
     instruction = `You are a pixel art generator. TASK: "${prompt}".
 
 CONTEXT: The reference image shows existing pixel art on a ${width}x${height} canvas. Treat the entire canvas as the drawing area — place the requested content wherever makes sense given the existing art. You may augment, extend, or re-arrange; do not ignore the canvas.
@@ -44,12 +51,14 @@ CONTEXT: The reference image shows existing pixel art on a ${width}x${height} ca
 RULES:
 1. Output must be exactly ${width}x${height} pixels.
 2. Preserve important existing elements; only overwrite where the new content goes.
-3. Empty/background areas of the output must be BRIGHT GREEN (#00FF00) for chroma key removal.
+3. ${bgRule}
 4. Pure pixel art. Hard pixel edges only.${paletteRule}`;
   } else {
+    const bgLine = transparentBg
+      ? '\nBackground must be BRIGHT GREEN (#00FF00) for chroma key removal.'
+      : '\nBackground may be a fitting backdrop; avoid pure green (#00FF00).';
     instruction = `Generate a ${width}x${height} pixel art sprite of: ${prompt}.
-Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.${paletteLine}
-Background must be BRIGHT GREEN (#00FF00) for chroma key removal.`;
+Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.${paletteLine}${bgLine}`;
   }
 
   if (referenceImageBase64) {

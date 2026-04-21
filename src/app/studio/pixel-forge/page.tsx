@@ -75,6 +75,8 @@ export default function PixelForgePage() {
   const [prompt, setPrompt] = useState('');
   const [genState, setGenState] = useState<GenerationState>({ isGenerating: false, error: null });
   const [apiKey, setApiKey] = useState('');
+  const [transparentBg, setTransparentBg] = useState(true);
+  const [autoChromaKey, setAutoChromaKey] = useState(true);
 
   // Token import
   const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
@@ -522,6 +524,7 @@ export default function PixelForgePage() {
         composite,
         selection,
         hasExistingArt,
+        transparentBg,
       );
       const img = new Image();
       img.src = result;
@@ -533,6 +536,14 @@ export default function PixelForgePage() {
           ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
           const origData = cvs.toDataURL('image/png');
           const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+          if (transparentBg && autoChromaKey) {
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const r = d[i], g = d[i + 1], b = d[i + 2];
+              const isChroma = r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3;
+              if (isChroma) d[i + 3] = 0;
+            }
+          }
           let extractedPalette: string[] | null = null;
           if (activePalette.colors.length > 0) {
             const d = imgData.data;
@@ -1105,6 +1116,14 @@ export default function PixelForgePage() {
                   style={font}
                 />
                 {genState.error && <p className="text-[9px] text-red-400" style={font}>{genState.error}</p>}
+                <label className="flex items-center gap-1.5 text-[9px] uppercase text-muted-foreground cursor-pointer select-none" style={font}>
+                  <input type="checkbox" checked={transparentBg} onChange={e => { sfx.playClick(); setTransparentBg(e.target.checked); }} className="cursor-pointer accent-foreground" />
+                  Transparent bg
+                </label>
+                <label className={`flex items-center gap-1.5 text-[9px] uppercase cursor-pointer select-none ${transparentBg ? 'text-muted-foreground' : 'text-muted-foreground/30 pointer-events-none'}`} style={font}>
+                  <input type="checkbox" checked={autoChromaKey} disabled={!transparentBg} onChange={e => { sfx.playClick(); setAutoChromaKey(e.target.checked); }} className="cursor-pointer accent-foreground disabled:cursor-not-allowed" />
+                  Auto chroma key
+                </label>
                 <button
                   onClick={() => { sfx.playClick(); handleGenerate(); }}
                   disabled={genState.isGenerating || !prompt.trim()}
