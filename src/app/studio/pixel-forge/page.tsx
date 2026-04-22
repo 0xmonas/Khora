@@ -11,6 +11,7 @@ import {
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { PixelEditor } from '@/components/features/studio/PixelEditor';
+import { HolderGate } from '@/components/features/studio/HolderGate';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
 import { quantizeImageData, rgbToHex, snapToTopKPalette } from '@/lib/pixel-forge/quantize';
 import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
@@ -708,6 +709,7 @@ export default function PixelForgePage() {
               </div>
 
           {/* Layout */}
+          <HolderGate toolName="Pixel Forge">
           <div className="flex flex-col lg:flex-row gap-4">
 
             {/* Left sidebar */}
@@ -1153,6 +1155,7 @@ export default function PixelForgePage() {
 
             </div>
           </div>
+          </HolderGate>
 
             </div>
             <div className="hidden lg:block lg:col-span-1" />

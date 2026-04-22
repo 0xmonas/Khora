@@ -8,7 +8,7 @@ import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
  * Use this for any feature that requires sign-in.
  */
 export function useAuth() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status } = useAccount();
   const siweStatus = useSiweStatus();
   const isAuthenticated = siweStatus === 'authenticated';
 
@@ -17,6 +17,7 @@ export function useAuth() {
     isConnected,
     isAuthenticated,
     siweStatus,
+    walletStatus: status,
   };
 }
 
@@ -27,8 +28,14 @@ export function useAuth() {
 export function useHolderAuth(minBalance = 1) {
   const auth = useAuth();
   const contractAddress = getV2Address(shape.id);
+  const safeMin = Math.max(1, Math.floor(Number.isFinite(minBalance) ? minBalance : 1));
 
-  const { data: balance, isLoading: balanceLoading } = useReadContract({
+  const {
+    data: balance,
+    isLoading: balanceLoading,
+    error: balanceError,
+    refetch: refetchBalance,
+  } = useReadContract({
     address: contractAddress,
     abi: BOOA_V2_ABI,
     functionName: 'balanceOf',
@@ -38,12 +45,14 @@ export function useHolderAuth(minBalance = 1) {
   });
 
   const holdingCount = balance ? Number(balance) : 0;
-  const isHolder = holdingCount >= minBalance;
+  const isHolder = holdingCount >= safeMin;
 
   return {
     ...auth,
     holdingCount,
     isHolder,
     balanceLoading,
+    balanceError,
+    refetchBalance,
   };
 }
