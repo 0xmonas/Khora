@@ -6,7 +6,7 @@ import {
   Pencil, Eraser, Pipette, Download, BoxSelect,
   Wand2, Upload, Loader2, Undo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
-  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy,
+  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy, RotateCcw, Contrast,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -14,7 +14,7 @@ import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { HolderGate } from '@/components/features/studio/HolderGate';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
 import { quantizeImageData, rgbToHex, snapToTopKPalette } from '@/lib/pixel-forge/quantize';
-import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, ASPECT_RATIOS, AI_MODELS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -68,7 +68,7 @@ export default function PixelForgePage() {
   const [brushSize, setBrushSize] = useState(1);
   const [selection, setSelection] = useState<Rect | null>(null);
   const [primaryColor, setPrimaryColor] = useState(PALETTE_PRESETS[0].colors[4]);
-  const [zoom, setZoom] = useState(8);
+  const [zoom, setZoom] = useState(1);
   const [contrast, setContrast] = useState(0);
   const [brightness, setBrightness] = useState(0);
   const [bgOpacity, setBgOpacity] = useState(0.5);
@@ -78,6 +78,7 @@ export default function PixelForgePage() {
   const [apiKey, setApiKey] = useState('');
   const [transparentBg, setTransparentBg] = useState(true);
   const [autoChromaKey, setAutoChromaKey] = useState(true);
+  const [selectedModelId, setSelectedModelId] = useState(AI_MODELS[0].id);
 
   // Token import
   const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
@@ -134,6 +135,16 @@ export default function PixelForgePage() {
       next.delete(id);
       return next;
     });
+  };
+
+  const handleRevertLayer = () => {
+    const layer = layers.find(l => l.id === activeLayerId);
+    if (!layer) return;
+    const orig = simplifySourceRef.current.get(activeLayerId) || originalLayerData.get(activeLayerId);
+    if (!orig) return;
+    pushToHistory(layers.map(l => l.id === activeLayerId ? { ...l, data: orig } : l));
+    setOriginalLayerData(prev => { const next = new Map(prev); next.set(activeLayerId, orig); return next; });
+    setSimplifyK(simplifyMax);
   };
 
   const applySimplify = useCallback(async (k: number) => {
@@ -245,6 +256,36 @@ export default function PixelForgePage() {
       }
       ctx.putImageData(imageData, 0, 0);
       handleUpdateLayer(activeLayerId, cvs.toDataURL());
+      sfx.playSuccess();
+    };
+    img.src = active.data;
+  };
+
+  const handleInvertLayer = () => {
+    const active = layers.find(l => l.id === activeLayerId);
+    if (!active || active.isLocked || !active.data) return;
+    const cvs = document.createElement('canvas');
+    cvs.width = canvasWidth; cvs.height = canvasHeight;
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+      const d = imageData.data;
+      const inSel = (x: number, y: number) => !selection || (x >= selection.x && x < selection.x + selection.w && y >= selection.y && y < selection.y + selection.h);
+      for (let y = 0; y < canvasHeight; y++) {
+        for (let x = 0; x < canvasWidth; x++) {
+          if (!inSel(x, y)) continue;
+          const i = (y * canvasWidth + x) * 4;
+          if (d[i + 3] < 128) continue;
+          d[i] = 255 - d[i];
+          d[i + 1] = 255 - d[i + 1];
+          d[i + 2] = 255 - d[i + 2];
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      handleUpdateLayer(activeLayerId, cvs.toDataURL('image/png'));
       sfx.playSuccess();
     };
     img.src = active.data;
@@ -448,6 +489,10 @@ export default function PixelForgePage() {
   const simplifySourceRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => { setSimplifyK(simplifyMax); }, [activeLayerId, simplifyMax]);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [canvasWidth, canvasHeight]);
   const quantizeKey = `${contrast}|${brightness}|${quantizeTrigger}`;
   const isFirstRender = useRef(true);
   const layersRef = useRef(layers);
@@ -526,6 +571,7 @@ export default function PixelForgePage() {
         selection,
         hasExistingArt,
         transparentBg,
+        selectedModelId,
       );
       const img = new Image();
       img.src = result;
@@ -768,6 +814,93 @@ export default function PixelForgePage() {
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUpload} />
               </div>
 
+              {/* Canvas Size */}
+              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Canvas Size</p>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={MIN_CANVAS_SIZE}
+                    max={MAX_CANVAS_SIZE}
+                    value={canvasWidth}
+                    onChange={e => setCanvasWidth(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
+                    className="flex-1 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-1 text-[10px] text-foreground text-center focus:outline-none focus:border-foreground"
+                    style={font}
+                  />
+                  <span className="text-[10px] text-muted-foreground/40" style={font}>x</span>
+                  <input
+                    type="number"
+                    min={MIN_CANVAS_SIZE}
+                    max={MAX_CANVAS_SIZE}
+                    value={canvasHeight}
+                    onChange={e => setCanvasHeight(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
+                    className="flex-1 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-1 text-[10px] text-foreground text-center focus:outline-none focus:border-foreground"
+                    style={font}
+                  />
+                </div>
+                <div className="grid grid-cols-6 gap-px">
+                  {CANVAS_PRESETS.map(s => {
+                    const currentMax = Math.max(canvasWidth, canvasHeight);
+                    const isActive = currentMax === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          sfx.playClick();
+                          const ratio = s / currentMax;
+                          const newW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasWidth * ratio)));
+                          const newH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasHeight * ratio)));
+                          setCanvasWidth(newW); setCanvasHeight(newH);
+                        }}
+                        className={`px-1 py-1 text-[9px] border transition-colors ${
+                          isActive
+                            ? 'border-foreground bg-foreground/10 text-foreground'
+                            : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
+                        }`}
+                        style={font}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-7 gap-px">
+                  {ASPECT_RATIOS.map(r => {
+                    const ratioW = canvasWidth / canvasHeight;
+                    const targetW = r.w / r.h;
+                    const isActive = Math.abs(ratioW - targetW) < 0.02;
+                    return (
+                      <button
+                        key={r.label}
+                        onClick={() => {
+                          sfx.playClick();
+                          const base = Math.max(canvasWidth, canvasHeight);
+                          let newW: number, newH: number;
+                          if (r.w >= r.h) {
+                            newW = base;
+                            newH = Math.round(base * r.h / r.w);
+                          } else {
+                            newH = base;
+                            newW = Math.round(base * r.w / r.h);
+                          }
+                          newW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, newW));
+                          newH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, newH));
+                          setCanvasWidth(newW); setCanvasHeight(newH);
+                        }}
+                        className={`px-0.5 py-1 text-[8px] border transition-colors ${
+                          isActive
+                            ? 'border-foreground bg-foreground/10 text-foreground'
+                            : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
+                        }`}
+                        style={font}
+                      >
+                        {r.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Tools */}
               <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Tools</p>
@@ -795,6 +928,13 @@ export default function PixelForgePage() {
                     title="Remove green background"
                   >
                     <Droplet className="w-3.5 h-3.5 mx-auto" />
+                  </button>
+                  <button
+                    onClick={() => { sfx.playClick(); handleInvertLayer(); }}
+                    className="p-2 border border-neutral-700 dark:border-neutral-600 hover:border-foreground/50 transition-colors"
+                    title="Invert colors (selection if active)"
+                  >
+                    <Contrast className="w-3.5 h-3.5 mx-auto" />
                   </button>
                 </div>
 
@@ -927,7 +1067,7 @@ export default function PixelForgePage() {
 
                 <div className="mt-2 space-y-2">
                   <PixelSlider label="Brush" value={brushSize} min={1} max={10} display={`${brushSize}px`} onChange={v => { setBrushSize(v); sfx.playSlider(v / 10); }} />
-                  <PixelSlider label="Zoom" value={zoom} min={4} max={16} display={`${zoom}x`} onChange={v => { setZoom(v); sfx.playSlider(v / 16); }} />
+                  <PixelSlider label="Zoom" value={zoom} min={0.25} max={8} step={0.25} display={`${Math.round(zoom * 100)}%`} onChange={v => { setZoom(v); sfx.playSlider(v / 8); }} />
                   <PixelSlider label="Contrast" value={contrast} min={-128} max={128} onChange={setContrast} />
                   <PixelSlider label="Brightness" value={brightness} min={-128} max={128} onChange={setBrightness} />
                 </div>
@@ -1011,6 +1151,15 @@ export default function PixelForgePage() {
                 <button onClick={() => { sfx.playClick(); handleUndo(); }} disabled={historyIndex === 0} className="w-full flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors" style={font}>
                   <Undo className="w-3 h-3" /> Undo
                 </button>
+                <button
+                  onClick={() => { sfx.playClick(); handleRevertLayer(); }}
+                  disabled={!activeLayer || (!simplifySourceRef.current.has(activeLayerId) && !originalLayerData.has(activeLayerId))}
+                  className="w-full flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors"
+                  style={font}
+                  title="Restore this layer's original colors (pre-edit)"
+                >
+                  <RotateCcw className="w-3 h-3" /> Revert
+                </button>
                 <button onClick={() => { sfx.playClick(); handleClearLayer(); }} disabled={!activeLayer || activeLayer.isLocked} className="w-full flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-red-500/10 transition-colors" style={font}>
                   <Trash2 className="w-3 h-3" /> Clear
                 </button>
@@ -1034,55 +1183,6 @@ export default function PixelForgePage() {
 
             {/* Canvas */}
             <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[900px] lg:self-start flex flex-col">
-              <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex justify-between items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={MIN_CANVAS_SIZE}
-                    max={MAX_CANVAS_SIZE}
-                    value={canvasWidth}
-                    onChange={e => setCanvasWidth(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
-                    className="w-9 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[9px] text-foreground text-center focus:outline-none focus:border-foreground"
-                    style={font}
-                  />
-                  <span className="text-[9px] text-muted-foreground/40" style={font}>x</span>
-                  <input
-                    type="number"
-                    min={MIN_CANVAS_SIZE}
-                    max={MAX_CANVAS_SIZE}
-                    value={canvasHeight}
-                    onChange={e => setCanvasHeight(Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, Number(e.target.value) || MIN_CANVAS_SIZE)))}
-                    className="w-9 bg-transparent border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[9px] text-foreground text-center focus:outline-none focus:border-foreground"
-                    style={font}
-                  />
-                </div>
-                <div className="flex gap-px">
-                  {CANVAS_PRESETS.map(s => {
-                    const currentMax = Math.max(canvasWidth, canvasHeight);
-                    const isActive = currentMax === s;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => {
-                          sfx.playClick();
-                          const ratio = s / currentMax;
-                          const newW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasWidth * ratio)));
-                          const newH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, Math.round(canvasHeight * ratio)));
-                          setCanvasWidth(newW); setCanvasHeight(newH);
-                        }}
-                        className={`px-1 py-0.5 text-[8px] border transition-colors ${
-                          isActive
-                            ? 'border-foreground bg-foreground/10 text-foreground'
-                            : 'border-neutral-700 dark:border-neutral-600 text-muted-foreground/40 hover:border-foreground/50'
-                        }`}
-                        style={font}
-                      >
-                        {s}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
               <div className="flex-1 overflow-hidden">
                 <PixelEditor
                   layers={layers}
@@ -1136,9 +1236,28 @@ export default function PixelForgePage() {
                 </button>
               </div>
 
-              {/* API Key */}
+              {/* API Key + Model */}
               <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Gemini API Key</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Model</p>
+                <select
+                  value={selectedModelId}
+                  onChange={e => { sfx.playSelect(); setSelectedModelId(e.target.value); }}
+                  className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground cursor-pointer"
+                  style={font}
+                >
+                  {AI_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+                {(() => {
+                  const m = AI_MODELS.find(x => x.id === selectedModelId) ?? AI_MODELS[0];
+                  return (
+                    <p className="text-[8px] text-muted-foreground/50" style={font}>
+                      ~${m.costPerImage.toFixed(3)} per image · {m.currency} · your key, your bill
+                    </p>
+                  );
+                })()}
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>API Key</p>
                 <input
                   type="password"
                   value={apiKey}

@@ -89,7 +89,28 @@ export enum ToolType {
   CHROMA_KEY = 'CHROMA_KEY',
 }
 
-export const CANVAS_PRESETS = [16, 32, 64, 128, 256] as const;
+export const CANVAS_PRESETS = [16, 32, 48, 64, 128, 256] as const;
+
+export const ASPECT_RATIOS = [
+  { label: '1:1', w: 1, h: 1 },
+  { label: '4:3', w: 4, h: 3 },
+  { label: '3:4', w: 3, h: 4 },
+  { label: '16:9', w: 16, h: 9 },
+  { label: '9:16', w: 9, h: 16 },
+  { label: '2:3', w: 2, h: 3 },
+  { label: '4:5', w: 4, h: 5 },
+] as const;
+
+export interface AiModel {
+  id: string;
+  label: string;
+  costPerImage: number;
+  currency: string;
+}
+
+export const AI_MODELS: AiModel[] = [
+  { id: 'gemini-3-pro-image-preview', label: 'Gemini 3 Pro Image', costPerImage: 0.134, currency: 'USD' },
+];
 
 export interface Rect {
   x: number;

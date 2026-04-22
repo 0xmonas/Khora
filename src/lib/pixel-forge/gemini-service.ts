@@ -17,12 +17,12 @@ export async function generatePixelAsset(
   selection?: GenerateSelection | null,
   hasExistingArt: boolean = false,
   transparentBg: boolean = true,
+  model: string = 'gemini-3-pro-image-preview',
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
   const paletteLine = hasPalette ? `\nUse ONLY these colors: ${paletteColors.join(', ')}.` : '';
   const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-3-pro-image-preview';
 
   const parts: { text?: string; inlineData?: { data: string; mimeType: string } }[] = [];
 

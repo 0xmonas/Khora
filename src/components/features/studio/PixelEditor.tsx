@@ -39,13 +39,13 @@ export function PixelEditor({
     return () => ro.disconnect();
   }, []);
 
-  const autoZoom = containerSize
+  const fitPixelSize = containerSize
     ? Math.max(1, Math.floor(Math.min(
         (containerSize.w - 32) / canvasWidth,
         (containerSize.h - 32) / canvasHeight,
       )))
-    : zoom;
-  const pixelSize = Math.min(zoom, autoZoom);
+    : 1;
+  const pixelSize = Math.max(1, Math.round(fitPixelSize * zoom));
 
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -530,7 +530,8 @@ export function PixelEditor({
   const cursorPos = getCursorPos();
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center relative p-4">
+    <div ref={containerRef} className="w-full h-full overflow-auto relative">
+      <div className="min-w-full min-h-full flex items-center justify-center p-4">
       <div
         className="relative outline outline-2 outline-neutral-700 dark:outline-neutral-200"
         style={{
@@ -561,8 +562,9 @@ export function PixelEditor({
           />
         )}
       </div>
-      <div className="absolute bottom-4 right-4 border border-neutral-700 dark:border-neutral-600 px-3 py-1.5 text-[10px] text-muted-foreground" style={{ fontFamily: 'var(--font-departure-mono)' }}>
-        {mousePos ? `X:${mousePos.x.toString().padStart(2, '0')} Y:${mousePos.y.toString().padStart(2, '0')}` : 'IDLE'} · {canvasWidth}x{canvasHeight} · {Math.round(zoom)}X
+      </div>
+      <div className="sticky bottom-4 float-right mr-4 border border-neutral-700 dark:border-neutral-600 px-3 py-1.5 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm pointer-events-none" style={{ fontFamily: 'var(--font-departure-mono)' }}>
+        {mousePos ? `X:${mousePos.x.toString().padStart(2, '0')} Y:${mousePos.y.toString().padStart(2, '0')}` : 'IDLE'} · {canvasWidth}x{canvasHeight} · {Math.round(zoom * 100)}%
       </div>
     </div>
   );
