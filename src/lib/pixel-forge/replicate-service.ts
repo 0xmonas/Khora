@@ -7,6 +7,7 @@ export interface RetroDiffusionParams {
   transparentBg: boolean;
   inputImage?: string;
   strength?: number;
+  bypassPromptExpansion?: boolean;
 }
 
 async function urlToDataUrl(url: string): Promise<string> {

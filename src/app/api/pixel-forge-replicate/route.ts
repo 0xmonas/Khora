@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
   const strength = Number(body.strength ?? 0.7);
   const transparentBg = Boolean(body.transparentBg);
   const inputImage = typeof body.inputImage === 'string' ? body.inputImage : undefined;
+  const bypassPromptExpansion = Boolean(body.bypassPromptExpansion);
 
   if (!replicateToken.startsWith('r8_') || replicateToken.length < 30) {
     return NextResponse.json({ error: 'Invalid Replicate token format' }, { status: 400 });
@@ -95,6 +96,9 @@ export async function POST(request: NextRequest) {
     num_images: 1,
     remove_bg: transparentBg,
   };
+  if (bypassPromptExpansion) {
+    input.bypass_prompt_expansion = true;
+  }
   if (inputImage) {
     input.input_image = inputImage;
     input.strength = strength;

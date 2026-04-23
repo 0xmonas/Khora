@@ -77,11 +77,15 @@ export default function PixelForgePage() {
   const [prompt, setPrompt] = useState('');
   const [genState, setGenState] = useState<GenerationState>({ isGenerating: false, error: null });
   const [apiKey, setApiKey] = useState('');
-  const [transparentBg, setTransparentBg] = useState(true);
+  const [transparentBg, setTransparentBg] = useState(false);
   const [autoChromaKey, setAutoChromaKey] = useState(true);
   const [selectedModelId, setSelectedModelId] = useState(AI_MODELS[0].id);
   const [rdStyle, setRdStyle] = useState<string>('default');
   const selectedModel = AI_MODELS.find(m => m.id === selectedModelId) ?? AI_MODELS[0];
+  const [spriteMode, setSpriteMode] = useState(false);
+  const [spriteFps, setSpriteFps] = useState(8);
+  const [spritePlaying, setSpritePlaying] = useState(false);
+  const [spriteFrameIndex, setSpriteFrameIndex] = useState(0);
 
   // Token import
   const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
@@ -496,6 +500,114 @@ export default function PixelForgePage() {
   useEffect(() => {
     setZoom(1);
   }, [canvasWidth, canvasHeight]);
+
+  useEffect(() => {
+    if (!spriteMode || !spritePlaying || layers.length < 2) return;
+    const interval = setInterval(() => {
+      setSpriteFrameIndex(i => (i + 1) % layers.length);
+    }, Math.max(1, Math.round(1000 / spriteFps)));
+    return () => clearInterval(interval);
+  }, [spriteMode, spritePlaying, spriteFps, layers.length]);
+
+  useEffect(() => {
+    if (!spriteMode) {
+      setSpritePlaying(false);
+      setSpriteFrameIndex(0);
+    }
+  }, [spriteMode]);
+
+  useEffect(() => {
+    if (spriteMode && spriteFrameIndex >= layers.length) {
+      setSpriteFrameIndex(0);
+    }
+  }, [layers.length, spriteMode, spriteFrameIndex]);
+
+  const renderLayerAtScale = async (layerData: string, scale: number): Promise<Blob | null> => {
+    const img = new Image();
+    img.src = layerData;
+    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+    const w = canvasWidth * scale;
+    const h = canvasHeight * scale;
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    const ctx = cvs.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, w, h);
+    return await new Promise<Blob | null>(resolve => cvs.toBlob(resolve, 'image/png'));
+  };
+
+  const getLayerImageDataAtScale = async (layerData: string, scale: number): Promise<ImageData | null> => {
+    const img = new Image();
+    img.src = layerData;
+    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+    const w = canvasWidth * scale;
+    const h = canvasHeight * scale;
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, w, h);
+    return ctx.getImageData(0, 0, w, h);
+  };
+
+  const handleExportFramesZip = async () => {
+    if (layers.length === 0) return;
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (!l.data) continue;
+      const blob = await renderLayerAtScale(l.data, downloadScale);
+      if (!blob) continue;
+      const idx = String(i + 1).padStart(2, '0');
+      zip.file(`frame-${idx}.png`, blob);
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const sizeW = canvasWidth * downloadScale;
+    const sizeH = canvasHeight * downloadScale;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pixel-forge-frames-${sizeW}x${sizeH}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleExportGif = async () => {
+    if (layers.length < 2) return;
+    const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
+    const w = canvasWidth * downloadScale;
+    const h = canvasHeight * downloadScale;
+    const delay = Math.max(20, Math.round(1000 / spriteFps));
+    const gif = GIFEncoder();
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (!l.data) continue;
+      const imgData = await getLayerImageDataAtScale(l.data, downloadScale);
+      if (!imgData) continue;
+      let hasTransparent = false;
+      for (let p = 3; p < imgData.data.length; p += 4) {
+        if (imgData.data[p] < 128) { hasTransparent = true; break; }
+      }
+      const fmt = hasTransparent ? 'rgba4444' : 'rgb444';
+      const palette = quantize(imgData.data, 256, { format: fmt });
+      const indexed = applyPalette(imgData.data, palette, fmt);
+      const opts: { palette: number[][]; delay: number; transparent?: boolean } = { palette, delay };
+      if (hasTransparent) opts.transparent = true;
+      gif.writeFrame(indexed, w, h, opts);
+    }
+    gif.finish();
+    const bytes = gif.bytes();
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/gif' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pixel-forge-animation-${w}x${h}-${spriteFps}fps.gif`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const quantizeKey = `${contrast}|${brightness}|${quantizeTrigger}`;
   const isFirstRender = useRef(true);
   const layersRef = useRef(layers);
@@ -564,35 +676,110 @@ export default function PixelForgePage() {
     try {
       const composite = await getCompositeImage();
       const hasExistingArt = layers.some(l => l.visible && l.data);
+      const genWidth = spriteMode ? 256 : canvasWidth;
+      const genHeight = spriteMode ? 256 : canvasHeight;
+      const finalPrompt = spriteMode
+        ? `${prompt}. Same character as the reference image. Render as a 4x4 sprite sheet: 16 frames of 64x64 pixels filling a 256x256 canvas, no borders or gaps between frames, read top-left to bottom-right.`
+        : prompt;
       let result: string;
       if (selectedModel.provider === 'replicate') {
         result = await generateRetroDiffusion({
           replicateToken: apiKey,
-          prompt,
-          width: canvasWidth,
-          height: canvasHeight,
-          style: rdStyle,
+          prompt: finalPrompt,
+          width: genWidth,
+          height: genHeight,
+          style: spriteMode ? 'item_sheet' : rdStyle,
           transparentBg,
           inputImage: hasExistingArt ? composite : undefined,
-          strength: 0.7,
+          strength: spriteMode ? 0.5 : 0.7,
+          bypassPromptExpansion: spriteMode,
         });
       } else {
         result = await generatePixelAsset(
           apiKey,
-          prompt,
-          canvasWidth,
-          canvasHeight,
+          finalPrompt,
+          genWidth,
+          genHeight,
           [],
-          composite,
-          selection,
-          hasExistingArt,
+          hasExistingArt ? composite : undefined,
+          spriteMode ? null : selection,
+          spriteMode ? false : hasExistingArt,
           transparentBg,
           selectedModelId,
+          spriteMode,
         );
       }
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+
+      if (spriteMode) {
+        let referencePalette: string[] = [];
+        if (hasExistingArt) {
+          const refImg = new Image();
+          refImg.src = composite;
+          await new Promise<void>(r => { refImg.onload = () => r(); refImg.onerror = () => r(); });
+          const refCvs = document.createElement('canvas');
+          refCvs.width = canvasWidth; refCvs.height = canvasHeight;
+          const refCtx = refCvs.getContext('2d', { willReadFrequently: true });
+          if (refCtx) {
+            refCtx.drawImage(refImg, 0, 0);
+            const refData = refCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+            const centroids = quantizeImageData(refData, 16);
+            referencePalette = centroids.map(rgbToHex);
+          }
+        }
+
+        const sheet = document.createElement('canvas');
+        sheet.width = 256; sheet.height = 256;
+        const sctx = sheet.getContext('2d', { willReadFrequently: true });
+        if (!sctx) return;
+        sctx.drawImage(img, 0, 0, 256, 256);
+        const frames: Layer[] = [];
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 4; col++) {
+            const fcvs = document.createElement('canvas');
+            fcvs.width = 64; fcvs.height = 64;
+            const fctx = fcvs.getContext('2d', { willReadFrequently: true });
+            if (!fctx) continue;
+            fctx.drawImage(sheet, col * 64, row * 64, 64, 64, 0, 0, 64, 64);
+            const frameData = fctx.getImageData(0, 0, 64, 64);
+            if (transparentBg && autoChromaKey) {
+              const d = frameData.data;
+              for (let i = 0; i < d.length; i += 4) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                const isChroma = r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3;
+                if (isChroma) d[i + 3] = 0;
+              }
+            }
+            if (referencePalette.length > 0) {
+              snapToTopKPalette(frameData, referencePalette, referencePalette.length);
+            }
+            fctx.putImageData(frameData, 0, 0);
+            const n = row * 4 + col + 1;
+            frames.push({
+              id: `sprite-${Date.now()}-${n}-${Math.random().toString(36).slice(2, 6)}`,
+              name: `Frame ${String(n).padStart(2, '0')}`,
+              data: fcvs.toDataURL('image/png'),
+              visible: true,
+              opacity: 1,
+              isLocked: false,
+            });
+          }
+        }
+        if (referencePalette.length > 0) {
+          setCustomColors(referencePalette);
+          setActivePalette({ name: '__custom__', colors: [] });
+        }
+        setCanvasWidth(64);
+        setCanvasHeight(64);
+        pushToHistory(frames);
+        setActiveLayerId(frames[0].id);
+        setSpriteFrameIndex(0);
+        sfx.playSuccess();
+        return;
+      }
+
       const cvs = document.createElement('canvas');
       cvs.width = canvasWidth; cvs.height = canvasHeight;
       const ctx = cvs.getContext('2d');
@@ -1180,20 +1367,30 @@ export default function PixelForgePage() {
                 <button onClick={() => { sfx.playClick(); handleClearLayer(); }} disabled={!activeLayer || activeLayer.isLocked} className="w-full flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-red-500/10 transition-colors" style={font}>
                   <Trash2 className="w-3 h-3" /> Clear
                 </button>
-                <div className="flex gap-1">
-                  <select
-                    value={downloadScale}
-                    onChange={e => { sfx.playSelect(); setDownloadScale(Number(e.target.value)); }}
-                    className="border border-neutral-700 dark:border-neutral-600 bg-background px-1.5 py-1.5 text-[10px] focus:outline-none text-foreground"
-                    style={font}
-                  >
-                    {SCALE_OPTIONS.map(s => (
-                      <option key={s} value={s}>{s}x ({canvasWidth * s}x{canvasHeight * s}px)</option>
-                    ))}
-                  </select>
-                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="flex-1 flex items-center justify-center gap-2 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                <select
+                  value={downloadScale}
+                  onChange={e => { sfx.playSelect(); setDownloadScale(Number(e.target.value)); }}
+                  className="w-full border border-neutral-700 dark:border-neutral-600 bg-background px-1.5 py-1.5 text-[10px] focus:outline-none text-foreground"
+                  style={font}
+                >
+                  {SCALE_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}x ({canvasWidth * s}x{canvasHeight * s}px)</option>
+                  ))}
+                </select>
+                <div className={`grid gap-1 ${spriteMode && layers.length >= 2 ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="flex items-center justify-center gap-1 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
                     <Download className="w-3 h-3" /> PNG
                   </button>
+                  {spriteMode && layers.length >= 2 && (
+                    <>
+                      <button onClick={() => { sfx.playSuccess(); handleExportFramesZip(); }} className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> ZIP
+                      </button>
+                      <button onClick={() => { sfx.playSuccess(); handleExportGif(); }} className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> GIF
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1216,8 +1413,49 @@ export default function PixelForgePage() {
                   onPickColor={c => { setPrimaryColor(c); setTool(ToolType.PENCIL); }}
                   selection={selection}
                   setSelection={setSelection}
+                  soloLayerIndex={spriteMode ? spriteFrameIndex : undefined}
                 />
               </div>
+              {spriteMode && layers.length >= 2 && (
+                <div className="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2 flex flex-wrap items-center gap-3 text-[10px]" style={font}>
+                  <button
+                    onClick={() => { sfx.playClick(); setSpritePlaying(p => !p); }}
+                    className="border-2 border-neutral-700 dark:border-neutral-200 px-3 py-1 uppercase hover:bg-foreground/5 transition-colors min-w-[72px]"
+                    style={font}
+                  >
+                    {spritePlaying ? 'Pause' : 'Play'}
+                  </button>
+                  <button
+                    onClick={() => { sfx.playClick(); setSpritePlaying(false); setSpriteFrameIndex(i => (i - 1 + layers.length) % layers.length); }}
+                    className="border border-neutral-700 dark:border-neutral-600 px-2 py-1 uppercase hover:bg-foreground/5 transition-colors"
+                    style={font}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => { sfx.playClick(); setSpritePlaying(false); setSpriteFrameIndex(i => (i + 1) % layers.length); }}
+                    className="border border-neutral-700 dark:border-neutral-600 px-2 py-1 uppercase hover:bg-foreground/5 transition-colors"
+                    style={font}
+                  >
+                    Next
+                  </button>
+                  <span className="text-muted-foreground uppercase tracking-wider">
+                    Frame {spriteFrameIndex + 1} / {layers.length}
+                  </span>
+                  <div className="flex items-center gap-2 min-w-[160px]">
+                    <span className="text-muted-foreground uppercase tracking-wider">FPS</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={24}
+                      value={spriteFps}
+                      onChange={e => setSpriteFps(Number(e.target.value))}
+                      className="flex-1 accent-foreground cursor-pointer"
+                    />
+                    <span className="w-6 text-right text-muted-foreground">{spriteFps}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right sidebar */}
@@ -1242,6 +1480,10 @@ export default function PixelForgePage() {
                 <label className={`flex items-center gap-1.5 text-[9px] uppercase cursor-pointer select-none ${transparentBg ? 'text-muted-foreground' : 'text-muted-foreground/30 pointer-events-none'}`} style={font}>
                   <input type="checkbox" checked={autoChromaKey} disabled={!transparentBg} onChange={e => { sfx.playClick(); setAutoChromaKey(e.target.checked); }} className="cursor-pointer accent-foreground disabled:cursor-not-allowed" />
                   Auto chroma key
+                </label>
+                <label className="flex items-center gap-1.5 text-[9px] uppercase text-muted-foreground cursor-pointer select-none" style={font}>
+                  <input type="checkbox" checked={spriteMode} onChange={e => { sfx.playClick(); setSpriteMode(e.target.checked); }} className="cursor-pointer accent-foreground" />
+                  Sprite mode (4x4 grid, 16 frames)
                 </label>
                 <button
                   onClick={() => { sfx.playClick(); handleGenerate(); }}

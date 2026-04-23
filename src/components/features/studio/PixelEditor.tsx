@@ -18,11 +18,12 @@ interface PixelEditorProps {
   onPickColor: (color: string) => void;
   selection: Rect | null;
   setSelection: (rect: Rect | null) => void;
+  soloLayerIndex?: number;
 }
 
 export function PixelEditor({
   layers, activeLayerId, activeTool, primaryColor, brushSize,
-  zoom, bgOpacity, showGrid, canvasWidth, canvasHeight, onUpdateLayer, onPickColor, selection, setSelection,
+  zoom, bgOpacity, showGrid, canvasWidth, canvasHeight, onUpdateLayer, onPickColor, selection, setSelection, soloLayerIndex,
 }: PixelEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,8 +115,11 @@ export function PixelEditor({
     }
     ctx.globalAlpha = 1.0;
 
-    [...layers].reverse().forEach(layer => {
-      if (!layer.visible) return;
+    const layersToRender = typeof soloLayerIndex === 'number'
+      ? (layers[soloLayerIndex] ? [layers[soloLayerIndex]] : [])
+      : [...layers].reverse();
+    layersToRender.forEach(layer => {
+      if (typeof soloLayerIndex !== 'number' && !layer.visible) return;
       const imageData = (isDrawingRef.current && layer.id === activeLayerId && scratchRef.current)
         ? scratchRef.current
         : layerPixels.get(layer.id);
@@ -198,7 +202,7 @@ export function PixelEditor({
       }
       ctx.setLineDash([]);
     }
-  }, [layers, layerPixels, activeLayerId, selection, pixelSize, bgOpacity, showGrid, activeTool, shapePreview, canvasWidth, canvasHeight]);
+  }, [layers, layerPixels, activeLayerId, selection, pixelSize, bgOpacity, showGrid, activeTool, shapePreview, canvasWidth, canvasHeight, soloLayerIndex]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 

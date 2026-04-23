@@ -18,6 +18,7 @@ export async function generatePixelAsset(
   hasExistingArt: boolean = false,
   transparentBg: boolean = true,
   model: string = 'gemini-3-pro-image-preview',
+  spriteMode: boolean = false,
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
@@ -27,7 +28,12 @@ export async function generatePixelAsset(
   const parts: { text?: string; inlineData?: { data: string; mimeType: string } }[] = [];
 
   let instruction: string;
-  if (selection) {
+  if (spriteMode) {
+    const bgLine = transparentBg
+      ? '\nBackground must be BRIGHT GREEN (#00FF00) for chroma key removal.'
+      : '';
+    instruction = `${prompt}${bgLine}`;
+  } else if (selection) {
     const outsideRule = transparentBg
       ? 'OUTSIDE the target rectangle: the background must be BRIGHT GREEN (#00FF00) so the pixels outside the rectangle get chroma-keyed away and don\'t overwrite existing canvas.'
       : 'OUTSIDE the target rectangle: extend naturally with a fitting backdrop if helpful; avoid pure green (#00FF00).';
