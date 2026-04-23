@@ -101,16 +101,88 @@ export const ASPECT_RATIOS = [
   { label: '4:5', w: 4, h: 5 },
 ] as const;
 
+export type AiProvider = 'gemini' | 'replicate';
+
 export interface AiModel {
   id: string;
   label: string;
+  provider: AiProvider;
   costPerImage: number;
   currency: string;
+  keyLabel: string;
+  keyPlaceholder: string;
+  keyHelp: string;
+  pricingUrl: string;
 }
 
 export const AI_MODELS: AiModel[] = [
-  { id: 'gemini-3-pro-image-preview', label: 'Gemini 3 Pro Image', costPerImage: 0.134, currency: 'USD' },
+  {
+    id: 'gemini-3-pro-image-preview',
+    label: 'Gemini 3 Pro Image',
+    provider: 'gemini',
+    costPerImage: 0.134,
+    currency: 'USD',
+    keyLabel: 'Gemini API Key',
+    keyPlaceholder: 'AIza...',
+    keyHelp: 'Get one at ai.google.dev',
+    pricingUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
+  },
+  {
+    id: 'retro-diffusion-rd-plus',
+    label: 'Retro Diffusion (Replicate)',
+    provider: 'replicate',
+    costPerImage: 0.03,
+    currency: 'USD',
+    keyLabel: 'Replicate API Token',
+    keyPlaceholder: 'r8_...',
+    keyHelp: 'Get one at replicate.com/account/api-tokens',
+    pricingUrl: 'https://replicate.com/retro-diffusion/rd-plus',
+  },
 ];
+
+export const RD_STYLES = [
+  { id: 'default', label: 'Default' },
+  { id: 'retro', label: 'Retro (PC98)' },
+  { id: 'classic', label: 'Classic' },
+  { id: 'watercolor', label: 'Watercolor' },
+  { id: 'textured', label: 'Textured' },
+  { id: 'cartoon', label: 'Cartoon' },
+  { id: 'character_turnaround', label: 'Character Turnaround' },
+  { id: 'environment', label: 'Environment' },
+  { id: 'isometric', label: 'Isometric' },
+  { id: 'isometric_asset', label: 'Isometric Asset' },
+  { id: 'topdown_map', label: 'Top-down Map' },
+  { id: 'topdown_asset', label: 'Top-down Asset' },
+  { id: 'ui_element', label: 'UI Element' },
+  { id: 'item_sheet', label: 'Item Sheet' },
+] as const;
+
+const RD_SMALL_STYLES = new Set(['low_res', 'topdown_item', 'skill_icon', 'mc_item', 'mc_texture']);
+
+export function getRDCost(style: string, width: number, height: number): number {
+  const pixels = width * height;
+  if (style === 'classic') {
+    if (pixels <= 1024) return 0.025;
+    if (pixels <= 4096) return 0.030;
+    if (pixels <= 9216) return 0.039;
+    if (pixels <= 16384) return 0.051;
+    return 0.085;
+  }
+  if (RD_SMALL_STYLES.has(style)) {
+    if (pixels <= 256) return 0.024;
+    if (pixels <= 1024) return 0.025;
+    if (pixels <= 4096) return 0.030;
+    if (pixels <= 9216) return 0.039;
+    return 0.051;
+  }
+  if (pixels <= 4096) return 0.028;
+  if (pixels <= 9216) return 0.030;
+  if (pixels <= 16384) return 0.034;
+  if (pixels <= 36864) return 0.044;
+  if (pixels <= 65536) return 0.058;
+  if (pixels <= 102400) return 0.077;
+  return 0.099;
+}
 
 export interface Rect {
   x: number;

@@ -13,8 +13,9 @@ import { Footer } from '@/components/layouts/Footer';
 import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { HolderGate } from '@/components/features/studio/HolderGate';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
+import { generateRetroDiffusion } from '@/lib/pixel-forge/replicate-service';
 import { quantizeImageData, rgbToHex, snapToTopKPalette } from '@/lib/pixel-forge/quantize';
-import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, ASPECT_RATIOS, AI_MODELS, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, ASPECT_RATIOS, AI_MODELS, RD_STYLES, getRDCost, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -79,6 +80,8 @@ export default function PixelForgePage() {
   const [transparentBg, setTransparentBg] = useState(true);
   const [autoChromaKey, setAutoChromaKey] = useState(true);
   const [selectedModelId, setSelectedModelId] = useState(AI_MODELS[0].id);
+  const [rdStyle, setRdStyle] = useState<string>('default');
+  const selectedModel = AI_MODELS.find(m => m.id === selectedModelId) ?? AI_MODELS[0];
 
   // Token import
   const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
@@ -554,25 +557,39 @@ export default function PixelForgePage() {
   // AI generation
   const handleGenerate = async () => {
     if (!prompt.trim() || !apiKey.trim()) {
-      setGenState({ isGenerating: false, error: !apiKey.trim() ? 'Enter your Gemini API key.' : null });
+      setGenState({ isGenerating: false, error: !apiKey.trim() ? `Enter your ${selectedModel.keyLabel}.` : null });
       return;
     }
     setGenState({ isGenerating: true, error: null });
     try {
       const composite = await getCompositeImage();
       const hasExistingArt = layers.some(l => l.visible && l.data);
-      const result = await generatePixelAsset(
-        apiKey,
-        prompt,
-        canvasWidth,
-        canvasHeight,
-        [],
-        composite,
-        selection,
-        hasExistingArt,
-        transparentBg,
-        selectedModelId,
-      );
+      let result: string;
+      if (selectedModel.provider === 'replicate') {
+        result = await generateRetroDiffusion({
+          replicateToken: apiKey,
+          prompt,
+          width: canvasWidth,
+          height: canvasHeight,
+          style: rdStyle,
+          transparentBg,
+          inputImage: hasExistingArt ? composite : undefined,
+          strength: 0.7,
+        });
+      } else {
+        result = await generatePixelAsset(
+          apiKey,
+          prompt,
+          canvasWidth,
+          canvasHeight,
+          [],
+          composite,
+          selection,
+          hasExistingArt,
+          transparentBg,
+          selectedModelId,
+        );
+      }
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
@@ -1241,7 +1258,7 @@ export default function PixelForgePage() {
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Model</p>
                 <select
                   value={selectedModelId}
-                  onChange={e => { sfx.playSelect(); setSelectedModelId(e.target.value); }}
+                  onChange={e => { sfx.playSelect(); setSelectedModelId(e.target.value); setApiKey(''); }}
                   className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground cursor-pointer"
                   style={font}
                 >
@@ -1250,25 +1267,53 @@ export default function PixelForgePage() {
                   ))}
                 </select>
                 {(() => {
-                  const m = AI_MODELS.find(x => x.id === selectedModelId) ?? AI_MODELS[0];
+                  const cost = selectedModel.provider === 'replicate'
+                    ? getRDCost(rdStyle, canvasWidth, canvasHeight)
+                    : selectedModel.costPerImage;
                   return (
-                    <p className="text-[8px] text-muted-foreground/50" style={font}>
-                      ~${m.costPerImage.toFixed(3)} per image · {m.currency} · your key, your bill
+                    <p className="text-[8px] text-muted-foreground/50 flex items-center gap-1" style={font}>
+                      <span>~${cost.toFixed(3)} per image at {canvasWidth}x{canvasHeight} · {selectedModel.currency} · your key, your bill</span>
+                      <a
+                        href={selectedModel.pricingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center w-3 h-3 border border-muted-foreground/40 text-[7px] hover:border-foreground hover:text-foreground transition-colors"
+                        title={`See full pricing on ${selectedModel.provider === 'gemini' ? 'ai.google.dev' : 'replicate.com'}`}
+                      >
+                        ?
+                      </a>
                     </p>
                   );
                 })()}
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>API Key</p>
+
+                {selectedModel.provider === 'replicate' && (
+                  <>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>Style</p>
+                    <select
+                      value={rdStyle}
+                      onChange={e => { sfx.playSelect(); setRdStyle(e.target.value); }}
+                      className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground cursor-pointer"
+                      style={font}
+                    >
+                      {RD_STYLES.map(s => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>{selectedModel.keyLabel}</p>
                 <input
                   type="password"
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value.trim())}
-                  placeholder="Paste your key..."
+                  placeholder={selectedModel.keyPlaceholder}
                   className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground placeholder:text-muted-foreground/30"
                   style={font}
                 />
                 {apiKey && <p className="text-[9px] text-green-600 dark:text-green-400" style={font}>&#10003; Key set</p>}
                 <p className="text-[8px] text-muted-foreground/30" style={font}>
-                  Never stored. Get one at ai.google.dev
+                  Never stored. {selectedModel.keyHelp}
                 </p>
               </div>
 
