@@ -58,8 +58,8 @@ docs/
 # data
 data/
 
-# contracts
-contracts/
+# contracts (Foundry project at repo root only — keep src/lib/contracts/ tracked)
+/contracts/
 
 # test scripts (contain model references, run locally only)
 scripts/tests/
