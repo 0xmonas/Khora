@@ -30,7 +30,7 @@ export default function PrivacyPolicyPage() {
             {/* Introduction */}
             <Section title="Introduction">
               <p>
-                Kh&ocirc;ra (&quot;we,&quot; &quot;our,&quot; or &quot;the Project&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our AI agent identity platform and Web3 services.
+                BOOA (&quot;we,&quot; &quot;our,&quot; or &quot;the Project&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our AI agent identity platform and Web3 services.
               </p>
             </Section>
 

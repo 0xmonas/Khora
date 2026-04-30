@@ -184,30 +184,25 @@ function ToolMedia({ src, alt, priority }: { src: string; alt: string; priority?
 
 function InternalToolCard({ tool }: { tool: ToolCard }) {
   return (
-    <Link
-      href={tool.href}
-      className="group border-2 border-neutral-700 dark:border-neutral-200 flex flex-col transition-colors hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
-    >
-      <div className="relative w-full aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+    <Link href={tool.href} className="group block">
+      <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900 ring-1 ring-neutral-200/60 dark:ring-neutral-800 transition-all duration-300 group-hover:ring-neutral-400 dark:group-hover:ring-neutral-600">
         <ToolMedia src={tool.media} alt={tool.title} priority={tool.id === TOOLS[0]?.id} />
         {tool.tag && (
           <span
-            className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 border border-green-600 dark:border-green-500 text-green-600 dark:text-green-500 bg-white/90 dark:bg-neutral-900/90"
+            className="absolute top-2 right-2 text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 border border-green-600/80 dark:border-green-500/80 text-green-700 dark:text-green-400 bg-background/85 backdrop-blur-sm rounded-sm"
             style={font}
           >
             {tool.tag}
           </span>
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <ArrowRight className="w-3.5 h-3.5 text-white drop-shadow-md" />
+        </div>
       </div>
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        <div className="space-y-1.5">
-          <h3 className="text-sm text-foreground" style={font}>{tool.title}</h3>
-          <p className="text-xs text-muted-foreground leading-relaxed" style={font}>{tool.description}</p>
-        </div>
-        <div className="mt-auto flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors" style={font}>
-          Open
-          <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-        </div>
+      <div className="mt-3 space-y-1">
+        <h3 className="text-xs text-foreground" style={font}>{tool.title}</h3>
+        <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2" style={font}>{tool.description}</p>
       </div>
     </Link>
   );
@@ -220,32 +215,30 @@ function ExternalToolCard({ tool }: { tool: ToolCard }) {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="group border-2 border-neutral-700 dark:border-neutral-200 flex flex-col transition-colors hover:bg-neutral-50 dark:hover:bg-white/[0.02] text-left w-full"
+        className="group block text-left w-full"
       >
-        <div className="relative w-full aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+        <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900 ring-1 ring-neutral-200/60 dark:ring-neutral-800 transition-all duration-300 group-hover:ring-amber-500/50 dark:group-hover:ring-amber-400/50">
           <ToolMedia src={tool.media} alt={tool.title} />
           <span
-            className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 border border-amber-600 dark:border-amber-500 text-amber-600 dark:text-amber-500 bg-white/90 dark:bg-neutral-900/90"
+            className="absolute top-2 right-2 text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 border border-amber-600/80 dark:border-amber-500/80 text-amber-700 dark:text-amber-400 bg-background/85 backdrop-blur-sm rounded-sm"
             style={font}
           >
             Community
           </span>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <ExternalLink className="w-3.5 h-3.5 text-white drop-shadow-md" />
+          </div>
         </div>
-        <div className="p-4 flex flex-col gap-3 flex-1">
-          <div className="space-y-1.5">
-            <h3 className="text-sm text-foreground flex items-center gap-1.5" style={font}>
-              {tool.title}
-              <ExternalLink className="w-3 h-3 text-muted-foreground/50" />
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed" style={font}>{tool.description}</p>
-          </div>
+        <div className="mt-3 space-y-1">
+          <h3 className="text-xs text-foreground flex items-center gap-1" style={font}>
+            {tool.title}
+            <ExternalLink className="w-2.5 h-2.5 text-muted-foreground/40" />
+          </h3>
+          <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2" style={font}>{tool.description}</p>
           {tool.creator && (
-            <p className="text-[10px] text-muted-foreground/40" style={font}>by {tool.creator}</p>
+            <p className="text-[9px] text-muted-foreground/50 pt-0.5" style={font}>by {tool.creator}</p>
           )}
-          <div className="mt-auto flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors" style={font}>
-            Open
-            <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-          </div>
         </div>
       </button>
 
@@ -347,7 +340,7 @@ export default function StudioPage() {
               </div>
 
               {/* Tool Grid */}
-              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-5 gap-y-8">
                 {TOOLS.map((tool) => (
                   <ToolCardItem key={tool.id} tool={tool} />
                 ))}

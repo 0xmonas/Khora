@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Trash2, ExternalLink, Sparkles } from 'lucide-react';
+import { Send, Trash2, ExternalLink } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import type { BooaskMessage } from '@/lib/booask/types';
@@ -18,6 +18,8 @@ const FAQ: { q: string; hint: string }[] = [
 ];
 
 const URL_RE = /(https?:\/\/[^\s)]+)|(\b[\w-]+\.(?:booa\.app|khora\.fun|opensea\.io|shapescan\.xyz|etherscan\.io)[^\s)]*)/gi;
+// Markdown image: ![alt](url) — capture both groups
+const MD_IMAGE_RE = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 function brandFor(url: string): { label: string; iconSrc?: string } {
   const u = url.toLowerCase();
@@ -28,7 +30,7 @@ function brandFor(url: string): { label: string; iconSrc?: string } {
   return { label: url.replace(/^https?:\/\//, '').split('/')[0] };
 }
 
-function renderText(text: string) {
+function renderLinks(text: string, keyPrefix: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
@@ -39,7 +41,7 @@ function renderText(text: string) {
     const b = brandFor(url);
     parts.push(
       <a
-        key={`${m.index}-${url}`}
+        key={`${keyPrefix}-${m.index}-${url}`}
         href={url}
         target="_blank"
         rel="noopener noreferrer"
@@ -58,6 +60,39 @@ function renderText(text: string) {
   }
   if (last < text.length) parts.push(text.slice(last));
   return parts;
+}
+
+function renderText(text: string) {
+  // First split on markdown images, render each as <img>; render the rest of the text via renderLinks
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  MD_IMAGE_RE.lastIndex = 0;
+  let imgIdx = 0;
+  while ((m = MD_IMAGE_RE.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(...renderLinks(text.slice(last, m.index), `t${imgIdx}`));
+    }
+    const alt = m[1];
+    const src = m[2];
+    out.push(
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        key={`img-${m.index}-${imgIdx}`}
+        src={src}
+        alt={alt}
+        className="block my-2 rounded-md max-w-[200px] w-full h-auto bg-neutral-100 dark:bg-neutral-800"
+        style={{ imageRendering: 'pixelated' }}
+        loading="lazy"
+      />,
+    );
+    last = m.index + m[0].length;
+    imgIdx++;
+  }
+  if (last < text.length) {
+    out.push(...renderLinks(text.slice(last), `t${imgIdx}`));
+  }
+  return out;
 }
 
 export default function BooaskPage() {
@@ -160,7 +195,12 @@ export default function BooaskPage() {
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-neutral-900 dark:bg-neutral-100 flex items-center justify-center">
-                      <Sparkles className="w-3 h-3 text-white dark:text-black" />
+                      <span
+                        className="text-[11px] font-bold leading-none text-white dark:text-black"
+                        style={font}
+                      >
+                        B
+                      </span>
                     </div>
                     <span className="text-xs text-foreground" style={font}>BOOASK</span>
                     <span className="text-[10px] text-muted-foreground/50" style={font}>oracle</span>

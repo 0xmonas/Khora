@@ -30,14 +30,14 @@ export default function TermsOfUsePage() {
             {/* Acceptance */}
             <Section title="Acceptance of Terms">
               <p>
-                Kh&ocirc;ra (&quot;the Project&quot;) is an AI agent identity generator and on-chain registry created by an independent developer. By accessing and using this website, interacting with our smart contracts, or minting BOOA NFTs, you agree to these Terms of Use. If you do not agree, do not access or use this project.
+                BOOA (&quot;the Project&quot;) is an AI agent identity generator and on-chain registry created by an independent developer. By accessing and using this website, interacting with our smart contracts, or minting BOOA NFTs, you agree to these Terms of Use. If you do not agree, do not access or use this project.
               </p>
             </Section>
 
             {/* Platform Nature */}
             <Section title="Platform Nature">
               <p>
-                <strong className="text-foreground">IMPORTANT:</strong> Kh&ocirc;ra is an experimental Web3 platform that generates AI agent identities as fully on-chain pixel art NFTs (BOOA collection) and registers them on the ERC-8004 Identity Registry across multiple EVM chains.
+                <strong className="text-foreground">IMPORTANT:</strong> BOOA is an experimental Web3 platform that generates AI agent identities as fully on-chain pixel art NFTs (BOOA collection) and registers them on the ERC-8004 Identity Registry across multiple EVM chains.
               </p>
               <p>
                 The platform uses AI services (Google Gemini for text generation, Replicate for image generation) to create unique agent identities. Generated content is stored immutably on-chain via SSTORE2. Web3 interactions carry inherent risks — only interact with smart contracts if you understand these risks.
@@ -114,7 +114,7 @@ export default function TermsOfUsePage() {
             {/* Age Restriction */}
             <Section title="Age Restriction">
               <p>
-                You must be at least 18 years of age to use this platform. By accessing and using Kh&ocirc;ra, you represent and warrant that you are at least 18 years old. We do not knowingly provide services to individuals under 18.
+                You must be at least 18 years of age to use this platform. By accessing and using BOOA, you represent and warrant that you are at least 18 years old. We do not knowingly provide services to individuals under 18.
               </p>
             </Section>
 
@@ -150,7 +150,7 @@ export default function TermsOfUsePage() {
             {/* ERC-8004 */}
             <Section title="ERC-8004 Identity Registry">
               <p>
-                Kh&ocirc;ra integrates with the <a href="https://github.com/erc-8004/erc-8004-contracts" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">ERC-8004 Identity Registry</a>, a third-party protocol for on-chain agent identity registration. We do not own, operate, or control the ERC-8004 smart contracts. We act as a facilitator — providing a user interface to simplify interactions with the registry.
+                BOOA integrates with the <a href="https://github.com/erc-8004/erc-8004-contracts" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">ERC-8004 Identity Registry</a>, a third-party protocol for on-chain agent identity registration. We do not own, operate, or control the ERC-8004 smart contracts. We act as a facilitator — providing a user interface to simplify interactions with the registry.
               </p>
               <p>
                 The ERC-8004 contracts are deployed and maintained by the ERC-8004 protocol team. Any bugs, vulnerabilities, or changes in the ERC-8004 contracts are outside our control. You interact with these contracts at your own risk.
@@ -176,7 +176,7 @@ export default function TermsOfUsePage() {
             {/* Claw Downloads */}
             <Section title="Downloadable Agent Files (Claw)">
               <p>
-                Kh&ocirc;ra provides downloadable .zip files (&quot;Claw&quot; files) containing AI-generated agent configuration data. These files:
+                BOOA provides downloadable .zip files (&quot;Claw&quot; files) containing AI-generated agent configuration data. These files:
               </p>
               <ul className="space-y-1.5 list-disc list-inside">
                 <li>Are generatively created informational files based on your agent&apos;s on-chain traits</li>
@@ -228,7 +228,7 @@ export default function TermsOfUsePage() {
                 You are solely responsible for determining what, if any, taxes apply to your transactions involving BOOA NFTs, including minting, buying, selling, or transferring. This includes all applicable federal, state, local, and international taxes in your jurisdiction.
               </p>
               <p>
-                Kh&ocirc;ra does not provide tax advice and is not responsible for determining or collecting any taxes on your behalf. The regulatory regime governing NFTs, cryptocurrencies, and digital assets varies by jurisdiction and is subject to change. You should consult a qualified tax professional regarding your specific tax obligations.
+                BOOA does not provide tax advice and is not responsible for determining or collecting any taxes on your behalf. The regulatory regime governing NFTs, cryptocurrencies, and digital assets varies by jurisdiction and is subject to change. You should consult a qualified tax professional regarding your specific tax obligations.
               </p>
             </Section>
 
@@ -273,7 +273,7 @@ export default function TermsOfUsePage() {
                 Final Warning
               </h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed" style={font}>
-                Kh&ocirc;ra involves Web3 interactions and blockchain transactions. You may lose funds through incorrect transactions or smart contract interactions. Only use wallet features and blockchain transactions if you fully understand the risks. The developer accepts no responsibility for any financial losses.
+                BOOA involves Web3 interactions and blockchain transactions. You may lose funds through incorrect transactions or smart contract interactions. Only use wallet features and blockchain transactions if you fully understand the risks. The developer accepts no responsibility for any financial losses.
               </p>
               <p className="text-[11px] text-muted-foreground/60 text-center" style={font}>
                 Blockchain transactions are IRREVERSIBLE. Double-check everything.

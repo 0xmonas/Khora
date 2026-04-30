@@ -256,6 +256,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           domains,
           serviceEndpoint: endpoint,
           updatedAt: data.updatedAt ?? null,
+          imageUrl: `${origin}/api/agent-files/${chainId}/${tokenId}/avatar.svg`,
           openSeaUrl: buildOpenSeaItemUrl(tokenId),
           collectionUrl: OPENSEA_COLLECTION_URL,
         };
@@ -280,6 +281,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
         }
         if (!res.ok) return { error: `booa-token returned ${res.status}` };
         const data = await res.json();
+        const chainIdForImage = network === 'testnet' ? SHAPE_SEPOLIA : SHAPE_MAINNET;
         return {
           found: true,
           tokenId,
@@ -287,6 +289,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           name: data.name ?? null,
           description: data.description ?? null,
           attributes: Array.isArray(data.attributes) ? data.attributes : [],
+          imageUrl: `${origin}/api/agent-files/${chainIdForImage}/${tokenId}/avatar.svg`,
           openSeaUrl: buildOpenSeaItemUrl(tokenId),
         };
       } catch (e) {

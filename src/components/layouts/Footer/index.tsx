@@ -74,7 +74,7 @@ export function Footer() {
             {/* Links row */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <p className="text-sm text-neutral-500" style={footerFont}>
-                &copy; 2025 BOOA.APP
+                2026 &copy; BOOA.APP
               </p>
               <div className="flex flex-wrap items-center gap-6">
                 <Link href="/docs" className={linkClass} style={footerFont}>
