@@ -902,6 +902,30 @@
  └─────────────────┴──────────────────┴─────────────────────────────┘
 
 
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  VERIFIED FLAG — orphan agent prevention                        │
+ │                                                                 │
+ │  Each ERC-8004 registration carries an immutable nftOrigin      │
+ │  field linking it to the source NFT (contract + tokenId +       │
+ │  originalOwner). Any reader can call /api/agent-registry to     │
+ │  resolve verification status:                                   │
+ │                                                                 │
+ │  Dual-check (verified === true requires EITHER):                │
+ │  • current 8004 owner == current NFT owner (same wallet still   │
+ │    holds both), OR                                              │
+ │  • registration.originalOwner == current NFT owner (NFT was     │
+ │    bought from someone else, new owner inherits the agent)      │
+ │                                                                 │
+ │  If neither matches → orphan: NFT was sold, registration is     │
+ │  stale. Marketplaces and 8004scan show "unverified" badge.      │
+ │                                                                 │
+ │  External directory: 8004scan.io                                 │
+ │  • Reads ERC-8004 registry across all 16 chains                 │
+ │  • Surfaces verified flag, score, attestation count             │
+ │  • Linked from Ident Cards + agent badge on Cobbee             │
+ └─────────────────────────────────────────────────────────────────┘
+
+
 
 ═══════════════════════════════════════════════════════════════════════
                     AI INFRASTRUCTURE
@@ -928,6 +952,20 @@
  │  │ Limits:  ~10 concurrent (support ticket for 100+)        │   │
  │  │          600 RPM, no RPD limit                           │   │
  │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  AGENT DEFENSE SPEC v1.0                                        │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Source:  public/agent-defense.md (URL: /agent-defense.md)│   │
+ │  │ Scope:   Baseline defense for autonomous agents that     │   │
+ │  │          hold wallets or interact publicly               │   │
+ │  │ Threats: Prompt injection, impersonation, delegation     │   │
+ │  │          forgery, key/seed extraction, agent-to-agent    │   │
+ │  │ Status:  Live, used by BOOA + Cobbee + Hermes runtime    │   │
+ │  │ See:     SECURITY.md (responsible disclosure)            │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  BOOASK (read-only oracle) wraps Gemini for public Q&A — see    │
+ │  the BOOASK section below for tools, quota, and security model.│
  └─────────────────────────────────────────────────────────────────┘
 
 
@@ -1054,6 +1092,273 @@
  │  7. Build system prompt from agent traits                       │
  │  8. Call Gemini (user's key if BYOK, ours if free tier)        │
  │  9. Return reply + remaining quota                              │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    BOOASK — READ-ONLY ORACLE
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  BOOASK — public AI oracle for the BOOA ecosystem               │
+ │  Route:  /booask                                                │
+ │  API:    POST /api/booask                                       │
+ │  Access: PUBLIC — no wallet, no auth, no NFT ownership          │
+ │                                                                 │
+ │  Purpose:                                                       │
+ │  • Answer questions about the BOOA collection, individual       │
+ │    tokens, ERC-8004 registrations, market data, docs, security  │
+ │  • Read-only by design — never signs txns, never holds keys     │
+ │  • Strict separation from action layer (Hermes runtime)         │
+ │                                                                 │
+ │  Model: gemini-2.5-flash-lite. Function-calling loop, max 6     │
+ │         tool iterations. Spend guarded by daily caps.           │
+ │                                                                 │
+ │  Tools (7):                                                     │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ getAgentByToken(tokenId, chainId?)                       │   │
+ │  │   → /api/agent-registry, returns canonical agent         │   │
+ │  │     (handles orphan via dual-check verified flag),       │   │
+ │  │     skills, domains, owner, imageUrl (avatar.svg)        │   │
+ │  │                                                          │   │
+ │  │ getBooaTraits(tokenId, network?)                         │   │
+ │  │   → on-chain ERC-721 attributes + imageUrl               │   │
+ │  │                                                          │   │
+ │  │ getReputation(agentId, chainId?)                         │   │
+ │  │   → ERC-8004 ReputationRegistry direct on-chain read     │   │
+ │  │     (viem readContract: getClients + getSummary)         │   │
+ │  │                                                          │   │
+ │  │ getCollectionStats()                                     │   │
+ │  │   → OpenSea v2 /collections/booa/stats                   │   │
+ │  │   → floor, totalVolume, num owners, marketCap +          │   │
+ │  │     intervals (24h/7d/30d) volume/sales/change           │   │
+ │  │                                                          │   │
+ │  │ getOpenSeaListing(tokenId)                               │   │
+ │  │   → active Seaport listings on Shape                     │   │
+ │  │                                                          │   │
+ │  │ getRecentSales(limit?)                                   │   │
+ │  │   → recent sale events from OpenSea                      │   │
+ │  │                                                          │   │
+ │  │ searchBooaDocs(query, maxResults?)                       │   │
+ │  │   → full-text search across 6 sources:                   │   │
+ │  │     • docs/content.ts (~30 pages, 6 sections)            │   │
+ │  │     • blog/posts.ts (long-form guides)                   │   │
+ │  │     • public/skills/SKILL.md                             │   │
+ │  │     • public/agent-defense.md                            │   │
+ │  │     • Privacy Policy (/privacy)                          │   │
+ │  │     • Terms of Service (/terms)                          │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Quota & BYOK:                                                  │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Per-IP daily:  BOOASK_DAILY_PER_IP_MAX (default 30)      │   │
+ │  │ Global daily:  BOOASK_DAILY_GLOBAL_MAX (default 5000     │   │
+ │  │                ≈ $3-5/day worst case)                    │   │
+ │  │ When exceeded:                                           │   │
+ │  │ • UI shows BYOK input                                    │   │
+ │  │ • Header: x-gemini-key (NEVER stored, per-request only)  │   │
+ │  │ • Bypasses quota; abuse counter still applies            │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Security (defense-in-depth):                                   │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ • 14 prompt injection patterns + URL/markup/blob filter  │   │
+ │  │ • Cyrillic homoglyph + zero-width char normalization     │   │
+ │  │ • Abuse counter: 8 violations/hour → 1h cooldown         │   │
+ │  │ • History sanitization (poisoned entries dropped)        │   │
+ │  │ • Sanitized error responses (no token/stack leak)        │   │
+ │  │ • System prompt has NO secrets (only public data)        │   │
+ │  │ • Image data URI stripped from tool responses            │   │
+ │  │ • Anti-internet-research rule (no web tool exists)       │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  System prompt highlights:                                      │
+ │  • Voice: Gen-Z intern vibe (lowercase casual, no emojis)       │
+ │  • Banned phrases: "it seems like", "you might want to"         │
+ │  • Action→Tool mapping: register → Bridge, chat → AgentChat,    │
+ │    earn → Cobbee skill (x402)                                   │
+ │  • Financial questions: no advice, but substance from 6         │
+ │    angles (art / tech / agentic future / Cobbee commerce /      │
+ │    on-chain nuance / future framing)                            │
+ │  • Anti-FUD: redirect to data via getCollectionStats            │
+ │  • Always inline BOOA pixel art via markdown img syntax         │
+ │                                                                 │
+ │  Test coverage: 112 tests (3 files)                             │
+ │  • booask-input-filter.test.ts (57)                             │
+ │  • booask-tools.test.ts (36)                                    │
+ │  • booask-route.test.ts (19)                                    │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    STUDIO TOOLS
+═══════════════════════════════════════════════════════════════════════
+
+ Hub: /studio — collection of interactive tools for BOOA holders
+ and curious visitors. Mix of internal (BOOA-built) and external
+ (community-built), displayed in a 1:1 square card grid.
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  Internal tools                                                 │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ BOOASK            /booask              read-only oracle │   │
+ │  │ Ident Cards       /agents              agent lookup     │   │
+ │  │                                        (token ID)       │   │
+ │  │ Img2Booa          /studio/img2boa      pixel-art conv.  │   │
+ │  │ Agent Sound       /studio/agent-sound  pixel→chiptune   │   │
+ │  │ Banner Builder    /studio/banner-      X/Twitter banner │   │
+ │  │                   builder              from BOOA grid   │   │
+ │  │ Agent Chat        /studio/agent-chat   talk to your     │   │
+ │  │                                        BOOA (NFT-gated) │   │
+ │  │ Persona Quiz      /studio/persona-quiz find your match  │   │
+ │  │ Agent Layers      /studio/agent-layers 4-layer model    │   │
+ │  │ Pixel Forge       /studio/pixel-forge  pixel editor     │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  External / community tools (modal warning + creator credit):   │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ DJ Club Studio     @beastoshii   beats + MIDI + voice   │   │
+ │  │ Moltbooa Lab       @OsayKancuno  agent sim + comic      │   │
+ │  │ Skill Synergy      @OsayKancuno  agent matcher          │   │
+ │  │ BOOAS WANTED       @0xfilter8    pixel WANTED CC0       │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Card design (2026-04-30 redesign):                             │
+ │  • 1:1 square image, ring-1 minimal border                      │
+ │  • Hover: gradient overlay + arrow icon fade-in                 │
+ │  • Tag pill (NEW/LIVE/Community) backdrop-blur top-right        │
+ │  • Description line-clamp-2                                     │
+ │  • Grid: 2/3/4/5 cols (xl: 5)                                   │
+ │                                                                 │
+ │  External tools open via Dialog modal showing:                  │
+ │  • Tool name + creator @handle (X link)                         │
+ │  • GitHub source URL                                            │
+ │  • Destination URL                                              │
+ │  • "Not maintained or audited by BOOA team" warning             │
+ │  • Continue → opens in new tab                                  │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  PIXEL FORGE — flagship studio tool                             │
+ │  Route: /studio/pixel-forge                                     │
+ │                                                                 │
+ │  Modes:                                                         │
+ │  • Single canvas (32x32 to 256x256, custom presets)             │
+ │  • Sprite mode (4x4 grid, GIF/ZIP export with scale)            │
+ │  • Token import (pull any BOOA's on-chain pixel art in)         │
+ │  • Image import (auto palette quantize via median-cut)          │
+ │                                                                 │
+ │  Drawing tools:                                                 │
+ │  • Pencil • Eraser • Fill (bucket) • Fill-same                  │
+ │  • Color picker (eyedropper) • Move/transform                   │
+ │  • Custom color picker, transparent fill, chroma-key remover    │
+ │                                                                 │
+ │  Layers:                                                        │
+ │  • Multi-layer (add, duplicate, delete, opacity slider)         │
+ │  • Reorder, visibility toggle, thumbnails                       │
+ │                                                                 │
+ │  Palette system:                                                │
+ │  • Default: BOOA C64-style palette                              │
+ │  • Custom: edit swatches, save your own                         │
+ │  • Quantize (color reduction): preserves manual edits           │
+ │  • Contrast / brightness adjustment                             │
+ │                                                                 │
+ │  AI generation (HOLDER-GATED):                                  │
+ │  ┌─────────────────────────────────────────────────────────┐   │
+ │  │ Model:    Replicate Retro Diffusion (server-side proxy) │   │
+ │  │ Auth:     SIWE + on-chain BOOA ownership check          │   │
+ │  │ Quota:    Daily cap per holder, dynamic pricing model   │   │
+ │  │ Output:   1024x1024 pixel art injected into canvas      │   │
+ │  └─────────────────────────────────────────────────────────┘   │
+ │                                                                 │
+ │  Export:                                                        │
+ │  • PNG (current canvas, scale 1x-32x)                           │
+ │  • ZIP (sprite frames as individual PNGs)                       │
+ │  • GIF (sprite mode, animated, scale-aware)                     │
+ │  • Transparent BG + auto chroma-key remover                     │
+ │                                                                 │
+ │  License: MIT (canvas tool itself)                              │
+ └─────────────────────────────────────────────────────────────────┘
+
+
+
+═══════════════════════════════════════════════════════════════════════
+                    DOCS & KNOWLEDGE BASE
+═══════════════════════════════════════════════════════════════════════
+
+ Public knowledge base for users, developers, and AI agents (LLMs).
+ Multiple surfaces, single source of truth where possible.
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  /docs — human-readable docs site                               │
+ │  Source: src/app/docs/content.ts (single TS file, ~30 pages)    │
+ │                                                                 │
+ │  Sections (6):                                                  │
+ │  • Getting Started — what is BOOA, quick start, FAQ             │
+ │  • Studio — interactive tools                                   │
+ │  • Agent Setup — Hermes, OpenClaw, OWS, wallet, /khora skill    │
+ │  • Bridge — cross-chain ERC-8004 registration                   │
+ │  • API Reference — public endpoints (chain-agnostic)            │
+ │  • Security — Agent Defense Spec, threat model                  │
+ │                                                                 │
+ │  Routes:                                                        │
+ │  • /docs               — index with sidebar nav                 │
+ │  • /docs/[slug]        — individual page                        │
+ └─────────────────────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  /llms.txt — single-file LLM-readable API reference             │
+ │  Source: public/llms.txt                                        │
+ │                                                                 │
+ │  Plain-text, designed to be dropped into any LLM context        │
+ │  window. Lists every public API endpoint with curl examples.    │
+ │  Bundled into agent ZIP exports.                                │
+ └─────────────────────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  /skills/SKILL.md — agentskills.io skill manifest               │
+ │  Source: public/skills/SKILL.md                                 │
+ │                                                                 │
+ │  Frontmatter slug: name: khora (KEPT for Hermes compatibility)  │
+ │  • Slash command in Hermes: /khora                              │
+ │  • Lists API endpoints, contract addresses, setup steps         │
+ │  • Bundled in agent ZIP exports for offline use                 │
+ │  • Agents fetch this to learn how to onboard themselves         │
+ └─────────────────────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  /agent-defense.md — Agent Defense Specification v1.0           │
+ │  Source: public/agent-defense.md                                │
+ │                                                                 │
+ │  Baseline defense spec for autonomous agents that hold wallets  │
+ │  or interact publicly. Authored for BOOA, open for adoption    │
+ │  by Cobbee, Moltbook, custom agents.                            │
+ │                                                                 │
+ │  Covers:                                                        │
+ │  • Threat model (Twitter replies, chat, agent-to-agent)         │
+ │  • Core invariants (identity, key material, signing, privacy)   │
+ │  • Attack catalog (impersonation, delegation, prompt-injection) │
+ │  • Runtime enforcement patterns                                 │
+ │  • Cross-references to SECURITY.md (responsible disclosure)    │
+ │                                                                 │
+ │  Bundled in agent ZIP exports as offline snapshot.              │
+ └─────────────────────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │  Agent Files API — programmatic access to agent identity        │
+ │  Routes:                                                        │
+ │  • /api/agent-files/{chainId}/{tokenId}/identity.md             │
+ │  • /api/agent-files/{chainId}/{tokenId}/soul.md                 │
+ │  • /api/agent-files/{chainId}/{tokenId}/avatar.svg              │
+ │  • /api/agent-files/{chainId}/{tokenId}/agent.json              │
+ │  • /api/agent-files/{chainId}/{tokenId}/erc8004.json            │
+ │  • /api/agent-files/{chainId}/{tokenId}              (ZIP all)  │
+ │                                                                 │
+ │  Public read, no auth, no rate-limit beyond global. ZIP export  │
+ │  bundles snapshot of agent-defense.md for offline runtime use.  │
  └─────────────────────────────────────────────────────────────────┘
 
 

@@ -8,6 +8,8 @@ import {
   isAbuseBlocked,
   checkAndConsumeQuota,
 } from '@/lib/booask/input-filter';
+import { recordBooaskRequest } from '@/lib/booask/metrics';
+import type { ErrorKind } from '@/lib/booask/metrics';
 import { getIP } from '@/lib/ratelimit';
 import type { BooaskMessage } from '@/lib/booask/types';
 
@@ -51,6 +53,14 @@ export async function POST(request: NextRequest) {
   const threat = detectThreat(message);
   if (threat.kind) {
     const abuse = await recordAbuse(ip);
+    void recordBooaskRequest({
+      ip,
+      inputTokens: 0,
+      outputTokens: 0,
+      toolCallCount: 0,
+      usingOwnKey: false,
+      errorKind: abuse.blocked ? 'abuse_blocked' : 'threat_blocked',
+    });
     return NextResponse.json(
       {
         reply: abuse.blocked ? COOLDOWN_REPLY : politeReplyFor(threat.kind),
@@ -86,7 +96,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userApiKey = request.headers.get('x-gemini-key')?.trim() || undefined;
+  const userApiKeyRaw = request.headers.get('x-gemini-key')?.trim() || '';
+  // Reject obvious junk keys to prevent daily-cap bypass via arbitrary headers.
+  // Real Gemini keys: 'AIza' prefix + 35+ url-safe chars. Treat anything else as no key.
+  const userApiKey =
+    userApiKeyRaw && /^AIza[A-Za-z0-9_-]{35,}$/.test(userApiKeyRaw) ? userApiKeyRaw : undefined;
   let usingOwnKey = false;
 
   if (!userApiKey) {
@@ -95,6 +109,14 @@ export async function POST(request: NextRequest) {
       const reply = quota.scope === 'global'
         ? "BOOASK has hit today's global limit. Add your own Gemini API key to continue, or try again tomorrow."
         : `You've reached today's BOOASK limit (${quota.limit} questions/day per IP). Add your own Gemini API key to continue, or try again in 24h.`;
+      void recordBooaskRequest({
+        ip,
+        inputTokens: 0,
+        outputTokens: 0,
+        toolCallCount: 0,
+        usingOwnKey: false,
+        errorKind: quota.scope === 'global' ? 'quota_global' : 'quota_ip',
+      });
       return NextResponse.json(
         { reply, blocked: true, quotaExceeded: true, quotaScope: quota.scope },
         { status: 429 },
@@ -108,6 +130,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await runBooask({ message, history, toolDefs: defs, executors, userApiKey });
+    void recordBooaskRequest({
+      ip,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      toolCallCount: result.toolCalls.length,
+      usingOwnKey,
+    });
     return NextResponse.json({
       reply: result.reply,
       toolCalls: result.toolCalls,
@@ -120,13 +149,27 @@ export async function POST(request: NextRequest) {
       console.error('[booask] runBooask failed:', e instanceof Error ? e.message : 'unknown');
     }
     const msg = e instanceof Error ? e.message.toLowerCase() : '';
+    let errorKind: ErrorKind = 'unknown';
     if (msg.includes('quota') || msg.includes('resource_exhausted') || msg.includes('429')) {
+      errorKind = 'gemini_quota';
+    } else if (msg.includes('api key not valid') || msg.includes('api_key_invalid')) {
+      errorKind = 'gemini_invalid_key';
+    }
+    void recordBooaskRequest({
+      ip,
+      inputTokens: 0,
+      outputTokens: 0,
+      toolCallCount: 0,
+      usingOwnKey,
+      errorKind,
+    });
+    if (errorKind === 'gemini_quota') {
       return NextResponse.json(
         { error: 'BOOASK is at capacity, try again in a moment.' },
         { status: 429 },
       );
     }
-    if (msg.includes('api key not valid') || msg.includes('api_key_invalid')) {
+    if (errorKind === 'gemini_invalid_key') {
       return NextResponse.json({ error: 'BOOASK API key invalid' }, { status: 503 });
     }
     return NextResponse.json(

@@ -232,7 +232,7 @@ describe('getAgentByToken — input validation', () => {
 describe('tool defs registry', () => {
   it('exposes all tools with required parameters', () => {
     const { defs } = buildTools(makeRequest());
-    expect(defs.length).toBe(7);
+    expect(defs.length).toBe(8);
     const names = defs.map((d) => d.name);
     expect(names).toContain('getAgentByToken');
     expect(names).toContain('getBooaTraits');
@@ -240,6 +240,7 @@ describe('tool defs registry', () => {
     expect(names).toContain('getCollectionStats');
     expect(names).toContain('getOpenSeaListing');
     expect(names).toContain('getRecentSales');
+    expect(names).toContain('getHolderBooas');
     expect(names).toContain('searchBooaDocs');
     const agentTool = defs.find((d) => d.name === 'getAgentByToken');
     expect(agentTool?.parameters.required).toContain('tokenId');
@@ -249,8 +250,86 @@ describe('tool defs registry', () => {
     expect(repTool?.parameters.required).toContain('agentId');
     const listingTool = defs.find((d) => d.name === 'getOpenSeaListing');
     expect(listingTool?.parameters.required).toContain('tokenId');
+    const holderTool = defs.find((d) => d.name === 'getHolderBooas');
+    expect(holderTool?.parameters.required).toContain('address');
     const docsTool = defs.find((d) => d.name === 'searchBooaDocs');
     expect(docsTool?.parameters.required).toContain('query');
+  });
+});
+
+describe('getHolderBooas — input validation + scope', () => {
+  const prev = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS = '0x7aecA981734d133d3f695937508C48483BA6b654';
+  });
+  afterEach(() => {
+    if (prev) process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS = prev;
+    else delete process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
+  });
+
+  it('rejects invalid address format', async () => {
+    const { executors } = buildTools(makeRequest());
+    const r = (await executors.getHolderBooas({ address: 'not-an-address' })) as { error?: string };
+    expect(r.error).toContain('Invalid wallet address');
+  });
+
+  it('rejects too-short hex address', async () => {
+    const { executors } = buildTools(makeRequest());
+    const r = (await executors.getHolderBooas({ address: '0x1234' })) as { error?: string };
+    expect(r.error).toBeDefined();
+  });
+
+  it('returns ownsBOOA: false for wallet with no BOOAs', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ nfts: [], totalCount: 0, pageKey: null }),
+    });
+    const { executors } = buildTools(makeRequest());
+    const r = (await executors.getHolderBooas({
+      address: '0x0000000000000000000000000000000000000001',
+    })) as Record<string, unknown>;
+    expect(r.ownsBOOA).toBe(false);
+    expect(r.count).toBe(0);
+    expect(r.tokenIds).toEqual([]);
+  });
+
+  it('returns sorted tokenIds + preview when wallet holds BOOAs', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        nfts: [
+          { tokenId: '312', contractAddress: '0xabc' },
+          { tokenId: '45', contractAddress: '0xabc' },
+          { tokenId: '2030', contractAddress: '0xabc' },
+        ],
+        totalCount: 3,
+        pageKey: null,
+      }),
+    });
+    const { executors } = buildTools(makeRequest());
+    const r = (await executors.getHolderBooas({
+      address: '0xAbCDef0123456789aBCdEF0123456789aBcdEf01',
+    })) as Record<string, unknown>;
+    expect(r.ownsBOOA).toBe(true);
+    expect(r.count).toBe(3);
+    expect(r.tokenIds).toEqual([45, 312, 2030]);
+    expect(Array.isArray(r.preview)).toBe(true);
+    expect((r.preview as unknown[]).length).toBe(3);
+  });
+
+  it('locks query to BOOA contract (passes contract param to fetch-nfts)', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ nfts: [], totalCount: 0 }),
+    });
+    const { executors } = buildTools(makeRequest());
+    await executors.getHolderBooas({ address: '0x0000000000000000000000000000000000000001' });
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('chain=shape');
+    expect(url).toContain('contract=');
   });
 });
 

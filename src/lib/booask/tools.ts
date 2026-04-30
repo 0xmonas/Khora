@@ -189,6 +189,18 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
       },
     },
     {
+      name: 'getHolderBooas',
+      description:
+        'Check if a wallet address holds BOOAs and list which token IDs it owns. Use for "is X a holder", "what does wallet 0xabc own", "how many BOOAs does Y have", "show me address Z\'s BOOAs". Locked to BOOA collection on Shape Network only — cannot query other collections.',
+      parameters: {
+        type: 'object',
+        properties: {
+          address: { type: 'string', description: 'EVM wallet address (0x followed by 40 hex chars)' },
+        },
+        required: ['address'],
+      },
+    },
+    {
       name: 'searchBooaDocs',
       description:
         'Full-text search over BOOA public knowledge base: docs (collection info, ERC-8004, studio tools, agent setup, bridge, security), blog posts (long-form guides, announcements, tutorials), SKILL.md (agent setup manifest with API endpoints), Agent Defense Specification (threat model + invariants for autonomous agents), Privacy Policy (what data we collect, retention, third-party services), and Terms of Service (eligibility, NFT ownership, liability). Use for "how do I", "what is", "explain", "what data do you collect", "what are the terms", or any user-facing legal/privacy questions.',
@@ -456,6 +468,42 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
         return { count: sales.length, sales, collectionUrl: OPENSEA_COLLECTION_URL };
       } catch (e) {
         return { error: e instanceof Error ? e.message : 'OpenSea fetch failed' };
+      }
+    },
+
+    getHolderBooas: async (args) => {
+      const addressRaw = args.address;
+      const address = typeof addressRaw === 'string' ? addressRaw.trim() : '';
+      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return { error: 'Invalid wallet address. Expected 0x followed by 40 hex chars.' };
+      }
+      const contract = getBooaContractFromEnv();
+      if (!contract) return { error: 'BOOA contract not configured' };
+      try {
+        const url = `${origin}/api/fetch-nfts?address=${address}&chain=shape&contract=${contract}`;
+        const res = await fetch(url, { method: 'GET' });
+        if (!res.ok) return { error: `fetch-nfts returned ${res.status}` };
+        const data = await res.json();
+        const nfts = Array.isArray(data.nfts) ? data.nfts : [];
+        const tokenIds = nfts
+          .map((n: Record<string, unknown>) => Number(n.tokenId))
+          .filter((n: number) => Number.isInteger(n) && n >= 0 && n <= 3332)
+          .sort((a: number, b: number) => a - b);
+        const preview = tokenIds.slice(0, 5).map((id: number) => ({
+          tokenId: id,
+          openSeaUrl: buildOpenSeaItemUrl(id),
+          imageUrl: `${origin}/api/agent-files/${SHAPE_MAINNET}/${id}/avatar.svg`,
+        }));
+        return {
+          address: address.toLowerCase(),
+          ownsBOOA: tokenIds.length > 0,
+          count: tokenIds.length,
+          tokenIds,
+          preview,
+          collectionUrl: OPENSEA_COLLECTION_URL,
+        };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : 'fetch failed' };
       }
     },
 

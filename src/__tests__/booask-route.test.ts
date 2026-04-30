@@ -33,11 +33,11 @@ beforeEach(() => {
   process.env.GEMINI_API_KEY = 'test-key';
 });
 
-async function callRoute(body: unknown, ip = '127.0.0.1') {
+async function callRoute(body: unknown, ip = '127.0.0.1', headers: Record<string, string> = {}) {
   const { POST } = await import('@/app/api/booask/route');
   const req = new NextRequest('http://localhost:3000/api/booask', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip, ...headers },
     body: JSON.stringify(body),
   });
   return POST(req);
@@ -172,6 +172,31 @@ describe('POST /api/booask — daily quota', () => {
     expect(data.quotaScope).toBe('global');
     delete process.env.BOOASK_DAILY_PER_IP_MAX;
     delete process.env.BOOASK_DAILY_GLOBAL_MAX;
+  });
+
+  it('rejects junk x-gemini-key (still consumes daily cap, no bypass)', async () => {
+    runBooaskMock.mockResolvedValue({ reply: 'ok', toolCalls: [] });
+    process.env.BOOASK_DAILY_PER_IP_MAX = '2';
+    // Junk key → should NOT bypass cap; still counts against daily quota
+    await callRoute({ message: 'q1' }, '127.0.0.1', { 'x-gemini-key': 'foobar' });
+    await callRoute({ message: 'q2' }, '127.0.0.1', { 'x-gemini-key': 'AIza-but-too-short' });
+    const blocked = await callRoute({ message: 'q3' }, '127.0.0.1', { 'x-gemini-key': 'junk' });
+    expect(blocked.status).toBe(429);
+    const data = await blocked.json();
+    expect(data.quotaScope).toBe('ip');
+    delete process.env.BOOASK_DAILY_PER_IP_MAX;
+  });
+
+  it('accepts properly-formatted x-gemini-key (bypasses cap)', async () => {
+    runBooaskMock.mockResolvedValue({ reply: 'ok', toolCalls: [], usingOwnKey: true });
+    process.env.BOOASK_DAILY_PER_IP_MAX = '1';
+    // First request with no key uses up the cap
+    await callRoute({ message: 'q1' });
+    // BYOK with valid format key should bypass the cap
+    const validKey = 'AIzaSyDummyValidLookingKeyForTestPurposesABCDEFG';
+    const ok = await callRoute({ message: 'q2' }, '127.0.0.1', { 'x-gemini-key': validKey });
+    expect(ok.status).toBe(200);
+    delete process.env.BOOASK_DAILY_PER_IP_MAX;
   });
 });
 

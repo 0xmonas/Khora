@@ -23,6 +23,7 @@ Tools you have:
 - getCollectionStats: BOOA-wide market stats (floor, volume, owners count) from OpenSea
 - getOpenSeaListing: active listing price for a specific BOOA tokenId
 - getRecentSales: recent BOOA sales (price, buyer, seller)
+- getHolderBooas: check if a wallet address holds BOOAs and list which token IDs. Locked to BOOA collection only.
 - searchBooaDocs: searches docs, blog posts, SKILL.md (agent setup manifest), Agent Defense Spec, Privacy Policy, Terms of Service. Covers BOOA UI, ERC-8004, studio tools, agent runtime setup, security threat model, long-form guides, legal/privacy
 
 Official links and contract addresses (Shape Network mainnet, chain id 360, explorer https://shapescan.xyz):
@@ -65,6 +66,7 @@ Rules:
   * Hear an agent as chiptune → **Agent Sound** at booa.app/studio/agent-sound
   * Find your BOOA match (quiz) → **Persona Quiz** at booa.app/studio/persona-quiz
   * See the 4 layers of an agent (NFT → metadata → identity → runtime) → **Agent Layers** at booa.app/studio/agent-layers
+  * "is X a holder" / "what does wallet 0xabc own" / "how many BOOAs does Y have" → use getHolderBooas (returns count + tokenIds + preview). Inline 1-2 of the BOOA pixel arts via markdown img to make the answer feel alive.
   * x402 payments / agent commerce / earn USDC → **Cobbee skill** at cobbee.fun (point them to Cobbee specifically)
 - Don't hedge. Don't say "it seems like", "it looks like", "you might want to check", "it appears that", "you may want to". Be direct: "Yeah you go to /bridge", "the tool you want is X", "head to booa.app/agents".
 - After every tool call, you MUST produce a final natural-language text reply, even if data is partial. Never end your turn silently after a tool call.
@@ -146,6 +148,14 @@ interface GeminiContent {
 export interface RunBooaskResult {
   reply: string;
   toolCalls: { name: string; args: Record<string, unknown> }[];
+  inputTokens: number;
+  outputTokens: number;
+}
+
+interface GeminiUsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
 }
 
 export async function runBooask(opts: {
@@ -165,6 +175,8 @@ export async function runBooask(opts: {
 
   const tools = [{ functionDeclarations: toGeminiFunctionDeclarations(opts.toolDefs) }];
   const toolCalls: { name: string; args: Record<string, unknown> }[] = [];
+  let inputTokens = 0;
+  let outputTokens = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const response = await ai.models.generateContent({
@@ -174,8 +186,16 @@ export async function runBooask(opts: {
         systemInstruction: SYSTEM_PROMPT,
         tools,
         temperature: 0.3,
+        maxOutputTokens: 1024,
       },
     });
+
+    // Accumulate token usage across all iterations (Gemini reports per-call)
+    const usage = (response as { usageMetadata?: GeminiUsageMetadata }).usageMetadata;
+    if (usage) {
+      inputTokens += usage.promptTokenCount ?? 0;
+      outputTokens += usage.candidatesTokenCount ?? 0;
+    }
 
     const candidate = response.candidates?.[0];
     const parts = (candidate?.content?.parts ?? []) as GeminiPart[];
@@ -188,7 +208,7 @@ export async function runBooask(opts: {
 
     if (fnCalls.length === 0) {
       const text = parts.map((p) => p.text ?? '').join('').trim();
-      if (text) return { reply: text, toolCalls };
+      if (text) return { reply: text, toolCalls, inputTokens, outputTokens };
 
       // Empty / silent stop: nudge once with an explicit synthesis instruction.
       if (toolCalls.length > 0 && iter < MAX_TOOL_ITERATIONS - 1) {
@@ -206,7 +226,7 @@ export async function runBooask(opts: {
       const fallback = finishReason
         ? `BOOASK couldn't produce a reply this time (${finishReason}). Try rephrasing your question.`
         : "BOOASK couldn't produce a reply this time. Try rephrasing your question.";
-      return { reply: fallback, toolCalls };
+      return { reply: fallback, toolCalls, inputTokens, outputTokens };
     }
 
     contents.push({ role: 'model', parts });
@@ -238,5 +258,5 @@ export async function runBooask(opts: {
     contents.push({ role: 'user', parts: fnResponses });
   }
 
-  return { reply: 'Reached tool-call limit without final answer.', toolCalls };
+  return { reply: 'Reached tool-call limit without final answer.', toolCalls, inputTokens, outputTokens };
 }

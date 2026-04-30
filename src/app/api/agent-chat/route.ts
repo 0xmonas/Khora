@@ -7,6 +7,23 @@ export const maxDuration = 30;
 
 const MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash-lite';
 
+// Global daily cap across all chat users (cost ceiling).
+// BYOK users bypass this; only the shared/free tier counts.
+const CHAT_DAILY_GLOBAL_KEY = 'chat:daily:global';
+const CHAT_DAILY_TTL = 86400;
+function getChatGlobalDailyMax(): number {
+  return Number(process.env.AGENT_CHAT_DAILY_GLOBAL_MAX ?? 5000);
+}
+async function checkAndConsumeChatGlobalCap(): Promise<{ ok: boolean; used: number; limit: number }> {
+  const redis = getRedis();
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `${CHAT_DAILY_GLOBAL_KEY}:${day}`;
+  const used = await redis.incr(key);
+  if (used === 1) await redis.expire(key, CHAT_DAILY_TTL);
+  const limit = getChatGlobalDailyMax();
+  return { ok: used <= limit, used, limit };
+}
+
 // Gemini singleton
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
 function getAI(): InstanceType<typeof GoogleGenAI> {
@@ -233,8 +250,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit: 10 messages/day/wallet (free tier)
-    // Users can bypass quota by providing their own Gemini API key
-    const userApiKey = request.headers.get('x-gemini-key');
+    // Users can bypass quota by providing their own Gemini API key (real one)
+    const userApiKeyRaw = request.headers.get('x-gemini-key')?.trim() || '';
+    // Reject obvious junk keys to prevent quota bypass via arbitrary headers.
+    // Real Gemini keys: 'AIza' prefix + 35+ url-safe chars.
+    const userApiKey =
+      userApiKeyRaw && /^AIza[A-Za-z0-9_-]{35,}$/.test(userApiKeyRaw) ? userApiKeyRaw : null;
     const quota = await checkChatQuota(walletAddress);
     const usingOwnKey = !quota.allowed && !!userApiKey;
 
@@ -243,6 +264,23 @@ export async function POST(request: NextRequest) {
         { error: 'Daily chat limit reached (10 messages/day). Add your own Gemini API key to continue.', remaining: 0, quotaExceeded: true },
         { status: 429 },
       );
+    }
+
+    // Global daily cap (cost ceiling) — applies even when usingOwnKey is false.
+    // BYOK users are exempt (they pay their own bill).
+    if (!usingOwnKey) {
+      const globalCheck = await checkAndConsumeChatGlobalCap();
+      if (!globalCheck.ok) {
+        return NextResponse.json(
+          {
+            error: 'Chat is at today\'s global capacity. Add your own Gemini API key to continue, or try again tomorrow.',
+            remaining: 0,
+            quotaExceeded: true,
+            quotaScope: 'global',
+          },
+          { status: 429 },
+        );
+      }
     }
 
     // On-chain ownerOf verification
