@@ -37,14 +37,14 @@ export async function GET(request: NextRequest) {
     }) as bigint;
 
     const redis = getRedis();
-    let khoraCount = 0;
+    let agentsCount = 0;
     try {
       if (filterChainId && VALID_CHAIN_IDS.has(Number(filterChainId))) {
         const keys = await redis.keys(`agent:registry:${filterChainId}:*`);
-        khoraCount = keys.length;
+        agentsCount = keys.length;
       } else {
         const keys = await redis.keys('agent:registry:*');
-        khoraCount = keys.length;
+        agentsCount = keys.length;
       }
     } catch { /* keep 0 */ }
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       booaMinted: Number(booaSupply),
-      agentsRegistered: khoraCount,
+      agentsRegistered: agentsCount,
       chainsSupported: mainnetChains.length,
       chains: mainnetChains,
       filteredByChain: filterChainId ? Number(filterChainId) : null,

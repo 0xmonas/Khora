@@ -50,7 +50,7 @@ export default function ErrorPage({
 
   useEffect(() => {
     setTime(new Date().toISOString().replace('T', ' ').slice(0, 19));
-    console.error('[KHORA ERROR]', error);
+    console.error('[BOOA ERROR]', error);
   }, [error]);
 
   return (

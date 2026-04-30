@@ -32,6 +32,7 @@ const PUBLIC_READ_PATHS = [
   '/api/agent-files',
   '/api/booa-token',
   '/api/banner-nfts',
+  '/api/booask',
 ];
 
 export async function middleware(request: NextRequest) {

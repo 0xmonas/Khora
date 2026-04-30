@@ -29,6 +29,14 @@ interface ToolCard {
 
 const TOOLS: ToolCard[] = [
   {
+    id: 'booask',
+    title: 'BOOASK',
+    description: 'Ask anything about a BOOA, an agent, or how any of this works. Read-only oracle, no wallet required.',
+    href: '/booask',
+    media: 'booask.png',
+    tag: 'NEW',
+  },
+  {
     id: 'ident-cards',
     title: 'Ident Cards',
     description: 'Look up any BOOA agent by token ID. View on-chain pixel art, traits, and ERC-8004 identity.',
@@ -244,13 +252,13 @@ function ExternalToolCard({ tool }: { tool: ToolCard }) {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle style={font}>Leaving Khora</DialogTitle>
+            <DialogTitle style={font}>Leaving BOOA</DialogTitle>
             <DialogClose className="text-muted-foreground hover:text-foreground" />
           </DialogHeader>
 
           <div className="p-4 space-y-4">
             <p className="text-xs text-muted-foreground leading-relaxed" style={font}>
-              You are about to visit an external tool built by a community developer. This tool is not maintained or audited by the Khora team.
+              You are about to visit an external tool built by a community developer. This tool is not maintained or audited by the BOOA team.
             </p>
 
             <div className="space-y-2 text-[10px]" style={font}>

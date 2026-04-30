@@ -11,7 +11,7 @@ interface ShaderLogoProps {
   type?: 'image' | 'video';
 }
 
-export function ShaderLogo({ src = '/khoralogo.svg', type = 'image' }: ShaderLogoProps) {
+export function ShaderLogo({ src = '/booalogo.svg', type = 'image' }: ShaderLogoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const mouseRef = useRef({ x: -1, y: -1 });

@@ -263,7 +263,7 @@ export default function TermsOfUsePage() {
             {/* Contact */}
             <Section title="Contact">
               <p>
-                For questions about these terms, please reach out through our official channels on <a href="https://x.com/khorafun" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">X (@khorafun)</a>.
+                For questions about these terms, please reach out through our official channels on <a href="https://x.com/booanft" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">X (@booanft)</a>.
               </p>
             </Section>
 

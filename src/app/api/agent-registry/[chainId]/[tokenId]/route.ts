@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
-import type { KhoraAgent } from '@/types/agent';
+import type { BooaAgent } from '@/types/agent';
 import { BOOA_NFT_ABI, isMainnetChain } from '@/lib/contracts/booa';
 import type { Chain } from 'viem';
 import { getRedis } from '@/lib/server/redis';
@@ -406,7 +406,7 @@ export async function GET(
   const agentFields = Object.fromEntries(
     Object.entries(entry).filter(([k]) => !k.startsWith('_'))
   );
-  const agent = agentFields as unknown as KhoraAgent;
+  const agent = agentFields as unknown as BooaAgent;
   const registration = toERC8004(agent);
 
   // Embed on-chain SVG

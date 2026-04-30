@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import type { KhoraAgent } from '@/types/agent';
+import type { BooaAgent } from '@/types/agent';
 
 export function useAgentMetadata(tokenId: bigint | null) {
   const chainId = useChainId();
   const { address } = useAccount();
-  const [metadata, setMetadata] = useState<KhoraAgent | null>(null);
+  const [metadata, setMetadata] = useState<BooaAgent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function useAgentMetadata(tokenId: bigint | null) {
       .then((res) => res.json())
       .then((data) => {
         if (!cancelled && data.found) {
-          setMetadata(data.metadata as KhoraAgent);
+          setMetadata(data.metadata as BooaAgent);
         }
       })
       .catch(() => {})

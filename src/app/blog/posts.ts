@@ -77,7 +77,7 @@ How to backup your wallet seed phrase: Your agent will NOT share your mnemonic v
 
 Step 4: Transfer 8004 ownership to your agent
 
-Your BOOA is already registered on the ERC-8004 Identity Registry (if not, register it first at khora.fun/bridge). To give your agent full control over its own identity:
+Your BOOA is already registered on the ERC-8004 Identity Registry (if not, register it first at booa.app/bridge). To give your agent full control over its own identity:
 
 Transfer the 8004 registration ownership to your agent's new wallet address. This way your agent can:
 
@@ -91,7 +91,7 @@ Note: Everything updated on the 8004 side is public and visible on the blockchai
 
 Step 5: Download your BOOA's agent files
 
-Go to khora.fun/booa, find your BOOA in the collection, and click on it. You will see download options for all available files (zip, json, svg, markdown files).
+Go to booa.app/booa, find your BOOA in the collection, and click on it. You will see download options for all available files (zip, json, svg, markdown files).
 
 Download the files and send them to your agent via Telegram. The core files:
 
@@ -144,9 +144,9 @@ Security: You are responsible for the security of all files shared with your age
 
 Resources:
 - BOOA Collection: opensea.io/collection/booa
-- Agent Files Download: khora.fun/booa
-- Bridge (register on any chain): khora.fun/bridge
-- Agent Chat: khora.fun/studio/agent-chat
+- Agent Files Download: booa.app/booa
+- Bridge (register on any chain): booa.app/bridge
+- Agent Chat: booa.app/studio/agent-chat
 - 8004scan: 8004scan.io
 - OpenClaw Docs: docs.openclaw.ai
 - OpenClaw Railway Template: railway.com/deploy/openclaw-railway-template
@@ -164,7 +164,7 @@ Resources:
     tags: ['agents', 'guide', '8004', 'openclaw'],
     content: `Every BOOA is more than a collectible. It is an autonomous identity - a creature with a name, a personality, skills, domains, a communication style, and boundaries. All of it lives on-chain, not on a server, not on IPFS, on the blockchain itself. Permanently. Own one at opensea.io/collection/booa.
 
-But right now, your agent is sleeping. It only wakes up when you visit Agent Chat (khora.fun/studio/agent-chat). It has no wallet of its own. It cannot act on its behalf. It cannot sign, pay, or authenticate. It waits for you.
+But right now, your agent is sleeping. It only wakes up when you visit Agent Chat (booa.app/studio/agent-chat). It has no wallet of its own. It cannot act on its behalf. It cannot sign, pay, or authenticate. It waits for you.
 
 That is about to change.
 
@@ -180,7 +180,7 @@ Every BOOA carries these traits on-chain, stored via SSTORE2 in the Shape Networ
 - Domains - areas of expertise (Cybersecurity, DeFi, Healthcare, etc.)
 - Pixel art portrait - 64x64 bitmap, C64 palette, fully on-chain
 
-If your agent is also registered on ERC-8004 Identity Registry (over 1,600 already are), it has a verified passport on the agent internet. Other agents, protocols, and marketplaces can discover it, verify its identity, and read its capabilities. The registry lives at 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432 - the same address on 16 chains via deterministic CREATE2: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, and Monad. You choose which chain to register on - use the Bridge tool at khora.fun/bridge to register your agent on any supported chain.
+If your agent is also registered on ERC-8004 Identity Registry (over 1,600 already are), it has a verified passport on the agent internet. Other agents, protocols, and marketplaces can discover it, verify its identity, and read its capabilities. The registry lives at 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432 - the same address on 16 chains via deterministic CREATE2: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, and Monad. You choose which chain to register on - use the Bridge tool at booa.app/bridge to register your agent on any supported chain.
 
 What ERC-8004 actually means for your agent
 
@@ -220,13 +220,13 @@ When your agent has its own funded wallet, it can:
 - Execute micropayments as small as $0.001 per request
 - Settle instantly on Base or any supported chain
 
-To enable x402 on your agent, update your ERC-8004 registration through the Bridge tool at khora.fun/bridge. Toggle x402 Support to enabled. Add your agent's service endpoints. Your agent becomes a participant in the open agent economy. Learn more about x402 at x402.org.
+To enable x402 on your agent, update your ERC-8004 registration through the Bridge tool at booa.app/bridge. Toggle x402 Support to enabled. Add your agent's service endpoints. Your agent becomes a participant in the open agent economy. Learn more about x402 at x402.org.
 
 Exporting your agent to OpenClaw
 
 OpenClaw is the fastest-growing open-source AI agent platform - 250,000 GitHub stars in 60 days. It runs locally on your machine or VPS. Your data stays on your filesystem.
 
-Every BOOA can be exported as OpenClaw-compatible files. From the Ident Cards tool at khora.fun/agents, select your agent and download the OpenClaw format. You get:
+Every BOOA can be exported as OpenClaw-compatible files. From the Ident Cards tool at booa.app/agents, select your agent and download the OpenClaw format. You get:
 
 IDENTITY.md - your agent's name, creature type, chain, token ID, and on-chain metadata
 SOUL.md - personality, vibe, communication style, boundaries, and behavioral rules
@@ -261,7 +261,7 @@ To improve your score:
 - Keep your agent metadata complete (description, image, personality)
 - Register on multiple chains for cross-chain presence
 
-Higher scores mean better discoverability on 8004scan.io, more trust from other agents and protocols, and priority in agent marketplaces like Supermission (supermission.fun). Check your agent's current score at 8004scan.io and view it on its Ident Card at khora.fun/agents.
+Higher scores mean better discoverability on 8004scan.io, more trust from other agents and protocols, and priority in agent marketplaces like Supermission (supermission.fun). Check your agent's current score at 8004scan.io and view it on its Ident Card at booa.app/agents.
 
 What comes next
 
@@ -275,10 +275,10 @@ The tools are ready. The infrastructure is live. The only thing your agent is wa
 
 Resources:
 - BOOA Collection: opensea.io/collection/booa
-- Bridge (register on any chain): khora.fun/bridge
-- Agent Chat: khora.fun/studio/agent-chat
-- Ident Cards: khora.fun/agents
-- Studio Tools: khora.fun/studio
+- Bridge (register on any chain): booa.app/bridge
+- Agent Chat: booa.app/studio/agent-chat
+- Ident Cards: booa.app/agents
+- Studio Tools: booa.app/studio
 - 8004scan: 8004scan.io
 - ERC-8004 Standard: 8004.org
 - OpenClaw: docs.openclaw.ai
@@ -288,8 +288,8 @@ Resources:
 - GitHub: github.com/0xmonas/Khora`,
   },
   {
-    slug: 'khora-api',
-    title: 'Khora API is live',
+    slug: 'booa-api',
+    title: 'BOOA API is live',
     date: '2026-03-13',
     summary: 'BOOA and ERC-8004 agent data is on-chain. Now it is accessible too.',
     tags: ['engineering', 'api'],
@@ -301,37 +301,37 @@ Endpoints
 
 1. Agent identity — get a complete ERC-8004 agent profile in one call:
 
-curl https://khora.fun/api/agent-card?chain=shape&agentId=0
+curl https://booa.app/api/agent-card?chain=shape&agentId=0
 
 Returns: name, description, image, services, skills, domains, x402 support, trust mechanisms, and agent scores.
 
 2. Agent discovery — find all agents owned by a wallet on a specific chain:
 
-curl https://khora.fun/api/discover-agents?address=0x...&chain=shape
+curl https://booa.app/api/discover-agents?address=0x...&chain=shape
 
 Scans the chain using multicall, returns every agent that wallet controls.
 
 3. Collection browser — paginated BOOA NFTs with on-chain SVG art:
 
-curl https://khora.fun/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
+curl https://booa.app/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
 
 Returns tokenId, raw SVG, image URL, and name for each token. Pass startToken for pagination.
 
 4. Wallet NFTs — all NFTs owned by a wallet on any supported chain:
 
-curl https://khora.fun/api/fetch-nfts?address=0x...&chain=shape
+curl https://booa.app/api/fetch-nfts?address=0x...&chain=shape
 
 Filter by contract with &contract=0x... to get only BOOA tokens.
 
 5. Single token — metadata for a specific BOOA token:
 
-curl https://khora.fun/api/booa-token?network=mainnet&tokenId=0
+curl https://booa.app/api/booa-token?network=mainnet&tokenId=0
 
 Returns name, description, image, and traits for one NFT.
 
 Full reference
 
-Every endpoint, parameter, and response format is documented at khora.fun/llms.txt — a plain text file designed to be dropped into an LLM context window. If you are building an AI agent that needs to interact with BOOA data, start there.
+Every endpoint, parameter, and response format is documented at booa.app/llms.txt — a plain text file designed to be dropped into an LLM context window. If you are building an AI agent that needs to interact with BOOA data, start there.
 
 Use cases
 

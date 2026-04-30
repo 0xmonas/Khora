@@ -209,7 +209,7 @@ export default function PrivacyPolicyPage() {
             {/* Contact */}
             <Section title="Contact">
               <p>
-                For privacy questions, reach out through <a href="https://x.com/khorafun" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">X (@khorafun)</a>.
+                For privacy questions, reach out through <a href="https://x.com/booanft" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">X (@booanft)</a>.
               </p>
             </Section>
           </div>

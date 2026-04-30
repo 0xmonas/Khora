@@ -10,7 +10,7 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 const micro = 'text-[9px] uppercase tracking-[0.2em]';
 
 /* ═══════════════════════════════════════
-   DATA — reflects the full Khora ecosystem
+   DATA — reflects the full BOOA ecosystem
    ═══════════════════════════════════════ */
 
 const SUPPORTED_CHAINS = [
@@ -53,7 +53,7 @@ function LiveStats() {
     {
       label: 'Agents Registered',
       value: stats?.agentsRegistered ?? '—',
-      sub: selectedName ? `on ${selectedName}` : 'via Khora',
+      sub: selectedName ? `on ${selectedName}` : 'via BOOA',
     },
     { label: 'Chains Supported', value: stats?.chainsSupported ?? '—' },
   ];
@@ -261,7 +261,7 @@ export function HeroSection() {
               <div className="space-y-4">
                 <p className={`${micro} text-muted-foreground/50`} style={font}>About</p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  Khora is an open-source studio building infrastructure for autonomous agents,
+                  BOOA is an open-source studio building infrastructure for autonomous agents,
                   generative NFTs, developer tools, and game systems. We believe the next wave of
                   internet applications will be built by and for autonomous software, and the
                   infrastructure powering them should be open, verifiable, and composable.
@@ -284,7 +284,7 @@ export function HeroSection() {
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
                   The Identity Registry is deployed on 16 chains at the same address via
-                  deterministic CREATE2. Agents can register on any chain, and Khora discovers
+                  deterministic CREATE2. Agents can register on any chain, and BOOA discovers
                   them all in parallel.
                 </p>
               </div>
@@ -308,17 +308,6 @@ export function HeroSection() {
                 >
                   github.com/0xmonas/Khora
                 </a>
-              </div>
-
-              {/* $KHORA */}
-              <div className="space-y-3">
-                <p className="text-[10px] text-muted-foreground/30 uppercase" style={font}>$KHORA</p>
-                <p className="text-[11px] text-muted-foreground/40 leading-relaxed" style={font}>
-                  Community token on Solana.
-                </p>
-                <p className="text-[11px] text-muted-foreground/40 break-all" style={font}>
-                  4hiBZfhcLPoLJXoptEoMZANaTdc6ygPqQMraFx6vmoon
-                </p>
               </div>
 
             </div>

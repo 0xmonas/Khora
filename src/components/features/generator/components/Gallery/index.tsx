@@ -14,7 +14,7 @@ import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { toERC8004, toAgentDataURI, utf8ToBase64, type RegistryInfo } from '@/utils/helpers/exportFormats';
-import type { KhoraAgent } from '@/types/agent';
+import type { BooaAgent } from '@/types/agent';
 
 interface OnChainTrait {
   trait_type: string;
@@ -94,7 +94,7 @@ function TxHashLink({ hash, label, chainId }: { hash: `0x${string}`; label: stri
 import { traitsToAgent } from '@/utils/helpers/exportFormats';
 
 async function downloadFormat(
-  agent: KhoraAgent,
+  agent: BooaAgent,
   svgString: string | null,
   format: 'json' | 'erc8004' | 'openclaw' | 'png' | 'svg',
   onChainImage?: string,

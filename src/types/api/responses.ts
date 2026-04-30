@@ -1,4 +1,4 @@
-import { KhoraAgent, ERC8004Registration } from '@/types/agent';
+import { BooaAgent, ERC8004Registration } from '@/types/agent';
 
 export interface ApiResponse<T> {
   data?: T;
@@ -6,7 +6,7 @@ export interface ApiResponse<T> {
 }
 
 export interface GenerateAgentResponse {
-  agent: Omit<KhoraAgent, 'image'>;
+  agent: Omit<BooaAgent, 'image'>;
 }
 
 export interface GenerateImageResponse {
@@ -22,5 +22,5 @@ export interface FetchAgentResponse {
 }
 
 export interface EnrichAgentResponse {
-  agent: Omit<KhoraAgent, 'image'>;
+  agent: Omit<BooaAgent, 'image'>;
 }

@@ -1,4 +1,4 @@
-# Khôra — CLAUDE.md
+# BOOA — CLAUDE.md
 
 ## Project
 AI agent identity generator + on-chain registry. Mint AI-generated agents as NFTs on Shape Network, register on ERC-8004 Identity Registry across 16 EVM chains.

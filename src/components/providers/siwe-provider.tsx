@@ -99,7 +99,7 @@ export function SiweProvider({ children }: { children: ReactNode }) {
             nonce,
             uri: window.location.origin,
             version: '1',
-            statement: 'Sign in to Khora Agent.',
+            statement: 'Sign in to BOOA.',
           });
         },
 

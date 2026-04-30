@@ -1,5 +1,5 @@
 // Unified agent data model — compatible with OpenClaw + ERC-8004
-export interface KhoraAgent {
+export interface BooaAgent {
   name: string;
   description: string;
   creature: string;

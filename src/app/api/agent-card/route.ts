@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createPublicClient, http, fallback } from 'viem';
+import { shape, shapeSepolia } from 'viem/chains';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
-import { getRegistryAddress } from '@/lib/contracts/identity-registry';
-import { IDENTITY_REGISTRY_ABI } from '@/lib/contracts/identity-registry';
+import { getRegistryAddress, IDENTITY_REGISTRY_ABI } from '@/lib/contracts/identity-registry';
+import { BOOA_V2_ABI } from '@/lib/contracts/booa-v2';
 import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
 
 export const maxDuration = 30;
 
 async function getAgentData(chain: SupportedChain, agentId: number) {
-  const { createPublicClient, http, fallback } = await import('viem');
   const config = CHAIN_CONFIG[chain];
   const chainId = config.chainId;
   const registryAddress = getRegistryAddress(chainId);
@@ -105,16 +106,13 @@ export async function GET(request: NextRequest) {
 
     if (nftOrigin?.tokenId !== undefined) {
       try {
-        const { shape, shapeSepolia } = await import('viem/chains');
-        const { BOOA_V2_ABI } = await import('@/lib/contracts/booa-v2');
         const booaContract = chainId === 360
           ? process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS
           : process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET;
 
         if (booaContract) {
-          const { createPublicClient: createPC, http: httpT } = await import('viem');
           const shapeChain = chainId === 360 ? shape : shapeSepolia;
-          const shapeClient = createPC({ chain: shapeChain, transport: httpT() });
+          const shapeClient = createPublicClient({ chain: shapeChain, transport: http() });
           currentNftOwner = (await shapeClient.readContract({
             address: booaContract as `0x${string}`,
             abi: BOOA_V2_ABI,

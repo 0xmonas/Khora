@@ -1,8 +1,8 @@
-import type { KhoraAgent } from '@/types/agent';
+import type { BooaAgent } from '@/types/agent';
 import extractChunks from 'png-chunks-extract';
 import encodeChunks from 'png-chunks-encode';
 
-export async function embedJsonInPng(imageUrl: string, jsonData: KhoraAgent): Promise<Blob> {
+export async function embedJsonInPng(imageUrl: string, jsonData: BooaAgent): Promise<Blob> {
   let uint8Array: Uint8Array;
 
   if (imageUrl.startsWith('data:')) {
@@ -21,7 +21,7 @@ export async function embedJsonInPng(imageUrl: string, jsonData: KhoraAgent): Pr
   const chunks = extractChunks(uint8Array);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { image: _img, ...dataWithoutImage } = jsonData;
-  const textData = new TextEncoder().encode(`KhoraAgent\0${JSON.stringify(dataWithoutImage)}`);
+  const textData = new TextEncoder().encode(`BooaAgent\0${JSON.stringify(dataWithoutImage)}`);
 
   const textChunk = {
     name: 'tEXt',

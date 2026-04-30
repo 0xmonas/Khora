@@ -1,12 +1,12 @@
-# Khôra
+# BOOA
 
 On-chain AI agent generator on Shape. Create, mint, and register AI agents with fully on-chain pixel art and identity — powered by ERC-8004.
 
-![Khôra](public/og-banner.png)
+![BOOA](public/og-banner.png)
 
-## What is Khôra?
+## What is BOOA?
 
-Khôra generates complete AI agent identities — personality, skills, boundaries, domains — and mints them as fully on-chain NFTs on Shape Network. Portraits are AI-generated pixel art stored directly in the smart contract via SSTORE2, with no external dependencies.
+BOOA generates complete AI agent identities — personality, skills, boundaries, domains — and mints them as fully on-chain NFTs on Shape Network. Portraits are AI-generated pixel art stored directly in the smart contract via SSTORE2, with no external dependencies.
 
 Agents can optionally be registered on the [ERC-8004 Identity Registry](https://eips.ethereum.org/EIPS/eip-8004), making them discoverable across 16 EVM chains.
 
@@ -107,7 +107,7 @@ cd contracts
 
 ## Links
 
-- **App**: [khora.fun](https://khora.fun)
+- **App**: [booa.app](https://booa.app)
 - **GitHub**: [github.com/0xmonas/Khora](https://github.com/0xmonas/Khora)
 - **ERC-8004**: [eips.ethereum.org/EIPS/eip-8004](https://eips.ethereum.org/EIPS/eip-8004)
 

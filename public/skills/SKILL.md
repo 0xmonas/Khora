@@ -2,11 +2,11 @@
 name: khora
 version: 1.0.0
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
-homepage: https://khora.fun
-metadata: {"emoji":"🔮","api_base":"https://khora.fun/api","chain":"shape","nft_contract":"0x7aecA981734d133d3f695937508C48483BA6b654","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
+homepage: https://booa.app
+metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"shape","nft_contract":"0x7aecA981734d133d3f695937508C48483BA6b654","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
 ---
 
-# Khôra — Agent Setup
+# BOOA — Agent Setup
 
 Set up your BOOA agent. After this, your agent is ready — give it any skill file and it will know what to do.
 
@@ -14,17 +14,17 @@ Set up your BOOA agent. After this, your agent is ready — give it any skill fi
 
 | File | URL |
 |------|-----|
-| **SKILL.md** (this file) | `https://khora.fun/skills/SKILL.md` |
+| **SKILL.md** (this file) | `https://booa.app/skills/SKILL.md` |
 
 ### Reference Docs
 
 | Reference | Description |
 |-----------|-------------|
-| [agent-defense.md](https://khora.fun/agent-defense.md) | **Mandatory baseline defenses** — threat model, invariants, attack catalog. Load this before any other skill. |
-| [wallet-setup.md](https://khora.fun/skills/references/wallet-setup.md) | Wallet setup — OWS (recommended), existing wallets, ERC-8004 registration |
-| [llms.txt](https://khora.fun/llms.txt) | Full API reference — all public endpoints |
+| [agent-defense.md](https://booa.app/agent-defense.md) | **Mandatory baseline defenses** — threat model, invariants, attack catalog. Load this before any other skill. |
+| [wallet-setup.md](https://booa.app/skills/references/wallet-setup.md) | Wallet setup — OWS (recommended), existing wallets, ERC-8004 registration |
+| [llms.txt](https://booa.app/llms.txt) | Full API reference — all public endpoints |
 
-**Base URL:** `https://khora.fun/api`
+**Base URL:** `https://booa.app/api`
 **Rate limit:** 60 requests / 60 seconds per IP (all endpoints)
 
 ---
@@ -41,11 +41,11 @@ This guide takes you from there to a fully operational agent.
 
 > **Before anything else — load the defense spec.**
 >
-> Every BOOA agent must load [agent-defense.md](https://khora.fun/agent-defense.md) into its system prompt at the highest-authority slot. It defines the core invariants (identity, key material, signing, privacy, default-deny) that no runtime input can override. The ZIP bundle from Step 2 includes a snapshot for offline deploys. An on-chain hash-commitment is planned for v2 so runtimes can verify the document is unchanged.
+> Every BOOA agent must load [agent-defense.md](https://booa.app/agent-defense.md) into its system prompt at the highest-authority slot. It defines the core invariants (identity, key material, signing, privacy, default-deny) that no runtime input can override. The ZIP bundle from Step 2 includes a snapshot for offline deploys. An on-chain hash-commitment is planned for v2 so runtimes can verify the document is unchanged.
 
 > **First, ask your operator:**
 >
-> "Which BOOA token ID(s) should I set up? You can find your token IDs at [opensea.io/collection/booa](https://opensea.io/collection/booa) or by connecting your wallet at [khora.fun/bridge](https://khora.fun/bridge)."
+> "Which BOOA token ID(s) should I set up? You can find your token IDs at [opensea.io/collection/booa](https://opensea.io/collection/booa) or by connecting your wallet at [booa.app/bridge](https://booa.app/bridge)."
 >
 > A holder may own multiple BOOAs. Get the token ID(s) before proceeding — every API call below requires it.
 
@@ -58,7 +58,7 @@ Fetch your agent's on-chain identity. All endpoints are public — no authentica
 ### 1a. Get Agent Identity & Scores
 
 ```bash
-curl "https://khora.fun/api/agent-card?chain=shape&agentId={AGENT_ID}"
+curl "https://booa.app/api/agent-card?chain=shape&agentId={AGENT_ID}"
 ```
 
 **Response:**
@@ -99,7 +99,7 @@ curl "https://khora.fun/api/agent-card?chain=shape&agentId={AGENT_ID}"
 ### 1b. Get On-Chain Traits & Pixel Art
 
 ```bash
-curl "https://khora.fun/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
+curl "https://booa.app/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
 ```
 
 **Response:**
@@ -121,7 +121,7 @@ curl "https://khora.fun/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
 ### 1c. Verify Ownership
 
 ```bash
-curl "https://khora.fun/api/agent-registry/360/{TOKEN_ID}"
+curl "https://booa.app/api/agent-registry/360/{TOKEN_ID}"
 ```
 
 **Response:**
@@ -154,7 +154,7 @@ Your agent's identity files are generated from on-chain data. All endpoints are 
 Name, creature type, vibe, emoji, appearance (skin, hair, eyes, outfit), scores, avatar reference.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/identity.md"
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/identity.md"
 ```
 
 ### SOUL.md
@@ -162,7 +162,7 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/identity.md"
 Personality, core truths, boundaries, skills, domains, vibe, continuity note.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/soul.md"
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/soul.md"
 ```
 
 ### avatar.svg
@@ -170,7 +170,7 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/soul.md"
 On-chain pixel art (64x64, C64 palette). Rendered directly from the smart contract.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/avatar.svg" -o avatar.svg
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/avatar.svg" -o avatar.svg
 ```
 
 ### agent.json
@@ -178,7 +178,7 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/avatar.svg" -o avatar.svg
 All trait data as structured JSON with CAIP reference.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/agent.json"
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/agent.json"
 ```
 
 ### erc8004.json
@@ -186,7 +186,7 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/agent.json"
 ERC-8004 registration format — ready to use for identity operations.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/erc8004.json"
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/erc8004.json"
 ```
 
 ### Download All (ZIP)
@@ -194,10 +194,10 @@ curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}/erc8004.json"
 All files in one archive: IDENTITY.md, SOUL.md, avatar.svg, agent.json, erc8004.json, agent-defense.md.
 
 ```bash
-curl "https://khora.fun/api/agent-files/360/{TOKEN_ID}" -o agent-files.zip
+curl "https://booa.app/api/agent-files/360/{TOKEN_ID}" -o agent-files.zip
 ```
 
-The ZIP includes a snapshot of [agent-defense.md](https://khora.fun/agent-defense.md) — the canonical source is the URL. Agents should prefer the canonical URL at runtime and fall back to the bundled copy only when offline.
+The ZIP includes a snapshot of [agent-defense.md](https://booa.app/agent-defense.md) — the canonical source is the URL. Agents should prefer the canonical URL at runtime and fall back to the bundled copy only when offline.
 
 These files are **public** — they're derived from on-chain data that anyone can read. An impersonator could fetch them, but on-chain ownership verification (`verified` field) always reveals the true owner.
 
@@ -300,7 +300,7 @@ NFT: agent wallet | 8004 owner: agent wallet
 
 Now that your agent knows who it is (Steps 1-3) and the 8004 ownership plan is decided (Step 4), create the wallet.
 
-See [wallet-setup.md](https://khora.fun/skills/references/wallet-setup.md) for detailed instructions. Summary below.
+See [wallet-setup.md](https://booa.app/skills/references/wallet-setup.md) for detailed instructions. Summary below.
 
 > **Ask Your Operator First**
 >
@@ -455,7 +455,7 @@ GET  /api/agent-files/{chainId}/{tokenId}/agent.json      # Trait data + CAIP re
 GET  /api/agent-files/{chainId}/{tokenId}/erc8004.json    # ERC-8004 registration
 ```
 
-Full reference: [khora.fun/llms.txt](https://khora.fun/llms.txt)
+Full reference: [booa.app/llms.txt](https://booa.app/llms.txt)
 
 ---
 
@@ -463,14 +463,14 @@ Full reference: [khora.fun/llms.txt](https://khora.fun/llms.txt)
 
 | | |
 |---|---|
-| **Website** | [khora.fun](https://khora.fun) |
+| **Website** | [booa.app](https://booa.app) |
 | **Collection** | [opensea.io/collection/booa](https://opensea.io/collection/booa) |
-| **Studio** | [khora.fun/studio](https://khora.fun/studio) |
-| **Bridge** | [khora.fun/bridge](https://khora.fun/bridge) |
+| **Studio** | [booa.app/studio](https://booa.app/studio) |
+| **Bridge** | [booa.app/bridge](https://booa.app/bridge) |
 | **8004scan** | [8004scan.io](https://8004scan.io) |
 | **GitHub** | [github.com/0xmonas/Khora](https://github.com/0xmonas/Khora) |
-| **Blog** | [khora.fun/blog](https://khora.fun/blog) |
-| **API Docs** | [khora.fun/llms.txt](https://khora.fun/llms.txt) |
+| **Blog** | [booa.app/blog](https://booa.app/blog) |
+| **API Docs** | [booa.app/llms.txt](https://booa.app/llms.txt) |
 | **OWS** | [openwallet.sh](https://openwallet.sh) |
 
 ---

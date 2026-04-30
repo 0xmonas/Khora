@@ -157,7 +157,7 @@ function AboutSection() {
 const FAQ_ITEMS = [
   {
     q: 'Is the art really 100% on-chain?',
-    a: 'Yes. The pixel art is stored as a 2,048-byte bitmap and traits are packed into bytes, all written directly into the smart contract via SSTORE2. The Renderer contract converts the bitmap to SVG on-the-fly. No server, no IPFS, no external dependency. Even if khora.fun disappears, your NFT renders from the contract alone.',
+    a: 'Yes. The pixel art is stored as a 2,048-byte bitmap and traits are packed into bytes, all written directly into the smart contract via SSTORE2. The Renderer contract converts the bitmap to SVG on-the-fly. No server, no IPFS, no external dependency. Even if booa.app disappears, your NFT renders from the contract alone.',
   },
   {
     q: 'Why pixel art?',
@@ -239,7 +239,7 @@ export function BOOAHeroSection() {
             {/* BOOA Hero */}
             <div className="flex flex-col items-center">
               <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
-                a Khora product
+                a BOOA product
               </p>
               <h1
                 className="text-4xl sm:text-5xl md:text-6xl text-foreground mt-4"

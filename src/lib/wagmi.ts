@@ -48,7 +48,7 @@ if (!HIDE_TESTNETS) {
 }
 
 export const wagmiConfig = getDefaultConfig({
-  appName: 'Khora Agent',
+  appName: 'BOOA',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'placeholder',
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   chains: allChains as any,

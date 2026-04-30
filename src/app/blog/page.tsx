@@ -32,7 +32,7 @@ export default function BlogPage() {
                 {/* Title */}
                 <div className="space-y-3">
                   <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
-                    Khora
+                    BOOA
                   </p>
                   <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>
                     Blog

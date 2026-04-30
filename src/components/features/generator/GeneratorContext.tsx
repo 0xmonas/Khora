@@ -6,7 +6,7 @@ import { getAllowlistProof } from '@/lib/allowlist';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
 import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
-import type { KhoraAgent, AgentService, SupportedChain } from '@/types/agent';
+import type { BooaAgent, AgentService, SupportedChain } from '@/types/agent';
 import { CHAIN_CONFIG } from '@/types/agent';
 import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
@@ -28,7 +28,7 @@ type GeneratorContextType = {
   setSelectedChain: (chain: SupportedChain) => void;
   agentId: string;
   setAgentId: (id: string) => void;
-  agent: KhoraAgent | null;
+  agent: BooaAgent | null;
   loading: boolean;
   progress: number;
   error: string | null;
@@ -91,7 +91,7 @@ export const GeneratorContext = createContext<GeneratorContextType | undefined>(
 
 async function saveAgentMetadataToAPI(
   address: string, chainId: number, tokenId: number,
-  agent: KhoraAgent,
+  agent: BooaAgent,
 ) {
   try {
     const res = await fetch('/api/agent-metadata', {
@@ -148,7 +148,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [agentDescription, setAgentDescription] = useState('');
   const [selectedChain, setSelectedChain] = useState<SupportedChain>('ethereum');
   const [agentId, setAgentId] = useState('');
-  const [agent, setAgent] = useState<KhoraAgent | null>(null);
+  const [agent, setAgent] = useState<BooaAgent | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -633,7 +633,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Update local state from server response
-      const agentData = data.agent as unknown as KhoraAgent;
+      const agentData = data.agent as unknown as BooaAgent;
       setAgentName(agentData.name || '');
       setAgentDescription(agentData.description || '');
 
@@ -655,7 +655,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
           return s;
         });
 
-      const finalAgent: KhoraAgent = {
+      const finalAgent: BooaAgent = {
         ...agentData,
         image: data.pixelatedImage,
         services: cleanedServices,

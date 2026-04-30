@@ -91,7 +91,7 @@ export default function BOOAAboutPage() {
                 {/* Title */}
                 <div className="space-y-4">
                   <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
-                    a Khora product
+                    a BOOA product
                   </p>
                   <h1
                     className="text-2xl sm:text-3xl text-foreground"
@@ -152,7 +152,7 @@ export default function BOOAAboutPage() {
                   <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
                     The Identity Registry is deployed on 16 chains at the same address
                     via deterministic CREATE2. Agents can register on any chain, and
-                    Khora discovers them all in parallel.
+                    BOOA discovers them all in parallel.
                   </p>
                 </div>
 

@@ -340,7 +340,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       x402Support,
       supportedTrust: supportedTrust.length ? supportedTrust : undefined,
       updatedAt: Math.floor(Date.now() / 1000),
-      registeredVia: 'https://khora.fun',
+      registeredVia: 'https://booa.app',
       ...nftOriginData,
     };
   }, [erc8004Services, selectedSkills, selectedDomains, agentName, agentDescription, x402Support, supportedTrust, selectedNFT, address, preservedNftOrigin]);

@@ -1,9 +1,9 @@
-import type { KhoraAgent, ERC8004Registration } from '@/types/agent';
+import type { BooaAgent, ERC8004Registration } from '@/types/agent';
 import { skillLabelsToSlugs, domainLabelsToSlugs } from '@/lib/oasf-taxonomy';
 
 /**
  * UTF-8 safe base64 encoding.
- * `btoa()` only handles Latin-1 — multi-byte chars like "ô" in "Khôra" corrupt the output.
+ * `btoa()` only handles Latin-1 — multi-byte UTF-8 chars (e.g. "ô") corrupt the output.
  */
 export function utf8ToBase64(str: string): string {
   const bytes = new TextEncoder().encode(str);
@@ -30,7 +30,7 @@ export interface RegistryInfo {
   agentRegistry: string; // CAIP-2: eip155:{chainId}:{registryAddress}
 }
 
-export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registryInfo?: RegistryInfo): ERC8004Registration {
+export function toERC8004(agent: BooaAgent, nftOrigin?: NFTOriginInput, registryInfo?: RegistryInfo): ERC8004Registration {
   // Include user-added services (filter empty endpoints except OASF which may be metadata-only)
   const validServices = agent.services.filter(s => s.endpoint.trim() || s.name === 'OASF');
 
@@ -80,7 +80,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
     x402Support: agent.x402Support ?? false,
     supportedTrust: agent.supportedTrust?.length ? agent.supportedTrust : undefined,
     updatedAt: Math.floor(Date.now() / 1000),
-    registeredVia: 'https://khora.fun',
+    registeredVia: 'https://booa.app',
     // Immutable link to source NFT — preserved in Registered event log forever
     ...(nftOrigin ? {
       nftOrigin: {
@@ -99,7 +99,7 @@ export function toERC8004(agent: KhoraAgent, nftOrigin?: NFTOriginInput, registr
   };
 }
 
-export function traitsToAgent(traits: { trait_type: string; value: string }[]): KhoraAgent {
+export function traitsToAgent(traits: { trait_type: string; value: string }[]): BooaAgent {
   const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
   const getAll = (type: string) => traits.filter(t => t.trait_type === type).map(t => t.value);
   return {
@@ -117,7 +117,7 @@ export function traitsToAgent(traits: { trait_type: string; value: string }[]): 
   };
 }
 
-export function toIdentityMd(agent: KhoraAgent, onChainImage?: string, rawTraits?: { trait_type: string; value: string }[]): string {
+export function toIdentityMd(agent: BooaAgent, onChainImage?: string, rawTraits?: { trait_type: string; value: string }[]): string {
   const avatar = onChainImage || '(not minted yet)';
   const get = (type: string) => rawTraits?.find(t => t.trait_type === type)?.value || '';
 
@@ -160,7 +160,7 @@ export function toIdentityMd(agent: KhoraAgent, onChainImage?: string, rawTraits
   return md;
 }
 
-export function toSoulMd(agent: KhoraAgent): string {
+export function toSoulMd(agent: BooaAgent): string {
   const personalitySection = agent.personality.length > 0
     ? agent.personality.map((p, i) => `${i + 1}. ${p}`).join('\n')
     : 'No personality traits defined.';
@@ -243,7 +243,7 @@ I am a BOOA holder (#[Token ID]). I operate on [chain, e.g. Shape/Base/Ethereum]
 `;
 }
 
-export async function toOpenClawZip(agent: KhoraAgent, onChainImage?: string): Promise<Blob> {
+export async function toOpenClawZip(agent: BooaAgent, onChainImage?: string): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
 

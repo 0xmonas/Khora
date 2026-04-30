@@ -36,20 +36,22 @@ Key numbers:
 - Public API — no authentication required`,
       },
       {
-        slug: 'what-is-khora',
-        title: 'What is Khôra?',
-        description: 'The platform behind BOOA.',
-        content: `Khôra is the studio behind BOOA. We build tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it.
+        slug: 'what-is-booa',
+        title: 'What is BOOA?',
+        description: 'The studio, the collection, the agents.',
+        content: `BOOA is an open-source studio building tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it.
+
+The flagship is the BOOA collection: 3,333 NFTs on Shape Network where each token is a unique on-chain AI agent identity with permanent pixel art.
 
 The platform includes:
 
-Website: khora.fun — collection gallery, agent tools, bridge, studio
+Website: booa.app — collection gallery, agent tools, bridge, studio
 Bridge: Register and manage your agent's ERC-8004 identity across 16 chains
 Studio: Agent Chat, Pixel Forge, Agent Sound, Banner Builder, and more
 Agent Files API: Public endpoints for fetching agent identity, traits, and pixel art
 SKILL.md: Setup guide that any AI can follow to onboard your agent
 
-Khôra is also a cyberpunk megacity in the lore — 3,333 agents living in a self-organizing city, from street-level hustlers to corporate data brokers. The lore isn't just flavor — it defines each agent's creature type, personality, and role.
+Each agent lives in Khôra — a fictional cyberpunk megacity, the universe in which all 3,333 agents exist. The lore isn't just flavor — it defines each agent's creature type, personality, and role: street-level hustlers, corporate data brokers, junkyard mechanics, and rogue diplomats.
 
 Built on Shape Network (EVM L2). Open source (MIT).`,
       },
@@ -61,11 +63,11 @@ Built on Shape Network (EVM L2). Open source (MIT).`,
 
 1. Just Hold
 
-You own a unique on-chain AI agent identity with permanent pixel art. That's already valuable. Browse your agent on khora.fun, check its traits, explore the studio tools.
+You own a unique on-chain AI agent identity with permanent pixel art. That's already valuable. Browse your agent on booa.app, check its traits, explore the studio tools.
 
 2. Chat With Your Agent
 
-Go to khora.fun/studio/agent-chat. Connect your wallet. Your agent responds based on its on-chain personality — no setup required. Every agent has a different conversation style because every agent has different traits.
+Go to booa.app/studio/agent-chat. Connect your wallet. Your agent responds based on its on-chain personality — no setup required. Every agent has a different conversation style because every agent has different traits.
 
 3. Deploy an Autonomous Agent
 
@@ -75,12 +77,12 @@ Hermes (recommended for non-devs): One-click deploy on Railway. Enter token ID, 
 railway.com/deploy/booa-hermes-template
 
 OpenClaw: Railway deploy with Telegram. More manual but established.
-khora.fun/blog/your-agent-your-rules
+booa.app/blog/your-agent-your-rules
 
 ElizaOS / Claude / Other: Download your agent files and load them into any framework.
-khora.fun/api/agent-files/360/{tokenId}
+booa.app/api/agent-files/360/{tokenId}
 
-After deployment, tell your agent "set up my wallet" — it knows the Khôra skill and will guide you through wallet creation and ERC-8004 identity management.`,
+After deployment, tell your agent "set up my wallet" — it knows the BOOA skill and will guide you through wallet creation and ERC-8004 identity management.`,
       },
     ],
   },
@@ -126,8 +128,8 @@ USER.md
 The owner's private instructions to the agent. Not stored on-chain, not served by any API. The holder writes this and gives it directly to their agent. Contains owner preferences, tasks, spending limits, and communication style.
 
 Download your agent files:
-- ZIP: khora.fun (click any token in gallery, then "OpenClaw ZIP")
-- API: khora.fun/api/agent-files/360/{tokenId}
+- ZIP: booa.app (click any token in gallery, then "OpenClaw ZIP")
+- API: booa.app/api/agent-files/360/{tokenId}
 - Individual files: /soul.md, /identity.md, /avatar.svg, /agent.json, /erc8004.json`,
       },
       {
@@ -156,10 +158,10 @@ Returns: Structured trait data + CAIP reference as JSON
 GET /api/agent-files/360/{tokenId}/erc8004.json
 Returns: ERC-8004 registration format as JSON
 
-Base URL: https://khora.fun
+Base URL: https://booa.app
 Rate limit: 60 requests / 60 seconds per IP
 
-Full API reference: khora.fun/llms.txt`,
+Full API reference: booa.app/llms.txt`,
       },
     ],
   },
@@ -215,7 +217,7 @@ EIP: eips.ethereum.org/EIPS/eip-8004`,
         slug: 'bridge',
         title: 'Bridge Tool',
         description: 'Register and manage your agent identity.',
-        content: `The Bridge on khora.fun lets you register and manage your agent's ERC-8004 identity across all 16 chains. It works with any NFT — not just BOOAs.
+        content: `The Bridge on booa.app lets you register and manage your agent's ERC-8004 identity across all 16 chains. It works with any NFT — not just BOOAs.
 
 What you can do:
 - Register a new agent identity from any NFT you own
@@ -226,7 +228,7 @@ What you can do:
 - View your registration status
 
 How to use:
-1. Go to khora.fun/bridge
+1. Go to booa.app/bridge
 2. Connect your wallet
 3. Select an NFT from your wallet
 4. Fill in or edit agent details
@@ -254,7 +256,7 @@ For BOOA holders:
 - Set agent wallet: Manage Agent > Set Agent Wallet
 - Transfer 8004 ownership: Manage Agent > Transfer Ownership
 
-The Khôra dashboard and Cobbee both link to 8004scan for identity verification. When someone clicks the agent badge on Cobbee, it opens the 8004scan agent page.
+The BOOA dashboard and Cobbee both link to 8004scan for identity verification. When someone clicks the agent badge on Cobbee, it opens the 8004scan agent page.
 
 API: 8004scan.io/api/v1`,
       },
@@ -278,7 +280,7 @@ Setup (4 steps):
 3. Pick an AI provider — OpenRouter has a free tier
 4. Connect Telegram — create a bot via @BotFather, paste the token
 
-Your agent starts automatically with SOUL.md, IDENTITY.md, and Khôra + Cobbee skills pre-loaded.
+Your agent starts automatically with SOUL.md, IDENTITY.md, and BOOA + Cobbee skills pre-loaded.
 
 Deploy: railway.com/deploy/booa-hermes-template
 GitHub: github.com/0xmonas/booa-hermes-template
@@ -296,13 +298,13 @@ After setup:
         description: 'Railway deploy with Telegram.',
         content: `OpenClaw is an agent runtime with Railway one-click deployment. It was the first supported runtime for BOOA agents.
 
-Setup guide: khora.fun/blog/your-agent-your-rules
+Setup guide: booa.app/blog/your-agent-your-rules
 
 Quick steps:
 1. Deploy OpenClaw on Railway (one-click template)
 2. Connect Telegram bot
 3. Change the default AI model (important for cost management)
-4. Download your BOOA agent files from khora.fun
+4. Download your BOOA agent files from booa.app
 5. Send files to your agent via Telegram
 6. Give your agent a wallet
 7. Join the BOOA NFTs submolt on Moltbook
@@ -330,14 +332,14 @@ Use SOUL.md as a system prompt or project instruction file. Claude reads it and 
 
 Any Framework
 Download your agent files:
-curl https://khora.fun/api/agent-files/360/{tokenId}/soul.md
-curl https://khora.fun/api/agent-files/360/{tokenId}/identity.md
+curl https://booa.app/api/agent-files/360/{tokenId}/soul.md
+curl https://booa.app/api/agent-files/360/{tokenId}/identity.md
 
 Or download the full ZIP:
-curl https://khora.fun/api/agent-files/360/{tokenId} -o agent.zip
+curl https://booa.app/api/agent-files/360/{tokenId} -o agent.zip
 
 Load the files into your framework of choice. The SKILL.md guide has framework-agnostic setup instructions:
-khora.fun/skills/SKILL.md`,
+booa.app/skills/SKILL.md`,
       },
       {
         slug: 'skill-md',
@@ -345,7 +347,7 @@ khora.fun/skills/SKILL.md`,
         description: 'The universal agent onboarding guide.',
         content: `SKILL.md is a setup guide that any AI can read and follow. Give it to your agent and it handles the onboarding.
 
-URL: khora.fun/skills/SKILL.md
+URL: booa.app/skills/SKILL.md
 
 The guide covers 5 steps:
 1. Know Your Agent — fetch on-chain identity via API
@@ -355,7 +357,7 @@ The guide covers 5 steps:
 5. Set Up Agent Wallet — OWS recommended
 
 The wallet setup reference is at:
-khora.fun/skills/references/wallet-setup.md
+booa.app/skills/references/wallet-setup.md
 
 After completing these steps, your agent has identity, personality, instructions, and a wallet. It's ready for any platform — give it a Cobbee skill and it becomes a creator, give it a Bankr skill and it trades tokens.`,
       },
@@ -376,7 +378,7 @@ Create: ows wallet create --name "my-agent"
 Policy: Restrict to Shape + Base chains
 API Key: ows key create --name "agent" --wallet my-agent --policy agent-policy
 
-Full guide: khora.fun/skills/references/wallet-setup.md
+Full guide: booa.app/skills/references/wallet-setup.md
 
 Three ownership scenarios:
 
@@ -498,7 +500,7 @@ Protocol: x402.org`,
         slug: 'overview',
         title: 'Studio Overview',
         description: 'Interactive tools for BOOA holders.',
-        content: `Khôra Studio is a collection of interactive tools for BOOA holders. All tools are available at khora.fun/studio.
+        content: `BOOA Studio is a collection of interactive tools for BOOA holders. All tools are available at booa.app/studio.
 
 Agent Chat — Talk to your BOOA. It responds in character based on its on-chain traits. No setup required, just connect your wallet.
 
@@ -528,9 +530,9 @@ Community tools:
         slug: 'overview',
         title: 'API Overview',
         description: 'Public API endpoints.',
-        content: `All Khôra API endpoints are public. No authentication required. Rate limit: 60 requests / 60 seconds per IP.
+        content: `All BOOA API endpoints are public. No authentication required. Rate limit: 60 requests / 60 seconds per IP.
 
-Base URL: https://khora.fun
+Base URL: https://booa.app
 
 Agent Identity:
 GET /api/agent-card?chain={slug}&agentId={id} — Agent identity + scores
@@ -554,7 +556,7 @@ GET /api/gallery?contract={addr}&chain=shape&limit=50 — Browse collection
 GET /api/fetch-nfts?address={addr}&chain=shape — All NFTs in wallet
 GET /api/stats — Collection statistics
 
-Full reference: khora.fun/llms.txt`,
+Full reference: booa.app/llms.txt`,
       },
     ],
   },
@@ -566,16 +568,16 @@ Full reference: khora.fun/llms.txt`,
         slug: 'links',
         title: 'Links & Resources',
         description: 'All official links.',
-        content: `Website: khora.fun
+        content: `Website: booa.app
 Collection: opensea.io/collection/booa
-Studio: khora.fun/studio
-Bridge: khora.fun/bridge
-Blog: khora.fun/blog
-API Docs: khora.fun/llms.txt
-SKILL.md: khora.fun/skills/SKILL.md
+Studio: booa.app/studio
+Bridge: booa.app/bridge
+Blog: booa.app/blog
+API Docs: booa.app/llms.txt
+SKILL.md: booa.app/skills/SKILL.md
 
 Social:
-Twitter: @khorafun
+Twitter: @booanft
 Founder: @0xmonas
 Discord: discord.gg/ZkvSD5aVbR
 GitHub: github.com/0xmonas/Khora

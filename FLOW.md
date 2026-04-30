@@ -537,7 +537,7 @@
  │  REGISTERING...                                                 │
  │                                                                 │
  │  Data sources:                                                  │
- │  • Upstash metadata (if available) → full KhoraAgent            │
+ │  • Upstash metadata (if available) → full BooaAgent             │
  │  • On-chain traits (always available) → name, desc, skills...   │
  │  • On-chain pixelated image → image field                       │
  │                                                                 │

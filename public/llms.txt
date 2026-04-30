@@ -1,10 +1,10 @@
-# Khora API Reference
-# Base URL: https://khora.fun
+# BOOA API Reference
+# Base URL: https://booa.app
 # Rate limit: 60 requests / 60 seconds per IP (all endpoints)
 
 ## Overview
 
-Khora provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Shape Network) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
+BOOA provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Shape Network) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
 
 ## Collection Status
 
@@ -319,16 +319,16 @@ Every BOOA can be exported as an autonomous agent:
 - IDENTITY.md — creature, skills, domains, on-chain metadata
 - USER.md — owner instructions
 
-Download from: khora.fun/booa (click on any token)
-Full setup guide: khora.fun/blog/your-agent-your-rules
+Download from: booa.app/booa (click on any token)
+Full setup guide: booa.app/blog/your-agent-your-rules
 
 ## Key Links
 
-- Website: khora.fun
+- Website: booa.app
 - Collection: opensea.io/collection/booa
-- Studio: khora.fun/studio
-- Bridge: khora.fun/bridge
-- Blog: khora.fun/blog
+- Studio: booa.app/studio
+- Bridge: booa.app/bridge
+- Blog: booa.app/blog
 - 8004scan: 8004scan.io
 - GitHub: github.com/0xmonas/Khora
 

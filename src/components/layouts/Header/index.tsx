@@ -154,17 +154,25 @@ export function Header() {
               </button>
 
               <div
-                style={{ width: '48px', height: '48px', position: 'relative' }}
+                style={{ width: '98px', height: '28px', position: 'relative' }}
                 onClick={() => router.replace('/')}
                 className="cursor-pointer"
               >
                 <Image
-                  src="/khoralogo.svg"
+                  src="/booalogo.svg"
                   alt="Logo"
                   fill
-                  sizes="48px"
+                  sizes="98px"
                   loading="eager"
-                  className="object-contain dark:brightness-0 dark:invert"
+                  className="object-contain block dark:hidden"
+                />
+                <Image
+                  src="/booalogo-dark.svg"
+                  alt="Logo"
+                  fill
+                  sizes="98px"
+                  loading="eager"
+                  className="object-contain hidden dark:block"
                 />
               </div>
               <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">

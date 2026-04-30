@@ -1,6 +1,6 @@
 # Security Policy
 
-Khôra is an on-chain AI agent identity system. Smart contracts are immutable once deployed, but the web application, APIs, and agent tooling are under active development. Security is a collaborative effort — responsible disclosure is appreciated and rewarded when possible.
+BOOA is an on-chain AI agent identity system. Smart contracts are immutable once deployed, but the web application, APIs, and agent tooling are under active development. Security is a collaborative effort — responsible disclosure is appreciated and rewarded when possible.
 
 ## Scope
 
@@ -8,17 +8,17 @@ Khôra is an on-chain AI agent identity system. Smart contracts are immutable on
 
 - **Smart contracts** at `0x7aecA981734d133d3f695937508C48483BA6b654` (BOOA) and related (Minter, Storage, Renderer) on Shape Network
 - **ERC-8004 Identity Registry** integration logic (`verified` field, `nftOrigin` binding, ownership checks)
-- **Web application** at [khora.fun](https://khora.fun) — all routes including `/api/*`, `/studio`, `/bridge`, `/gallery`
+- **Web application** at [booa.app](https://booa.app) — all routes including `/api/*`, `/studio`, `/bridge`, `/gallery`
 - **Agent-facing artifacts** — `public/skills/SKILL.md`, `public/agent-defense.md`, `/api/agent-files/*`
 - **BOOA Hermes Template** at [github.com/0xmonas/booa-hermes-template](https://github.com/0xmonas/booa-hermes-template)
 - **Client-side wallet interactions** — SIWE flow, signing logic, session management
 
 ### Out of Scope
 
-- Social engineering of the Khôra team
+- Social engineering of the BOOA team
 - Physical security
 - Denial-of-service via rate-limit exhaustion (rate limits are documented at 60 req/60s per IP)
-- Findings in third-party dependencies unless directly exploitable in Khôra context (file upstream first)
+- Findings in third-party dependencies unless directly exploitable in BOOA context (file upstream first)
 - Findings that require a compromised user machine or browser
 - Best-practice suggestions without a concrete attack path
 
@@ -30,7 +30,7 @@ Issues that can lead to:
 - Unauthorized minting, phase manipulation, or contract state corruption
 - Orphaned 8004 registrations being treated as valid (bypassing the dual-check verification)
 - Identity hijack — an impersonator being served as legitimate
-- Leakage of private keys, mnemonics, API tokens, or user-private files (e.g. USER.md) through any Khôra-controlled surface
+- Leakage of private keys, mnemonics, API tokens, or user-private files (e.g. USER.md) through any BOOA-controlled surface
 - Injection attacks against agent artifacts (SOUL.md, IDENTITY.md, SKILL.md) — including prompt injection that bypasses the defenses documented in [agent-defense.md](public/agent-defense.md)
 - Cross-site scripting, SSRF, IDOR, auth bypass in the web app
 
@@ -59,7 +59,7 @@ Email **saystupidshit@gmail.com** with:
 
 ## Agent Security
 
-If you are developing an agent that uses Khôra artifacts (SOUL.md, IDENTITY.md, skills), read the [Agent Defense Specification](public/agent-defense.md). It documents the threat model for AI agents operating in adversarial environments (Twitter replies, chat, agent-to-agent) and the baseline defenses every Khôra-derived agent should implement.
+If you are developing an agent that uses BOOA artifacts (SOUL.md, IDENTITY.md, skills), read the [Agent Defense Specification](public/agent-defense.md). It documents the threat model for AI agents operating in adversarial environments (Twitter replies, chat, agent-to-agent) and the baseline defenses every BOOA-derived agent should implement.
 
 Contributions, critiques, and attack reports against the defense spec are welcome through the same reporting channel.
 
@@ -68,7 +68,7 @@ Contributions, critiques, and attack reports against the defense spec are welcom
 | Component | Supported |
 |---|---|
 | Smart contracts (mainnet) | Current deployment (immutable — upgrades only via renderer hot-swap) |
-| khora.fun | Latest production deploy |
+| booa.app | Latest production deploy |
 | BOOA Hermes Template | Latest `main` branch |
 | Older template versions | Best-effort; please upgrade |
 
