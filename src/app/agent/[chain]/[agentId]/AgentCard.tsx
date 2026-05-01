@@ -355,27 +355,27 @@ export function AgentCard({ agent, scores, scan8004Url }: AgentCardProps) {
                   </div>
                 </div>
 
-                {agent.skills.length > 0 && (
-                  <div>
-                    <p className="text-[7px] uppercase tracking-wider mb-1" style={dimText}>SPECIAL SKILLS</p>
-                    <div className="flex flex-wrap gap-1">
-                      {agent.skills.slice(0, 6).map((sk) => (
-                        <span key={sk} className="px-1.5 py-0.5 border border-[#444] text-[8px] uppercase" style={bodyText}>{sk}</span>
-                      ))}
-                    </div>
+                <div>
+                  <p className="text-[7px] uppercase tracking-wider mb-1" style={dimText}>SPECIAL SKILLS</p>
+                  <div className="flex flex-wrap gap-1">
+                    {agent.skills.length > 0 ? agent.skills.slice(0, 6).map((sk) => (
+                      <span key={sk} className="px-1.5 py-0.5 border border-[#444] text-[8px] uppercase" style={bodyText}>{sk}</span>
+                    )) : (
+                      <span className="px-1.5 py-0.5 border border-[#e8833a] text-[8px] uppercase" style={{ color: '#e8833a' }}>None</span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                {agent.domains.length > 0 && (
-                  <div>
-                    <p className="text-[7px] uppercase tracking-wider mb-1" style={dimText}>DOMAINS</p>
-                    <div className="flex flex-wrap gap-1">
-                      {agent.domains.slice(0, 4).map((d) => (
-                        <span key={d} className="px-1.5 py-0.5 border border-[#444] text-[8px] uppercase" style={bodyText}>{d}</span>
-                      ))}
-                    </div>
+                <div>
+                  <p className="text-[7px] uppercase tracking-wider mb-1" style={dimText}>DOMAINS</p>
+                  <div className="flex flex-wrap gap-1">
+                    {agent.domains.length > 0 ? agent.domains.slice(0, 4).map((d) => (
+                      <span key={d} className="px-1.5 py-0.5 border border-[#444] text-[8px] uppercase" style={bodyText}>{d}</span>
+                    )) : (
+                      <span className="px-1.5 py-0.5 border border-[#e8833a] text-[8px] uppercase" style={{ color: '#e8833a' }}>None</span>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {agent.services.length > 0 && (
                   <div>

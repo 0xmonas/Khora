@@ -384,42 +384,40 @@ function TokenDetail({ token }: { token: GalleryToken }) {
         )}
 
         {/* Traits: skills & domains */}
-        {(skills.length > 0 || domains.length > 0) && (
-          <div className="space-y-2">
-            {skills.length > 0 && (
-              <div>
-                <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">skills</p>
-                <div className="flex flex-wrap gap-1">
-                  {skills.map((s) => (
-                    <span
-                      key={s}
-                      className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
-                      style={{ overflowWrap: 'anywhere' }}
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {domains.length > 0 && (
-              <div>
-                <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">domains</p>
-                <div className="flex flex-wrap gap-1">
-                  {domains.map((d) => (
-                    <span
-                      key={d}
-                      className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
-                      style={{ overflowWrap: 'anywhere' }}
-                    >
-                      {d}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+        <div className="space-y-2">
+          <div>
+            <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">skills</p>
+            <div className="flex flex-wrap gap-1">
+              {skills.length > 0 ? skills.map((s) => (
+                <span
+                  key={s}
+                  className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
+                  style={{ overflowWrap: 'anywhere' }}
+                >
+                  {s}
+                </span>
+              )) : (
+                <span className="px-1.5 py-0.5 border border-[#e8833a] font-mono text-[10px] text-[#e8833a]">None</span>
+              )}
+            </div>
           </div>
-        )}
+          <div>
+            <p className="font-mono text-[10px] text-neutral-400 uppercase mb-1">domains</p>
+            <div className="flex flex-wrap gap-1">
+              {domains.length > 0 ? domains.map((d) => (
+                <span
+                  key={d}
+                  className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] text-neutral-600 dark:text-neutral-400"
+                  style={{ overflowWrap: 'anywhere' }}
+                >
+                  {d}
+                </span>
+              )) : (
+                <span className="px-1.5 py-0.5 border border-[#e8833a] font-mono text-[10px] text-[#e8833a]">None</span>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Download row */}
         {token.isOwned && metadataLoading && (

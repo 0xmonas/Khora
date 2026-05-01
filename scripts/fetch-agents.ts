@@ -29,7 +29,11 @@ interface AgentData {
   emoji: string;
   skills: string[];
   domains: string[];
+  personality: string[];
+  boundaries: string[];
   image: string;
+  // Every raw on-chain attribute, untouched. Enables OpenRarity over all trait types.
+  traits: { trait_type: string; value: string }[];
 }
 
 async function main() {
@@ -78,7 +82,10 @@ async function main() {
         emoji: get('Emoji'),
         skills: getAll('Skill'),
         domains: getAll('Domain'),
+        personality: getAll('Personality'),
+        boundaries: getAll('Boundary'),
         image,
+        traits: attrs.map((a) => ({ trait_type: a.trait_type, value: String(a.value) })),
       });
     }
 
