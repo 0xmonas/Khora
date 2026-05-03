@@ -10,6 +10,70 @@ export interface BlogPost {
 export const POSTS: BlogPost[] = [
   // Add new posts at the top (newest first)
   {
+    slug: 'hatch-your-booa-as-a-codex-pet',
+    title: 'Hatch Your BOOA as a Codex Pet',
+    date: '2026-05-03',
+    summary: 'Install the booa-pet skill, ask Codex to hatch your BOOA, and get an animated companion that lives in the corner of your screen while you code. Identity stays loyal to your on-chain art.',
+    tags: ['codex', 'pet', 'sprite', 'guide', 'tutorial'],
+    content: `If you already use Codex, you've probably noticed the floating pet at the corner of your workspace. The little mascot that idles, waves, runs, and reacts while you work. Codex ships with built-in pets, and lets anyone hatch a custom one through a small skill the team published called hatch-pet.
+
+We took that skill, kept the parts that matter, and made it BOOA-aware. The result is booa-pet. One command, and the BOOA you already own becomes your Codex companion.
+
+Why your BOOA, specifically
+
+Most pet generators start from a text prompt. You describe a creature, the model invents one, and that's your pet. Cute, but generic. The character has no history, no on-chain trait set, no shared lore.
+
+booa-pet does not invent. It reads your BOOA's actual artwork and its on-chain identity, and treats that as the source of truth. Your pet is a faithful continuation of the agent you already minted. Same eyes, same outfit, same personality, same C64 palette. The skill only generates what it has to: limbs that may be missing if your BOOA's portrait is a bust, and the pose variants for nine different animation states.
+
+How to install
+
+Open a terminal and clone the skill into your Codex skills folder:
+
+git clone https://github.com/0xmonas/booa-pet.git "\${CODEX_HOME:-$HOME/.codex}/skills/booa-pet"
+
+Then in Codex, press Cmd+K or Ctrl+K and run Force Reload Skills.
+
+If you don't already have them, install Pillow and cairosvg in the Python environment Codex uses for skill scripts. The skill needs them to rasterize your BOOA's SVG and do the deterministic post-processing.
+
+pip install Pillow cairosvg
+
+How to use
+
+Tell Codex to hatch your BOOA:
+
+$booa-pet hatch BOOA #847
+
+Replace 847 with your token id. If you own multiple, pick whichever one you want as your companion.
+
+The skill will fetch the canonical pixel art and the agent.json metadata from booa.app, classify the artwork as bust or full body, optionally extend it to a complete sprite if needed, and then generate nine animation rows grounded in your BOOA. Codex will show you a contact sheet and short preview videos at the end so you can review the result before accepting it.
+
+Once accepted, the pet is saved to your local Codex pets folder, and you can switch to it from Settings, Appearance, Pets.
+
+What stays loyal, what is generated
+
+The skill is strict about identity. The head, eyes, mouth, palette, outline weight, and silhouette of your BOOA come from the on-chain artwork and are locked across every animation row. The skill validates this after generation by comparing each row's face region against the canonical reference. If a row drifts too far, it goes into a repair queue and is regenerated rather than accepted.
+
+What is generated: limb position for run cycles, jump arcs, the wave gesture, the tilted-head review pose, the deflated failed pose. Movement, in other words. Not identity.
+
+If your BOOA's portrait is already full body, no body extension happens. The original art becomes the canonical reference directly.
+
+Why this matters
+
+The point isn't a pet. The point is that your BOOA can extend into other tools without losing what makes it yours. A Codex pet today, a Discord avatar tomorrow, a game sprite the day after. Same character, same face, every time. Your wallet holds the source of truth, and tools like this just translate it into new contexts.
+
+We open-sourced the skill under Apache 2.0, with a clear NOTICE attributing OpenAI's hatch-pet skill we forked from. If you want to look at the code, fork it, or send a fix, the repo is at github.com/0xmonas/booa-pet.
+
+If you don't have a BOOA yet
+
+The collection is at opensea.io/collection/booa. Once your token is in your wallet, the same install steps apply.
+
+If you run into issues
+
+Open an issue at github.com/0xmonas/booa-pet/issues with your token id and the run directory output. We're iterating on the skill, especially the body extension prompt and the identity validation thresholds. Real holder runs help us tune both.
+
+The city is fuller when its agents show up everywhere.`,
+  },
+  {
     slug: 'your-agent-your-rules',
     title: 'How to Set Up Your BOOA Agent on OpenClaw + Join the Moltbook Submolt',
     date: '2026-04-01',
