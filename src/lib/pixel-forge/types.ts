@@ -89,7 +89,7 @@ export enum ToolType {
   CHROMA_KEY = 'CHROMA_KEY',
 }
 
-export const CANVAS_PRESETS = [16, 32, 48, 64, 128, 256] as const;
+export const CANVAS_PRESETS = [16, 24, 32, 48, 64, 128, 256] as const;
 
 export const ASPECT_RATIOS = [
   { label: '1:1', w: 1, h: 1 },
@@ -101,7 +101,7 @@ export const ASPECT_RATIOS = [
   { label: '4:5', w: 4, h: 5 },
 ] as const;
 
-export type AiProvider = 'gemini' | 'replicate';
+export type AiProvider = 'gemini' | 'replicate' | 'openai';
 
 export interface AiModel {
   id: string;
@@ -137,6 +137,17 @@ export const AI_MODELS: AiModel[] = [
     keyPlaceholder: 'r8_...',
     keyHelp: 'Get one at replicate.com/account/api-tokens',
     pricingUrl: 'https://replicate.com/retro-diffusion/rd-plus',
+  },
+  {
+    id: 'gpt-image-2-2026-04-21',
+    label: 'OpenAI Image Gen 2',
+    provider: 'openai',
+    costPerImage: 0.006,
+    currency: 'USD',
+    keyLabel: 'OpenAI API Key',
+    keyPlaceholder: 'sk-...',
+    keyHelp: 'Get one at platform.openai.com/api-keys',
+    pricingUrl: 'https://platform.openai.com/docs/pricing',
   },
 ];
 
@@ -204,3 +215,41 @@ export interface GenerationState {
   isGenerating: boolean;
   error: string | null;
 }
+
+// Codex pet animation states. Used as preset frame-count + pose templates
+// when the user enables Animation Builder. These match the Codex pet contract
+// row order so the resulting spritesheet is Codex-compatible.
+export interface AnimationPreset {
+  id: string;
+  label: string;
+  frames: number;
+  pose: string;
+}
+
+export const ANIMATION_PRESETS: AnimationPreset[] = [
+  { id: 'idle',          label: 'Idle',          frames: 6, pose: 'neutral idle, breathing, blinking' },
+  { id: 'running-right', label: 'Running Right', frames: 8, pose: 'rightward run cycle, alternating limbs' },
+  { id: 'running-left',  label: 'Running Left',  frames: 8, pose: 'leftward run cycle, alternating limbs' },
+  { id: 'waving',        label: 'Waving',        frames: 4, pose: 'raise arm, wave, return' },
+  { id: 'jumping',       label: 'Jumping',       frames: 5, pose: 'crouch, lift, peak, descent, settle' },
+  { id: 'failed',        label: 'Failed',        frames: 8, pose: 'deflated reaction, tear or smoke puff allowed if attached to silhouette' },
+  { id: 'waiting',       label: 'Waiting',       frames: 6, pose: 'patient idle variant, glance or small bounce' },
+  { id: 'running',       label: 'Running',       frames: 6, pose: 'in-place run loop, front-facing' },
+  { id: 'review',        label: 'Reviewing',     frames: 6, pose: 'focused inspection, lean or head tilt' },
+];
+
+// Returns the preset matching id, or null for the "custom" pseudo-preset.
+export function getAnimationPreset(id: string): AnimationPreset | null {
+  return ANIMATION_PRESETS.find(p => p.id === id) ?? null;
+}
+
+// Pseudo-preset id used to trigger a 9-state Codex BOOA full-set generation.
+export const FULL_SET_PRESET_ID = 'full-set-codex-booa';
+
+// Order of groups (workspaces) used when navigating with arrow keys.
+// 'main' is the default freeform workspace; the rest are populated only when
+// the user runs a Full Set or per-state generation.
+export const WORKSPACE_ORDER = [
+  'main',
+  ...ANIMATION_PRESETS.map(p => p.id),
+];

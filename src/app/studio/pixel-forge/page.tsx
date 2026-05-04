@@ -6,7 +6,7 @@ import {
   Pencil, Eraser, Pipette, Download, BoxSelect,
   Wand2, Upload, Loader2, Undo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
-  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy, RotateCcw, Contrast,
+  Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy, RotateCcw, RefreshCcw, Contrast,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -14,8 +14,9 @@ import { PixelEditor } from '@/components/features/studio/PixelEditor';
 import { HolderGate } from '@/components/features/studio/HolderGate';
 import { generatePixelAsset } from '@/lib/pixel-forge/gemini-service';
 import { generateRetroDiffusion } from '@/lib/pixel-forge/replicate-service';
+import { generateOpenAIImage } from '@/lib/pixel-forge/openai-service';
 import { quantizeImageData, rgbToHex, snapToTopKPalette } from '@/lib/pixel-forge/quantize';
-import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, ASPECT_RATIOS, AI_MODELS, RD_STYLES, getRDCost, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
+import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVAS_SIZE, MIN_CANVAS_SIZE, PALETTE_PRESETS, CANVAS_PRESETS, ASPECT_RATIOS, AI_MODELS, RD_STYLES, ANIMATION_PRESETS, FULL_SET_PRESET_ID, WORKSPACE_ORDER, getAnimationPreset, getRDCost, type GenerationState, type Rect } from '@/lib/pixel-forge/types';
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -86,6 +87,27 @@ export default function PixelForgePage() {
   const [spriteFps, setSpriteFps] = useState(8);
   const [spritePlaying, setSpritePlaying] = useState(false);
   const [spriteFrameIndex, setSpriteFrameIndex] = useState(0);
+  // Animation Builder state (Phase 2)
+  const [animationPresetId, setAnimationPresetId] = useState<string>('custom'); // 'custom' | one of ANIMATION_PRESETS ids | FULL_SET_PRESET_ID
+  const [fullBody, setFullBody] = useState(false);
+  // Workspaces — each animation state can have its own layer set so the
+  // panel doesn't drown in 50+ layers when running a Full Set generation.
+  // The "main" workspace is the default freeform canvas; other workspace
+  // ids match ANIMATION_PRESETS ids.
+  const [activeGroupId, setActiveGroupId] = useState<string>('main');
+  const [groupCache, setGroupCache] = useState<Record<string, Layer[]>>({});
+  // Per-call confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: string;
+    cost: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
+  // Full-body size picker dialog (asks 128 / 256 / cancel before enabling
+  // Full Body when canvas is too small).
+  // Size-picker dialog state was used to ask 128/256 when toggling Full
+  // Body — removed: full body now respects the user's chosen canvas size.
 
   // Token import
   const [importCollection, setImportCollection] = useState<'booa' | 'punk' | 'normie'>('booa');
@@ -112,14 +134,65 @@ export default function PixelForgePage() {
     }
   }, [historyIndex, history]);
 
+  // Workspace navigation. Each animation state is its own workspace; users
+  // jump between them with `<` / `>` (or arrow keys when no input is focused).
+  // Switching saves the current layers to a per-group cache and loads the
+  // target group's layers — keeping each state's edit history isolated.
+  const switchToGroup = useCallback((targetId: string) => {
+    if (targetId === activeGroupId) return;
+    setGroupCache(prev => ({ ...prev, [activeGroupId]: layers }));
+    const targetLayers = (groupCache[targetId] && groupCache[targetId].length > 0)
+      ? groupCache[targetId]
+      : [{ id: `base-${targetId}`, name: 'Base Layer', data: null, visible: true, opacity: 1, isLocked: false } as Layer];
+    setLayers(targetLayers);
+    setHistory([targetLayers]);
+    setHistoryIndex(0);
+    setActiveLayerId(targetLayers[0]?.id ?? '');
+    setSpritePlaying(false);
+    setSpriteFrameIndex(0);
+    setSelection(null);
+    setActiveGroupId(targetId);
+  }, [activeGroupId, layers, groupCache]);
+
+  // Only show in the switcher: groups that actually have content (layers with
+  // any image data) plus the currently active group. Always include 'main'.
+  const visibleGroupIds = (() => {
+    const result = new Set<string>(['main', activeGroupId]);
+    for (const id of Object.keys(groupCache)) {
+      const ls = groupCache[id];
+      if (ls && ls.some(l => l.data)) result.add(id);
+    }
+    if (layers.some(l => l.data)) result.add(activeGroupId);
+    return WORKSPACE_ORDER.filter(id => result.has(id));
+  })();
+
+  const switchPrevGroup = useCallback(() => {
+    const idx = visibleGroupIds.indexOf(activeGroupId);
+    if (idx > 0) switchToGroup(visibleGroupIds[idx - 1]);
+  }, [visibleGroupIds, activeGroupId, switchToGroup]);
+
+  const switchNextGroup = useCallback(() => {
+    const idx = visibleGroupIds.indexOf(activeGroupId);
+    if (idx >= 0 && idx < visibleGroupIds.length - 1) switchToGroup(visibleGroupIds[idx + 1]);
+  }, [visibleGroupIds, activeGroupId, switchToGroup]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
       if (e.key === 'Escape') setSelection(null);
+      // Workspace switcher shortcuts (only when no input is focused)
+      const t = e.target as HTMLElement | null;
+      const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      if (!inField && (e.key === 'ArrowLeft' || e.key === ',' || e.key === '<')) {
+        e.preventDefault(); switchPrevGroup();
+      }
+      if (!inField && (e.key === 'ArrowRight' || e.key === '.' || e.key === '>')) {
+        e.preventDefault(); switchNextGroup();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo]);
+  }, [handleUndo, switchPrevGroup, switchNextGroup]);
 
   // Layer ops
   const handleAddLayer = (name = 'New Layer', data: string | null = null, isOriginal = false) => {
@@ -336,6 +409,86 @@ export default function PixelForgePage() {
     setActiveLayerId(copy.id);
   };
 
+  // Regenerate a single frame (layer) in place using the same prompt + canonical
+  // reference. Used in sprite mode when one frame goes off-model and the rest
+  // are good — saves a full re-roll of all 16 frames.
+  const handleRegenerateFrame = async (layerId: string) => {
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return;
+    if (!prompt.trim() || !apiKey.trim()) {
+      setGenState({
+        isGenerating: false,
+        error: !apiKey.trim() ? `Enter your ${selectedModel.keyLabel}.` : 'Need a prompt to regenerate this frame.',
+      });
+      return;
+    }
+    const callCost = selectedModel.provider === 'replicate'
+      ? getRDCost(rdStyle, canvasWidth, canvasHeight)
+      : selectedModel.costPerImage;
+    const costStr = `~$${callCost.toFixed(3)} per call (${selectedModel.label}, your key)`;
+
+    const ok = await confirmCall(
+      `Regenerate "${layer.name}"`,
+      `AI will produce a single ${canvasWidth}x${canvasHeight} replacement for this frame using your prompt and the canonical reference (full-body layer or first frame). Other frames remain untouched.`,
+      costStr,
+    );
+    if (!ok) return;
+
+    setGenState({ isGenerating: true, error: null });
+    try {
+      // Use full-body layer if present, otherwise the first non-empty layer
+      // as the canonical identity reference.
+      const fbLayer = layers.find(l => l.name.startsWith('Full Body') && l.data);
+      const fallback = layers.find(l => l.id !== layerId && l.data) ?? layer;
+      const refImg = fbLayer?.data ?? fallback.data ?? undefined;
+      const preset = animationPresetId === 'custom' ? null : getAnimationPreset(animationPresetId);
+      const bg = transparentBg ? 'BRIGHT GREEN (#00FF00) chroma-key' : 'fitting';
+      const finalPrompt = preset
+        ? `${prompt}. Same character as the reference image. Do NOT change the character appearance, palette, or art style — only the pose changes. Pose: ${preset.pose}. Single ${canvasWidth}x${canvasHeight} pixel-art frame, hard pixel edges, no anti-aliasing, flat ${bg} background.`
+        : `${prompt}. Same character as the reference image. Do NOT change the character appearance, palette, or art style — only the pose changes. Single ${canvasWidth}x${canvasHeight} pixel-art frame, hard pixel edges, no anti-aliasing, flat ${bg} background.`;
+
+      const result = await runGeneration({
+        prompt: finalPrompt,
+        width: canvasWidth,
+        height: canvasHeight,
+        inputImage: refImg,
+        selection: null,
+        hasExistingArt: !!refImg,
+        spriteMode: false,
+      });
+
+      const img = new Image();
+      img.src = result;
+      await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+      const cvs = document.createElement('canvas');
+      cvs.width = canvasWidth; cvs.height = canvasHeight;
+      const ctx = cvs.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { setGenState({ isGenerating: false, error: null }); return; }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      if (transparentBg && autoChromaKey) {
+        const data = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+        const d = data.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          if (r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3) d[i + 3] = 0;
+        }
+        ctx.putImageData(data, 0, 0);
+      }
+
+      const newData = cvs.toDataURL('image/png');
+      const next = layers.map(l => l.id === layerId ? { ...l, data: newData } : l);
+      pushToHistory(next);
+      setGenState({ isGenerating: false, error: null });
+      sfx.playSuccess();
+    } catch (err) {
+      setGenState({
+        isGenerating: false,
+        error: err instanceof Error ? err.message : 'Regeneration failed.',
+      });
+    }
+  };
+
   const COLLECTIONS = {
     booa: { label: 'BOOA', max: 3333, size: 64 },
     punk: { label: 'CryptoPunk', max: 9999, size: 24 },
@@ -522,6 +675,16 @@ export default function PixelForgePage() {
     }
   }, [layers.length, spriteMode, spriteFrameIndex]);
 
+  // In sprite mode, when playback is paused, keep `activeLayerId` aligned with
+  // the visible frame so editing affects the layer the user is looking at.
+  useEffect(() => {
+    if (!spriteMode || spritePlaying) return;
+    const visible = layers[spriteFrameIndex];
+    if (visible && visible.id !== activeLayerId) {
+      setActiveLayerId(visible.id);
+    }
+  }, [spriteMode, spritePlaying, spriteFrameIndex, layers, activeLayerId]);
+
   const renderLayerAtScale = async (layerData: string, scale: number): Promise<Blob | null> => {
     const img = new Image();
     img.src = layerData;
@@ -608,6 +771,271 @@ export default function PixelForgePage() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+
+  // Compose every layer into a single horizontally-tiled atlas image at the
+  // requested scale. Used by both the WebP and Aseprite exports.
+  const composeAtlasCanvas = async (cols: number = 8): Promise<{ canvas: HTMLCanvasElement; cols: number; rows: number; cellW: number; cellH: number } | null> => {
+    if (layers.length === 0) return null;
+    const validLayers = layers.filter(l => l.data);
+    if (validLayers.length === 0) return null;
+    const cellW = canvasWidth * downloadScale;
+    const cellH = canvasHeight * downloadScale;
+    const useCols = Math.min(cols, validLayers.length);
+    const useRows = Math.ceil(validLayers.length / useCols);
+    const cvs = document.createElement('canvas');
+    cvs.width = useCols * cellW;
+    cvs.height = useRows * cellH;
+    const ctx = cvs.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < validLayers.length; i++) {
+      const l = validLayers[i];
+      const img = new Image();
+      img.src = l.data!;
+      await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+      const col = i % useCols;
+      const row = Math.floor(i / useCols);
+      ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH);
+    }
+    return { canvas: cvs, cols: useCols, rows: useRows, cellW, cellH };
+  };
+
+  const handleExportWebpAtlas = async () => {
+    const atlas = await composeAtlasCanvas(8);
+    if (!atlas) return;
+    const blob = await new Promise<Blob | null>(r => atlas.canvas.toBlob(r, 'image/webp', 0.95));
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pixel-forge-atlas-${atlas.cols}x${atlas.rows}-${atlas.cellW}x${atlas.cellH}.webp`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Aseprite Hash JSON sidecar export: zips a PNG spritesheet + .json that
+  // Aseprite can open via "File > Import Sprite Sheet".
+  const handleExportAsepriteBundle = async () => {
+    const atlas = await composeAtlasCanvas(8);
+    if (!atlas) return;
+    const pngBlob = await new Promise<Blob | null>(r => atlas.canvas.toBlob(r, 'image/png'));
+    if (!pngBlob) return;
+    const validLayers = layers.filter(l => l.data);
+    const duration = Math.max(20, Math.round(1000 / spriteFps));
+    const frames: Record<string, { frame: { x: number; y: number; w: number; h: number }; rotated: boolean; trimmed: boolean; spriteSourceSize: { x: number; y: number; w: number; h: number }; sourceSize: { w: number; h: number }; duration: number }> = {};
+    validLayers.forEach((l, i) => {
+      const col = i % atlas.cols;
+      const row = Math.floor(i / atlas.cols);
+      const key = `${l.name.replace(/\s+/g, '_')}_${i}.png`;
+      frames[key] = {
+        frame: { x: col * atlas.cellW, y: row * atlas.cellH, w: atlas.cellW, h: atlas.cellH },
+        rotated: false,
+        trimmed: false,
+        spriteSourceSize: { x: 0, y: 0, w: atlas.cellW, h: atlas.cellH },
+        sourceSize: { w: atlas.cellW, h: atlas.cellH },
+        duration,
+      };
+    });
+    const spec = {
+      frames,
+      meta: {
+        app: 'https://booa.app/studio/pixel-forge',
+        version: '1.0',
+        format: 'RGBA8888',
+        size: { w: atlas.canvas.width, h: atlas.canvas.height },
+        scale: String(downloadScale),
+        image: 'spritesheet.png',
+        frameTags: [{ name: 'animation', from: 0, to: validLayers.length - 1, direction: 'forward' }],
+      },
+    };
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    zip.file('spritesheet.png', pngBlob);
+    zip.file('spritesheet.json', JSON.stringify(spec, null, 2));
+    const bundle = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(bundle);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pixel-forge-aseprite-${atlas.cellW}x${atlas.cellH}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Codex pet contract: 1536x1872 atlas, 8 cols x 9 rows, 192x208 per cell.
+  // Each row is a specific animation state with a fixed frame count.
+  // We place the user's frames into the row that matches their selected
+  // preset (or `idle` for Custom). Other rows remain fully transparent.
+  // Output: a zip with pet.json + spritesheet.webp ready to drop into
+  // `${CODEX_HOME:-$HOME/.codex}/pets/<id>/`.
+  const handleExportCodexPet = async () => {
+    // Codex row order (matches references/animation-rows.md in booa-pet skill).
+    const CODEX_ROWS = [
+      { id: 'idle',          frames: 6 },
+      { id: 'running-right', frames: 8 },
+      { id: 'running-left',  frames: 8 },
+      { id: 'waving',        frames: 4 },
+      { id: 'jumping',       frames: 5 },
+      { id: 'failed',        frames: 8 },
+      { id: 'waiting',       frames: 6 },
+      { id: 'running',       frames: 6 },
+      { id: 'review',        frames: 6 },
+    ];
+    const CELL_W = 192;
+    const CELL_H = 208;
+    const COLS = 8;
+    const ROWS = 9;
+
+    // Snapshot all workspaces (active in `layers`, others in groupCache).
+    const allGroups: Record<string, Layer[]> = { ...groupCache, [activeGroupId]: layers };
+    const stateGroupsWithContent = CODEX_ROWS
+      .map(r => ({ row: r, layers: (allGroups[r.id] ?? []).filter(l => l.data) }))
+      .filter(g => g.layers.length > 0);
+
+    // Plan which frames go in which row:
+    // - If any per-state workspaces have content → multi-state export
+    // - Otherwise → place the active workspace's frames into the row matching
+    //   animationPresetId (or `idle` for Custom)
+    type Plan = { rowIdx: number; layers: Layer[]; max: number };
+    const plans: Plan[] = [];
+    if (stateGroupsWithContent.length > 0) {
+      for (const g of stateGroupsWithContent) {
+        const rowIdx = CODEX_ROWS.findIndex(r => r.id === g.row.id);
+        if (rowIdx >= 0) plans.push({ rowIdx, layers: g.layers, max: g.row.frames });
+      }
+    } else {
+      const validLayers = layers.filter(l => l.data);
+      if (validLayers.length === 0) return;
+      const fallbackRowId = animationPresetId === 'custom' || animationPresetId === FULL_SET_PRESET_ID ? 'idle' : animationPresetId;
+      const rowIdx = CODEX_ROWS.findIndex(r => r.id === fallbackRowId);
+      if (rowIdx < 0) return;
+      plans.push({ rowIdx, layers: validLayers, max: CODEX_ROWS[rowIdx].frames });
+    }
+
+    const atlas = document.createElement('canvas');
+    atlas.width = COLS * CELL_W;   // 1536
+    atlas.height = ROWS * CELL_H;  // 1872
+    const ctx = atlas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+
+    // We may have layers with different intrinsic sizes across workspaces.
+    // Probe each layer's natural dimensions when scaling into the cell.
+    for (const plan of plans) {
+      const framesToPlace = plan.layers.slice(0, plan.max);
+      for (let i = 0; i < framesToPlace.length; i++) {
+        const layer = framesToPlace[i];
+        if (!layer.data) continue;
+        const img = new Image();
+        img.src = layer.data;
+        await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+        const srcW = img.naturalWidth || canvasWidth;
+        const srcH = img.naturalHeight || canvasHeight;
+        const srcAR = srcW / srcH;
+        const cellAR = CELL_W / CELL_H;
+        let drawW: number, drawH: number;
+        if (srcAR > cellAR) { drawW = CELL_W; drawH = Math.round(CELL_W / srcAR); }
+        else { drawH = CELL_H; drawW = Math.round(CELL_H * srcAR); }
+        const dx = i * CELL_W + Math.floor((CELL_W - drawW) / 2);
+        const dy = plan.rowIdx * CELL_H + Math.floor((CELL_H - drawH) / 2);
+        ctx.drawImage(img, dx, dy, drawW, drawH);
+      }
+    }
+
+    const webpBlob = await new Promise<Blob | null>(r => atlas.toBlob(r, 'image/webp', 0.95));
+    if (!webpBlob) return;
+
+    const tokenId = tokenIdInput || '';
+    const slug = tokenId ? `booa-${tokenId}` : `pixel-forge-pet-${Date.now()}`;
+    const displayName = tokenId ? `BOOA #${tokenId}` : `Pixel Forge Pet`;
+    const stateLabels = plans.map(p => CODEX_ROWS[p.rowIdx].id).join(', ');
+    const description = stateLabels
+      ? `Codex pet generated in Pixel Forge with states: ${stateLabels}.`
+      : 'Codex pet generated in Pixel Forge.';
+
+    const petJson = {
+      id: slug,
+      displayName,
+      description,
+      spritesheetPath: 'spritesheet.webp',
+    };
+
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    zip.file(`${slug}/spritesheet.webp`, webpBlob);
+    zip.file(`${slug}/pet.json`, JSON.stringify(petJson, null, 2));
+    const bundle = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(bundle);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slug}-codex-pet.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleExportMp4 = async () => {
+    if (layers.length < 2) return;
+    if (typeof VideoEncoder === 'undefined') {
+      setGenState({ isGenerating: false, error: 'MP4 export requires WebCodecs (Chrome, Edge, recent Safari).' });
+      return;
+    }
+    const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+    const w = canvasWidth * downloadScale;
+    const h = canvasHeight * downloadScale;
+    // mp4-muxer requires even dimensions.
+    const evenW = w + (w % 2);
+    const evenH = h + (h % 2);
+    const fps = Math.max(1, spriteFps);
+    const frameDurUs = Math.round(1_000_000 / fps);
+    const target = new ArrayBufferTarget();
+    const muxer = new Muxer({
+      target,
+      video: { codec: 'avc', width: evenW, height: evenH, frameRate: fps },
+      fastStart: 'in-memory',
+    });
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error: e => { console.error(e); },
+    });
+    encoder.configure({
+      codec: 'avc1.42E01F',
+      width: evenW,
+      height: evenH,
+      bitrate: 1_500_000,
+      framerate: fps,
+    });
+    let timestamp = 0;
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (!l.data) continue;
+      const img = new Image();
+      img.src = l.data;
+      await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+      const cvs = document.createElement('canvas');
+      cvs.width = evenW;
+      cvs.height = evenH;
+      const ctx = cvs.getContext('2d');
+      if (!ctx) continue;
+      ctx.imageSmoothingEnabled = false;
+      // black bg helps codecs; transparent video is not supported by AVC
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, evenW, evenH);
+      ctx.drawImage(img, 0, 0, w, h);
+      const frame = new VideoFrame(cvs, { timestamp });
+      encoder.encode(frame, { keyFrame: i === 0 });
+      frame.close();
+      timestamp += frameDurUs;
+    }
+    await encoder.flush();
+    encoder.close();
+    muxer.finalize();
+    const blob = new Blob([target.buffer as ArrayBuffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pixel-forge-animation-${w}x${h}-${fps}fps.mp4`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const quantizeKey = `${contrast}|${brightness}|${quantizeTrigger}`;
   const isFirstRender = useRef(true);
   const layersRef = useRef(layers);
@@ -667,57 +1095,588 @@ export default function PixelForgePage() {
   }, [quantizeKey]);
 
   // AI generation
+  // Show a confirmation dialog and wait for the user's choice. Returns true on confirm.
+  const confirmCall = (title: string, description: string, cost: string): Promise<boolean> => {
+    return new Promise(resolve => {
+      setConfirmDialog({
+        title,
+        description,
+        cost,
+        onConfirm: () => { setConfirmDialog(null); resolve(true); },
+        onCancel: () => { setConfirmDialog(null); resolve(false); },
+      });
+    });
+  };
+
+  // Run a single AI generation call against the currently selected provider.
+  // Used both by the main sprite/single-image flow and by the full-body
+  // extension step.
+  const runGeneration = async (params: {
+    prompt: string;
+    width: number;
+    height: number;
+    inputImage: string | undefined;
+    layoutGuide?: string;
+    selection: Rect | null;
+    hasExistingArt: boolean;
+    spriteMode: boolean;
+  }): Promise<string> => {
+    if (selectedModel.provider === 'replicate') {
+      // Replicate Retro Diffusion is single-input — layout guide is dropped.
+      return await generateRetroDiffusion({
+        replicateToken: apiKey,
+        prompt: params.prompt,
+        width: params.width,
+        height: params.height,
+        style: params.spriteMode ? 'item_sheet' : rdStyle,
+        transparentBg,
+        inputImage: params.inputImage,
+        strength: params.spriteMode ? 0.5 : 0.7,
+        bypassPromptExpansion: params.spriteMode,
+      });
+    }
+    if (selectedModel.provider === 'openai') {
+      return await generateOpenAIImage(
+        apiKey,
+        params.prompt,
+        params.width,
+        params.height,
+        [],
+        params.inputImage,
+        params.selection,
+        params.hasExistingArt,
+        transparentBg,
+        selectedModelId,
+        params.spriteMode,
+        params.layoutGuide,
+      );
+    }
+    return await generatePixelAsset(
+      apiKey,
+      params.prompt,
+      params.width,
+      params.height,
+      [],
+      params.inputImage,
+      params.selection,
+      params.hasExistingArt,
+      transparentBg,
+      selectedModelId,
+      params.spriteMode,
+      params.layoutGuide,
+    );
+  };
+
+  // Build a layout guide image: a 4x4 grid of cells matching the current
+  // canvas size, with the FIRST `frameCount` cells highlighted (active) and
+  // the rest visibly inactive (X mark). Numbered. Sent as a SECOND reference
+  // image so the AI knows exactly which cells must contain animation frames
+  // and where the cell boundaries are. This is the same pattern the upstream
+  // hatch-pet skill uses to keep frame counts consistent.
+  const buildLayoutGuide = (cellW: number, cellH: number, frameCount: number): string => {
+    const cols = 4;
+    const rows = 4;
+    const w = cellW * cols;
+    const h = cellH * rows;
+    const cvs = document.createElement('canvas');
+    cvs.width = w;
+    cvs.height = h;
+    const ctx = cvs.getContext('2d');
+    if (!ctx) return '';
+    // Background — light flat gray
+    ctx.fillStyle = '#f7f7f7';
+    ctx.fillRect(0, 0, w, h);
+    const total = cols * rows;
+    const marginX = Math.max(2, Math.floor(cellW * 0.08));
+    const marginY = Math.max(2, Math.floor(cellH * 0.08));
+    for (let i = 0; i < total; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = col * cellW;
+      const y = row * cellH;
+      const isActive = i < frameCount;
+      // Hard cell outline
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+      // Inner safe-area: blue when active, gray when inactive
+      ctx.strokeStyle = isActive ? '#2f80ed' : '#cccccc';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + marginX, y + marginY, cellW - 2 * marginX, cellH - 2 * marginY);
+      if (isActive) {
+        // Dashed crosshair through the safe-area center
+        ctx.strokeStyle = '#b8b8b8';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        const cx = x + cellW / 2;
+        const cy = y + cellH / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, y + marginY);
+        ctx.lineTo(cx, y + cellH - marginY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + marginX, cy);
+        ctx.lineTo(x + cellW - marginX, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Frame number, top-left corner
+        const fontSize = Math.max(8, Math.floor(cellH * 0.16));
+        ctx.fillStyle = '#444444';
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(String(i + 1), x + marginX + 2, y + marginY + 2);
+      } else {
+        // Big X through inactive cell
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + marginX, y + marginY);
+        ctx.lineTo(x + cellW - marginX, y + cellH - marginY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + cellW - marginX, y + marginY);
+        ctx.lineTo(x + marginX, y + cellH - marginY);
+        ctx.stroke();
+      }
+    }
+    return cvs.toDataURL('image/png');
+  };
+
+  // Slice a generated sprite sheet image into a 4×4 grid of cells at the
+  // current canvas size, then return only the FIRST `frameCount` cells
+  // (default 16). This matches the layout guide we send to the AI: cells
+  // 1..frameCount are filled with animation frames, the rest are inactive.
+  const sliceSheetIntoFrames = async (
+    img: HTMLImageElement,
+    refComposite: string | undefined,
+    namePrefix: string,
+    frameCount: number = 16,
+  ): Promise<Layer[]> => {
+    const cellW = canvasWidth;
+    const cellH = canvasHeight;
+    const sheetW = cellW * 4;
+    const sheetH = cellH * 4;
+
+    let referencePalette: string[] = [];
+    if (refComposite) {
+      const refImg = new Image();
+      refImg.src = refComposite;
+      await new Promise<void>(r => { refImg.onload = () => r(); refImg.onerror = () => r(); });
+      const refCvs = document.createElement('canvas');
+      refCvs.width = cellW; refCvs.height = cellH;
+      const refCtx = refCvs.getContext('2d', { willReadFrequently: true });
+      if (refCtx) {
+        refCtx.drawImage(refImg, 0, 0);
+        const refData = refCtx.getImageData(0, 0, cellW, cellH);
+        const centroids = quantizeImageData(refData, 16);
+        referencePalette = centroids.map(rgbToHex);
+      }
+    }
+    const sheet = document.createElement('canvas');
+    sheet.width = sheetW; sheet.height = sheetH;
+    const sctx = sheet.getContext('2d', { willReadFrequently: true });
+    if (!sctx) return [];
+    sctx.imageSmoothingEnabled = false; // nearest-neighbor when API output differs in size
+    sctx.drawImage(img, 0, 0, sheetW, sheetH);
+    const out: Layer[] = [];
+    const cap = Math.max(1, Math.min(16, frameCount));
+    for (let i = 0; i < cap; i++) {
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+      const fcvs = document.createElement('canvas');
+      fcvs.width = cellW; fcvs.height = cellH;
+      const fctx = fcvs.getContext('2d', { willReadFrequently: true });
+      if (!fctx) continue;
+      fctx.imageSmoothingEnabled = false;
+      fctx.drawImage(sheet, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
+      const frameData = fctx.getImageData(0, 0, cellW, cellH);
+      if (transparentBg && autoChromaKey) {
+        const d = frameData.data;
+        for (let j = 0; j < d.length; j += 4) {
+          const r = d[j], g = d[j + 1], b = d[j + 2];
+          if (r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3) d[j + 3] = 0;
+        }
+      }
+      // Drop tiny disconnected blobs (artifacts, stray pixels left by AI
+      // outside the main character silhouette). Keeps largest connected
+      // alpha component plus anything ≥ 5% of its area.
+      cleanupDisconnectedBlobs(frameData, 0.05);
+      if (referencePalette.length > 0) {
+        snapToTopKPalette(frameData, referencePalette, referencePalette.length);
+      }
+      fctx.putImageData(frameData, 0, 0);
+      // Fit-to-cell post-processing: find the main character bbox, scale it
+      // down (never up) to fit a small inner margin, recenter horizontally
+      // and vertically. Mirrors what extract_strip_frames.py does in the
+      // upstream hatch-pet skill so the AI's per-cell positioning errors
+      // get corrected before we save the layer.
+      const fittedCanvas = fitFrameToCell(fcvs, cellW, cellH);
+      const n = i + 1;
+      out.push({
+        id: `${namePrefix}-${Date.now()}-${n}-${Math.random().toString(36).slice(2, 6)}`,
+        name: `${namePrefix} ${String(n).padStart(2, '0')}`,
+        data: fittedCanvas.toDataURL('image/png'),
+        visible: true,
+        opacity: 1,
+        isLocked: false,
+      });
+    }
+    return out;
+  };
+
+  // Find the bounding box of non-transparent pixels in a canvas, then
+  // crop, scale to fit within a small margin, and recenter. Returns a
+  // NEW canvas of the same (cellW, cellH) size with the recentered art.
+  // If the cell is empty, returns the original canvas unchanged.
+  const fitFrameToCell = (source: HTMLCanvasElement, cellW: number, cellH: number): HTMLCanvasElement => {
+    const ctx = source.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return source;
+    const data = ctx.getImageData(0, 0, cellW, cellH);
+    const buf = data.data;
+    let minX = cellW, minY = cellH, maxX = -1, maxY = -1;
+    for (let y = 0; y < cellH; y++) {
+      for (let x = 0; x < cellW; x++) {
+        const a = buf[(y * cellW + x) * 4 + 3];
+        if (a > 16) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return source; // empty cell
+    const srcW = maxX - minX + 1;
+    const srcH = maxY - minY + 1;
+    // 5% pixel margin floor of 2px on each side
+    const margin = Math.max(2, Math.floor(Math.min(cellW, cellH) * 0.04));
+    const targetMaxW = cellW - margin * 2;
+    const targetMaxH = cellH - margin * 2;
+    const scale = Math.min(targetMaxW / srcW, targetMaxH / srcH, 1.0);
+    const newW = Math.max(1, Math.round(srcW * scale));
+    const newH = Math.max(1, Math.round(srcH * scale));
+    const dx = Math.floor((cellW - newW) / 2);
+    const dy = Math.floor((cellH - newH) / 2);
+    // Already perfectly fit and centered? skip work.
+    if (scale === 1.0 && minX === dx && minY === dy) return source;
+    const out = document.createElement('canvas');
+    out.width = cellW;
+    out.height = cellH;
+    const outCtx = out.getContext('2d');
+    if (!outCtx) return source;
+    outCtx.imageSmoothingEnabled = false;
+    outCtx.drawImage(source, minX, minY, srcW, srcH, dx, dy, newW, newH);
+    return out;
+  };
+
+  // Connected-components flood fill on alpha channel. Drops any blob whose
+  // area is < `minRatio` × the largest blob's area. Mutates the ImageData.
+  // Used to clean up stray pixels outside the main character silhouette.
+  const cleanupDisconnectedBlobs = (data: ImageData, minRatio: number = 0.05): void => {
+    const w = data.width;
+    const h = data.height;
+    const buf = data.data;
+    const visited = new Uint8Array(w * h);
+    const blobs: { pixels: number[]; area: number }[] = [];
+    for (let i = 0; i < w * h; i++) {
+      if (visited[i]) continue;
+      const a = buf[i * 4 + 3];
+      if (a <= 16) { visited[i] = 1; continue; }
+      const stack = [i];
+      const pixels: number[] = [];
+      while (stack.length > 0) {
+        const cur = stack.pop()!;
+        if (visited[cur]) continue;
+        visited[cur] = 1;
+        if (buf[cur * 4 + 3] <= 16) continue;
+        pixels.push(cur);
+        const x = cur % w;
+        const y = Math.floor(cur / w);
+        if (x > 0) { const n = cur - 1; if (!visited[n]) stack.push(n); }
+        if (x + 1 < w) { const n = cur + 1; if (!visited[n]) stack.push(n); }
+        if (y > 0) { const n = cur - w; if (!visited[n]) stack.push(n); }
+        if (y + 1 < h) { const n = cur + w; if (!visited[n]) stack.push(n); }
+      }
+      if (pixels.length > 0) blobs.push({ pixels, area: pixels.length });
+    }
+    if (blobs.length <= 1) return;
+    const maxArea = Math.max(...blobs.map(b => b.area));
+    const threshold = maxArea * minRatio;
+    for (const blob of blobs) {
+      if (blob.area >= threshold) continue;
+      // erase this blob — set alpha to 0
+      for (const p of blob.pixels) buf[p * 4 + 3] = 0;
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim() || !apiKey.trim()) {
       setGenState({ isGenerating: false, error: !apiKey.trim() ? `Enter your ${selectedModel.keyLabel}.` : null });
       return;
     }
+
+    const preset = animationPresetId === 'custom' ? null : getAnimationPreset(animationPresetId);
+    const callCost = selectedModel.provider === 'replicate'
+      ? getRDCost(rdStyle, spriteMode ? canvasWidth * 4 : canvasWidth, spriteMode ? canvasHeight * 4 : canvasHeight)
+      : selectedModel.costPerImage;
+    const costStr = `~$${callCost.toFixed(3)} per call (${selectedModel.label}, your key)`;
+
+    // Full Set — Codex BOOA: generate all 9 animation states in sequence,
+    // each into its own workspace. Reference image stays fixed (the main
+    // workspace composite, optionally extended to full body first).
+    if (animationPresetId === FULL_SET_PRESET_ID) {
+      if (!spriteMode) {
+        setGenState({ isGenerating: false, error: 'Enable Animation mode to use Full Set.' });
+        return;
+      }
+      const totalCalls = ANIMATION_PRESETS.length + (fullBody ? 1 : 0);
+      const totalCost = callCost * totalCalls;
+      const okBatch = await confirmCall(
+        'Full Set — Codex BOOA',
+        `${totalCalls} calls total: ${fullBody ? 'one full-body extension + ' : ''}one per animation state (${ANIMATION_PRESETS.map(p => p.label).join(', ')}). Each state lands in its own workspace; switch with ← / →.`,
+        `~$${totalCost.toFixed(3)} estimated total`,
+      );
+      if (!okBatch) return;
+
+      setGenState({ isGenerating: true, error: null });
+      try {
+        const composite = await getCompositeImage();
+        const hasExistingArt = layers.some(l => l.visible && l.data);
+        if (!hasExistingArt) {
+          setGenState({ isGenerating: false, error: 'Full Set needs a base character on the main workspace. Import a token or draw something first.' });
+          return;
+        }
+
+        // Optional full-body extension on the main workspace.
+        // We track the post-extension main layers locally so the cache
+        // snapshot at the end captures the new Full Body layer too.
+        let baseImage = composite;
+        let mainLayersAfter: Layer[] = layers;
+        if (fullBody) {
+          // Extension call MUST be neutral. We deliberately omit the user's
+          // free-text prompt and any preset pose so the AI cannot bias the
+          // canonical reference toward an animation (e.g. selecting Jumping
+          // would otherwise produce a mid-jump full-body — which then
+          // poisons every subsequent row).
+          const extPrompt = `Take the attached reference image and extend it into a complete full-body character sprite in a NEUTRAL STANDING POSE. Keep every existing pixel of the head and shoulders unchanged. Add the rest of the body, arms (relaxed at sides), hands, legs (standing flat together), and feet in the exact same pixel-art style, palette, and outline weight as the reference. Do NOT change the character appearance, do NOT change the art style, do NOT redesign anything. Do NOT animate, do NOT add pose, motion, expression change, action, or scenery. Output a single centered, idle, full-body sprite on a flat ${transparentBg ? 'BRIGHT GREEN (#00FF00) chroma-key' : 'fitting'} background.`;
+          const extResult = await runGeneration({
+            prompt: extPrompt,
+            width: canvasWidth,
+            height: canvasHeight,
+            inputImage: composite,
+            selection: null,
+            hasExistingArt: true,
+            spriteMode: false,
+          });
+          const extImg = new Image();
+          extImg.src = extResult;
+          await new Promise<void>(r => { extImg.onload = () => r(); extImg.onerror = () => r(); });
+          const extCvs = document.createElement('canvas');
+          extCvs.width = canvasWidth; extCvs.height = canvasHeight;
+          const extCtx = extCvs.getContext('2d', { willReadFrequently: true });
+          if (extCtx) {
+            extCtx.drawImage(extImg, 0, 0, canvasWidth, canvasHeight);
+            if (transparentBg && autoChromaKey) {
+              const data = extCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+              const d = data.data;
+              for (let i = 0; i < d.length; i += 4) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                if (r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3) d[i + 3] = 0;
+              }
+              extCtx.putImageData(data, 0, 0);
+            }
+            const fbLayer: Layer = {
+              id: `fullbody-${Date.now()}`,
+              name: 'Full Body',
+              data: extCvs.toDataURL('image/png'),
+              visible: true, opacity: 1, isLocked: false,
+            };
+            const next = [...layers, fbLayer];
+            pushToHistory(next);
+            mainLayersAfter = next;
+            baseImage = fbLayer.data!;
+            sfx.playSuccess();
+          }
+        }
+
+        // Run each state's generation, store result in groupCache.
+        const newCache: Record<string, Layer[]> = { ...groupCache, [activeGroupId]: mainLayersAfter };
+        let firstFilledState: string | null = null;
+        for (let i = 0; i < ANIMATION_PRESETS.length; i++) {
+          const stp = ANIMATION_PRESETS[i];
+          const okState = await confirmCall(
+            `${i + 1}/${ANIMATION_PRESETS.length} · ${stp.label}`,
+            `Animation: ${stp.pose}. ${stp.frames} frames as a 4×4 sheet. Goes into its own workspace; previous workspaces stay intact.`,
+            costStr,
+          );
+          if (!okState) continue;
+
+          const sheetW = canvasWidth * 4;
+          const sheetH = canvasHeight * 4;
+          const stateLayoutGuide = buildLayoutGuide(canvasWidth, canvasHeight, stp.frames);
+          const finalPrompt = `${prompt}. Same character as the reference image. Do NOT change the character appearance, palette, or art style — only the pose changes between frames. Animation: ${stp.pose}. Render as a 4x4 grid sprite sheet on a ${sheetW}x${sheetH} canvas with ${canvasWidth}x${canvasHeight} cells. The attached LAYOUT GUIDE shows the exact cell boundaries: cells with a BLUE inner box and a number are ACTIVE — fill them with sequential animation frames in numbered order (1 → ${stp.frames}). Cells marked with X are INACTIVE — leave them transparent / chroma-key. Keep each frame INSIDE its blue safe area, never crossing cell boundaries. Do NOT draw the guide lines, numbers, or X marks in the output.`;
+          const result = await runGeneration({
+            prompt: finalPrompt,
+            width: sheetW,
+            height: sheetH,
+            inputImage: baseImage,
+            layoutGuide: stateLayoutGuide,
+            selection: null,
+            hasExistingArt: false,
+            spriteMode: true,
+          });
+          const img = new Image();
+          img.src = result;
+          await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
+          const frames = await sliceSheetIntoFrames(img, baseImage, stp.id, stp.frames);
+          if (frames.length > 0) {
+            newCache[stp.id] = frames;
+            if (!firstFilledState) firstFilledState = stp.id;
+          }
+        }
+
+        setGroupCache(newCache);
+        setGenState({ isGenerating: false, error: null });
+        // Auto-switch to the first generated state so user sees results
+        if (firstFilledState) {
+          const targetLayers = newCache[firstFilledState];
+          setLayers(targetLayers);
+          setHistory([targetLayers]);
+          setHistoryIndex(0);
+          setActiveLayerId(targetLayers[0]?.id ?? '');
+          setActiveGroupId(firstFilledState);
+          setSpritePlaying(false);
+          setSpriteFrameIndex(0);
+          // Canvas size stays as the user set it (e.g. 128 for full-body work).
+        }
+        sfx.playSuccess();
+      } catch (err) {
+        setGenState({
+          isGenerating: false,
+          error: err instanceof Error ? err.message : 'Full Set generation failed.',
+        });
+      }
+      return;
+    }
+
+
     setGenState({ isGenerating: true, error: null });
     try {
       const composite = await getCompositeImage();
       const hasExistingArt = layers.some(l => l.visible && l.data);
-      const genWidth = spriteMode ? 256 : canvasWidth;
-      const genHeight = spriteMode ? 256 : canvasHeight;
-      const finalPrompt = spriteMode
-        ? `${prompt}. Same character as the reference image. Render as a 4x4 sprite sheet: 16 frames of 64x64 pixels filling a 256x256 canvas, no borders or gaps between frames, read top-left to bottom-right.`
-        : prompt;
-      let result: string;
-      if (selectedModel.provider === 'replicate') {
-        result = await generateRetroDiffusion({
-          replicateToken: apiKey,
-          prompt: finalPrompt,
-          width: genWidth,
-          height: genHeight,
-          style: spriteMode ? 'item_sheet' : rdStyle,
-          transparentBg,
-          inputImage: hasExistingArt ? composite : undefined,
-          strength: spriteMode ? 0.5 : 0.7,
-          bypassPromptExpansion: spriteMode,
-        });
-      } else {
-        result = await generatePixelAsset(
-          apiKey,
-          finalPrompt,
-          genWidth,
-          genHeight,
-          [],
-          hasExistingArt ? composite : undefined,
-          spriteMode ? null : selection,
-          spriteMode ? false : hasExistingArt,
-          transparentBg,
-          selectedModelId,
-          spriteMode,
+
+      // Optional pre-step: extend the canvas to a full-body sprite if the
+      // user requested it and no full-body layer exists yet.
+      const hasFullBody = layers.some(l => l.name.startsWith('Full Body') && l.data);
+      let baseImage = hasExistingArt ? composite : undefined;
+      if (spriteMode && fullBody && !hasFullBody && hasExistingArt) {
+        const okExt = await confirmCall(
+          'Generate full-body base',
+          'AI will extend the existing canvas into a full-body sprite that becomes the canonical reference for every frame. The original layers are kept; a new "Full Body" layer is added on top.',
+          costStr,
         );
+        if (!okExt) { setGenState({ isGenerating: false, error: null }); return; }
+
+        // Extension call MUST be neutral — see Full Set branch comment above.
+        const extPrompt = `Take the attached reference image and extend it into a complete full-body character sprite in a NEUTRAL STANDING POSE. Keep every existing pixel of the head and shoulders unchanged. Add the rest of the body, arms (relaxed at sides), hands, legs (standing flat together), and feet in the exact same pixel-art style, palette, and outline weight as the reference. Do NOT change the character appearance, do NOT change the art style, do NOT redesign anything. Do NOT animate, do NOT add pose, motion, expression change, action, or scenery. Output a single centered, idle, full-body sprite on a flat ${transparentBg ? 'BRIGHT GREEN (#00FF00) chroma-key' : 'fitting'} background.`;
+        const extResult = await runGeneration({
+          prompt: extPrompt,
+          width: canvasWidth,
+          height: canvasHeight,
+          inputImage: composite,
+          selection: null,
+          hasExistingArt: true,
+          spriteMode: false,
+        });
+
+        const extImg = new Image();
+        extImg.src = extResult;
+        await new Promise<void>(r => { extImg.onload = () => r(); extImg.onerror = () => r(); });
+        const extCvs = document.createElement('canvas');
+        extCvs.width = canvasWidth; extCvs.height = canvasHeight;
+        const extCtx = extCvs.getContext('2d', { willReadFrequently: true });
+        if (extCtx) {
+          extCtx.drawImage(extImg, 0, 0, canvasWidth, canvasHeight);
+          if (transparentBg && autoChromaKey) {
+            const data = extCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+            const d = data.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const r = d[i], g = d[i + 1], b = d[i + 2];
+              if (r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3) d[i + 3] = 0;
+            }
+            extCtx.putImageData(data, 0, 0);
+          }
+          const fbLayer: Layer = {
+            id: `fullbody-${Date.now()}`,
+            name: 'Full Body',
+            data: extCvs.toDataURL('image/png'),
+            visible: true,
+            opacity: 1,
+            isLocked: false,
+          };
+          const next = [...layers, fbLayer];
+          pushToHistory(next);
+          setActiveLayerId(fbLayer.id);
+          baseImage = fbLayer.data!;
+          sfx.playSuccess();
+        }
       }
+
+      // Main generation step (animation or single image)
+      const okMain = await confirmCall(
+        spriteMode
+          ? `Generate ${preset ? preset.label : 'animation'} sprite sheet`
+          : 'Generate image',
+        spriteMode
+          ? `${preset ? `Preset: ${preset.label} (${preset.frames} frames). Pose: ${preset.pose}. ` : ''}AI will produce a 4×4 sprite sheet (16 frames) using the current canvas as reference.`
+          : 'AI will produce a single image based on your prompt and current canvas.',
+        costStr,
+      );
+      if (!okMain) { setGenState({ isGenerating: false, error: null }); return; }
+
+      const sheetW = canvasWidth * 4;
+      const sheetH = canvasHeight * 4;
+      const genWidth = spriteMode ? sheetW : canvasWidth;
+      const genHeight = spriteMode ? sheetH : canvasHeight;
+      // Frame count: preset's spec, or 16 for "Custom".
+      const activeFrameCount = preset?.frames ?? 16;
+      const layoutGuide = spriteMode ? buildLayoutGuide(canvasWidth, canvasHeight, activeFrameCount) : undefined;
+      const finalPrompt = spriteMode
+        ? (preset
+            ? `${prompt}. Same character as the reference image. Do NOT change the character appearance, palette, or art style — only the pose changes between frames. Animation: ${preset.pose}. Render as a 4x4 grid sprite sheet on a ${sheetW}x${sheetH} canvas with ${canvasWidth}x${canvasHeight} cells. The attached LAYOUT GUIDE shows exact cell boundaries: cells with a BLUE inner box and a number are ACTIVE — fill them with sequential animation frames in numbered order (1 → ${preset.frames}). Cells marked with X are INACTIVE — leave them transparent / chroma-key. Keep each frame INSIDE its blue safe area, never crossing cell boundaries. Do NOT draw the guide lines, numbers, or X marks in the output.`
+            : `${prompt}. Same character as the reference image. Do NOT change the character appearance, palette, or art style — only the pose changes. Render as a 4x4 grid sprite sheet on a ${sheetW}x${sheetH} canvas with ${canvasWidth}x${canvasHeight} cells. The attached LAYOUT GUIDE shows exact cell boundaries — fill all 16 cells with sequential animation frames in numbered order (1 → 16). Keep each frame INSIDE its blue safe area, never crossing cell boundaries. Do NOT draw the guide lines or numbers in the output.`)
+        : prompt;
+      const result = await runGeneration({
+        prompt: finalPrompt,
+        width: genWidth,
+        height: genHeight,
+        inputImage: baseImage,
+        layoutGuide,
+        selection: spriteMode ? null : selection,
+        hasExistingArt: spriteMode ? false : hasExistingArt,
+        spriteMode,
+      });
       const img = new Image();
       img.src = result;
       await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
 
       if (spriteMode) {
-        let referencePalette: string[] = [];
-        if (hasExistingArt) {
+        // Use baseImage (the post-extension full body if Full Body was on,
+        // otherwise the original composite) as the palette + identity
+        // reference for slicing. Earlier this was hardcoded to `composite`,
+        // which was the PRE-extension snapshot — so any colors introduced
+        // by the full-body extension (e.g. new body pixels) were force-
+        // snapped AWAY to the bust-only palette. That was a real bug: the
+        // animation looked like "didn't reference the full body".
+        const sliceRef = hasExistingArt ? baseImage : undefined;
+        const frames = await sliceSheetIntoFrames(img, sliceRef, 'Frame', activeFrameCount);
+        if (frames.length === 0) { setGenState({ isGenerating: false, error: null }); return; }
+        // Sync editor's custom-color swatches with the same authoritative
+        // reference (full body if present).
+        if (hasExistingArt && sliceRef) {
           const refImg = new Image();
-          refImg.src = composite;
+          refImg.src = sliceRef;
           await new Promise<void>(r => { refImg.onload = () => r(); refImg.onerror = () => r(); });
           const refCvs = document.createElement('canvas');
           refCvs.width = canvasWidth; refCvs.height = canvasHeight;
@@ -726,53 +1685,16 @@ export default function PixelForgePage() {
             refCtx.drawImage(refImg, 0, 0);
             const refData = refCtx.getImageData(0, 0, canvasWidth, canvasHeight);
             const centroids = quantizeImageData(refData, 16);
-            referencePalette = centroids.map(rgbToHex);
+            const palette = centroids.map(rgbToHex);
+            if (palette.length > 0) {
+              setCustomColors(palette);
+              setActivePalette({ name: '__custom__', colors: [] });
+            }
           }
         }
-
-        const sheet = document.createElement('canvas');
-        sheet.width = 256; sheet.height = 256;
-        const sctx = sheet.getContext('2d', { willReadFrequently: true });
-        if (!sctx) return;
-        sctx.drawImage(img, 0, 0, 256, 256);
-        const frames: Layer[] = [];
-        for (let row = 0; row < 4; row++) {
-          for (let col = 0; col < 4; col++) {
-            const fcvs = document.createElement('canvas');
-            fcvs.width = 64; fcvs.height = 64;
-            const fctx = fcvs.getContext('2d', { willReadFrequently: true });
-            if (!fctx) continue;
-            fctx.drawImage(sheet, col * 64, row * 64, 64, 64, 0, 0, 64, 64);
-            const frameData = fctx.getImageData(0, 0, 64, 64);
-            if (transparentBg && autoChromaKey) {
-              const d = frameData.data;
-              for (let i = 0; i < d.length; i += 4) {
-                const r = d[i], g = d[i + 1], b = d[i + 2];
-                const isChroma = r <= 100 && g >= 150 && b <= 100 && g > (r + b) * 1.3;
-                if (isChroma) d[i + 3] = 0;
-              }
-            }
-            if (referencePalette.length > 0) {
-              snapToTopKPalette(frameData, referencePalette, referencePalette.length);
-            }
-            fctx.putImageData(frameData, 0, 0);
-            const n = row * 4 + col + 1;
-            frames.push({
-              id: `sprite-${Date.now()}-${n}-${Math.random().toString(36).slice(2, 6)}`,
-              name: `Frame ${String(n).padStart(2, '0')}`,
-              data: fcvs.toDataURL('image/png'),
-              visible: true,
-              opacity: 1,
-              isLocked: false,
-            });
-          }
-        }
-        if (referencePalette.length > 0) {
-          setCustomColors(referencePalette);
-          setActivePalette({ name: '__custom__', colors: [] });
-        }
-        setCanvasWidth(64);
-        setCanvasHeight(64);
+        // Canvas size stays as the user set it. Earlier versions forced 64x64
+        // here, which was the source of the "minyon" output bug when the user
+        // had bumped canvas to 128 for full-body work.
         pushToHistory(frames);
         setActiveLayerId(frames[0].id);
         setSpriteFrameIndex(0);
@@ -853,18 +1775,24 @@ export default function PixelForgePage() {
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
-        const FIT = Math.max(canvasWidth, canvasHeight);
-        const ratio = img.naturalWidth / img.naturalHeight;
-        let fitW: number, fitH: number;
-        if (ratio >= 1) {
-          fitW = Math.min(FIT, img.naturalWidth);
-          fitH = Math.round(fitW / ratio);
-        } else {
-          fitH = Math.min(FIT, img.naturalHeight);
-          fitW = Math.round(fitH * ratio);
+        // Use the image's NATIVE size. Only scale down if the image is
+        // bigger than the editor's MAX_CANVAS_SIZE (current ceiling: 256
+        // px on the longest edge). Aspect ratio is preserved.
+        // Previously we capped at the CURRENT canvas size, which silently
+        // shrank a 256×256 upload to 64×64 — confusing and made the
+        // reference too small for AI generation.
+        let fitW = img.naturalWidth;
+        let fitH = img.naturalHeight;
+        const longest = Math.max(fitW, fitH);
+        if (longest > MAX_CANVAS_SIZE) {
+          const scale = MAX_CANVAS_SIZE / longest;
+          fitW = Math.round(fitW * scale);
+          fitH = Math.round(fitH * scale);
         }
-        fitW = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitW));
-        fitH = Math.max(MIN_CANVAS_SIZE, Math.min(MAX_CANVAS_SIZE, fitH));
+        fitW = Math.max(MIN_CANVAS_SIZE, fitW);
+        fitH = Math.max(MIN_CANVAS_SIZE, fitH);
+        // Canvas grows to fit the image. If there's existing art we keep
+        // whichever dimension is larger so we don't shrink current work.
         const newCanvasW = hasExistingArt ? Math.max(canvasWidth, fitW) : fitW;
         const newCanvasH = hasExistingArt ? Math.max(canvasHeight, fitH) : fitH;
         if (newCanvasW !== canvasWidth || newCanvasH !== canvasHeight) {
@@ -1318,10 +2246,20 @@ export default function PixelForgePage() {
                   </div>
                 )}
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {layers.map(layer => (
+                  {layers.map((layer, idx) => (
                     <div
                       key={layer.id}
-                      onClick={() => { sfx.playClick(); setActiveLayerId(layer.id); }}
+                      onClick={() => {
+                        sfx.playClick();
+                        setActiveLayerId(layer.id);
+                        // In sprite mode, clicking a layer should also stop playback
+                        // and snap the displayed frame to that layer so the canvas
+                        // shows what you're about to edit.
+                        if (spriteMode) {
+                          setSpritePlaying(false);
+                          setSpriteFrameIndex(idx);
+                        }
+                      }}
                       className={`flex items-center gap-2 p-1.5 text-[10px] cursor-pointer border transition-colors ${layer.id === activeLayerId ? 'border-foreground bg-foreground/5' : 'border-transparent hover:border-neutral-700 dark:hover:border-neutral-600'}`}
                       style={font}
                     >
@@ -1336,6 +2274,16 @@ export default function PixelForgePage() {
                         <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleMoveLayer(layer.id, 'down'); }} className="text-muted-foreground/30 hover:text-foreground" title="Move down">
                           <ChevronDown className="w-3 h-3" />
                         </button>
+                        {spriteMode && (
+                          <button
+                            onClick={e => { e.stopPropagation(); sfx.playClick(); handleRegenerateFrame(layer.id); }}
+                            disabled={genState.isGenerating || !prompt.trim() || !apiKey.trim()}
+                            className="text-muted-foreground/30 hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Regenerate this frame with AI"
+                          >
+                            <RefreshCcw className="w-3 h-3" />
+                          </button>
+                        )}
                         <button onClick={e => { e.stopPropagation(); sfx.playClick(); handleDuplicateLayer(layer.id); }} className="text-muted-foreground/30 hover:text-foreground" title="Duplicate layer">
                           <Copy className="w-3 h-3" />
                         </button>
@@ -1377,19 +2325,31 @@ export default function PixelForgePage() {
                     <option key={s} value={s}>{s}x ({canvasWidth * s}x{canvasHeight * s}px)</option>
                   ))}
                 </select>
-                <div className={`grid gap-1 ${spriteMode && layers.length >= 2 ? 'grid-cols-3' : 'grid-cols-1'}`}>
-                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="flex items-center justify-center gap-1 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                <div className="space-y-1">
+                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="w-full flex items-center justify-center gap-1 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
                     <Download className="w-3 h-3" /> PNG
                   </button>
                   {spriteMode && layers.length >= 2 && (
-                    <>
+                    <div className="grid grid-cols-2 gap-1">
                       <button onClick={() => { sfx.playSuccess(); handleExportFramesZip(); }} className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
                         <Download className="w-3 h-3" /> ZIP
                       </button>
                       <button onClick={() => { sfx.playSuccess(); handleExportGif(); }} className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
                         <Download className="w-3 h-3" /> GIF
                       </button>
-                    </>
+                      <button onClick={() => { sfx.playSuccess(); handleExportMp4(); }} title="MP4 (WebCodecs, modern browsers)" className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> MP4
+                      </button>
+                      <button onClick={() => { sfx.playSuccess(); handleExportWebpAtlas(); }} title="WebP atlas (Codex-style spritesheet)" className="flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> WEBP
+                      </button>
+                      <button onClick={() => { sfx.playSuccess(); handleExportAsepriteBundle(); }} title="PNG + Aseprite Hash JSON (open with File > Import Sprite Sheet)" className="col-span-2 flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> Aseprite (.zip)
+                      </button>
+                      <button onClick={() => { sfx.playSuccess(); handleExportCodexPet(); }} title="Codex pet bundle (pet.json + spritesheet.webp). Drop the unzipped folder into ~/.codex/pets/" className="col-span-2 flex items-center justify-center gap-1 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                        <Download className="w-3 h-3" /> Codex Pet (.zip)
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1397,6 +2357,40 @@ export default function PixelForgePage() {
 
             {/* Canvas */}
             <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[900px] lg:self-start flex flex-col">
+              {visibleGroupIds.length > 1 && (
+                <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex items-center gap-2 text-[10px]" style={font}>
+                  <button
+                    onClick={() => { sfx.playClick(); switchPrevGroup(); }}
+                    disabled={visibleGroupIds.indexOf(activeGroupId) <= 0}
+                    className="border border-neutral-700 dark:border-neutral-600 px-1.5 py-0.5 uppercase hover:bg-foreground/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Previous workspace (←)"
+                    style={font}
+                  >
+                    &lt;
+                  </button>
+                  <span className="text-muted-foreground uppercase tracking-wider">Workspace</span>
+                  <span className="text-foreground font-bold">
+                    {(() => {
+                      if (activeGroupId === 'main') return 'Main';
+                      const p = ANIMATION_PRESETS.find(x => x.id === activeGroupId);
+                      return p?.label ?? activeGroupId;
+                    })()}
+                  </span>
+                  <span className="text-muted-foreground/60">
+                    ({visibleGroupIds.indexOf(activeGroupId) + 1}/{visibleGroupIds.length})
+                  </span>
+                  <button
+                    onClick={() => { sfx.playClick(); switchNextGroup(); }}
+                    disabled={visibleGroupIds.indexOf(activeGroupId) >= visibleGroupIds.length - 1}
+                    className="border border-neutral-700 dark:border-neutral-600 px-1.5 py-0.5 uppercase hover:bg-foreground/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next workspace (→)"
+                    style={font}
+                  >
+                    &gt;
+                  </button>
+                  <span className="ml-auto text-muted-foreground/40 text-[9px] hidden sm:inline">use ← → keys</span>
+                </div>
+              )}
               <div className="flex-1 overflow-hidden">
                 <PixelEditor
                   layers={layers}
@@ -1483,8 +2477,48 @@ export default function PixelForgePage() {
                 </label>
                 <label className="flex items-center gap-1.5 text-[9px] uppercase text-muted-foreground cursor-pointer select-none" style={font}>
                   <input type="checkbox" checked={spriteMode} onChange={e => { sfx.playClick(); setSpriteMode(e.target.checked); }} className="cursor-pointer accent-foreground" />
-                  Sprite mode (4x4 grid, 16 frames)
+                  Animation (4×4, 16 frames)
                 </label>
+                {spriteMode && (
+                  <div className="mt-1 space-y-1.5 border-l-2 border-neutral-700/40 dark:border-neutral-300/40 pl-2">
+                    <div>
+                      <p className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mb-1" style={font}>Preset</p>
+                      <select
+                        value={animationPresetId}
+                        onChange={e => { sfx.playSelect(); setAnimationPresetId(e.target.value); }}
+                        className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1 text-[10px] focus:outline-none focus:border-foreground text-foreground cursor-pointer"
+                        style={font}
+                      >
+                        <option value="custom">Custom (use my prompt)</option>
+                        {ANIMATION_PRESETS.map(p => (
+                          <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                        <option value={FULL_SET_PRESET_ID}>Full Set — Codex BOOA (9 calls)</option>
+                      </select>
+                    </div>
+                    <label
+                      className="flex items-center gap-1.5 text-[9px] uppercase text-muted-foreground cursor-pointer select-none"
+                      style={font}
+                      title={'Generate a full-body extension first, then animate. The pet is rendered at the canvas size you chose — no auto-resizing, no scaling.'}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={fullBody}
+                        onChange={e => {
+                          sfx.playClick();
+                          setFullBody(e.target.checked);
+                        }}
+                        className="cursor-pointer accent-foreground"
+                      />
+                      Full body
+                      {fullBody && (
+                        <span className="text-[8px] text-muted-foreground/60 normal-case ml-1" style={font}>
+                          (canvas {canvasWidth}×{canvasHeight})
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                )}
                 <button
                   onClick={() => { sfx.playClick(); handleGenerate(); }}
                   disabled={genState.isGenerating || !prompt.trim()}
@@ -1520,7 +2554,7 @@ export default function PixelForgePage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center w-3 h-3 border border-muted-foreground/40 text-[7px] hover:border-foreground hover:text-foreground transition-colors"
-                        title={`See full pricing on ${selectedModel.provider === 'gemini' ? 'ai.google.dev' : 'replicate.com'}`}
+                        title={`See full pricing for ${selectedModel.label}`}
                       >
                         ?
                       </a>
@@ -1569,6 +2603,46 @@ export default function PixelForgePage() {
         </div>
       </main>
       <Footer />
+
+      {/* Per-call confirmation modal */}
+      {confirmDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={confirmDialog.onCancel}
+        >
+          <div
+            className="w-full max-w-sm bg-background border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+            style={font}
+          >
+            <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+              Confirm AI call
+            </p>
+            <h3 className="text-sm text-foreground">{confirmDialog.title}</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {confirmDialog.description}
+            </p>
+            <p className="text-[10px] text-muted-foreground/70 border-t border-border pt-3">
+              {confirmDialog.cost}
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { sfx.playClick(); confirmDialog.onCancel(); }}
+                className="flex-1 h-9 border-2 border-neutral-700 dark:border-neutral-200 text-[10px] uppercase hover:bg-foreground/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { sfx.playClick(); confirmDialog.onConfirm(); }}
+                className="flex-1 h-9 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-[10px] uppercase hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

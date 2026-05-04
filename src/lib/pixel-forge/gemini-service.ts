@@ -19,6 +19,7 @@ export async function generatePixelAsset(
   transparentBg: boolean = true,
   model: string = 'gemini-3-pro-image-preview',
   spriteMode: boolean = false,
+  layoutGuideBase64?: string,
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
@@ -70,6 +71,10 @@ Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.${paletteLine}$
   if (referenceImageBase64) {
     const base64Data = referenceImageBase64.replace(/^data:image\/\w+;base64,/, '');
     parts.push({ inlineData: { data: base64Data, mimeType: 'image/png' } });
+  }
+  if (layoutGuideBase64) {
+    const guideData = layoutGuideBase64.replace(/^data:image\/\w+;base64,/, '');
+    parts.push({ inlineData: { data: guideData, mimeType: 'image/png' } });
   }
   parts.push({ text: instruction });
 
