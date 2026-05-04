@@ -1,0 +1,46 @@
+# Gitleaks config — extends the default ruleset with project-specific
+# allowlists. Anything that matches an allowlist entry is NOT reported.
+#
+# https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+# Inherit gitleaks' built-in rules; we only ADD allowlist entries.
+useDefault = true
+
+[allowlist]
+description = "BOOA project allowlist — public on-chain addresses, docs samples, and the historical .agents/ skill bundle (now gitignored)."
+
+# Public smart-contract addresses that are not secrets but match the
+# generic-api-key heuristic (40+ char hex strings with mixed case).
+# These are documented/well-known on-chain addresses.
+regexes = [
+  # Base USDC (Circle's official Base mainnet USDC)
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  # ERC-8004 Identity Registry deterministic CREATE2 address (mainnet)
+  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+  # ERC-8004 Identity Registry (testnet)
+  "0x8004A816BFB912233c491671b3d84c89A494BD9e",
+  # BOOA NFT contract (Shape mainnet)
+  "0x7aecA981734d133d3f695937508C48483BA6b654",
+]
+
+# Path-based exemptions. The historical .agents/ directory contained
+# vendored skill docs with example contract addresses; the dir is
+# gitignored now but old commits still hold copies.
+paths = [
+  '''(.*?)(.agents/.*)$''',
+  '''(.*?)(docs/.*)$''',
+  '''(.*?)(public/skills/.*)$''',
+  '''(.*?)(public/agent-defense.md)$''',
+  # Standard test/fixture areas that often hold sample-looking strings.
+  '''(.*?)(node_modules/.*)$''',
+  '''(.*?)(coverage/.*)$''',
+  '''(.*?)(\.next/.*)$''',
+  '''(.*?)(out/.*)$''',
+]
+
+# Specific commit hashes that contain ONLY documented public addresses.
+# Listed explicitly so the secrecy of any new finding in those commits
+# is still surfaced; only the EXACT lines that match an allowlist regex
+# above are silenced.
+commits = []

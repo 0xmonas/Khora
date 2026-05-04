@@ -1,0 +1,51 @@
+version: 2
+updates:
+  # JavaScript / TypeScript dependencies
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    target-branch: main
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
+    groups:
+      # Bundle minor + patch updates so the PR queue stays manageable.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions workflow versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    target-branch: main
+    commit-message:
+      prefix: ci
+    labels:
+      - ci
+      - dependencies
+
+  # Solidity / Foundry contracts (if requirements change)
+  - package-ecosystem: gitsubmodule
+    directory: /contracts
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    target-branch: main
+    commit-message:
+      prefix: contracts
+    labels:
+      - contracts
+      - dependencies

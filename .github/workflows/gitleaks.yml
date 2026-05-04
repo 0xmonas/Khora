@@ -1,0 +1,35 @@
+name: gitleaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly full-history scan as a safety net for anything that slipped past
+    # the per-push checks (e.g. an old commit referenced by a force-push).
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the scanner can see deleted/old commits.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use repo-local config for allowlist (.gitleaks.toml).
+          GITLEAKS_CONFIG: .gitleaks.toml
+        # The action exits non-zero if any unallowed secret is detected,
+        # which fails the workflow and blocks merging.
