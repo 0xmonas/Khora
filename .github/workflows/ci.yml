@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel an in-flight run for the same branch / PR if a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  # Dummy values so the Next.js build doesn't fail on missing env vars.
+  # Real values live in Vercel project settings; CI just needs SOMETHING
+  # present to clear the strict checks at module load time.
+  SESSION_SECRET: ci-only-dummy-session-secret-32-bytes-minimum-length-padding
+  UPSTASH_REDIS_REST_URL: https://example.com
+  UPSTASH_REDIS_REST_TOKEN: ci-dummy-token
+  GEMINI_API_KEY: ci-dummy-key
+  ALCHEMY_API_KEY: ci-dummy-key
+  REPLICATE_API_TOKEN: ci-dummy-token
+  OPENAI_API_KEY: ci-dummy-key
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ci-dummy-id
+  NEXT_PUBLIC_BOOA_NFT_ADDRESS: "0x7aecA981734d133d3f695937508C48483BA6b654"
+  NEXT_PUBLIC_BOOA_V2_ADDRESS: "0x7aecA981734d133d3f695937508C48483BA6b654"
+  NEXT_PUBLIC_SHAPE_RPC_URL: https://mainnet.shape.network
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          # Skip Vercel-specific build steps; pure local build verification.
+          NEXT_TELEMETRY_DISABLED: "1"
