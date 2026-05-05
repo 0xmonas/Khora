@@ -9,9 +9,12 @@ vi.mock('iron-session', () => ({
   getIronSession: vi.fn(async () => mockSession),
 }));
 
-// Mock rate limiter so tests don't hit real Upstash Redis
+// Mock rate limiter so tests don't hit real Upstash Redis. The middleware
+// imports from `@/lib/ratelimit-edge` (Edge runtime variant), so that's the
+// path we have to mock — mocking `@/lib/ratelimit` was a no-op and the
+// middleware was hitting the real Upstash URL in CI.
 const mockRateLimitResult = { success: true, limit: 60, remaining: 59, reset: Date.now() + 60000, pending: Promise.resolve() };
-vi.mock('@/lib/ratelimit', () => ({
+vi.mock('@/lib/ratelimit-edge', () => ({
   generalLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
   writeLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
   getIP: vi.fn(() => '127.0.0.1'),
@@ -72,13 +75,6 @@ describe('Middleware', () => {
     expect(response.status).toBe(401);
     const body = await response.json();
     expect(body.error).toContain('Authentication required');
-  });
-
-  it('should allow /api/pending-reveal without session (public path)', async () => {
-    const { middleware } = await import('@/middleware');
-
-    const response = await middleware(makeRequest('/api/pending-reveal'));
-    expect(response.status).toBe(200);
   });
 
   it('should return 401 for /api/generate-image without session', async () => {
@@ -153,7 +149,7 @@ describe('Middleware', () => {
   // ── Rate limiting ──
 
   it('should return 429 when rate limited', async () => {
-    const ratelimit = await import('@/lib/ratelimit');
+    const ratelimit = await import('@/lib/ratelimit-edge');
     const blockedResult = { success: false, limit: 60, remaining: 0, reset: Date.now() + 60000, pending: Promise.resolve() };
     vi.mocked(ratelimit.generalLimiter.limit).mockResolvedValueOnce(blockedResult);
 
@@ -166,7 +162,7 @@ describe('Middleware', () => {
   });
 
   it('should use writeLimiter for POST requests', async () => {
-    const ratelimit = await import('@/lib/ratelimit');
+    const ratelimit = await import('@/lib/ratelimit-edge');
 
     const { middleware } = await import('@/middleware');
 
@@ -176,7 +172,7 @@ describe('Middleware', () => {
   });
 
   it('should use generalLimiter for GET requests', async () => {
-    const ratelimit = await import('@/lib/ratelimit');
+    const ratelimit = await import('@/lib/ratelimit-edge');
 
     const { middleware } = await import('@/middleware');
 

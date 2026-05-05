@@ -44,6 +44,18 @@ vi.mock('viem', () => ({
 vi.mock('viem/chains', () => ({
   shape: { id: 360 },
   shapeSepolia: { id: 11011 },
+  mainnet: { id: 1 },
+  base: { id: 8453 },
+  arbitrum: { id: 42161 },
+  optimism: { id: 10 },
+  polygon: { id: 137 },
+  avalanche: { id: 43114 },
+  bsc: { id: 56 },
+  celo: { id: 42220 },
+  gnosis: { id: 100 },
+  scroll: { id: 534352 },
+  linea: { id: 59144 },
+  mantle: { id: 5000 },
 }));
 
 // ── Tests ──

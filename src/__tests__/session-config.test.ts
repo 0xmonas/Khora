@@ -14,9 +14,9 @@ describe('Session Config', () => {
     expect(sessionOptions.cookieOptions?.sameSite).toBe('lax');
   });
 
-  it('should set maxAge to 7 days', () => {
-    const sevenDays = 60 * 60 * 24 * 7;
-    expect(sessionOptions.cookieOptions?.maxAge).toBe(sevenDays);
+  it('should set maxAge to 24 hours', () => {
+    const oneDay = 60 * 60 * 24;
+    expect(sessionOptions.cookieOptions?.maxAge).toBe(oneDay);
   });
 
   it('should set path to /', () => {

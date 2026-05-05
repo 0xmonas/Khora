@@ -53,10 +53,13 @@ const VALID_AGENT = {
   image: 'data:image/png;base64,abc',
 };
 
-function makeGetRequest(params: Record<string, string>): NextRequest {
+function makeGetRequest(
+  params: Record<string, string>,
+  headers?: Record<string, string>,
+): NextRequest {
   const url = new URL('http://localhost:3000/api/agent-metadata');
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  return new NextRequest(url);
+  return new NextRequest(url, headers ? { headers } : undefined);
 }
 
 function makePostRequest(
@@ -91,7 +94,10 @@ describe('Agent Metadata API', () => {
     it('should return found:false when no entry exists', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1', address: VALID_ADDRESS },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -107,7 +113,10 @@ describe('Agent Metadata API', () => {
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1', address: VALID_ADDRESS },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       const body = await res.json();
       expect(res.status).toBe(200);
@@ -122,7 +131,10 @@ describe('Agent Metadata API', () => {
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1', address: OTHER_ADDRESS }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1', address: OTHER_ADDRESS },
+          { 'x-siwe-address': OTHER_ADDRESS },
+        ),
       );
       const body = await res.json();
       expect(body.found).toBe(false);
@@ -131,7 +143,10 @@ describe('Agent Metadata API', () => {
     it('should return 400 when chainId is missing', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest(
+          { tokenId: '1', address: VALID_ADDRESS },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       expect(res.status).toBe(400);
     });
@@ -139,7 +154,10 @@ describe('Agent Metadata API', () => {
     it('should return 400 when tokenId is missing', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', address: VALID_ADDRESS }),
+        makeGetRequest(
+          { chainId: '11011', address: VALID_ADDRESS },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       expect(res.status).toBe(400);
     });
@@ -147,7 +165,10 @@ describe('Agent Metadata API', () => {
     it('should return 400 when address is missing', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1' }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1' },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       expect(res.status).toBe(400);
     });
@@ -155,9 +176,20 @@ describe('Agent Metadata API', () => {
     it('should return 400 for invalid address format', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1', address: 'bad' }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1', address: 'bad' },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       expect(res.status).toBe(400);
+    });
+
+    it('should return 401 when x-siwe-address header is missing', async () => {
+      const { GET } = await import('@/app/api/agent-metadata/route');
+      const res = await GET(
+        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
+      );
+      expect(res.status).toBe(401);
     });
 
     it('should return 429 when rate limited', async () => {
@@ -166,7 +198,10 @@ describe('Agent Metadata API', () => {
       });
       const { GET } = await import('@/app/api/agent-metadata/route');
       const res = await GET(
-        makeGetRequest({ chainId: '11011', tokenId: '1', address: VALID_ADDRESS }),
+        makeGetRequest(
+          { chainId: '11011', tokenId: '1', address: VALID_ADDRESS },
+          { 'x-siwe-address': VALID_ADDRESS },
+        ),
       );
       expect(res.status).toBe(429);
     });
@@ -269,11 +304,14 @@ describe('Agent Metadata API', () => {
       expect(body.error).toBe('Agent metadata too large');
     });
 
-    it('should return 409 when metadata already exists (first-write-wins)', async () => {
-      mockRedisExists.mockResolvedValue(1);
+    it('should return 403 when overwriting another minter\'s metadata', async () => {
+      mockRedisGet.mockResolvedValueOnce({
+        ...VALID_AGENT,
+        _minter: OTHER_ADDRESS.toLowerCase(),
+      });
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(403);
       expect(mockRedisSet).not.toHaveBeenCalled();
     });
 

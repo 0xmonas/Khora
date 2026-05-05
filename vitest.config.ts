@@ -8,6 +8,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     env: {
       SESSION_SECRET: 'test-secret-at-least-32-characters-long-for-iron-session',
+      UPSTASH_REDIS_REST_URL: 'https://example.com',
+      UPSTASH_REDIS_REST_TOKEN: 'test-token',
     },
   },
   resolve: {
