@@ -45,6 +45,22 @@ const TOOLS: ToolCard[] = [
     tag: 'LIVE',
   },
   {
+    id: 'city',
+    title: 'BOOA City',
+    description: 'Enter Terminal District with your BOOA. Take jobs, trade fragments, and leave public traces in the city.',
+    href: '/city',
+    media: 'city.svg',
+    tag: 'ALPHA',
+  },
+  {
+    id: 'sprite-shop',
+    title: 'Sprite Shop',
+    description: 'Generate a 6×8 game-ready sprite atlas for any BOOA. BYOK Gemini / OpenAI / Replicate. Default reference + custom upload.',
+    href: '/studio/sprite-shop',
+    media: 'pixel-forge.png',
+    tag: 'NEW',
+  },
+  {
     id: 'img2boa',
     title: 'Img2Booa',
     description: 'Turn any image into BOOA-style pixel art. Same C64 palette + Bayer dithering pipeline as the minter.',
@@ -164,6 +180,17 @@ function ToolMedia({ src, alt, priority }: { src: string; alt: string; priority?
         playsInline
         autoPlay
         className="w-full h-full object-cover"
+      />
+    );
+  }
+
+  if (src.endsWith('.svg')) {
+    return (
+      <img
+        src={path}
+        alt={alt}
+        className="w-full h-full object-cover"
+        style={{ imageRendering: 'pixelated' }}
       />
     );
   }
