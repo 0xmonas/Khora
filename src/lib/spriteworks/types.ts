@@ -75,7 +75,7 @@ export const DEFAULT_PIPELINE_SETTINGS: PipelineSettings = {
   rows: ATLAS_ROWS,
   chromaKey: [0, 255, 0],
   chromaTolerance: 96,
-  paletteMode: 'avatar+c64',
+  paletteMode: 'c64',
   cellMethod: 'auto',
   cellAnchor: 'bottom',
 };

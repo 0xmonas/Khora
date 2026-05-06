@@ -8,7 +8,7 @@ import {
   BOOA_C64_PALETTE,
   pickGenerationGrid,
 } from './types';
-import { processImageData, resolvePalette } from './pipeline';
+import { processImageData, extractPalette } from './pipeline';
 import {
   cropImageData,
   extractComponentFrames,
@@ -146,7 +146,7 @@ async function renderGifFromFrames(
     });
   }
   encoder.finish();
-  return new Blob([encoder.bytes()], { type: 'image/gif' });
+  return new Blob([new Uint8Array(encoder.bytes())], { type: 'image/gif' });
 }
 
 function renderContactSheet(atlas: ImageData, scale = 2, cellSize = 96): ImageData {
@@ -354,7 +354,7 @@ export async function runSpriteworksJob(
   const contactSheetDataUrl = imageDataToDataUrl(contact);
   onProgress({ stage: 'contact-done' });
 
-  const avatarPalette = resolvePalette(settings.paletteMode, avatarImg);
+  const avatarPalette = extractPalette(avatarImg, 16);
   const overlap = paletteOverlap(finalAtlas, avatarPalette);
   onProgress({ stage: 'identity-done', overlap });
 
