@@ -1763,6 +1763,108 @@ export default function PixelForgePage() {
   };
 
   // Upload
+  // Decodes every GIF frame into its own layer, sizes the canvas to the GIF,
+  // enables sprite (animation) mode, and seeds FPS from the GIF's frame delay.
+  const importGifAsAnimation = async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const { parseGIF, decompressFrames } = await import('gifuct-js');
+      const gif = parseGIF(buf);
+      const rawFrames = decompressFrames(gif, true);
+      if (!rawFrames.length) {
+        sfx.playError();
+        return;
+      }
+
+      const gifW = gif.lsd.width;
+      const gifH = gif.lsd.height;
+      let fitW = gifW;
+      let fitH = gifH;
+      const longest = Math.max(fitW, fitH);
+      if (longest > MAX_CANVAS_SIZE) {
+        const scale = MAX_CANVAS_SIZE / longest;
+        fitW = Math.round(fitW * scale);
+        fitH = Math.round(fitH * scale);
+      }
+      fitW = Math.max(MIN_CANVAS_SIZE, fitW);
+      fitH = Math.max(MIN_CANVAS_SIZE, fitH);
+
+      // Compose canvas at native GIF size, then resample each composed frame
+      // down to the editor canvas — this preserves disposal logic correctly
+      // (frames can reference pixels outside their own dirty rect).
+      const compose = document.createElement('canvas');
+      compose.width = gifW;
+      compose.height = gifH;
+      const cctx = compose.getContext('2d');
+      const out = document.createElement('canvas');
+      out.width = fitW;
+      out.height = fitH;
+      const octx = out.getContext('2d');
+      if (!cctx || !octx) {
+        sfx.playError();
+        return;
+      }
+      octx.imageSmoothingEnabled = false;
+
+      const frameDataUrls: string[] = [];
+      let totalDelayMs = 0;
+      for (const frame of rawFrames) {
+        const patchCanvas = document.createElement('canvas');
+        patchCanvas.width = frame.dims.width;
+        patchCanvas.height = frame.dims.height;
+        const pctx = patchCanvas.getContext('2d');
+        if (!pctx) continue;
+        const patchImage = new ImageData(
+          new Uint8ClampedArray(frame.patch),
+          frame.dims.width,
+          frame.dims.height,
+        );
+        pctx.putImageData(patchImage, 0, 0);
+        cctx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
+
+        octx.clearRect(0, 0, fitW, fitH);
+        octx.drawImage(compose, 0, 0, fitW, fitH);
+        frameDataUrls.push(out.toDataURL('image/png'));
+
+        // Disposal type 2 = restore-to-background. Other disposal types leave
+        // the compose canvas as-is, which is what most sprite-sheet GIFs want.
+        if (frame.disposalType === 2) {
+          cctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
+        }
+        totalDelayMs += frame.delay || 100;
+      }
+
+      if (fitW !== canvasWidth || fitH !== canvasHeight) {
+        setCanvasWidth(fitW);
+        setCanvasHeight(fitH);
+      }
+
+      const baseId = Date.now();
+      const newLayers: Layer[] = frameDataUrls.map((data, i) => ({
+        id: `gif-${baseId}-${i}`,
+        name: `Frame ${i + 1}`,
+        data,
+        visible: true,
+        opacity: 1,
+        isLocked: false,
+      }));
+      pushToHistory(newLayers);
+      setActiveLayerId(newLayers[0].id);
+
+      const avgDelay = Math.max(20, totalDelayMs / frameDataUrls.length);
+      const fps = Math.min(30, Math.max(1, Math.round(1000 / avgDelay)));
+      setSpriteFps(fps);
+      setSpriteMode(true);
+      setSpriteFrameIndex(0);
+      setSpritePlaying(false);
+
+      sfx.playSuccess();
+    } catch (err) {
+      console.error('GIF import failed:', err);
+      sfx.playError();
+    }
+  };
+
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1771,6 +1873,14 @@ export default function PixelForgePage() {
       const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
       if (fullColor) setActivePalette(fullColor);
     }
+
+    const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+    if (isGif) {
+      void importGifAsAnimation(file);
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();

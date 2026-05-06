@@ -1,21 +1,21 @@
 import type { Metadata } from 'next';
-import { SpriteShopClient } from './SpriteShopClient';
+import { SpriteworksClient } from './SpriteworksClient';
 import { Footer } from '@/components/layouts/Footer';
 import { Header } from '@/components/layouts/Header';
 import { HolderGate } from '@/components/features/studio/HolderGate';
 
 export const metadata: Metadata = {
-  title: 'Sprite Shop',
-  description: 'Generate game-ready BOOA sprite atlases via Gemini, OpenAI, or Replicate (BYOK).',
+  title: 'Spriteworks',
+  description: 'Generate game-ready BOOA sprite sheets via Gemini, OpenAI, or Replicate (BYOK).',
 };
 
-export default function SpriteShopPage() {
+export default function SpriteworksPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="flex-1">
         <HolderGate>
-          <SpriteShopClient />
+          <SpriteworksClient />
         </HolderGate>
       </main>
       <Footer />

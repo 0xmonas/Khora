@@ -11,6 +11,7 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "vitest run",
+    "city:assets:validate": "node scripts/validate-city-assets.js",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.36.0",
     "gifenc": "^1.0.3",
+    "gifuct-js": "^2.1.2",
     "html-to-image": "^1.11.13",
     "img-comparison-slider": "^8.0.6",
     "iron-session": "^8.0.4",

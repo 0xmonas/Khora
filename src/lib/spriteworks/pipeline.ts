@@ -1,7 +1,3 @@
-// Sprite Shop pipeline — chroma key + halo kill + palette snap.
-// TypeScript port of scripts/pixel_pipeline.py from booa-sprite repo.
-// Runs entirely in the browser on a canvas-derived ImageData.
-
 import { BOOA_C64_PALETTE, type RGB } from './types';
 
 const ALPHA_GATE = 128;
@@ -31,7 +27,6 @@ export function isGreenish(rgb: RGB): boolean {
   return g > r + 25 && g > b + 25 && g > 110;
 }
 
-// ── Chroma key: pixels close to keyRgb become alpha 0 ──────────────────
 export function chromaKey(image: ImageData, keyRgb: RGB = [0, 255, 0], tolerance = 96): ImageData {
   const out = new ImageData(new Uint8ClampedArray(image.data), image.width, image.height);
   const tolSq = tolerance * tolerance;
@@ -45,7 +40,8 @@ export function chromaKey(image: ImageData, keyRgb: RGB = [0, 255, 0], tolerance
   return out;
 }
 
-// ── Kill green halo (residual chroma family that escaped primary key) ──
+// Catches residual chroma-family pixels (anti-aliased halos) that the primary
+// chromaKey leaves behind around character edges.
 export function killGreenHalo(image: ImageData): ImageData {
   const out = new ImageData(new Uint8ClampedArray(image.data), image.width, image.height);
   const data = out.data;
@@ -59,9 +55,7 @@ export function killGreenHalo(image: ImageData): ImageData {
   return out;
 }
 
-// ── Median-cut palette extraction (skips chroma family by default) ─────
 export function extractPalette(image: ImageData, maxColors = 16, skipChromaFamily = true): RGB[] {
-  // Collect opaque non-greenish pixels
   const samples: RGB[] = [];
   const data = image.data;
   for (let i = 0; i < data.length; i += 4) {
@@ -117,14 +111,14 @@ function medianCut(pixels: RGB[], k: number): RGB[] {
   return buckets.map(bucketAverage);
 }
 
-// ── Filter chroma family from supplement based on avatar palette ───────
+// When the avatar contains no green tones, drop greens from the C64 supplement
+// so palette-snap can't pull non-green pixels toward the chroma family.
 export function filterChromaFamilyFromSupplement(avatar: RGB[], supplement: RGB[]): RGB[] {
   const avatarHasGreen = avatar.some(isGreenish);
   if (avatarHasGreen) return supplement;
   return supplement.filter((c) => !isGreenish(c));
 }
 
-// ── Resolve final palette based on mode ─────────────────────────────────
 export function resolvePalette(
   mode: 'avatar+c64' | 'avatar' | 'c64',
   avatarImage: ImageData | null,
@@ -137,7 +131,6 @@ export function resolvePalette(
     if (pal.length === 0) throw new Error('avatar palette is empty');
     return pal;
   }
-  // avatar+c64
   if (!avatarImage) return [...BOOA_C64_PALETTE];
   const avatarPal = extractPalette(avatarImage, avatarMaxColors);
   const supplement = filterChromaFamilyFromSupplement(avatarPal, [...BOOA_C64_PALETTE]);
@@ -156,7 +149,6 @@ function mergePalettes(...palettes: RGB[][]): RGB[] {
   return out;
 }
 
-// ── Snap to palette ─────────────────────────────────────────────────────
 export function snapToPalette(image: ImageData, palette: RGB[]): ImageData {
   if (palette.length === 0) return image;
   const out = new ImageData(new Uint8ClampedArray(image.data), image.width, image.height);
@@ -182,7 +174,6 @@ export function snapToPalette(image: ImageData, palette: RGB[]): ImageData {
   return out;
 }
 
-// ── Full pipeline ────────────────────────────────────────────────────────
 export interface ProcessOptions {
   chromaKey?: RGB;
   chromaTolerance?: number;

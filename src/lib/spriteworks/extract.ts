@@ -1,18 +1,13 @@
-// Sprite Shop cell extraction — connected components + fit_to_cell.
-// TypeScript port of finalize_sprite_run.py extraction logic from booa-sprite.
-// All operations on canvas-derived ImageData, browser-side only.
-
 const ALPHA_MIN = 16;
 
 interface Component {
   pixels: number[];
+  // bbox max coordinates are exclusive: [minX, minY, maxX, maxY) — width = maxX - minX.
+  bbox: [number, number, number, number];
   area: number;
-  bbox: [number, number, number, number]; // [minX, minY, maxX, maxY] (exclusive max)
   centerX: number;
   centerY: number;
 }
-
-// ── ImageData utilities ─────────────────────────────────────────────────
 
 export function imageDataFromImage(img: HTMLImageElement | HTMLCanvasElement): ImageData {
   const canvas = document.createElement('canvas');
@@ -68,7 +63,6 @@ export function pasteImageData(target: ImageData, src: ImageData, dx: number, dy
       const sIdx = (row * src.width + col) * 4;
       if (s[sIdx + 3] === 0) continue;
       const tIdx = (ty * target.width + tx) * 4;
-      // Source-over composite
       const sa = s[sIdx + 3] / 255;
       const ta = t[tIdx + 3] / 255;
       const oa = sa + ta * (1 - sa);
@@ -100,8 +94,6 @@ export function getBBox(image: ImageData): [number, number, number, number] | nu
   return [minX, minY, maxX + 1, maxY + 1];
 }
 
-// ── Nearest-neighbor resize on ImageData ───────────────────────────────
-
 export function resizeNearest(src: ImageData, dstW: number, dstH: number): ImageData {
   const out = new ImageData(dstW, dstH);
   const sw = src.width, sh = src.height;
@@ -120,8 +112,6 @@ export function resizeNearest(src: ImageData, dstW: number, dstH: number): Image
   }
   return out;
 }
-
-// ── Connected components (DFS, 4-neighborhood) ────────────────────────
 
 function connectedComponents(image: ImageData): Component[] {
   const w = image.width, h = image.height;
@@ -149,7 +139,6 @@ function connectedComponents(image: ImageData): Component[] {
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
 
-      // Neighbors
       if (x > 0) {
         const n = current - 1;
         if (!visited[n] && data[n * 4 + 3] > ALPHA_MIN) { visited[n] = 1; stack.push(n); }
@@ -179,6 +168,9 @@ function connectedComponents(image: ImageData): Component[] {
   return components;
 }
 
+// Drops thin components hugging the row's top/bottom edge — these are usually
+// stray pixels from neighboring rows that bled through chroma keying, not real
+// frame content.
 function isRowEdgeSpillover(c: Component, stripHeight: number, edgeBandPct = 0.15): boolean {
   const [, by0, , by1] = c.bbox;
   const h = by1 - by0;
@@ -217,8 +209,6 @@ function componentGroupImage(source: ImageData, group: Component[], padding = 4)
   return out;
 }
 
-// ── fit_to_cell — crop bbox + scale (NEAREST, no upscale) + place anchored ──
-
 export function fitToCell(
   image: ImageData,
   cellW: number,
@@ -235,6 +225,7 @@ export function fitToCell(
 
   const maxW = cellW - padding;
   const maxH = cellH - padding;
+  // Never upscale above source — keeps pixel art sharp.
   const scale = Math.min(maxW / cropped.width, maxH / cropped.height, 1.0);
   let sized = cropped;
   if (scale !== 1.0) {
@@ -250,8 +241,6 @@ export function fitToCell(
   pasteImageData(target, sized, left, Math.max(0, top));
   return target;
 }
-
-// ── Component-based row extraction ──────────────────────────────────────
 
 export function extractComponentFrames(
   strip: ImageData,
@@ -293,8 +282,6 @@ export function extractComponentFrames(
 
   return groups.map((g) => fitToCell(componentGroupImage(strip, g), cellW, cellH, 10, anchor));
 }
-
-// ── Slot fallback ────────────────────────────────────────────────────────
 
 export function extractSlotFrames(
   strip: ImageData,

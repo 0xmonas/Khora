@@ -53,11 +53,11 @@ const TOOLS: ToolCard[] = [
     tag: 'ALPHA',
   },
   {
-    id: 'sprite-shop',
-    title: 'Sprite Shop',
-    description: 'Generate a 6×8 game-ready sprite atlas for any BOOA. BYOK Gemini / OpenAI / Replicate. Default reference + custom upload.',
-    href: '/studio/sprite-shop',
-    media: 'pixel-forge.png',
+    id: 'spriteworks',
+    title: 'Spriteworks',
+    description: 'Animate your BOOA into a game-ready sprite sheet. Pick a motion — idle, walk, run, jump — every frame stays locked to your character.',
+    href: '/studio/spriteworks',
+    media: 'spriteworks.png',
     tag: 'NEW',
   },
   {
