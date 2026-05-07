@@ -61,6 +61,14 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'booascii',
+    title: 'BOOASCII',
+    description: 'Print any BOOA as ASCII. Pick a ramp, scale the resolution, color it like the original or strip it bare.',
+    href: '/studio/booascii',
+    media: 'spriteworks.png',
+    tag: 'NEW',
+  },
+  {
     id: 'img2boa',
     title: 'Img2Booa',
     description: 'Turn any image into BOOA-style pixel art. Same C64 palette + Bayer dithering pipeline as the minter.',
