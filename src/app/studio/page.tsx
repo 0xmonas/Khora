@@ -65,7 +65,7 @@ const TOOLS: ToolCard[] = [
     title: 'BOOASCII',
     description: 'Print any BOOA as ASCII. Pick a ramp, scale the resolution, color it like the original or strip it bare.',
     href: '/studio/booascii',
-    media: 'spriteworks.png',
+    media: 'booascii.png',
     tag: 'NEW',
   },
   {
