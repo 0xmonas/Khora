@@ -179,7 +179,12 @@ export async function runSpriteworksJob(
   const { settings, rowMap } = job;
   const outAtlasW = settings.cellSize * settings.cols;
   const outAtlasH = settings.cellSize * settings.rows;
-  const tokenLabel = job.tokenId === 'custom' ? 'Custom BOOA' : `BOOA #${job.tokenId}`;
+  const isCustomCharacter = job.isCustomCharacter === true;
+  const tokenLabel = isCustomCharacter
+    ? 'this character'
+    : job.tokenId === 'custom'
+      ? 'Custom BOOA'
+      : `BOOA #${job.tokenId}`;
 
   // Wide single-row strips (8×1, 10×1) distort under image-AI models. For
   // single-animation outputs we generate in a square-ish gen grid and
@@ -209,6 +214,7 @@ export async function runSpriteworksJob(
     customLayoutDescription: job.customLayoutDescription,
     hasLayoutReference,
     rearrangedFrameCount: rearrangeForGen ? totalFrames : undefined,
+    isCustomCharacter,
   });
 
   const layoutB64 = job.referenceDataUrl ? dataUrlToBase64(job.referenceDataUrl) : undefined;

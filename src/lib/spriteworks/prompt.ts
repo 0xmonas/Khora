@@ -10,6 +10,9 @@ export interface PromptVars {
   // Triggers row-major single-animation layout (used with a square-ish gen
   // grid to bypass image-model distortion on wide strips).
   rearrangedFrameCount?: number;
+  // When true, the canonical reference is a user-uploaded character (not a
+  // BOOA NFT). Prompt swaps BOOA-specific language for generic phrasing.
+  isCustomCharacter?: boolean;
 }
 
 export function buildExtendPrompt(): string {
@@ -30,24 +33,28 @@ OUTPUT:
 export function buildSpritePrompt(vars: PromptVars): string {
   const customLayout = vars.customLayoutDescription?.trim();
   const hasLayoutRef = vars.hasLayoutReference !== false;
+  const isCustom = vars.isCustomCharacter === true;
+  const charNoun = isCustom ? 'character' : 'BOOA';
+  const charPossessive = isCustom ? "the character's" : "the BOOA's";
+  const canonicalLabel = isCustom ? 'CANONICAL BASE' : 'CANONICAL BASE — the BOOA NFT';
 
   const intro = hasLayoutRef
     ? `You are generating a game-ready pixel-art sprite atlas. You receive TWO reference images.
 
 REFERENCE 1 (LAYOUT TEMPLATE) provides the cell grid, frame positions, pose vocabulary, and motion logic. Use it ONLY for layout — what pose goes in which cell, how limbs swing between adjacent frames, direction handling.
 
-REFERENCE 2 (CANONICAL BASE — the BOOA NFT) is the character. Identity is locked to REFERENCE 2.
+REFERENCE 2 (${canonicalLabel}) is the character. Identity is locked to REFERENCE 2.
 
-Do NOT redesign the BOOA's face, head, eyes, mouth, ears, horns, antennae, fins, markings, palette, outline weight, or silhouette. Do NOT transfer hair color, clothing, skin tone, eyewear, scarf, tail, prop, or any visual element from REFERENCE 1. Only the pose changes between cells; everything else stays as it is in REFERENCE 2.
+Do NOT redesign ${charPossessive} face, head, eyes, mouth, ears, horns, antennae, fins, markings, palette, outline weight, or silhouette. Do NOT transfer hair color, clothing, skin tone, eyewear, scarf, tail, prop, or any visual element from REFERENCE 1. Only the pose changes between cells; everything else stays as it is in REFERENCE 2.
 
-The BOOA's outfit, headwear, accessories, and any visible items are already drawn in REFERENCE 2 — copy them exactly, do not add or invent anything that is not visible there. Do not "improve" the BOOA. Do not "stylize" it. Do not interpret it. Reproduce it.`
+${charPossessive[0].toUpperCase() + charPossessive.slice(1)} outfit, headwear, accessories, and any visible items are already drawn in REFERENCE 2 — copy them exactly, do not add or invent anything that is not visible there. Do not "improve" the ${charNoun}. Do not "stylize" it. Do not interpret it. Reproduce it.`
     : `You are generating a game-ready pixel-art sprite atlas. You receive ONE reference image.
 
-The attached image is the CANONICAL BASE — the BOOA NFT. Identity is locked to it.
+The attached image is the ${canonicalLabel}. Identity is locked to it.
 
-Do NOT redesign the BOOA's face, head, eyes, mouth, ears, horns, antennae, fins, markings, palette, outline weight, or silhouette. Only the pose changes between cells; everything else stays as it is in the canonical base.
+Do NOT redesign ${charPossessive} face, head, eyes, mouth, ears, horns, antennae, fins, markings, palette, outline weight, or silhouette. Only the pose changes between cells; everything else stays as it is in the canonical base.
 
-The BOOA's outfit, headwear, accessories, and any visible items are already drawn in the canonical base — copy them exactly, do not add or invent anything that is not visible there. Do not "improve" the BOOA. Do not "stylize" it. Do not interpret it. Reproduce it.
+${charPossessive[0].toUpperCase() + charPossessive.slice(1)} outfit, headwear, accessories, and any visible items are already drawn in the canonical base — copy them exactly, do not add or invent anything that is not visible there. Do not "improve" the ${charNoun}. Do not "stylize" it. Do not interpret it. Reproduce it.
 
 The layout below is described in text only — no layout reference image is provided. Follow the description precisely.`;
 
@@ -72,7 +79,7 @@ This atlas contains ONE animation cycle of ${rearranged} frames laid out left-to
 ${blankNote}
 
 CRITICAL — uniform character scale across all ${rearranged} frames:
-Every used cell contains the BOOA at the IDENTICAL scale and vertical anchor. Same head height, same body proportions, same character size relative to the cell, feet on the bottom edge of the cell. Do not draw any frame at a smaller, larger, more distant, more zoomed-in, or differently-scaled version of the character. The only thing that changes between frames is the POSE of the limbs.
+Every used cell contains the ${charNoun} at the IDENTICAL scale and vertical anchor. Same head height, same body proportions, same character size relative to the cell, feet on the bottom edge of the cell. Do not draw any frame at a smaller, larger, more distant, more zoomed-in, or differently-scaled version of the character. The only thing that changes between frames is the POSE of the limbs.
 
 The animation:
 ${customLayout || 'A clean keyframed cycle of the action described above. Each frame is one distinct pose; consecutive frames must read as a smooth motion when played back as a flat strip in this order.'}`;
@@ -80,18 +87,22 @@ ${customLayout || 'A clean keyframed cycle of the action described above. Each f
     layoutBlock = `LAYOUT (custom — described by the operator)
 ${customLayout}
 
-Reproduce this layout across the ${vars.cols} columns × ${vars.rows} rows of the atlas.${hasLayoutRef ? " Every cell must contain the BOOA in the matching pose described above. Use the reference image only for pose vocabulary and motion logic — if the operator's description conflicts with the reference, the description wins." : ' Every used cell must contain the BOOA in the matching pose described above. Cells that are not part of any animation must be fully transparent (#00FF00 chroma).'}`;
+Reproduce this layout across the ${vars.cols} columns × ${vars.rows} rows of the atlas.${hasLayoutRef ? " Every cell must contain the ${charNoun} in the matching pose described above. Use the reference image only for pose vocabulary and motion logic — if the operator's description conflicts with the reference, the description wins." : ' Every used cell must contain the ${charNoun} in the matching pose described above. Cells that are not part of any animation must be fully transparent (#00FF00 chroma).'}`;
   } else if (hasLayoutRef) {
     layoutBlock = `LAYOUT
-Mirror the reference template (REFERENCE 1) cell-for-cell. Whatever pose, action, or direction the reference shows in each cell, reproduce that pose with the BOOA's identity. All ${totalCells} cells must contain the BOOA in a pose; do not leave cells empty unless the reference cell is empty.`;
+Mirror the reference template (REFERENCE 1) cell-for-cell. Whatever pose, action, or direction the reference shows in each cell, reproduce that pose with ${charPossessive} identity. All ${totalCells} cells must contain the ${charNoun} in a pose; do not leave cells empty unless the reference cell is empty.`;
   } else {
     layoutBlock = `LAYOUT
 ${vars.cols} columns × ${vars.rows} rows of ${vars.cellSize}×${vars.cellSize} cells. Each row is one animation; each cell is one keyframe of that animation. Without further direction, draw a top-down RPG layout: row 0 idle (south), row 1 walk south, row 2 walk west, row 3 walk east, row 4 walk north. Beyond row 4, fill remaining rows with reasonable additional poses.`;
   }
 
-  const successCriterion = hasLayoutRef
-    ? `A holder of ${vars.tokenLabel} who has never seen REFERENCE 1 must look at this atlas and immediately recognize their BOOA in every frame. The character is the BOOA, full stop. The reference template is invisible.`
-    : `A holder of ${vars.tokenLabel} must look at this atlas and immediately recognize their BOOA in every frame. The character is the BOOA, full stop.`;
+  const successCriterion = isCustom
+    ? hasLayoutRef
+      ? `A viewer who has never seen REFERENCE 1 must look at this atlas and immediately recognize the same character from REFERENCE 2 in every frame. Identity is locked to REFERENCE 2, full stop. The reference template is invisible.`
+      : `A viewer must look at this atlas and immediately recognize the same character from the canonical base in every frame. Identity is locked to the canonical base, full stop.`
+    : hasLayoutRef
+      ? `A holder of ${vars.tokenLabel} who has never seen REFERENCE 1 must look at this atlas and immediately recognize their BOOA in every frame. The character is the BOOA, full stop. The reference template is invisible.`
+      : `A holder of ${vars.tokenLabel} must look at this atlas and immediately recognize their BOOA in every frame. The character is the BOOA, full stop.`;
 
   const paletteRule = hasLayoutRef
     ? `Use only colors that already appear in REFERENCE 2, plus the chroma-key background. Do not introduce any new color, lighting, or material.`
@@ -100,10 +111,10 @@ ${vars.cols} columns × ${vars.rows} rows of ${vars.cellSize}×${vars.cellSize} 
   return `${intro}
 
 OUTPUT
-A single PNG sprite atlas at exactly ${vars.atlasWidth}×${vars.atlasHeight} pixels, ${vars.cols} columns × ${vars.rows} rows of ${vars.cellSize}×${vars.cellSize} cells. The grid is INVISIBLE — no cell borders, no dividers, no separator lines, no gutters, no margin marks, no row/column rulers, no frame numbers, no labels, no text, no UI. The chroma background must flow continuously across the whole atlas as if cells did not exist. Each used cell holds one frame of the BOOA in the matching pose. Character centered horizontally, feet on the bottom edge of each cell.
+A single PNG sprite atlas at exactly ${vars.atlasWidth}×${vars.atlasHeight} pixels, ${vars.cols} columns × ${vars.rows} rows of ${vars.cellSize}×${vars.cellSize} cells. The grid is INVISIBLE — no cell borders, no dividers, no separator lines, no gutters, no margin marks, no row/column rulers, no frame numbers, no labels, no text, no UI. The chroma background must flow continuously across the whole atlas as if cells did not exist. Each used cell holds one frame of the ${charNoun} in the matching pose. Character centered horizontally, feet on the bottom edge of each cell.
 
 UNIFORM SCALE
-The BOOA must appear at the SAME scale, head height, body proportions, and vertical anchor in every used cell of the atlas. Pose changes between frames; size, distance, and framing do NOT. Never draw a smaller, larger, distant, zoomed-in, or perspective-shifted version of the character. If the BOOA fills 80% of cell 0's height, it fills 80% of every other used cell's height too.
+The ${charNoun} must appear at the SAME scale, head height, body proportions, and vertical anchor in every used cell of the atlas. Pose changes between frames; size, distance, and framing do NOT. Never draw a smaller, larger, distant, zoomed-in, or perspective-shifted version of the character. If the ${charNoun} fills 80% of cell 0's height, it fills 80% of every other used cell's height too.
 
 ${layoutBlock}
 

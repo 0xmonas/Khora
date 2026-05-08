@@ -128,17 +128,6 @@ export const AI_MODELS: AiModel[] = [
     pricingUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
   },
   {
-    id: 'retro-diffusion-rd-plus',
-    label: 'Retro Diffusion (Replicate)',
-    provider: 'replicate',
-    costPerImage: 0.03,
-    currency: 'USD',
-    keyLabel: 'Replicate API Token',
-    keyPlaceholder: 'r8_...',
-    keyHelp: 'Get one at replicate.com/account/api-tokens',
-    pricingUrl: 'https://replicate.com/retro-diffusion/rd-plus',
-  },
-  {
     id: 'gpt-image-2-2026-04-21',
     label: 'OpenAI Image Gen 2',
     provider: 'openai',
@@ -148,6 +137,17 @@ export const AI_MODELS: AiModel[] = [
     keyPlaceholder: 'sk-...',
     keyHelp: 'Get one at platform.openai.com/api-keys',
     pricingUrl: 'https://platform.openai.com/docs/pricing',
+  },
+  {
+    id: 'retro-diffusion-rd-plus',
+    label: 'Retro Diffusion (Replicate)',
+    provider: 'replicate',
+    costPerImage: 0.03,
+    currency: 'USD',
+    keyLabel: 'Replicate API Token',
+    keyPlaceholder: 'r8_...',
+    keyHelp: 'Get one at replicate.com/account/api-tokens',
+    pricingUrl: 'https://replicate.com/retro-diffusion/rd-plus',
   },
 ];
 

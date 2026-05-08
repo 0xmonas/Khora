@@ -7,6 +7,7 @@ import {
   Wand2, Upload, Loader2, Undo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
   Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy, RotateCcw, RefreshCcw, Contrast,
+  ExternalLink,
 } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
@@ -20,6 +21,25 @@ import { Layer, ToolType, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, MAX_CANVA
 import { sfx } from '@/lib/sounds';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
+
+const PIXEL_FORGE_STORAGE_PREFIX = 'pixel-forge:';
+
+const PROVIDER_KEY_DOCS: Record<string, string> = {
+  gemini: 'https://ai.google.dev/gemini-api/docs/api-key',
+  openai: 'https://help.openai.com/en/articles/4936850-where-do-i-find-my-secret-api-key',
+  replicate: 'https://replicate.com/account/api-tokens',
+};
+
+function readKey(provider: string): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(PIXEL_FORGE_STORAGE_PREFIX + provider + '-api-key') || '';
+}
+
+function writeKey(provider: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  if (value) localStorage.setItem(PIXEL_FORGE_STORAGE_PREFIX + provider + '-api-key', value);
+  else localStorage.removeItem(PIXEL_FORGE_STORAGE_PREFIX + provider + '-api-key');
+}
 
 function PixelSlider({ label, value, min, max, step = 1, display, onChange }: {
   label: string; value: number; min: number; max: number; step?: number;
@@ -78,11 +98,22 @@ export default function PixelForgePage() {
   const [prompt, setPrompt] = useState('');
   const [genState, setGenState] = useState<GenerationState>({ isGenerating: false, error: null });
   const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [transparentBg, setTransparentBg] = useState(false);
   const [autoChromaKey, setAutoChromaKey] = useState(true);
   const [selectedModelId, setSelectedModelId] = useState(AI_MODELS[0].id);
   const [rdStyle, setRdStyle] = useState<string>('default');
   const selectedModel = AI_MODELS.find(m => m.id === selectedModelId) ?? AI_MODELS[0];
+
+  useEffect(() => {
+    setApiKey(readKey(selectedModel.provider));
+  }, [selectedModel.provider]);
+
+  function handleApiKeyChange(value: string) {
+    const trimmed = value.trim();
+    setApiKey(trimmed);
+    writeKey(selectedModel.provider, trimmed);
+  }
   const [spriteMode, setSpriteMode] = useState(false);
   const [spriteFps, setSpriteFps] = useState(8);
   const [spritePlaying, setSpritePlaying] = useState(false);
@@ -2639,38 +2670,75 @@ export default function PixelForgePage() {
                 </button>
               </div>
 
-              {/* API Key + Model */}
+              {/* Provider + API Key */}
               <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Model</p>
-                <select
-                  value={selectedModelId}
-                  onChange={e => { sfx.playSelect(); setSelectedModelId(e.target.value); setApiKey(''); }}
-                  className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground cursor-pointer"
-                  style={font}
-                >
-                  {AI_MODELS.map(m => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </select>
-                {(() => {
-                  const cost = selectedModel.provider === 'replicate'
-                    ? getRDCost(rdStyle, canvasWidth, canvasHeight)
-                    : selectedModel.costPerImage;
-                  return (
-                    <p className="text-[8px] text-muted-foreground/50 flex items-center gap-1" style={font}>
-                      <span>~${cost.toFixed(3)} per image at {canvasWidth}x{canvasHeight} · {selectedModel.currency} · your key, your bill</span>
-                      <a
-                        href={selectedModel.pricingUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center w-3 h-3 border border-muted-foreground/40 text-[7px] hover:border-foreground hover:text-foreground transition-colors"
-                        title={`See full pricing for ${selectedModel.label}`}
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Provider</p>
+                <div className="grid grid-cols-3 gap-1">
+                  {AI_MODELS.map((m) => {
+                    const active = m.id === selectedModelId;
+                    const label = m.provider === 'gemini' ? 'Gemini' : m.provider === 'openai' ? 'OpenAI' : 'Replicate';
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { sfx.playSelect(); setSelectedModelId(m.id); }}
+                        title={m.label}
+                        className={`px-1 py-1.5 text-[9px] uppercase tracking-tight border transition-colors truncate ${
+                          active
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+                        }`}
+                        style={font}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>API key</p>
+                <div className="flex gap-1">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => handleApiKeyChange(e.target.value)}
+                    placeholder={selectedModel.keyPlaceholder}
+                    className="flex-1 bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground placeholder:text-muted-foreground/30"
+                    style={font}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { sfx.playClick(); setShowKey((v) => !v); }}
+                    className="border border-neutral-700 dark:border-neutral-600 px-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                    title={showKey ? 'Hide' : 'Show'}
+                  >
+                    {showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={PROVIDER_KEY_DOCS[selectedModel.provider]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    style={font}
+                  >
+                    Where do I find my API key? <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                  {(() => {
+                    const cost = selectedModel.provider === 'replicate'
+                      ? getRDCost(rdStyle, canvasWidth, canvasHeight)
+                      : selectedModel.costPerImage;
+                    return (
+                      <span
+                        title={`Estimated: ~$${cost.toFixed(3)} per image at ${canvasWidth}x${canvasHeight} (${selectedModel.label})\n\nPixel Forge calls the provider directly with your key. The key is read from this browser only and never sent to BOOA servers.`}
+                        className="inline-flex items-center justify-center w-3 h-3 border border-muted-foreground/40 text-[8px] text-muted-foreground hover:border-foreground hover:text-foreground transition-colors cursor-help"
                       >
                         ?
-                      </a>
-                    </p>
-                  );
-                })()}
+                      </span>
+                    );
+                  })()}
+                </div>
 
                 {selectedModel.provider === 'replicate' && (
                   <>
@@ -2687,20 +2755,6 @@ export default function PixelForgePage() {
                     </select>
                   </>
                 )}
-
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 pt-1" style={font}>{selectedModel.keyLabel}</p>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value.trim())}
-                  placeholder={selectedModel.keyPlaceholder}
-                  className="w-full bg-background border border-neutral-700 dark:border-neutral-600 px-2 py-1.5 text-[10px] focus:outline-none focus:border-foreground text-foreground placeholder:text-muted-foreground/30"
-                  style={font}
-                />
-                {apiKey && <p className="text-[9px] text-green-600 dark:text-green-400" style={font}>&#10003; Key set</p>}
-                <p className="text-[8px] text-muted-foreground/30" style={font}>
-                  Never stored. {selectedModel.keyHelp}
-                </p>
               </div>
 
             </div>

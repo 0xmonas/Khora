@@ -111,6 +111,8 @@ export function SpriteworksClient() {
   const [extendBust, setExtendBust] = useState(true);
 
   const [referenceMode, setReferenceMode] = useState<'default' | 'custom' | 'none'>('default');
+  const [characterSource, setCharacterSource] = useState<'token' | 'upload'>('token');
+  const [uploadedCharName, setUploadedCharName] = useState<string | null>(null);
 
   function applyPreset(id: string) {
     const preset = SPRITE_PRESETS.find((p) => p.id === id);
@@ -135,6 +137,7 @@ export function SpriteworksClient() {
   const [result, setResult] = useState<PipelineResult | null>(null);
 
   const referenceFileInputRef = useRef<HTMLInputElement | null>(null);
+  const characterFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const provInfo = PROVIDERS.find((p) => p.id === provider);
@@ -177,6 +180,34 @@ export function SpriteworksClient() {
       setAvatarLoading(false);
     }
   }, [chainId]);
+
+  function handleCharacterUpload(file: File) {
+    setAvatarError(null);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const img = new Image();
+        const dataUrl = reader.result as string;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Image decode failed'));
+          img.src = dataUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0);
+        setAvatarDataUrl(canvas.toDataURL('image/png'));
+        setUploadedCharName(file.name);
+        setTokenId('');
+      } catch (e) {
+        setAvatarError(e instanceof Error ? e.message : 'Failed to load character image.');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 
   function handleReferenceUpload(file: File) {
     const reader = new FileReader();
@@ -242,6 +273,7 @@ export function SpriteworksClient() {
         .filter(Boolean)
         .join('\n\n');
 
+      const isCustomCharacter = characterSource === 'upload';
       const job: SpriteworksJob = {
         tokenId: tokenId || 'custom',
         chainId,
@@ -250,9 +282,16 @@ export function SpriteworksClient() {
         provider,
         apiKey,
         rowMap,
-        settings: { ...DEFAULT_PIPELINE_SETTINGS, cellSize, cols, rows },
+        settings: {
+          ...DEFAULT_PIPELINE_SETTINGS,
+          cellSize,
+          cols,
+          rows,
+          paletteMode: isCustomCharacter ? 'avatar' : DEFAULT_PIPELINE_SETTINGS.paletteMode,
+        },
         skipExtension: !extendBust,
         customLayoutDescription: composed || undefined,
+        isCustomCharacter,
       };
       const res = await runSpriteworksJob(job, (e) => setProgress((prev) => [...prev, e]));
       setResult(res);
@@ -281,10 +320,11 @@ export function SpriteworksClient() {
       settings: { ...DEFAULT_PIPELINE_SETTINGS, cellSize, cols, rows },
     };
     const blob = await buildResultZip(result, job);
-    downloadBlob(blob, `booa-sprite-${tokenId || 'custom'}.zip`);
+    const stem = characterSource === 'upload' ? 'sprite-custom' : `booa-sprite-${tokenId || 'custom'}`;
+    downloadBlob(blob, `${stem}.zip`);
   }
 
-  const tokenLabel = tokenId || 'custom';
+  const tokenLabel = characterSource === 'upload' ? 'custom' : tokenId || 'custom';
 
   return (
     <div className="p-4 md:p-8 lg:p-12" style={font}>
@@ -304,7 +344,7 @@ export function SpriteworksClient() {
               <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">BOOA Studio</p>
               <h1 className="text-2xl sm:text-3xl text-foreground">Spriteworks</h1>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
-                Animate your BOOA into a game-ready sprite sheet. Pick a motion — idle, walk, run, jump — every frame stays locked to your character&apos;s face, gear, and palette.
+                Animate your BOOA — or any uploaded character — into a game-ready sprite sheet. Pick a motion (idle, walk, run, jump) and every frame stays locked to the character&apos;s face, gear, and palette.
               </p>
             </div>
           </div>
@@ -370,25 +410,92 @@ export function SpriteworksClient() {
           </div>
 
           <div className="space-y-1.5">
-            <p className={sectionLabel}>BOOA token</p>
-            <div className="flex gap-1">
-              <input
-                value={tokenId}
-                onChange={(e) => setTokenId(e.target.value)}
-                placeholder="0–3332"
-                inputMode="numeric"
-                className={fieldClass}
-              />
-              <button type="button" onClick={() => { sfx.playClick(); loadAvatar(tokenId); }} disabled={!tokenId || avatarLoading} className={buttonPrimary}>
-                {avatarLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+            <p className={sectionLabel}>Character</p>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  sfx.playSelect();
+                  setCharacterSource('token');
+                  setAvatarDataUrl(null);
+                  setUploadedCharName(null);
+                  setAvatarError(null);
+                }}
+                className={`px-1.5 py-1.5 text-[10px] uppercase border transition-colors ${
+                  characterSource === 'token'
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+                }`}
+              >
+                BOOA
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sfx.playSelect();
+                  setCharacterSource('upload');
+                  setAvatarDataUrl(null);
+                  setTokenId('');
+                  setAvatarError(null);
+                }}
+                className={`flex items-center justify-center gap-1 px-1.5 py-1.5 text-[10px] uppercase border transition-colors ${
+                  characterSource === 'upload'
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+                }`}
+              >
+                <Upload className="h-3 w-3" /> Upload
               </button>
             </div>
+            {characterSource === 'token' ? (
+              <div className="flex gap-1">
+                <input
+                  value={tokenId}
+                  onChange={(e) => setTokenId(e.target.value)}
+                  placeholder="0–3332"
+                  inputMode="numeric"
+                  className={fieldClass}
+                />
+                <button type="button" onClick={() => { sfx.playClick(); loadAvatar(tokenId); }} disabled={!tokenId || avatarLoading} className={buttonPrimary}>
+                  {avatarLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { sfx.playClick(); characterFileInputRef.current?.click(); }}
+                  className={`${buttonGhost} flex w-full items-center justify-center gap-1`}
+                >
+                  <Upload className="h-3 w-3" /> {avatarDataUrl ? 'Replace image' : 'Pick an image'}
+                </button>
+                <input
+                  ref={characterFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleCharacterUpload(f);
+                    e.target.value = '';
+                  }}
+                />
+                {uploadedCharName && (
+                  <p className="truncate text-[9px] text-muted-foreground" title={uploadedCharName}>
+                    {uploadedCharName}
+                  </p>
+                )}
+                <p className="text-[9px] text-muted-foreground">
+                  PNG/JPG/WEBP/GIF. Pixel-art bust or full body works best.
+                </p>
+              </>
+            )}
             {avatarError && <p className="text-[10px] text-red-600">{avatarError}</p>}
             {avatarDataUrl && (
               <div className="pt-1">
                 <img
                   src={avatarDataUrl}
-                  alt={`BOOA #${tokenId}`}
+                  alt={characterSource === 'upload' ? 'uploaded character' : `BOOA #${tokenId}`}
                   className="h-16 w-16 border border-neutral-300 dark:border-neutral-700 object-contain"
                   style={{ imageRendering: 'pixelated' }}
                 />
@@ -582,7 +689,7 @@ export function SpriteworksClient() {
               />
               Bust → full body
               <span
-                title="Most BOOAs are bust avatars (head + shoulders only). One extra AI call extends the bust into a full body so the atlas pass uses a complete reference. Strongly recommended — without this, the AI invents a body across 48 cells and the face drifts.\n\nCost: +1 generation per BOOA (≈ +$0.10–0.15)."
+                title="If your character image is a bust portrait (head + shoulders only), one extra AI call extends it into a full body before the atlas pass. Recommended for BOOA tokens. Turn this off if you uploaded a full-body image already.\n\nCost: +1 generation per character (≈ +$0.10–0.15)."
                 className="ml-auto inline-flex items-center justify-center w-3 h-3 border border-muted-foreground/40 text-[8px] hover:border-foreground hover:text-foreground transition-colors cursor-help"
               >
                 ?
@@ -664,7 +771,7 @@ export function SpriteworksClient() {
           )}
 
           {!result && !progress.length && (
-            <p className="text-neutral-400">Pick provider, paste key, load a BOOA, generate.</p>
+            <p className="text-neutral-400">Pick provider, paste key, load a BOOA or upload a character, generate.</p>
           )}
 
           {result && (

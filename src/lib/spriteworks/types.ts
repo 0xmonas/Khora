@@ -75,7 +75,7 @@ export const DEFAULT_PIPELINE_SETTINGS: PipelineSettings = {
   rows: ATLAS_ROWS,
   chromaKey: [0, 255, 0],
   chromaTolerance: 96,
-  paletteMode: 'c64',
+  paletteMode: 'avatar+c64',
   cellMethod: 'auto',
   cellAnchor: 'bottom',
 };
@@ -91,6 +91,7 @@ export interface SpriteworksJob {
   settings: PipelineSettings;
   skipExtension?: boolean;
   customLayoutDescription?: string;
+  isCustomCharacter?: boolean;
 }
 
 export interface SpritePreset {
