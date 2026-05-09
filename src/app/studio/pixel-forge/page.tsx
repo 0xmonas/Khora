@@ -26,7 +26,7 @@ const PIXEL_FORGE_STORAGE_PREFIX = 'pixel-forge:';
 
 const PROVIDER_KEY_DOCS: Record<string, string> = {
   gemini: 'https://ai.google.dev/gemini-api/docs/api-key',
-  openai: 'https://help.openai.com/en/articles/4936850-where-do-i-find-my-secret-api-key',
+  openai: 'https://openrouter.ai/keys',
   replicate: 'https://replicate.com/account/api-tokens',
 };
 

@@ -343,10 +343,10 @@ export const PROVIDERS: ProviderInfo[] = [
   },
   {
     id: 'openai',
-    label: 'OpenAI',
-    description: 'gpt-image-2, client-side direct',
+    label: 'OpenAI GPT-5.4 Image 2',
+    description: 'GPT-5.4 Image 2 via OpenRouter (BYOK)',
     costHint: '~$0.05–0.10/atlas',
-    envKeyName: 'openai-api-key',
+    envKeyName: 'openrouter-api-key',
   },
   {
     id: 'replicate',

@@ -92,7 +92,7 @@ const sectionLabel = 'text-[10px] uppercase tracking-widest text-muted-foregroun
 
 const PROVIDER_KEY_DOCS: Record<Provider, string> = {
   gemini: 'https://ai.google.dev/gemini-api/docs/api-key',
-  openai: 'https://help.openai.com/en/articles/4936850-where-do-i-find-my-secret-api-key',
+  openai: 'https://openrouter.ai/keys',
   replicate: 'https://replicate.com/account/api-tokens',
 };
 
@@ -384,7 +384,7 @@ export function SpriteworksClient() {
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder={provider === 'gemini' ? 'AIza…' : provider === 'openai' ? 'sk-…' : 'r8_…'}
+                placeholder={provider === 'gemini' ? 'AIza…' : provider === 'openai' ? 'sk-or-…' : 'r8_…'}
                 className={fieldClass}
               />
               <button type="button" onClick={() => { sfx.playClick(); setShowKey((v) => !v); }} className={buttonGhost} title={showKey ? 'Hide' : 'Show'}>
