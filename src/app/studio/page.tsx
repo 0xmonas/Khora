@@ -53,6 +53,14 @@ const TOOLS: ToolCard[] = [
     tag: 'ALPHA',
   },
   {
+    id: 'writers-room',
+    title: 'Writers Room',
+    description: '30-day collaborative comic. Holders pitch the next page; the most-liked submission wins. The visual editor is op-managed.',
+    href: '/studio/writers-room',
+    media: 'writers-room.png',
+    tag: 'NEW',
+  },
+  {
     id: 'spriteworks',
     title: 'Spriteworks',
     description: 'Animate your BOOA into a game-ready sprite sheet. Pick a motion — idle, walk, run, jump — every frame stays locked to your character.',

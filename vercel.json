@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/writers-room/cron/auto-publish",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
