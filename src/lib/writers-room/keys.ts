@@ -2,6 +2,9 @@
 // so renames stay safe and audits stay easy.
 
 export const WR = {
+  // Timestamp (ms) when the 30-day community cycle was kicked off. Lazy-set on
+  // first state read after deploy. Day 1 voting window = cycleStartedAt + 24h.
+  cycleStartedAt: 'writers-room:cycle:started-at',
   currentDay: 'writers-room:day:current',
   day: (n: number) => `writers-room:day:${n}`,
   dayState: (n: number) => `writers-room:day:${n}:state`,

@@ -24,6 +24,19 @@ import {
   type Submission,
   type WritersRoomState,
 } from '@/lib/writers-room/types';
+import { DAY_ZERO_CAPTION, DAY_ZERO_DESCRIPTION } from '@/lib/writers-room/origin';
+
+const DAY_ZERO_ENTRY: DayEntry = {
+  dayNumber: 0,
+  caption: DAY_ZERO_CAPTION,
+  description: DAY_ZERO_DESCRIPTION,
+  tokenId: null,
+  imageUrl: null,
+  submitterAddress: null,
+  publishedAt: 0,
+  votingClosesAt: 0,
+  winnerSubmissionId: null,
+};
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const fieldClass =
@@ -152,6 +165,8 @@ export function WritersRoomClient() {
     if (!res.ok) return;
     const json = (await res.json()) as StateResponse;
     setData(json);
+    // Default selection: latest published community day, or Day 0 (origin) if
+    // no community day has published yet.
     setSelectedDay((prev) => prev ?? json.state.currentDay);
   }, []);
 
@@ -190,9 +205,10 @@ export function WritersRoomClient() {
 
   const currentDayEntry = useMemo<DayEntry | null>(() => {
     if (!data) return null;
-    if (selectedDay === null) return data.state.publishedDay;
+    if (selectedDay === 0) return DAY_ZERO_ENTRY;
+    if (selectedDay === null) return data.state.publishedDay ?? DAY_ZERO_ENTRY;
     const found = data.days.find((d) => d.dayNumber === selectedDay);
-    return found ?? data.state.publishedDay;
+    return found ?? data.state.publishedDay ?? DAY_ZERO_ENTRY;
   }, [data, selectedDay]);
 
   async function toggleLike(s: SubmissionView) {
@@ -262,7 +278,9 @@ export function WritersRoomClient() {
               <div>
                 <p className={sectionLabel}>Current</p>
                 <p className="text-sm">
-                  Day {data?.state.currentDay ?? 0} / {WRITERS_ROOM_TOTAL_DAYS}
+                  {!data || data.state.currentDay === 0
+                    ? 'Origin'
+                    : `Day ${data.state.currentDay} / ${WRITERS_ROOM_TOTAL_DAYS}`}
                 </p>
               </div>
               <div>
@@ -282,36 +300,33 @@ export function WritersRoomClient() {
             </div>
 
             {/* Timeline */}
-            {data && data.days.length > 0 && (
+            {data && (
               <div>
                 <p className={`${sectionLabel} mb-2`}>Pages so far</p>
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {data.days.map((d) => (
-                    <button
-                      key={d.dayNumber}
-                      type="button"
-                      onClick={() => setSelectedDay(d.dayNumber)}
-                      className={`min-w-[44px] px-2 py-1.5 text-[10px] uppercase border transition-colors ${
-                        (selectedDay ?? data.state.currentDay) === d.dayNumber
-                          ? 'border-foreground bg-foreground text-background'
-                          : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
-                      }`}
-                    >
-                      D{d.dayNumber}
-                    </button>
-                  ))}
+                  {[DAY_ZERO_ENTRY, ...data.days].map((d) => {
+                    const active = (selectedDay ?? data.state.currentDay) === d.dayNumber;
+                    return (
+                      <button
+                        key={d.dayNumber}
+                        type="button"
+                        onClick={() => setSelectedDay(d.dayNumber)}
+                        className={`min-w-[44px] px-2 py-1.5 text-[10px] uppercase border transition-colors ${
+                          active
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+                        }`}
+                      >
+                        D{d.dayNumber}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {/* Day view */}
-            {currentDayEntry ? (
-              <DayView day={currentDayEntry} />
-            ) : (
-              <div className="border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-muted-foreground">
-                Day 1 hasn&apos;t been seeded yet.
-              </div>
-            )}
+            {currentDayEntry && <DayView day={currentDayEntry} />}
 
             {/* Submissions */}
             {data?.state.submissionsOpenForDay && (
@@ -435,11 +450,12 @@ export function WritersRoomClient() {
 }
 
 function DayView({ day }: { day: DayEntry }) {
+  const label = day.dayNumber === 0 ? 'Day 0 · Origin' : `Day ${day.dayNumber}`;
   return (
     <article className="border border-neutral-300 dark:border-neutral-700 p-5 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
-          Day {day.dayNumber}
+          {label}
           {day.tokenId !== null && ` · BOOA #${day.tokenId}`}
         </p>
         {day.submitterAddress && (

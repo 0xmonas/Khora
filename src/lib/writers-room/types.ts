@@ -1,5 +1,6 @@
-// Writers Room — collaborative 30-day comic
-// Day 1 op-seeded text intro; Day 2..30 holder submissions with 24h voting.
+// Writers Room — collaborative 30-day comic.
+// Day 0 is a static UI origin block (lore). Day 1..30 are community-written
+// pages, each with a 24h voting window. Cycle auto-starts on first state read.
 
 export const WRITERS_ROOM_TOTAL_DAYS = 30;
 export const WRITERS_ROOM_VOTING_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -16,10 +17,10 @@ export interface DayEntry {
   dayNumber: number;
   caption: string;
   description: string;
-  // Day 1 has no image (text-only intro). Subsequent days op-managed.
+  // Image is op-managed and optional for any day.
   tokenId: number | null;
   imageUrl: string | null;
-  // null for Day 1 (op-seeded). For Day 2+ this is the winning submitter.
+  // The address of the holder whose submission won this day's vote.
   submitterAddress: string | null;
   publishedAt: number;
   // Voting window for the NEXT day's submissions starts when this day publishes.

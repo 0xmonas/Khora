@@ -15,6 +15,7 @@ import {
   type WritersRoomState,
 } from './types';
 import type { ValidatedSubmission, DaySeedInput } from './validation';
+import { DAY_ZERO_CAPTION, DAY_ZERO_DESCRIPTION } from './origin';
 
 const SUBMISSION_ID_BYTES = 16;
 
@@ -42,6 +43,19 @@ export async function getCurrentDayNumber(): Promise<number> {
   return typeof v === 'number' && v >= 0 ? v : 0;
 }
 
+// Returns the timestamp (ms) when the 30-day community cycle was kicked off,
+// initializing it atomically on the first call after a deploy/reset. SET NX
+// guards against double-init under concurrent requests.
+export async function getOrInitCycleStartedAt(): Promise<number> {
+  const redis = getRedis();
+  const existing = await redis.get<number>(WR.cycleStartedAt);
+  if (typeof existing === 'number') return existing;
+  const now = Date.now();
+  await redis.set(WR.cycleStartedAt, now, { nx: true });
+  const final = await redis.get<number>(WR.cycleStartedAt);
+  return typeof final === 'number' ? final : now;
+}
+
 export async function getDay(n: number): Promise<DayEntry | null> {
   if (n <= 0 || n > WRITERS_ROOM_TOTAL_DAYS) return null;
   const redis = getRedis();
@@ -54,21 +68,28 @@ export async function getDayState(n: number): Promise<DayState | null> {
   return await redis.get<DayState>(WR.dayState(n));
 }
 
-// Aggregate state used by the GET /state route.
+// Aggregate state used by the GET /state route. Lazy-inits the cycle clock on
+// the first call after a deploy/reset, so Day 1 submissions open the moment
+// anyone visits — no admin seed needed.
 export async function getState(): Promise<WritersRoomState> {
   const currentDay = await getCurrentDayNumber();
+  const now = Date.now();
+
   if (currentDay <= 0) {
+    const cycleStartedAt = await getOrInitCycleStartedAt();
+    const votingClosesAt = cycleStartedAt + WRITERS_ROOM_VOTING_WINDOW_MS;
+    const votingOpen = now < votingClosesAt;
     return {
       currentDay: 0,
       totalDays: WRITERS_ROOM_TOTAL_DAYS,
       publishedDay: null,
-      votingClosesAt: null,
-      votingOpen: false,
-      submissionsOpenForDay: null,
+      votingClosesAt,
+      votingOpen,
+      submissionsOpenForDay: votingOpen ? 1 : null,
     };
   }
+
   const day = await getDay(currentDay);
-  const now = Date.now();
   const votingClosesAt = day?.votingClosesAt ?? null;
   const votingOpen =
     votingClosesAt !== null && now < votingClosesAt && currentDay < WRITERS_ROOM_TOTAL_DAYS;
@@ -151,7 +172,7 @@ export async function submitForDay(
   submitterAddress: string,
   input: ValidatedSubmission,
 ): Promise<SubmitResult> {
-  if (dayNumber < 2 || dayNumber > WRITERS_ROOM_TOTAL_DAYS) {
+  if (dayNumber < 1 || dayNumber > WRITERS_ROOM_TOTAL_DAYS) {
     throw new SubmitError(409, 'Submissions for this day are not open.');
   }
 
@@ -209,13 +230,21 @@ export interface VoteResult {
   voteCount: number;
 }
 
-async function ensureVotingOpen(dayNumber: number): Promise<DayEntry> {
-  const day = await getDay(dayNumber - 1);
-  if (!day) throw new VoteError(409, 'Voting window has not opened yet.');
-  if (Date.now() >= day.votingClosesAt) {
+async function ensureVotingOpen(dayNumber: number): Promise<void> {
+  // For Day 1, the voting window is the cycle window (no previous day record).
+  // For Day N >= 2, the window lives on the previous day's record.
+  let closesAt: number;
+  if (dayNumber === 1) {
+    const cycleStartedAt = await getOrInitCycleStartedAt();
+    closesAt = cycleStartedAt + WRITERS_ROOM_VOTING_WINDOW_MS;
+  } else {
+    const prev = await getDay(dayNumber - 1);
+    if (!prev) throw new VoteError(409, 'Voting window has not opened yet.');
+    closesAt = prev.votingClosesAt;
+  }
+  if (Date.now() >= closesAt) {
     throw new VoteError(410, 'Voting has closed for this day.');
   }
-  return day;
 }
 
 export async function likeSubmission(
@@ -375,21 +404,31 @@ export async function publishNextDay(
   const redis = getRedis();
   const current = await getCurrentDayNumber();
 
-  if (current <= 0) {
-    throw new PublishError(409, 'Seed Day 1 first.');
-  }
   if (current >= WRITERS_ROOM_TOTAL_DAYS) {
     throw new PublishError(409, 'Run is complete.');
   }
 
-  const previousDay = await getDay(current);
-  if (!previousDay) {
-    throw new PublishError(500, 'Current day record missing.');
+  // The voting window we're closing belongs to the cycle when no day has
+  // published yet, or to the most-recent published day otherwise.
+  let votingClosesAt: number;
+  let previousCaption: string;
+  let previousDescription: string;
+  if (current === 0) {
+    const cycleStartedAt = await getOrInitCycleStartedAt();
+    votingClosesAt = cycleStartedAt + WRITERS_ROOM_VOTING_WINDOW_MS;
+    previousCaption = DAY_ZERO_CAPTION;
+    previousDescription = DAY_ZERO_DESCRIPTION;
+  } else {
+    const previousDay = await getDay(current);
+    if (!previousDay) {
+      throw new PublishError(500, 'Current day record missing.');
+    }
+    votingClosesAt = previousDay.votingClosesAt;
+    previousCaption = previousDay.caption;
+    previousDescription = previousDay.description;
   }
-  if (Date.now() < previousDay.votingClosesAt) {
-    // Allow op to publish early if they explicitly intend to (still acts as
-    // a soft guard — caller can override by reading state before calling).
-    // We keep the rule strict here; UX-side override would be a flag.
+
+  if (Date.now() < votingClosesAt) {
     throw new PublishError(409, 'Voting window has not closed yet.');
   }
 
@@ -397,9 +436,11 @@ export async function publishNextDay(
   const winner = await pickWinnerForDay(nextDayNumber);
 
   // Build the new day. Op can override fields on top of the winning submission.
-  const baseCaption = override.caption ?? winner?.caption ?? previousDay.caption;
+  // If no submissions came in, fall back to the previous day's content so the
+  // cycle doesn't deadlock on a silent day.
+  const baseCaption = override.caption ?? winner?.caption ?? previousCaption;
   const baseDescription =
-    override.description ?? winner?.description ?? previousDay.description;
+    override.description ?? winner?.description ?? previousDescription;
   const baseTokenId =
     override.tokenId !== undefined
       ? override.tokenId

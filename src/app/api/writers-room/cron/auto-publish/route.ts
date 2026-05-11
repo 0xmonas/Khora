@@ -12,10 +12,12 @@ export const maxDuration = 30;
  * GET /api/writers-room/cron/auto-publish
  *
  * Vercel cron runs this hourly. The job:
- *   1. Checks if Day 1 has been seeded — if not, no-op.
- *   2. Checks if the cycle has reached Day 30 — if so, no-op.
- *   3. Checks if the current day's voting window has closed — if not, no-op.
- *   4. Otherwise picks the winning page and publishes the next day.
+ *   1. Skip if the cycle has reached Day 30.
+ *   2. Skip if the current voting window is still open.
+ *   3. Otherwise pick the winning page and publish the next day.
+ *
+ * The first call after a deploy lazy-inits the cycle clock via getState(),
+ * so no manual seed is required. Day 0 is a static UI block, not a record.
  *
  * Auth: Vercel auto-injects `Authorization: Bearer $CRON_SECRET` on cron
  * invocations. We reject anything that doesn't match. CRON_SECRET must be
@@ -35,13 +37,6 @@ export async function GET(request: NextRequest) {
   }
 
   const state = await getState();
-
-  if (state.currentDay === 0) {
-    return NextResponse.json({
-      skipped: true,
-      reason: 'Day 1 not seeded yet.',
-    });
-  }
 
   if (state.currentDay >= WRITERS_ROOM_TOTAL_DAYS) {
     return NextResponse.json({
