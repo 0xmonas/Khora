@@ -93,7 +93,6 @@ const sectionLabel = 'text-[10px] uppercase tracking-widest text-muted-foregroun
 const PROVIDER_KEY_DOCS: Record<Provider, string> = {
   gemini: 'https://ai.google.dev/gemini-api/docs/api-key',
   openai: 'https://openrouter.ai/keys',
-  replicate: 'https://replicate.com/account/api-tokens',
 };
 
 export function SpriteworksClient() {
@@ -353,24 +352,22 @@ export function SpriteworksClient() {
         <aside className="space-y-5 text-xs">
           <div className="space-y-1.5">
             <p className={sectionLabel}>Provider</p>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-2 gap-1">
               {PROVIDERS.map((p) => {
                 const active = p.id === provider;
-                const disabled = p.id === 'replicate';
                 return (
                   <button
                     key={p.id}
                     type="button"
-                    disabled={disabled}
                     onClick={() => { sfx.playSelect(); setProvider(p.id); }}
-                    title={disabled ? 'Coming soon' : p.description}
+                    title={p.description}
                     className={`px-1.5 py-1.5 text-[10px] uppercase border transition-colors ${
                       active
                         ? 'border-foreground bg-foreground text-background'
                         : 'border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900'
-                    } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+                    }`}
                   >
-                    {p.id === 'gemini' ? 'Gemini' : p.id === 'openai' ? 'OpenAI' : 'Replicate'}
+                    {p.id === 'gemini' ? 'Gemini' : 'OpenAI'}
                   </button>
                 );
               })}
@@ -384,7 +381,7 @@ export function SpriteworksClient() {
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder={provider === 'gemini' ? 'AIza…' : provider === 'openai' ? 'sk-or-…' : 'r8_…'}
+                placeholder={provider === 'gemini' ? 'AIza…' : 'sk-or-…'}
                 className={fieldClass}
               />
               <button type="button" onClick={() => { sfx.playClick(); setShowKey((v) => !v); }} className={buttonGhost} title={showKey ? 'Hide' : 'Show'}>

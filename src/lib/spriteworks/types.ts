@@ -1,4 +1,4 @@
-export type Provider = 'gemini' | 'openai' | 'replicate';
+export type Provider = 'gemini' | 'openai';
 
 export type CellSize = 32 | 48 | 64 | 96 | 128;
 
@@ -347,13 +347,6 @@ export const PROVIDERS: ProviderInfo[] = [
     description: 'GPT-5.4 Image 2 via OpenRouter (BYOK)',
     costHint: '~$0.05–0.10/atlas',
     envKeyName: 'openrouter-api-key',
-  },
-  {
-    id: 'replicate',
-    label: 'Replicate (Retro Diffusion)',
-    description: 'RD-Plus, server proxy (BYOK forwarded)',
-    costHint: '~$0.03–0.08/atlas',
-    envKeyName: 'replicate-api-token',
   },
 ];
 

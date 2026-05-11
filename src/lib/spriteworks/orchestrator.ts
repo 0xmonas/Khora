@@ -227,22 +227,17 @@ export async function runSpriteworksJob(
   if (job.skipExtension !== true) {
     onProgress({ stage: 'extend-start', provider: job.provider });
     const extendPrompt = buildExtendPrompt();
-    let extendedB64: string;
-    if (job.provider === 'gemini') {
-      extendedB64 = await generateExtendedBodyGemini({
-        apiKey: job.apiKey,
-        prompt: extendPrompt,
-        bustBase64: avatarB64,
-      });
-    } else if (job.provider === 'openai') {
-      extendedB64 = await generateExtendedBodyOpenAI({
-        apiKey: job.apiKey,
-        prompt: extendPrompt,
-        bustBase64: avatarB64,
-      });
-    } else {
-      throw new Error(`provider not yet supported: ${job.provider}`);
-    }
+    const extendedB64 = job.provider === 'gemini'
+      ? await generateExtendedBodyGemini({
+          apiKey: job.apiKey,
+          prompt: extendPrompt,
+          bustBase64: avatarB64,
+        })
+      : await generateExtendedBodyOpenAI({
+          apiKey: job.apiKey,
+          prompt: extendPrompt,
+          bustBase64: avatarB64,
+        });
     onProgress({ stage: 'extend-done', bytes: extendedB64.length });
     avatarB64 = extendedB64;
     canonicalAvatarDataUrl = base64ToDataUrl(extendedB64);
@@ -256,24 +251,19 @@ export async function runSpriteworksJob(
     outCols: settings.cols,
     outRows: settings.rows,
   });
-  let atlasB64: string;
-  if (job.provider === 'gemini') {
-    atlasB64 = await generateSpriteAtlasGemini({
-      apiKey: job.apiKey,
-      prompt,
-      referenceLayoutBase64: layoutB64,
-      referenceAvatarBase64: avatarB64,
-    });
-  } else if (job.provider === 'openai') {
-    atlasB64 = await generateSpriteAtlasOpenAI({
-      apiKey: job.apiKey,
-      prompt,
-      referenceLayoutBase64: layoutB64,
-      referenceAvatarBase64: avatarB64,
-    });
-  } else {
-    throw new Error(`provider not yet supported: ${job.provider}`);
-  }
+  const atlasB64 = job.provider === 'gemini'
+    ? await generateSpriteAtlasGemini({
+        apiKey: job.apiKey,
+        prompt,
+        referenceLayoutBase64: layoutB64,
+        referenceAvatarBase64: avatarB64,
+      })
+    : await generateSpriteAtlasOpenAI({
+        apiKey: job.apiKey,
+        prompt,
+        referenceLayoutBase64: layoutB64,
+        referenceAvatarBase64: avatarB64,
+      });
   onProgress({ stage: 'gen-done', bytes: atlasB64.length });
 
   // Resize target is the gen geometry — that's what extraction will read from.
