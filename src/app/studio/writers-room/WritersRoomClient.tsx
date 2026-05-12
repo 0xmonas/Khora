@@ -19,6 +19,7 @@ import {
   PROMPT_MAX,
   TOKEN_ID_MAX,
   WRITERS_ROOM_TOTAL_DAYS,
+  X_HANDLE_MAX,
   type DayEntry,
   type LeaderboardResponse,
   type Submission,
@@ -159,14 +160,13 @@ export function WritersRoomClient() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [viewedDayWinner, setViewedDayWinner] = useState<Submission | null>(null);
 
   const fetchState = useCallback(async () => {
     const res = await fetch('/api/writers-room/state', { cache: 'no-store' });
     if (!res.ok) return;
     const json = (await res.json()) as StateResponse;
     setData(json);
-    // Default selection: latest published community day, or Day 0 (origin) if
-    // no community day has published yet.
     setSelectedDay((prev) => prev ?? json.state.currentDay);
   }, []);
 
@@ -193,14 +193,6 @@ export function WritersRoomClient() {
     fetchLeaderboard();
   }, [fetchState, fetchLeaderboard]);
 
-  useEffect(() => {
-    if (!data?.state.submissionsOpenForDay) {
-      setSubmissions([]);
-      return;
-    }
-    fetchSubmissions(data.state.submissionsOpenForDay);
-  }, [data?.state.submissionsOpenForDay, fetchSubmissions, isAuthenticated]);
-
   const countdown = useCountdown(data?.state.votingClosesAt ?? null);
 
   const currentDayEntry = useMemo<DayEntry | null>(() => {
@@ -211,8 +203,59 @@ export function WritersRoomClient() {
     return found ?? data.state.publishedDay ?? DAY_ZERO_ENTRY;
   }, [data, selectedDay]);
 
+  const proposalsDay = useMemo<
+    { day: number; mode: 'open' | 'closed'; winnerSubmissionId: string | null } | null
+  >(() => {
+    if (!data) return null;
+    const viewedDay = selectedDay ?? data.state.currentDay;
+    const nextDay = viewedDay + 1;
+    if (nextDay === data.state.submissionsOpenForDay) {
+      return { day: nextDay, mode: 'open', winnerSubmissionId: null };
+    }
+    if (nextDay <= data.state.currentDay) {
+      const rec = data.days.find((d) => d.dayNumber === nextDay);
+      return { day: nextDay, mode: 'closed', winnerSubmissionId: rec?.winnerSubmissionId ?? null };
+    }
+    return null;
+  }, [data, selectedDay]);
+
+  useEffect(() => {
+    if (!proposalsDay) {
+      setSubmissions([]);
+      return;
+    }
+    fetchSubmissions(proposalsDay.day);
+  }, [proposalsDay, fetchSubmissions, isAuthenticated]);
+
+  useEffect(() => {
+    if (
+      !currentDayEntry ||
+      currentDayEntry.dayNumber === 0 ||
+      !currentDayEntry.winnerSubmissionId
+    ) {
+      setViewedDayWinner(null);
+      return;
+    }
+    const winnerId = currentDayEntry.winnerSubmissionId;
+    const dayNumber = currentDayEntry.dayNumber;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/writers-room/submissions/${dayNumber}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok || cancelled) return;
+      const json = (await res.json()) as { submissions: Submission[] };
+      const winner = json.submissions.find((s) => s.id === winnerId);
+      if (!cancelled) setViewedDayWinner(winner ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDayEntry]);
+
   async function toggleLike(s: SubmissionView) {
     if (!isHolder || !isAuthenticated) return;
+    if (proposalsDay?.mode !== 'open') return;
     const method = s.liked ? 'DELETE' : 'POST';
     sfx.playClick();
     const res = await fetch('/api/writers-room/vote', {
@@ -225,8 +268,8 @@ export function WritersRoomClient() {
       sfx.playError();
       return;
     }
-    if (data?.state.submissionsOpenForDay) {
-      fetchSubmissions(data.state.submissionsOpenForDay);
+    if (proposalsDay) {
+      fetchSubmissions(proposalsDay.day);
     }
     fetchLeaderboard();
   }
@@ -326,14 +369,18 @@ export function WritersRoomClient() {
             )}
 
             {/* Day view */}
-            {currentDayEntry && <DayView day={currentDayEntry} />}
+            {currentDayEntry && (
+              <DayView day={currentDayEntry} winnerSubmission={viewedDayWinner} />
+            )}
 
             {/* Submissions */}
-            {data?.state.submissionsOpenForDay && (
+            {proposalsDay && (
               <section className="space-y-3">
                 <div className="flex items-baseline justify-between">
                   <h2 className="text-sm uppercase tracking-widest">
-                    Proposals for Day {data.state.submissionsOpenForDay}
+                    {proposalsDay.mode === 'open'
+                      ? `Proposals for Day ${proposalsDay.day}`
+                      : `Day ${proposalsDay.day} proposals (closed)`}
                   </h2>
                   <span className="text-[10px] text-muted-foreground/70">
                     {submissions.length}{' '}
@@ -342,37 +389,65 @@ export function WritersRoomClient() {
                 </div>
                 {submissions.length === 0 ? (
                   <div className="border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-muted-foreground">
-                    No pages yet. Be the first to write the next one.
+                    {proposalsDay.mode === 'open'
+                      ? 'No pages yet. Be the first to write the next one.'
+                      : 'No proposals were submitted for this day.'}
                   </div>
                 ) : (
                   <ul className="space-y-3">
                     {submissions.map((s) => {
                       const isOwn =
                         address?.toLowerCase() === s.submitterAddress;
+                      const isWinner =
+                        proposalsDay.mode === 'closed' &&
+                        proposalsDay.winnerSubmissionId === s.id;
                       return (
                         <li
                           key={s.id}
-                          className="border border-neutral-300 dark:border-neutral-700 hover:border-foreground/60 transition-colors p-4 space-y-2"
+                          className={`border transition-colors p-4 space-y-2 ${
+                            isWinner
+                              ? 'border-foreground border-2'
+                              : 'border-neutral-300 dark:border-neutral-700 hover:border-foreground/60'
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
-                              {shortAddr(s.submitterAddress)}
+                              {isWinner && (
+                                <span className="mr-2 px-1.5 py-0.5 bg-foreground text-background">
+                                  winner
+                                </span>
+                              )}
+                              {s.xHandle ? (
+                                <a
+                                  href={`https://x.com/${s.xHandle}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-foreground transition-colors"
+                                >
+                                  @{s.xHandle}
+                                </a>
+                              ) : (
+                                shortAddr(s.submitterAddress)
+                              )}
                               {isOwn && ' · you'}
                             </p>
                             <button
                               type="button"
                               onClick={() => toggleLike(s)}
                               disabled={
+                                proposalsDay.mode === 'closed' ||
                                 !isHolder || !isAuthenticated || isOwn
                               }
                               title={
-                                isOwn
-                                  ? "You can't like your own page"
-                                  : !isAuthenticated
-                                    ? 'Sign in to vote'
-                                    : !isHolder
-                                      ? 'Holder only'
-                                      : ''
+                                proposalsDay.mode === 'closed'
+                                  ? 'Voting closed for this day'
+                                  : isOwn
+                                    ? "You can't like your own page"
+                                    : !isAuthenticated
+                                      ? 'Sign in to vote'
+                                      : !isHolder
+                                        ? 'Holder only'
+                                        : ''
                               }
                               className={`inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] transition-colors ${
                                 s.liked
@@ -449,7 +524,13 @@ export function WritersRoomClient() {
   );
 }
 
-function DayView({ day }: { day: DayEntry }) {
+function DayView({
+  day,
+  winnerSubmission,
+}: {
+  day: DayEntry;
+  winnerSubmission?: Submission | null;
+}) {
   const label = day.dayNumber === 0 ? 'Day 0 · Origin' : `Day ${day.dayNumber}`;
   return (
     <article className="border border-neutral-300 dark:border-neutral-700 p-5 space-y-3">
@@ -460,7 +541,19 @@ function DayView({ day }: { day: DayEntry }) {
         </p>
         {day.submitterAddress && (
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
-            written by {shortAddr(day.submitterAddress)}
+            written by{' '}
+            {winnerSubmission?.xHandle ? (
+              <a
+                href={`https://x.com/${winnerSubmission.xHandle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                @{winnerSubmission.xHandle}
+              </a>
+            ) : (
+              shortAddr(day.submitterAddress)
+            )}
           </p>
         )}
       </div>
@@ -477,6 +570,29 @@ function DayView({ day }: { day: DayEntry }) {
       <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
         {day.description}
       </p>
+      {winnerSubmission && winnerSubmission.tokenIds.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {winnerSubmission.tokenIds.map((id) => (
+            <div
+              key={id}
+              className="flex flex-col items-center gap-1 border border-neutral-300 dark:border-neutral-700 p-1.5 w-16"
+            >
+              <TokenAvatar tokenId={id} size={48} />
+              <span className="text-[10px] tabular-nums">#{id}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {winnerSubmission?.prompt && (
+        <details className="text-[10px] text-muted-foreground/70">
+          <summary className="cursor-pointer hover:text-foreground transition-colors">
+            visual prompt
+          </summary>
+          <p className="mt-1 whitespace-pre-wrap leading-relaxed">
+            {winnerSubmission.prompt}
+          </p>
+        </details>
+      )}
     </article>
   );
 }
@@ -583,9 +699,12 @@ function ProposeDialog({
   const [caption, setCaption] = useState('');
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [xHandle, setXHandle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const xHandleValid = /^[A-Za-z0-9_]{1,15}$/.test(xHandle);
 
   // Reset state when modal closes.
   useEffect(() => {
@@ -610,6 +729,7 @@ function ProposeDialog({
           caption: caption.trim(),
           description: description.trim(),
           prompt: prompt.trim(),
+          xHandle: xHandle.trim(),
         }),
       });
       const json = await res.json();
@@ -623,6 +743,7 @@ function ProposeDialog({
       setCaption('');
       setDescription('');
       setPrompt('');
+      setXHandle('');
       onSubmitted();
     } catch {
       setSubmitError('Network error. Try again.');
@@ -669,6 +790,41 @@ function ProposeDialog({
                   {MAX_TOKEN_TAGS_PER_SUBMISSION}, optional).
                 </li>
               </ul>
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-baseline">
+                  <p className={sectionLabel}>X handle</p>
+                  <span className="text-[9px] text-muted-foreground/50 tabular-nums">
+                    {xHandle.length}/{X_HANDLE_MAX}
+                  </span>
+                </div>
+                <div className="flex items-stretch">
+                  <span className="inline-flex items-center px-2 border border-r-0 border-neutral-300 dark:border-neutral-700 text-muted-foreground text-xs">
+                    @
+                  </span>
+                  <input
+                    value={xHandle}
+                    onChange={(e) => {
+                      const cleaned = e.target.value
+                        .replace(/^@+/, '')
+                        .replace(/[^A-Za-z0-9_]/g, '')
+                        .slice(0, X_HANDLE_MAX);
+                      setXHandle(cleaned);
+                    }}
+                    placeholder="yourhandle"
+                    maxLength={X_HANDLE_MAX}
+                    className={`${fieldClass} flex-1`}
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                {xHandle.length > 0 && !xHandleValid && (
+                  <p className="text-[10px] text-red-500/80">
+                    Letters, numbers, or underscore only (max 15).
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-1">
                 <div className="flex justify-between items-baseline">
@@ -761,7 +917,8 @@ function ProposeDialog({
                     submitting ||
                     !caption.trim() ||
                     !description.trim() ||
-                    !prompt.trim()
+                    !prompt.trim() ||
+                    !xHandleValid
                   }
                   className={`${buttonPrimary} flex items-center gap-2`}
                 >

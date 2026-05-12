@@ -197,6 +197,7 @@ export async function submitForDay(
     id: generateSubmissionId(),
     dayNumber,
     submitterAddress: address,
+    xHandle: input.xHandle,
     caption: input.caption,
     description: input.description,
     prompt: input.prompt,

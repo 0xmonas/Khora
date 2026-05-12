@@ -8,6 +8,7 @@ import {
   MAX_TOKEN_TAGS_PER_SUBMISSION,
   PROMPT_MAX,
   TOKEN_ID_MAX,
+  X_HANDLE_MAX,
 } from './types';
 
 // Match #NNN tags in free text. Word boundary on both sides so "#word" or
@@ -15,6 +16,16 @@ import {
 const TOKEN_TAG_RE = /(?<![\w#])#(\d{1,5})\b/g;
 
 const ADDRESS_RE = /^0x[a-f0-9]{40}$/i;
+const X_HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
+
+export function normalizeXHandle(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return stripControl(raw).trim().replace(/^@+/, '').slice(0, X_HANDLE_MAX);
+}
+
+export function isValidXHandle(handle: string): boolean {
+  return X_HANDLE_RE.test(handle);
+}
 
 // Strip null bytes and ASCII control chars except newline (LF) and tab.
 function stripControl(s: string): string {
@@ -67,6 +78,7 @@ export interface ValidatedSubmission {
   caption: string;
   description: string;
   prompt: string;
+  xHandle: string;
   tokenIds: number[];
 }
 
@@ -76,21 +88,22 @@ export function validateSubmissionInput(raw: unknown): ValidatedSubmission {
   }
   const r = raw as Record<string, unknown>;
 
-  const captionRaw = typeof r.caption === 'string' ? r.caption : '';
-  const descriptionRaw = typeof r.description === 'string' ? r.description : '';
-  const promptRaw = typeof r.prompt === 'string' ? r.prompt : '';
-
-  const caption = clean(captionRaw, CAPTION_MAX);
-  const description = clean(descriptionRaw, DESCRIPTION_MAX);
-  const prompt = clean(promptRaw, PROMPT_MAX);
+  const caption = clean(typeof r.caption === 'string' ? r.caption : '', CAPTION_MAX);
+  const description = clean(typeof r.description === 'string' ? r.description : '', DESCRIPTION_MAX);
+  const prompt = clean(typeof r.prompt === 'string' ? r.prompt : '', PROMPT_MAX);
+  const xHandle = normalizeXHandle(r.xHandle);
 
   if (caption.length === 0) throw new Error('Caption is required.');
   if (description.length === 0) throw new Error('Description is required.');
   if (prompt.length === 0) throw new Error('Prompt is required.');
+  if (xHandle.length === 0) throw new Error('X handle is required.');
+  if (!isValidXHandle(xHandle)) {
+    throw new Error('Invalid X handle. Use letters, numbers, or underscore (max 15).');
+  }
 
   const tokenIds = extractTokenTags(description);
 
-  return { caption, description, prompt, tokenIds };
+  return { caption, description, prompt, xHandle, tokenIds };
 }
 
 export interface DaySeedInput {
