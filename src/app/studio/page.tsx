@@ -109,6 +109,14 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'agent-lore',
+    title: 'Agent Lore',
+    description: 'Pick any BOOA by token ID. Gemini reads its on-chain traits and writes a short evocative paragraph for it.',
+    href: '/studio/agent-lore',
+    media: 'agent-lore.png',
+    tag: 'NEW',
+  },
+  {
     id: 'persona-quiz',
     title: 'Persona Quiz',
     description: 'Answer 7 questions and find your BOOA match among 3,333 agents.',

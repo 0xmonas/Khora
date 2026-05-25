@@ -116,3 +116,11 @@ a {
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.4);
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.blinking-cursor {
+  animation: blink 1s step-end infinite;
+}
