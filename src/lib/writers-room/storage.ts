@@ -315,6 +315,109 @@ export async function unlikeSubmission(
   return { liked: false, voteCount: updated.voteCount };
 }
 
+// === Author edit / delete ===================================================
+
+export class SubmissionMutationError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const MAX_HISTORY_VERSIONS = 50;
+
+// Edit is allowed only by the author and only while the day's voting window is
+// still open. Votes/score are preserved; the prior version is snapshotted.
+export async function editSubmission(
+  submissionId: string,
+  editorAddress: string,
+  input: ValidatedSubmission,
+): Promise<Submission> {
+  const submission = await getSubmission(submissionId);
+  if (!submission) throw new SubmissionMutationError(404, 'Submission not found.');
+
+  const address = editorAddress.toLowerCase();
+  if (submission.submitterAddress !== address) {
+    throw new SubmissionMutationError(403, 'You can only edit your own page.');
+  }
+
+  try {
+    await ensureVotingOpen(submission.dayNumber);
+  } catch {
+    throw new SubmissionMutationError(410, 'Editing is closed for this page.');
+  }
+
+  const redis = getRedis();
+  const now = Date.now();
+
+  const snapshot = {
+    caption: submission.caption,
+    description: submission.description,
+    prompt: submission.prompt,
+    xHandle: submission.xHandle,
+    tokenIds: submission.tokenIds,
+    savedAt: now,
+  };
+  await redis.rpush(WR.submissionHistory(submissionId), JSON.stringify(snapshot));
+  await redis.ltrim(WR.submissionHistory(submissionId), -MAX_HISTORY_VERSIONS, -1);
+
+  const updated: Submission = {
+    ...submission,
+    caption: input.caption,
+    description: input.description,
+    prompt: input.prompt,
+    xHandle: input.xHandle,
+    tokenIds: input.tokenIds,
+    edited: true,
+    editedAt: now,
+  };
+  await redis.set(WR.submission(submissionId), updated);
+  return updated;
+}
+
+// Delete is allowed only by the author and only while the day's voting window
+// is still open. Cleans up index/voters/leaderboard and frees the daily slot.
+export async function deleteSubmission(
+  submissionId: string,
+  requesterAddress: string,
+): Promise<void> {
+  const submission = await getSubmission(submissionId);
+  if (!submission) throw new SubmissionMutationError(404, 'Submission not found.');
+
+  const address = requesterAddress.toLowerCase();
+  if (submission.submitterAddress !== address) {
+    throw new SubmissionMutationError(403, 'You can only delete your own page.');
+  }
+
+  try {
+    await ensureVotingOpen(submission.dayNumber);
+  } catch {
+    throw new SubmissionMutationError(410, 'Deleting is closed for this page.');
+  }
+
+  const redis = getRedis();
+  const day = submission.dayNumber;
+
+  // Reverse the likes this entry earned so the leaderboard stays honest.
+  if (submission.voteCount > 0) {
+    await redis.zincrby(WR.leaderboardLikes, -submission.voteCount, address);
+  }
+
+  const voters = (await redis.smembers(WR.voters(submissionId))) as string[];
+  for (const voter of voters) {
+    await redis.srem(WR.voteIndex(voter, day), submissionId);
+  }
+
+  await redis.zrem(WR.submissions(day), submissionId);
+  await redis.del(WR.voters(submissionId));
+  await redis.del(WR.submissionHistory(submissionId));
+  await redis.del(WR.submission(submissionId));
+
+  // Free the one-per-holder slot so the author can submit a fresh page.
+  await redis.del(WR.submitOnce(address, day));
+}
+
 // === Day publish ============================================================
 
 export class PublishError extends Error {

@@ -11,6 +11,8 @@ export const WR = {
   // ZSET, score = like count, member = submission id
   submissions: (n: number) => `writers-room:submissions:${n}`,
   submission: (id: string) => `writers-room:submission:${id}`,
+  // LIST of prior versions (JSON snapshots) kept when an author edits an entry
+  submissionHistory: (id: string) => `writers-room:submission:${id}:history`,
   // SET of lowercase addresses that liked this submission
   voters: (id: string) => `writers-room:submission:${id}:voters`,
   // SET of submission ids the address liked for day n

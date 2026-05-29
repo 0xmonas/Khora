@@ -41,6 +41,8 @@ export interface Submission {
   submittedAt: number;
   voteCount: number;
   status: 'active' | 'winner' | 'expired';
+  edited?: boolean;
+  editedAt?: number;
 }
 
 export interface WritersRoomState {

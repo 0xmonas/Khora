@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Heart, Loader2, PenLine, Send, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Heart, Loader2, Pencil, PenLine, Send, Trash2, Trophy, X } from 'lucide-react';
 import { useHolderAuth } from '@/hooks/useAuth';
 import { sfx } from '@/lib/sounds';
 import {
@@ -160,6 +160,9 @@ export function WritersRoomClient() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewedDayWinner, setViewedDayWinner] = useState<Submission | null>(null);
 
   const fetchState = useCallback(async () => {
@@ -274,6 +277,37 @@ export function WritersRoomClient() {
     fetchLeaderboard();
   }
 
+  async function handleDelete(s: SubmissionView) {
+    if (proposalsDay?.mode !== 'open') return;
+    setDeletingId(s.id);
+    sfx.playClick();
+    const res = await fetch(`/api/writers-room/submission/${s.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+    if (!res.ok) {
+      sfx.playError();
+      return;
+    }
+    sfx.playSuccess();
+    if (proposalsDay) fetchSubmissions(proposalsDay.day);
+    fetchLeaderboard();
+  }
+
+  function openEdit(s: SubmissionView) {
+    sfx.playClick();
+    setEditingSubmission(s);
+    setProposeOpen(true);
+  }
+
+  function openPropose() {
+    sfx.playClick();
+    setEditingSubmission(null);
+    setProposeOpen(true);
+  }
+
   const canPropose =
     isConnected && isAuthenticated && isHolder && data?.state.votingOpen === true;
 
@@ -303,10 +337,7 @@ export function WritersRoomClient() {
             {data?.state.votingOpen && (
               <button
                 type="button"
-                onClick={() => {
-                  sfx.playClick();
-                  setProposeOpen(true);
-                }}
+                onClick={openPropose}
                 className={`${buttonPrimary} flex items-center gap-2 px-4 py-2 text-xs uppercase`}
               >
                 <PenLine className="w-3.5 h-3.5" /> Propose the next page
@@ -430,6 +461,7 @@ export function WritersRoomClient() {
                                 shortAddr(s.submitterAddress)
                               )}
                               {isOwn && ' · you'}
+                              {s.edited && ' · edited'}
                             </p>
                             <button
                               type="button"
@@ -488,6 +520,45 @@ export function WritersRoomClient() {
                               {s.prompt}
                             </p>
                           </details>
+                          {isOwn && proposalsDay.mode === 'open' && (
+                            <div className="flex items-center gap-4 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(s)}
+                                className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              {confirmDeleteId === s.id ? (
+                                <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                  Delete?
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(s)}
+                                    disabled={deletingId === s.id}
+                                    className="text-red-600 hover:opacity-70 disabled:opacity-40"
+                                  >
+                                    {deletingId === s.id ? '…' : 'yes'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="hover:text-foreground"
+                                  >
+                                    no
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(s.id)}
+                                  className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-red-600 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Delete
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </li>
                       );
                     })}
@@ -507,17 +578,20 @@ export function WritersRoomClient() {
 
       <ProposeDialog
         open={proposeOpen}
-        onOpenChange={setProposeOpen}
+        onOpenChange={(o) => {
+          setProposeOpen(o);
+          if (!o) setEditingSubmission(null);
+        }}
         canPropose={canPropose}
         isConnected={isConnected}
         isAuthenticated={isAuthenticated}
         isHolder={isHolder}
         currentDay={data?.state.currentDay ?? 0}
         targetDay={data?.state.submissionsOpenForDay ?? null}
+        editing={editingSubmission}
         onSubmitted={() => {
-          if (data?.state.submissionsOpenForDay) {
-            fetchSubmissions(data.state.submissionsOpenForDay);
-          }
+          const day = proposalsDay?.day ?? data?.state.submissionsOpenForDay;
+          if (day) fetchSubmissions(day);
         }}
       />
     </div>
@@ -682,6 +756,7 @@ interface ProposeDialogProps {
   isHolder: boolean;
   currentDay: number;
   targetDay: number | null;
+  editing: Submission | null;
   onSubmitted: () => void;
 }
 
@@ -694,8 +769,10 @@ function ProposeDialog({
   isHolder,
   currentDay,
   targetDay,
+  editing,
   onSubmitted,
 }: ProposeDialogProps) {
+  const isEditing = !!editing;
   const [caption, setCaption] = useState('');
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -706,13 +783,17 @@ function ProposeDialog({
 
   const xHandleValid = /^[A-Za-z0-9_]{1,15}$/.test(xHandle);
 
-  // Reset state when modal closes.
+  // Prefill from the entry being edited (or clear for a new page) on open.
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setCaption(editing?.caption ?? '');
+      setDescription(editing?.description ?? '');
+      setPrompt(editing?.prompt ?? '');
+      setXHandle(editing?.xHandle ?? '');
       setSubmitMsg(null);
       setSubmitError(null);
     }
-  }, [open]);
+  }, [open, editing]);
 
   const tags = useMemo(() => extractTagsClient(description), [description]);
 
@@ -721,29 +802,38 @@ function ProposeDialog({
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/writers-room/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          caption: caption.trim(),
-          description: description.trim(),
-          prompt: prompt.trim(),
-          xHandle: xHandle.trim(),
-        }),
-      });
+      const res = await fetch(
+        isEditing
+          ? `/api/writers-room/submission/${editing!.id}`
+          : '/api/writers-room/submit',
+        {
+          method: isEditing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            caption: caption.trim(),
+            description: description.trim(),
+            prompt: prompt.trim(),
+            xHandle: xHandle.trim(),
+          }),
+        },
+      );
       const json = await res.json();
       if (!res.ok) {
-        setSubmitError(json?.error || 'Submission failed.');
+        setSubmitError(json?.error || (isEditing ? 'Edit failed.' : 'Submission failed.'));
         sfx.playError();
         return;
       }
       sfx.playSuccess();
-      setSubmitMsg('Locked in. No edits — keep an eye on the votes.');
-      setCaption('');
-      setDescription('');
-      setPrompt('');
-      setXHandle('');
+      if (isEditing) {
+        setSubmitMsg('Saved. Your votes are kept.');
+      } else {
+        setSubmitMsg('Locked in. You can edit or delete it until voting closes.');
+        setCaption('');
+        setDescription('');
+        setPrompt('');
+        setXHandle('');
+      }
       onSubmitted();
     } catch {
       setSubmitError('Network error. Try again.');
@@ -757,7 +847,7 @@ function ProposeDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle style={font}>
-            Propose Day {targetDay ?? '—'}
+            {isEditing ? `Edit Day ${editing!.dayNumber} page` : `Propose Day ${targetDay ?? '—'}`}
           </DialogTitle>
           <DialogClose
             aria-label="Close"
@@ -783,7 +873,7 @@ function ProposeDialog({
           ) : (
             <>
               <ul className="text-[11px] text-muted-foreground/80 space-y-0.5 leading-relaxed">
-                <li>· One page per holder per day. No edits after submit.</li>
+                <li>· One page per holder per day. Edit or delete it until voting closes.</li>
                 <li>· You can&apos;t like your own page.</li>
                 <li>
                   · Tag any BOOA inline with #1234 (max{' '}
@@ -907,7 +997,9 @@ function ProposeDialog({
 
               <div className="flex items-center justify-between gap-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
                 <p className="text-[10px] text-muted-foreground/70">
-                  Submitting locks your page. No edits.
+                  {isEditing
+                    ? 'Editing keeps your current votes.'
+                    : 'You can edit or delete your page until voting closes.'}
                 </p>
                 <button
                   type="button"
@@ -927,7 +1019,7 @@ function ProposeDialog({
                   ) : (
                     <Send className="w-3 h-3" />
                   )}
-                  Submit (locked)
+                  {isEditing ? 'Save changes' : 'Submit'}
                 </button>
               </div>
 
