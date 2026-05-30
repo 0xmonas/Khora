@@ -11,14 +11,18 @@ export const maxDuration = 15;
 
 const SUBMISSION_ID_RE = /^[a-f0-9]{32}$/;
 
-async function readSubmissionId(request: NextRequest): Promise<string | null> {
+async function readBody(
+  request: NextRequest,
+): Promise<{ submissionId: string | null; handle: string }> {
   try {
-    const body = await request.json();
-    const raw = (body as Record<string, unknown>)?.submissionId;
-    if (typeof raw === 'string' && SUBMISSION_ID_RE.test(raw)) return raw;
-    return null;
+    const body = (await request.json()) as Record<string, unknown>;
+    const rawId = body?.submissionId;
+    const submissionId =
+      typeof rawId === 'string' && SUBMISSION_ID_RE.test(rawId) ? rawId : null;
+    const handle = typeof body?.handle === 'string' ? body.handle : '';
+    return { submissionId, handle };
   } catch {
-    return null;
+    return { submissionId: null, handle: '' };
   }
 }
 
@@ -31,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Holder only.' }, { status: 403 });
   }
 
-  const submissionId = await readSubmissionId(request);
+  const { submissionId, handle } = await readBody(request);
   if (!submissionId) {
     return NextResponse.json(
       { error: 'submissionId is required.' },
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await likeSubmission(submissionId, walletAddress);
+    const result = await likeSubmission(submissionId, walletAddress, handle);
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     if (e instanceof VoteError) {
@@ -59,7 +63,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Holder only.' }, { status: 403 });
   }
 
-  const submissionId = await readSubmissionId(request);
+  const { submissionId } = await readBody(request);
   if (!submissionId) {
     return NextResponse.json(
       { error: 'submissionId is required.' },

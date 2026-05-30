@@ -15,9 +15,48 @@ import {
   type WritersRoomState,
 } from './types';
 import type { ValidatedSubmission, DaySeedInput } from './validation';
+import { normalizeXHandle, isValidXHandle } from './validation';
 import { DAY_ZERO_CAPTION, DAY_ZERO_DESCRIPTION } from './origin';
 
 const SUBMISSION_ID_BYTES = 16;
+
+export class HandleError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export interface HandleBinding {
+  canonical: string;
+  reused: boolean;
+}
+
+// Bind an address to one canonical (lowercase) X handle. A wallet keeps a
+// single identity: a second, different handle is rejected. The reverse index
+// (handle -> addresses) lets the op spot one handle voting from many wallets.
+async function bindHandle(address: string, rawHandle: string): Promise<HandleBinding> {
+  const addr = address.toLowerCase();
+  const normalized = normalizeXHandle(rawHandle);
+  if (!isValidXHandle(normalized)) {
+    throw new HandleError(400, 'A valid X handle is required.');
+  }
+  const canonical = normalized.toLowerCase();
+
+  const redis = getRedis();
+  const existing = await redis.get<string>(WR.addrHandle(addr));
+  if (existing && existing !== canonical) {
+    throw new HandleError(
+      409,
+      `This wallet is linked to @${existing}. Use that handle.`,
+    );
+  }
+  if (!existing) await redis.set(WR.addrHandle(addr), canonical);
+  await redis.sadd(WR.handleAddrs(canonical), addr);
+  const owners = await redis.scard(WR.handleAddrs(canonical));
+  return { canonical, reused: owners > 1 };
+}
 
 function generateSubmissionId(): string {
   // crypto.randomUUID without dashes — 32 hex chars. Falls back to Math.random
@@ -154,6 +193,33 @@ export async function getSubmission(id: string): Promise<Submission | null> {
   return (await redis.get<Submission>(WR.submission(id))) || null;
 }
 
+export interface VoterIdentity {
+  address: string;
+  handle: string | null;
+  // True when this handle is bound to more than one address — the signal that
+  // one identity may be voting from several wallets.
+  reused: boolean;
+}
+
+export async function getSubmissionVoters(
+  submissionId: string,
+): Promise<VoterIdentity[]> {
+  const redis = getRedis();
+  const addrs = (await redis.smembers(WR.voters(submissionId))) as string[];
+  if (addrs.length === 0) return [];
+
+  const handles = await redis.mget<(string | null)[]>(
+    ...addrs.map((a) => WR.addrHandle(a)),
+  );
+  const out: VoterIdentity[] = [];
+  for (let i = 0; i < addrs.length; i++) {
+    const handle = handles[i] || null;
+    const reused = handle ? (await redis.scard(WR.handleAddrs(handle))) > 1 : false;
+    out.push({ address: addrs[i], handle, reused });
+  }
+  return out;
+}
+
 export interface SubmitResult {
   ok: true;
   submission: Submission;
@@ -183,6 +249,16 @@ export async function submitForDay(
 
   const redis = getRedis();
   const address = submitterAddress.toLowerCase();
+
+  // Bind identity before consuming the daily slot so a handle mismatch doesn't
+  // burn the slot.
+  try {
+    await bindHandle(address, input.xHandle);
+  } catch (e) {
+    if (e instanceof HandleError) throw new SubmitError(e.status, e.message);
+    throw e;
+  }
+
   const onceKey = WR.submitOnce(address, dayNumber);
 
   // Atomic single-submission gate: SET NX with TTL covering the full voting window
@@ -251,6 +327,7 @@ async function ensureVotingOpen(dayNumber: number): Promise<void> {
 export async function likeSubmission(
   submissionId: string,
   voterAddress: string,
+  handle: string,
 ): Promise<VoteResult> {
   const submission = await getSubmission(submissionId);
   if (!submission) throw new VoteError(404, 'Submission not found.');
@@ -261,6 +338,14 @@ export async function likeSubmission(
   }
 
   await ensureVotingOpen(submission.dayNumber);
+
+  // Enforce a single identity per wallet before the vote is recorded.
+  try {
+    await bindHandle(address, handle);
+  } catch (e) {
+    if (e instanceof HandleError) throw new VoteError(e.status, e.message);
+    throw e;
+  }
 
   const redis = getRedis();
   // SADD returns 1 if added, 0 if already present. Use as guard against double-count.

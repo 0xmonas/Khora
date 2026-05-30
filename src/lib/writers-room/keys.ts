@@ -21,6 +21,11 @@ export const WR = {
   // 1-per-day-per-address submission rate limit
   submitOnce: (address: string, n: number) =>
     `writers-room:submit-once:${address.toLowerCase()}:${n}`,
+  // Identity binding. Forward: address -> canonical (lowercase) X handle.
+  // Reverse: handle -> SET of addresses that have claimed it (reuse signal).
+  addrHandle: (address: string) =>
+    `writers-room:addr-handle:${address.toLowerCase()}`,
+  handleAddrs: (handleLc: string) => `writers-room:handle-addrs:${handleLc}`,
   // Leaderboards (rolling 30 day total). ZSET, score = count, member = address.
   leaderboardContributions: 'writers-room:leaderboard:contributions',
   leaderboardLikes: 'writers-room:leaderboard:likes',

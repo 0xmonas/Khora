@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Heart, Loader2, Pencil, PenLine, Send, Trash2, Trophy, X } from 'lucide-react';
+import { useReadContract } from 'wagmi';
 import { useHolderAuth } from '@/hooks/useAuth';
+import { getV2MinterAddress, BOOA_V2_MINTER_ABI } from '@/lib/contracts/booa-v2';
 import { sfx } from '@/lib/sounds';
 import {
   Dialog,
@@ -49,6 +51,8 @@ const sectionLabel =
 
 const TAG_RE = /(?<![\w#])#(\d{1,5})\b/g;
 const CHAIN_ID = 360;
+const VOTER_HANDLE_KEY = 'booa-wr:voter-handle';
+const HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
 
 interface SubmissionView extends Submission {
   liked?: boolean;
@@ -155,6 +159,16 @@ function TokenAvatar({ tokenId, size = 32 }: { tokenId: number; size?: number })
 export function WritersRoomClient() {
   const { address, isConnected, isAuthenticated, isHolder } = useHolderAuth();
 
+  const { data: ownerAddr } = useReadContract({
+    address: getV2MinterAddress(CHAIN_ID),
+    abi: BOOA_V2_MINTER_ABI,
+    functionName: 'owner',
+    chainId: CHAIN_ID,
+  });
+  const isOp =
+    !!address && !!ownerAddr &&
+    address.toLowerCase() === (ownerAddr as string).toLowerCase();
+
   const [data, setData] = useState<StateResponse | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionView[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
@@ -164,6 +178,16 @@ export function WritersRoomClient() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewedDayWinner, setViewedDayWinner] = useState<Submission | null>(null);
+  const [voterHandle, setVoterHandle] = useState('');
+  const [handlePromptFor, setHandlePromptFor] = useState<SubmissionView | null>(null);
+  const [voteError, setVoteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VOTER_HANDLE_KEY) || '';
+      if (stored) setVoterHandle(stored);
+    } catch {}
+  }, []);
 
   const fetchState = useCallback(async () => {
     const res = await fetch('/api/writers-room/state', { cache: 'no-store' });
@@ -256,25 +280,56 @@ export function WritersRoomClient() {
     };
   }, [currentDayEntry]);
 
-  async function toggleLike(s: SubmissionView) {
-    if (!isHolder || !isAuthenticated) return;
-    if (proposalsDay?.mode !== 'open') return;
-    const method = s.liked ? 'DELETE' : 'POST';
+  async function doVote(s: SubmissionView, method: 'POST' | 'DELETE', handle?: string) {
     sfx.playClick();
     const res = await fetch('/api/writers-room/vote', {
       method,
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ submissionId: s.id }),
+      body: JSON.stringify(
+        method === 'POST' ? { submissionId: s.id, handle } : { submissionId: s.id },
+      ),
     });
     if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
       sfx.playError();
+      setVoteError(json?.error || 'Vote failed.');
+      // Wallet is linked to a different handle — clear the stored one so the
+      // next attempt re-prompts.
+      if (res.status === 409) {
+        setVoterHandle('');
+        try { localStorage.removeItem(VOTER_HANDLE_KEY); } catch {}
+      }
       return;
     }
-    if (proposalsDay) {
-      fetchSubmissions(proposalsDay.day);
-    }
+    setVoteError(null);
+    if (proposalsDay) fetchSubmissions(proposalsDay.day);
     fetchLeaderboard();
+  }
+
+  function toggleLike(s: SubmissionView) {
+    if (!isHolder || !isAuthenticated) return;
+    if (proposalsDay?.mode !== 'open') return;
+    setVoteError(null);
+    if (s.liked) {
+      doVote(s, 'DELETE');
+      return;
+    }
+    if (!voterHandle) {
+      setHandlePromptFor(s);
+      return;
+    }
+    doVote(s, 'POST', voterHandle);
+  }
+
+  function confirmVoterHandle(raw: string) {
+    const cleaned = raw.replace(/^@+/, '').replace(/[^A-Za-z0-9_]/g, '').slice(0, X_HANDLE_MAX);
+    if (!HANDLE_RE.test(cleaned)) return;
+    setVoterHandle(cleaned);
+    try { localStorage.setItem(VOTER_HANDLE_KEY, cleaned); } catch {}
+    const target = handlePromptFor;
+    setHandlePromptFor(null);
+    if (target) doVote(target, 'POST', cleaned);
   }
 
   async function handleDelete(s: SubmissionView) {
@@ -418,6 +473,9 @@ export function WritersRoomClient() {
                     {submissions.length === 1 ? 'page' : 'pages'}
                   </span>
                 </div>
+                {voteError && (
+                  <p className="text-[11px] text-red-600">{voteError}</p>
+                )}
                 {submissions.length === 0 ? (
                   <div className="border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-muted-foreground">
                     {proposalsDay.mode === 'open'
@@ -520,6 +578,9 @@ export function WritersRoomClient() {
                               {s.prompt}
                             </p>
                           </details>
+                          {isOp && s.voteCount > 0 && (
+                            <VotersList submissionId={s.id} count={s.voteCount} />
+                          )}
                           {isOwn && proposalsDay.mode === 'open' && (
                             <div className="flex items-center gap-4 pt-2 border-t border-neutral-200 dark:border-neutral-800">
                               <button
@@ -593,6 +654,12 @@ export function WritersRoomClient() {
           const day = proposalsDay?.day ?? data?.state.submissionsOpenForDay;
           if (day) fetchSubmissions(day);
         }}
+      />
+
+      <VoteHandleDialog
+        open={handlePromptFor !== null}
+        onOpenChange={(o) => { if (!o) setHandlePromptFor(null); }}
+        onConfirm={confirmVoterHandle}
       />
     </div>
   );
@@ -1034,5 +1101,133 @@ function ProposeDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function VoteHandleDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (handle: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (open) setValue('');
+  }, [open]);
+  const valid = HANDLE_RE.test(value);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle style={font}>Vote as</DialogTitle>
+          <DialogClose
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </DialogClose>
+        </DialogHeader>
+        <div className="p-4 space-y-3" style={font}>
+          <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+            Your X handle is tied to this wallet to keep voting fair. Use the same
+            one each time — we remember it on this device.
+          </p>
+          <div className="flex items-stretch">
+            <span className="inline-flex items-center px-2 border border-r-0 border-neutral-300 dark:border-neutral-700 text-muted-foreground text-xs">
+              @
+            </span>
+            <input
+              value={value}
+              onChange={(e) =>
+                setValue(
+                  e.target.value
+                    .replace(/^@+/, '')
+                    .replace(/[^A-Za-z0-9_]/g, '')
+                    .slice(0, X_HANDLE_MAX),
+                )
+              }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && valid) onConfirm(value);
+              }}
+              placeholder="yourhandle"
+              maxLength={X_HANDLE_MAX}
+              className={`${fieldClass} flex-1`}
+              autoCapitalize="off"
+              autoComplete="off"
+              spellCheck={false}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => onConfirm(value)}
+              disabled={!valid}
+              className={`${buttonPrimary} flex items-center gap-2`}
+            >
+              <Heart className="w-3 h-3" /> Confirm vote
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VotersList({ submissionId, count }: { submissionId: string; count: number }) {
+  const [voters, setVoters] = useState<
+    { address: string; handle: string | null; reused: boolean }[] | null
+  >(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    if (voters || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/writers-room/submission/${submissionId}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setVoters(Array.isArray(json.voters) ? json.voters : []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <details
+      className="text-[10px] text-muted-foreground/70"
+      onToggle={(e) => {
+        if ((e.target as HTMLDetailsElement).open) load();
+      }}
+    >
+      <summary className="cursor-pointer hover:text-foreground transition-colors">
+        voters ({count})
+      </summary>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {loading && <span>loading…</span>}
+        {voters?.map((v) => (
+          <span
+            key={v.address}
+            title={v.reused ? 'This handle voted from more than one wallet' : v.address}
+            className={`px-1.5 py-0.5 border ${
+              v.reused
+                ? 'border-red-500/60 text-red-600'
+                : 'border-neutral-300 dark:border-neutral-700'
+            }`}
+          >
+            {v.handle ? `@${v.handle}` : shortAddr(v.address)}
+            {v.reused && ' ⚠'}
+          </span>
+        ))}
+        {voters && voters.length === 0 && <span>none</span>}
+      </div>
+    </details>
   );
 }

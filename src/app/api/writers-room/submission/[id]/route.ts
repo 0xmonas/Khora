@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isHolder } from '@/lib/server/holders';
+import { isHolder, isOp } from '@/lib/server/holders';
 import { validateSubmissionInput, isValidAddress } from '@/lib/writers-room/validation';
 import {
   editSubmission,
   deleteSubmission,
+  getSubmissionVoters,
   SubmissionMutationError,
 } from '@/lib/writers-room/storage';
 
 export const maxDuration = 15;
 
 const SUBMISSION_ID_RE = /^[a-f0-9]{32}$/;
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id } = await context.params;
+  if (!SUBMISSION_ID_RE.test(id)) {
+    return NextResponse.json({ error: 'Invalid submission id.' }, { status: 400 });
+  }
+
+  // Voter identities are op-only — never public.
+  const walletAddress = request.headers.get('x-siwe-address');
+  if (!walletAddress || !isValidAddress(walletAddress) || !(await isOp(walletAddress))) {
+    return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+  }
+
+  const voters = await getSubmissionVoters(id);
+  return NextResponse.json({ voters });
+}
 
 async function requireHolder(request: NextRequest): Promise<string | NextResponse> {
   const walletAddress = request.headers.get('x-siwe-address');
