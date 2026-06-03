@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { checkChatQuota } from '@/lib/ratelimit';
 import { getRedis } from '@/lib/server/redis';
+import { normalizeGeminiKey } from '@/lib/server/byok';
 
 export const maxDuration = 30;
 
@@ -251,11 +252,8 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: 10 messages/day/wallet (free tier)
     // Users can bypass quota by providing their own Gemini API key (real one)
-    const userApiKeyRaw = request.headers.get('x-gemini-key')?.trim() || '';
-    // Reject obvious junk keys to prevent quota bypass via arbitrary headers.
-    // Real Gemini keys: 'AIza' prefix + 35+ url-safe chars.
-    const userApiKey =
-      userApiKeyRaw && /^AIza[A-Za-z0-9_-]{35,}$/.test(userApiKeyRaw) ? userApiKeyRaw : null;
+    // Reject junk keys to prevent quota bypass via arbitrary headers.
+    const userApiKey = normalizeGeminiKey(request.headers.get('x-gemini-key'));
     const quota = await checkChatQuota(walletAddress);
     const usingOwnKey = !quota.allowed && !!userApiKey;
 

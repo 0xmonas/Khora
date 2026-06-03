@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { checkLoreQuota } from '@/lib/ratelimit';
 import { getRedis } from '@/lib/server/redis';
+import { normalizeGeminiKey } from '@/lib/server/byok';
 import {
   getV2Address,
   getV2StorageAddress,
@@ -19,7 +20,6 @@ const BOOA_MAX_TOKEN_ID = 3332;
 const MAX_OUTPUT_TOKENS = 500;
 const MAX_RESPONSE_CHARS = 2000;
 const ETH_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-const GEMINI_KEY_RE = /^AIza[A-Za-z0-9_-]{35,}$/;
 
 const LORE_DAILY_GLOBAL_KEY = 'lore:daily:global';
 const LORE_DAILY_TTL = 86_400;
@@ -164,8 +164,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid token ID.' }, { status: 400 });
   }
 
-  const userApiKeyRaw = request.headers.get('x-gemini-key')?.trim() || '';
-  const userApiKey = userApiKeyRaw && GEMINI_KEY_RE.test(userApiKeyRaw) ? userApiKeyRaw : null;
+  const userApiKey = normalizeGeminiKey(request.headers.get('x-gemini-key'));
 
   const quota = await checkLoreQuota(walletAddress);
   const usingOwnKey = !quota.allowed && !!userApiKey;

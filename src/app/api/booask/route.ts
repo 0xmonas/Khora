@@ -11,6 +11,7 @@ import {
 import { recordBooaskRequest } from '@/lib/booask/metrics';
 import type { ErrorKind } from '@/lib/booask/metrics';
 import { getIP } from '@/lib/ratelimit';
+import { normalizeGeminiKey } from '@/lib/server/byok';
 import type { BooaskMessage } from '@/lib/booask/types';
 
 export const maxDuration = 30;
@@ -96,11 +97,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userApiKeyRaw = request.headers.get('x-gemini-key')?.trim() || '';
-  // Reject obvious junk keys to prevent daily-cap bypass via arbitrary headers.
-  // Real Gemini keys: 'AIza' prefix + 35+ url-safe chars. Treat anything else as no key.
-  const userApiKey =
-    userApiKeyRaw && /^AIza[A-Za-z0-9_-]{35,}$/.test(userApiKeyRaw) ? userApiKeyRaw : undefined;
+  // Reject junk keys to prevent daily-cap bypass via arbitrary headers.
+  const userApiKey = normalizeGeminiKey(request.headers.get('x-gemini-key')) ?? undefined;
   let usingOwnKey = false;
 
   if (!userApiKey) {
