@@ -255,15 +255,13 @@ export function WritersRoomClient() {
   }, [proposalsDay, fetchSubmissions, isAuthenticated]);
 
   useEffect(() => {
-    if (
-      !currentDayEntry ||
-      currentDayEntry.dayNumber === 0 ||
-      !currentDayEntry.winnerSubmissionId
-    ) {
+    const sourceId =
+      currentDayEntry?.winnerSubmissionId ?? currentDayEntry?.pageSubmissionId ?? null;
+    if (!currentDayEntry || currentDayEntry.dayNumber === 0 || !sourceId) {
       setViewedDayWinner(null);
       return;
     }
-    const winnerId = currentDayEntry.winnerSubmissionId;
+    const winnerId = sourceId;
     const dayNumber = currentDayEntry.dayNumber;
     let cancelled = false;
     (async () => {
@@ -680,7 +678,7 @@ function DayView({
           {label}
           {day.tokenId !== null && ` · BOOA #${day.tokenId}`}
         </p>
-        {day.submitterAddress && (
+        {day.submitterAddress ? (
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
             written by{' '}
             {winnerSubmission?.xHandle ? (
@@ -696,6 +694,13 @@ function DayView({
               shortAddr(day.submitterAddress)
             )}
           </p>
+        ) : (
+          day.dayNumber > 0 &&
+          day.pageSubmissionId && (
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
+              No winner · page picked at random
+            </p>
+          )
         )}
       </div>
       {day.imageUrl && (
@@ -738,6 +743,22 @@ function DayView({
   );
 }
 
+function LeaderboardName({ address, handle }: { address: string; handle: string | null }) {
+  if (handle) {
+    return (
+      <a
+        href={`https://x.com/${handle}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:text-foreground transition-colors"
+      >
+        @{handle}
+      </a>
+    );
+  }
+  return <span>{shortAddr(address)}</span>;
+}
+
 function LeaderboardSidebar({ data }: { data: LeaderboardResponse | null }) {
   return (
     <div className="space-y-6">
@@ -768,7 +789,7 @@ function LeaderboardSidebar({ data }: { data: LeaderboardResponse | null }) {
                   <span className="text-muted-foreground/50 tabular-nums w-4">
                     {i + 1}
                   </span>
-                  {shortAddr(row.address)}
+                  <LeaderboardName address={row.address} handle={row.handle} />
                 </span>
                 <span className="tabular-nums">
                   {row.contributions}{' '}
@@ -797,7 +818,7 @@ function LeaderboardSidebar({ data }: { data: LeaderboardResponse | null }) {
                   <span className="text-muted-foreground/50 tabular-nums w-4">
                     {i + 1}
                   </span>
-                  {shortAddr(row.address)}
+                  <LeaderboardName address={row.address} handle={row.handle} />
                 </span>
                 <span className="tabular-nums">
                   {row.totalLikesReceived}{' '}

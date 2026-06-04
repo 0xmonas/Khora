@@ -26,7 +26,13 @@ export interface DayEntry {
   publishedAt: number;
   // Voting window for the NEXT day's submissions starts when this day publishes.
   votingClosesAt: number;
+  // The credited winner: set ONLY when one page is strictly ahead (>= 1 vote,
+  // no tie). Null on ties / zero-vote days — no winner is awarded.
   winnerSubmissionId: string | null;
+  // The submission whose text became this page. Always set when submissions
+  // existed, even on no-winner days (story still advances). Drives token/prompt
+  // display; "page selected at random" when winnerSubmissionId is null.
+  pageSubmissionId?: string | null;
 }
 
 export interface Submission {
@@ -56,6 +62,7 @@ export interface WritersRoomState {
 
 export interface LeaderboardRow {
   address: string;
+  handle: string | null;
   contributions: number;
   totalLikesReceived: number;
 }

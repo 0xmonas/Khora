@@ -560,31 +560,54 @@ export interface PublishResult {
   candidateCount: number;
 }
 
-// Pick the winning submission for `forDay`. Highest like count, ties broken
-// by random. Returns null if there are no submissions.
-async function pickWinnerForDay(forDay: number): Promise<Submission | null> {
+export interface DaySelection {
+  // The submission whose text becomes the page (story must advance).
+  page: Submission | null;
+  // The credited winner — only when one page is strictly ahead with >= 1 vote.
+  winner: Submission | null;
+  candidateCount: number;
+}
+
+// A day awards a winner only when a single page strictly leads with at least
+// one vote. Ties (incl. 0-0) and zero-vote days award none. `scoresDesc` is the
+// like counts sorted descending.
+export function isCreditedWinner(scoresDesc: number[]): boolean {
+  if (scoresDesc.length === 0) return false;
+  const top = scoresDesc[0];
+  if (top < 1) return false;
+  return scoresDesc.filter((s) => s === top).length === 1;
+}
+
+// Select the page and (maybe) the winner for `forDay`.
+//   - winner: awarded ONLY when a single page holds the top score and that
+//     score is >= 1. Ties (0-0, 1-1, 2-2, ...) and zero-vote days award none.
+//   - page: still chosen so the comic advances. Random among the tied leaders
+//     when there's no clear winner.
+async function selectForDay(forDay: number): Promise<DaySelection> {
   const redis = getRedis();
   const top = (await redis.zrange<string[]>(WR.submissions(forDay), 0, -1, {
     rev: true,
     withScores: true,
   })) as Array<string | number>;
-  if (top.length === 0) return null;
 
-  // Reshape: [member, score, member, score, ...]
   const pairs: Array<{ id: string; score: number }> = [];
   for (let i = 0; i < top.length; i += 2) {
     pairs.push({ id: String(top[i]), score: Number(top[i + 1]) });
   }
-  if (pairs.length === 0) return null;
+  if (pairs.length === 0) return { page: null, winner: null, candidateCount: 0 };
 
   const topScore = pairs[0].score;
   const tiedIds = pairs.filter((p) => p.score === topScore).map((p) => p.id);
-  const winnerId =
+  const credited = isCreditedWinner(pairs.map((p) => p.score));
+
+  const pageId =
     tiedIds.length === 1
       ? tiedIds[0]
       : tiedIds[Math.floor(Math.random() * tiedIds.length)];
+  const page = await getSubmission(pageId);
+  const winner = credited ? page : null;
 
-  return await getSubmission(winnerId);
+  return { page, winner, candidateCount: pairs.length };
 }
 
 export async function publishNextDay(
@@ -622,18 +645,18 @@ export async function publishNextDay(
   }
 
   const nextDayNumber = current + 1;
-  const winner = await pickWinnerForDay(nextDayNumber);
+  const { page, winner } = await selectForDay(nextDayNumber);
 
-  // Build the new day. Op can override fields on top of the winning submission.
-  // If no submissions came in, fall back to the previous day's content so the
-  // cycle doesn't deadlock on a silent day.
-  const baseCaption = override.caption ?? winner?.caption ?? previousCaption;
+  // The page comes from the selected submission so the story advances even on
+  // no-winner days. The winner (credit/badge/leaderboard) is awarded only on a
+  // clear, voted result. Op can override the published wording on top.
+  const baseCaption = override.caption ?? page?.caption ?? previousCaption;
   const baseDescription =
-    override.description ?? winner?.description ?? previousDescription;
+    override.description ?? page?.description ?? previousDescription;
   const baseTokenId =
     override.tokenId !== undefined
       ? override.tokenId
-      : winner?.tokenIds?.[0] ?? null;
+      : page?.tokenIds?.[0] ?? null;
   const baseImageUrl =
     override.imageUrl !== undefined ? override.imageUrl : null;
 
@@ -652,13 +675,14 @@ export async function publishNextDay(
     publishedAt: now,
     votingClosesAt: now + WRITERS_ROOM_VOTING_WINDOW_MS,
     winnerSubmissionId: winner?.id ?? null,
+    pageSubmissionId: page?.id ?? null,
   };
 
   await redis.set(WR.day(nextDayNumber), newDay);
   await redis.set(WR.dayState(nextDayNumber), 'published');
   await redis.set(WR.currentDay, nextDayNumber);
 
-  // Mark losing submissions as expired and the winner as winner. Single pass.
+  // Mark the credited winner; everything else expires. No winner => all expire.
   const allIds = (await redis.zrange<string[]>(
     WR.submissions(nextDayNumber),
     0,
@@ -675,10 +699,10 @@ export async function publishNextDay(
     await redis.zincrby(WR.leaderboardContributions, 1, winner.submitterAddress);
   }
 
-  // Audit log so we can replay tie-breaks if anyone questions a result.
   await redis.set(WR.publishLog(nextDayNumber), {
     pickedAt: now,
     winnerId: winner?.id ?? null,
+    pageId: page?.id ?? null,
     candidates: allIds.length,
   });
 
@@ -718,11 +742,22 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardResponse> {
     likeScores.push(Number(likeRows[i + 1]));
   }
 
+  // Resolve bound X handles for every address we're about to return.
+  const allAddrs = Array.from(new Set([...contribAddresses, ...likeAddresses]));
+  const handleByAddr = new Map<string, string | null>();
+  if (allAddrs.length > 0) {
+    const handles = await redis.mget<(string | null)[]>(
+      ...allAddrs.map((a) => WR.addrHandle(a.toLowerCase())),
+    );
+    allAddrs.forEach((a, i) => handleByAddr.set(a, handles[i] || null));
+  }
+
   const topContributions: LeaderboardRow[] = await Promise.all(
     contribAddresses.map(async (address, idx) => {
       const likes = await redis.zscore(WR.leaderboardLikes, address);
       return {
         address,
+        handle: handleByAddr.get(address) ?? null,
         contributions: contribScores[idx],
         totalLikesReceived: Number(likes ?? 0),
       };
@@ -737,6 +772,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardResponse> {
       );
       return {
         address,
+        handle: handleByAddr.get(address) ?? null,
         contributions: Number(contributions ?? 0),
         totalLikesReceived: likeScores[idx],
       };
