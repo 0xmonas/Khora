@@ -148,6 +148,65 @@ export default function PixelForgePage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [aiRefImage, setAiRefImage] = useState<string | null>(null);
+  const aiRefInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAiRefUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result;
+      if (typeof result === 'string') { setAiRefImage(result); sfx.playSuccess(); }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const [customPaletteName, setCustomPaletteName] = useState('Custom');
+  const paletteFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportPalette = () => {
+    const colors = (activePalette.colors.length > 0 ? activePalette.colors : customColors).filter(Boolean);
+    if (colors.length === 0) { sfx.playError(); return; }
+    const name = activePalette.name === '__custom__' ? customPaletteName : activePalette.name;
+    const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'palette';
+    const body = colors.map(c => c.replace('#', '').toLowerCase()).join('\n');
+    const blob = new Blob([body], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slug}.hex`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    sfx.playSuccess();
+  };
+
+  const handleImportPalette = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = typeof ev.target?.result === 'string' ? ev.target.result : '';
+      const seen = new Set<string>();
+      const colors: string[] = [];
+      const matches = Array.from(text.matchAll(/#?([0-9a-fA-F]{6})\b/g));
+      for (const m of matches) {
+        const hex = `#${m[1].toUpperCase()}`;
+        if (!seen.has(hex)) { seen.add(hex); colors.push(hex); }
+        if (colors.length >= 256) break;
+      }
+      if (colors.length === 0) { sfx.playError(); return; }
+      setCustomColors(colors);
+      setActivePalette({ name: '__custom__', colors: [] });
+      setCustomPaletteName(file.name.replace(/\.(hex|txt)$/i, '') || 'Custom');
+      setPrimaryColor(colors[0]);
+      sfx.playSuccess();
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   // History
   const pushToHistory = (newLayers: Layer[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -1148,12 +1207,12 @@ export default function PixelForgePage() {
     height: number;
     inputImage: string | undefined;
     layoutGuide?: string;
+    extraRef?: string;
     selection: Rect | null;
     hasExistingArt: boolean;
     spriteMode: boolean;
   }): Promise<string> => {
     if (selectedModel.provider === 'replicate') {
-      // Replicate Retro Diffusion is single-input — layout guide is dropped.
       return await generateRetroDiffusion({
         replicateToken: apiKey,
         prompt: params.prompt,
@@ -1161,7 +1220,7 @@ export default function PixelForgePage() {
         height: params.height,
         style: params.spriteMode ? 'item_sheet' : rdStyle,
         transparentBg,
-        inputImage: params.inputImage,
+        inputImage: params.inputImage ?? params.extraRef,
         strength: params.spriteMode ? 0.5 : 0.7,
         bypassPromptExpansion: params.spriteMode,
       });
@@ -1180,6 +1239,7 @@ export default function PixelForgePage() {
         selectedModelId,
         params.spriteMode,
         params.layoutGuide,
+        params.extraRef,
       );
     }
     return await generatePixelAsset(
@@ -1195,6 +1255,7 @@ export default function PixelForgePage() {
       selectedModelId,
       params.spriteMode,
       params.layoutGuide,
+      params.extraRef,
     );
   };
 
@@ -1684,6 +1745,7 @@ export default function PixelForgePage() {
         height: genHeight,
         inputImage: baseImage,
         layoutGuide,
+        extraRef: aiRefImage ?? undefined,
         selection: spriteMode ? null : selection,
         hasExistingArt: spriteMode ? false : hasExistingArt,
         spriteMode,
@@ -2232,10 +2294,39 @@ export default function PixelForgePage() {
                         <option key={p.name} value={p.name}>{p.name} ({p.colors.length})</option>
                       ))}
                       {customColors.length > 0 && (
-                        <option value="__custom__">Custom ({customColors.length})</option>
+                        <option value="__custom__">{customPaletteName} ({customColors.length})</option>
                       )}
                     </select>
                   </div>
+                  {activePalette.name === '__custom__' && customColors.length > 0 && (
+                    <input
+                      type="text"
+                      value={customPaletteName}
+                      onChange={e => setCustomPaletteName(e.target.value)}
+                      placeholder="Palette name"
+                      className="w-full bg-transparent border border-neutral-700 dark:border-neutral-600 text-[9px] text-foreground px-1 py-0.5 mb-1 focus:outline-none focus:border-foreground"
+                      style={font}
+                    />
+                  )}
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { sfx.playClick(); paletteFileInputRef.current?.click(); }}
+                      className="flex-1 border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[8px] uppercase hover:bg-foreground/5 transition-colors"
+                      style={font}
+                      title="Import a Lospec .hex palette"
+                    >
+                      Import
+                    </button>
+                    <button
+                      onClick={() => { sfx.playClick(); handleExportPalette(); }}
+                      className="flex-1 border border-neutral-700 dark:border-neutral-600 px-1 py-0.5 text-[8px] uppercase hover:bg-foreground/5 transition-colors"
+                      style={font}
+                      title="Export as Lospec .hex (one hex per line)"
+                    >
+                      Export
+                    </button>
+                  </div>
+                  <input type="file" ref={paletteFileInputRef} className="hidden" accept=".hex,.txt,text/plain" onChange={handleImportPalette} />
                 </div>
                 <div className="grid grid-cols-8 gap-0.5">
                   {activePalette.colors.map((color, i) => (
@@ -2608,6 +2699,32 @@ export default function PixelForgePage() {
                   style={font}
                 />
                 {genState.error && <p className="text-[9px] text-red-400" style={font}>{genState.error}</p>}
+
+                {aiRefImage ? (
+                  <div className="flex items-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={aiRefImage} alt="AI reference" className="w-8 h-8 object-contain border border-neutral-700 dark:border-neutral-600" style={{ imageRendering: 'pixelated' }} />
+                    <span className="flex-1 text-[9px] uppercase text-muted-foreground truncate" style={font}>Reference</span>
+                    <button
+                      onClick={() => { sfx.playClick(); setAiRefImage(null); }}
+                      className="text-muted-foreground/50 hover:text-red-500 transition-colors"
+                      title="Remove reference"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { sfx.playClick(); aiRefInputRef.current?.click(); }}
+                    className="w-full flex items-center justify-center gap-1.5 border border-dashed border-neutral-600 dark:border-neutral-400 p-1.5 text-[9px] uppercase text-muted-foreground hover:border-foreground/50 transition-colors"
+                    style={font}
+                    title="Attach a reference image. The AI edits the canvas using it as a guide — it is not uploaded onto the canvas. (Gemini & OpenAI; Replicate uses it only when the canvas is empty.)"
+                  >
+                    <Upload className="w-3 h-3" /> Add reference
+                  </button>
+                )}
+                <input type="file" ref={aiRefInputRef} className="hidden" accept="image/*" onChange={handleAiRefUpload} />
+
                 <label className="flex items-center gap-1.5 text-[9px] uppercase text-muted-foreground cursor-pointer select-none" style={font}>
                   <input type="checkbox" checked={transparentBg} onChange={e => { sfx.playClick(); setTransparentBg(e.target.checked); }} className="cursor-pointer accent-foreground" />
                   Transparent bg

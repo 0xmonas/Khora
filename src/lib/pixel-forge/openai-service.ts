@@ -34,6 +34,7 @@ export async function generateOpenAIImage(
   model: string = 'openai/gpt-5.4-image-2',
   spriteMode: boolean = false,
   layoutGuideBase64?: string,
+  extraReferenceBase64?: string,
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\nUse ONLY these colors: ${paletteColors.join(', ')}.` : '';
@@ -61,8 +62,15 @@ export async function generateOpenAIImage(
     instruction = `Generate a ${width}x${height} pixel art sprite of: ${prompt}. Style: retro 8-bit, clean lines, hard pixel edges, no anti-aliasing.${paletteLine(hasPalette, paletteColors)}${bgLine}`;
   }
 
+  if (extraReferenceBase64) {
+    instruction += referenceImageBase64
+      ? '\n\nADDITIONAL REFERENCE: a second image is attached after the canvas. The FIRST image is the current canvas to edit; the SECOND is a guide — apply the task using its style, colors, pose, or content as the reference.'
+      : '\n\nREFERENCE: an image is attached. Use it as the style/content guide for the task.';
+  }
+
   const content: ContentPart[] = [{ type: 'text', text: instruction }];
   if (referenceImageBase64) content.push(imageContentFromBase64OrDataUrl(referenceImageBase64));
+  if (extraReferenceBase64) content.push(imageContentFromBase64OrDataUrl(extraReferenceBase64));
   if (layoutGuideBase64) content.push(imageContentFromBase64OrDataUrl(layoutGuideBase64));
 
   try {

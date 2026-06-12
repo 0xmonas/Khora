@@ -206,12 +206,18 @@ export function PixelEditor({
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
-  const getPixelCoordinates = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+  const getPixelCoordinates = useCallback((event: { clientX: number; clientY: number }, clamp = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((event.clientX - rect.left) / pixelSize);
     const y = Math.floor((event.clientY - rect.top) / pixelSize);
+    if (clamp) {
+      return {
+        x: Math.max(0, Math.min(canvasWidth - 1, x)),
+        y: Math.max(0, Math.min(canvasHeight - 1, y)),
+      };
+    }
     if (x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight) return { x, y };
     return null;
   }, [pixelSize, canvasWidth, canvasHeight]);
@@ -367,46 +373,67 @@ export function PixelEditor({
     }
   };
 
-  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getPixelCoordinates(event);
+  const beginSelectionMove = (coords: { x: number; y: number }): boolean => {
+    if (!selection) return false;
+    const existing = layerPixels.get(activeLayerId);
+    if (!existing) return false;
+    const buf = new ImageData(selection.w, selection.h);
+    const scratch = new ImageData(new Uint8ClampedArray(existing.data), canvasWidth, canvasHeight);
+    for (let sy = 0; sy < selection.h; sy++) {
+      for (let sx = 0; sx < selection.w; sx++) {
+        const srcIdx = ((selection.y + sy) * canvasWidth + (selection.x + sx)) * 4;
+        const dstIdx = (sy * selection.w + sx) * 4;
+        buf.data[dstIdx] = existing.data[srcIdx];
+        buf.data[dstIdx + 1] = existing.data[srcIdx + 1];
+        buf.data[dstIdx + 2] = existing.data[srcIdx + 2];
+        buf.data[dstIdx + 3] = existing.data[srcIdx + 3];
+        scratch.data[srcIdx + 3] = 0;
+      }
+    }
+    moveBufferRef.current = buf;
+    moveOrigSelRef.current = { ...selection };
+    scratchRef.current = scratch;
+    isDrawingRef.current = true;
+    moveStartRef.current = coords;
+    drawCanvas();
+    return true;
+  };
+
+  const isInsideSelection = (coords: { x: number; y: number }): boolean =>
+    !!selection &&
+    coords.x >= selection.x && coords.x < selection.x + selection.w &&
+    coords.y >= selection.y && coords.y < selection.y + selection.h;
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const coords = getPixelCoordinates(event, true);
     if (!coords) return;
 
     if (activeTool === ToolType.MOVE) {
-      if (selection && coords.x >= selection.x && coords.x < selection.x + selection.w && coords.y >= selection.y && coords.y < selection.y + selection.h) {
-        const existing = layerPixels.get(activeLayerId);
-        if (existing) {
-          const buf = new ImageData(selection.w, selection.h);
-          const scratch = new ImageData(new Uint8ClampedArray(existing.data), canvasWidth, canvasHeight);
-          for (let sy = 0; sy < selection.h; sy++) {
-            for (let sx = 0; sx < selection.w; sx++) {
-              const srcIdx = ((selection.y + sy) * canvasWidth + (selection.x + sx)) * 4;
-              const dstIdx = (sy * selection.w + sx) * 4;
-              buf.data[dstIdx] = existing.data[srcIdx];
-              buf.data[dstIdx + 1] = existing.data[srcIdx + 1];
-              buf.data[dstIdx + 2] = existing.data[srcIdx + 2];
-              buf.data[dstIdx + 3] = existing.data[srcIdx + 3];
-              scratch.data[srcIdx + 3] = 0;
-            }
-          }
-          moveBufferRef.current = buf;
-          moveOrigSelRef.current = { ...selection };
-          scratchRef.current = scratch;
-          isDrawingRef.current = true;
-          moveStartRef.current = coords;
-          drawCanvas();
-        }
+      if (isInsideSelection(coords) && beginSelectionMove(coords)) {
+        // floating move started
       } else {
         setIsPanning(true); setPanStart({ x: event.clientX, y: event.clientY });
       }
     } else if (activeTool === ToolType.SELECT) {
-      setSelection({ x: coords.x, y: coords.y, w: 1, h: 1 });
-      dragStartRef.current = coords;
+      if (isInsideSelection(coords) && beginSelectionMove(coords)) {
+        // drag-to-move existing selection contents
+      } else {
+        setSelection({ x: coords.x, y: coords.y, w: 1, h: 1 });
+        dragStartRef.current = coords;
+      }
     } else if (activeTool === ToolType.EYEDROPPER) {
-      const imageData = layerPixels.get(activeLayerId);
-      if (imageData) {
+      const ordered = typeof soloLayerIndex === 'number'
+        ? (layers[soloLayerIndex] ? [layers[soloLayerIndex]] : [])
+        : layers;
+      for (const layer of ordered) {
+        if (typeof soloLayerIndex !== 'number' && !layer.visible) continue;
+        const imageData = layerPixels.get(layer.id);
+        if (!imageData) continue;
         const idx = (coords.y * canvasWidth + coords.x) * 4;
         if (imageData.data[idx + 3] > 0) {
           onPickColor('#' + ((1 << 24) + (imageData.data[idx] << 16) + (imageData.data[idx + 1] << 8) + imageData.data[idx + 2]).toString(16).slice(1));
+          break;
         }
       }
     } else if (activeTool === ToolType.FILL) {
@@ -430,12 +457,12 @@ export function PixelEditor({
     setMousePos(coords);
   };
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getPixelCoordinates(event);
+  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const coords = getPixelCoordinates(event, true);
     if (!coords) return;
-    setMousePos(coords);
+    setMousePos(getPixelCoordinates(event));
 
-    if (activeTool === ToolType.MOVE && moveStartRef.current && moveBufferRef.current && scratchRef.current && moveOrigSelRef.current) {
+    if ((activeTool === ToolType.MOVE || activeTool === ToolType.SELECT) && moveStartRef.current && moveBufferRef.current && scratchRef.current && moveOrigSelRef.current) {
       const dx = coords.x - moveStartRef.current.x;
       const dy = coords.y - moveStartRef.current.y;
       const origSel = moveOrigSelRef.current;
@@ -467,7 +494,10 @@ export function PixelEditor({
     if (tmpCtx) { tmpCtx.putImageData(scratch, 0, 0); onUpdateLayer(activeLayerId, tmp.toDataURL('image/png')); }
   };
 
-  const handleMouseUp = (event?: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerUp = (event?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (event) {
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* not captured */ }
+    }
     if (moveBufferRef.current && scratchRef.current && selection) {
       const buf = moveBufferRef.current;
       const scratch = scratchRef.current;
@@ -498,7 +528,7 @@ export function PixelEditor({
     }
 
     if (shapeStartRef.current && shapePreview && event && (activeTool === ToolType.LINE || activeTool === ToolType.RECTANGLE || activeTool === ToolType.CIRCLE)) {
-      const coords = getPixelCoordinates(event);
+      const coords = getPixelCoordinates(event, true);
       if (coords) {
         const existing = layerPixels.get(activeLayerId);
         const scratch = existing
@@ -549,11 +579,12 @@ export function PixelEditor({
           ref={canvasRef}
           width={canvasWidth * pixelSize}
           height={canvasHeight * pixelSize}
-          style={{ imageRendering: 'pixelated', cursor: activeTool === ToolType.MOVE ? (isPanning ? 'grabbing' : 'grab') : 'crosshair' }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => handleMouseUp()}
+          style={{ imageRendering: 'pixelated', touchAction: 'none', cursor: activeTool === ToolType.MOVE ? (isPanning ? 'grabbing' : 'grab') : 'crosshair' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerLeave={() => { if (!isDrawingRef.current && !dragStartRef.current && !shapeStartRef.current && !isPanning) setMousePos(null); }}
         />
         {cursorPos && mousePos && activeTool !== ToolType.EYEDROPPER && activeTool !== ToolType.SELECT && activeTool !== ToolType.MOVE && (
           <div

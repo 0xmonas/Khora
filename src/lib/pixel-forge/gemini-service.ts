@@ -20,6 +20,7 @@ export async function generatePixelAsset(
   model: string = 'gemini-3-pro-image-preview',
   spriteMode: boolean = false,
   layoutGuideBase64?: string,
+  extraReferenceBase64?: string,
 ): Promise<string> {
   const hasPalette = paletteColors.length > 0;
   const paletteRule = hasPalette ? `\n5. Use ONLY these colors: ${paletteColors.join(', ')}.` : '';
@@ -71,6 +72,13 @@ Style: Retro, 8-bit, clean lines, pure pixel art with hard edges.${paletteLine}$
   if (referenceImageBase64) {
     const base64Data = referenceImageBase64.replace(/^data:image\/\w+;base64,/, '');
     parts.push({ inlineData: { data: base64Data, mimeType: 'image/png' } });
+  }
+  if (extraReferenceBase64) {
+    const extraData = extraReferenceBase64.replace(/^data:image\/\w+;base64,/, '');
+    parts.push({ inlineData: { data: extraData, mimeType: 'image/png' } });
+    instruction += referenceImageBase64
+      ? '\n\nADDITIONAL REFERENCE: a second image is attached after the canvas. The FIRST image is the current canvas to edit; the SECOND is a guide — apply the task using its style, colors, pose, or content as the reference.'
+      : '\n\nREFERENCE: an image is attached. Use it as the style/content guide for the task.';
   }
   if (layoutGuideBase64) {
     const guideData = layoutGuideBase64.replace(/^data:image\/\w+;base64,/, '');
