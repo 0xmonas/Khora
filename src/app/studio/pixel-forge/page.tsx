@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Pencil, Eraser, Pipette, Download, BoxSelect,
-  Wand2, Upload, Loader2, Undo, Trash2, Plus,
+  Wand2, Upload, Loader2, Undo, Redo, Trash2, Plus,
   PaintBucket, Eye, EyeOff, Hand, ArrowLeft, Grid3X3, Search,
   Minus, Circle, Square, ChevronUp, ChevronDown, Droplet, Replace, Copy, RotateCcw, RefreshCcw, Contrast,
   ExternalLink,
@@ -224,6 +224,13 @@ export default function PixelForgePage() {
     }
   }, [historyIndex, history]);
 
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      setLayers(history[historyIndex + 1]);
+    }
+  }, [historyIndex, history]);
+
   // Workspace navigation. Each animation state is its own workspace; users
   // jump between them with `<` / `>` (or arrow keys when no input is focused).
   // Switching saves the current layers to a per-group cache and loads the
@@ -268,21 +275,26 @@ export default function PixelForgePage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo(); else handleUndo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
       if (e.key === 'Escape') setSelection(null);
       // Workspace switcher shortcuts (only when no input is focused)
       const t = e.target as HTMLElement | null;
       const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
-      if (!inField && (e.key === 'ArrowLeft' || e.key === ',' || e.key === '<')) {
+      const multiWorkspace = visibleGroupIds.length > 1;
+      if (!inField && multiWorkspace && (e.key === 'ArrowLeft' || e.key === ',' || e.key === '<')) {
         e.preventDefault(); switchPrevGroup();
       }
-      if (!inField && (e.key === 'ArrowRight' || e.key === '.' || e.key === '>')) {
+      if (!inField && multiWorkspace && (e.key === 'ArrowRight' || e.key === '.' || e.key === '>')) {
         e.preventDefault(); switchNextGroup();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, switchPrevGroup, switchNextGroup]);
+  }, [handleUndo, handleRedo, switchPrevGroup, switchNextGroup, visibleGroupIds]);
 
   // Layer ops
   const handleAddLayer = (name = 'New Layer', data: string | null = null, isOriginal = false) => {
@@ -621,7 +633,7 @@ export default function PixelForgePage() {
               handleAddLayer(`BOOA #${id}`, pngData, true);
             } else {
               const active = layers.find(l => l.id === activeLayerId);
-              if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+              if (active && !active.data) { handleUpdateLayer(activeLayerId, pngData); saveOriginal(activeLayerId, pngData); }
               else handleAddLayer(`BOOA #${id}`, pngData, true);
             }
             sfx.playSuccess();
@@ -663,7 +675,7 @@ export default function PixelForgePage() {
               handleAddLayer(`${col.label} #${id}`, pngData, true);
             } else {
               const active = layers.find(l => l.id === activeLayerId);
-              if (active && !active.data) { saveOriginal(activeLayerId, pngData); handleUpdateLayer(activeLayerId, pngData); }
+              if (active && !active.data) { handleUpdateLayer(activeLayerId, pngData); saveOriginal(activeLayerId, pngData); }
               else handleAddLayer(`${col.label} #${id}`, pngData, true);
             }
             sfx.playSuccess();
@@ -1962,10 +1974,6 @@ export default function PixelForgePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const hasExistingArt = layers.some(l => l.data);
-    if (!hasExistingArt) {
-      const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
-      if (fullColor) setActivePalette(fullColor);
-    }
 
     const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
     if (isGif) {
@@ -2003,14 +2011,35 @@ export default function PixelForgePage() {
         }
         const cvs = document.createElement('canvas');
         cvs.width = newCanvasW; cvs.height = newCanvasH;
-        const ctx = cvs.getContext('2d');
+        const ctx = cvs.getContext('2d', { willReadFrequently: true });
         if (ctx) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0, fitW, fitH); }
+        if (!hasExistingArt && ctx) {
+          const imageData = ctx.getImageData(0, 0, newCanvasW, newCanvasH);
+          const d = imageData.data;
+          const colorSet = new Set<string>();
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 128) continue;
+            colorSet.add('#' + ((1 << 24) + (d[i] << 16) + (d[i + 1] << 8) + d[i + 2]).toString(16).slice(1).toUpperCase());
+          }
+          let extracted = Array.from(colorSet);
+          if (extracted.length > 64) {
+            extracted = quantizeImageData(imageData, 48).map(rgbToHex);
+          }
+          if (extracted.length > 0) {
+            setCustomColors(extracted);
+            setActivePalette({ name: '__custom__', colors: [] });
+            setCustomPaletteName(file.name.replace(/\.[^.]+$/, '') || 'Custom');
+          } else {
+            const fullColor = PALETTE_PRESETS.find(p => p.name === 'Full Color');
+            if (fullColor) setActivePalette(fullColor);
+          }
+        }
         const data = cvs.toDataURL('image/png');
         if (hasExistingArt) {
           handleAddLayer(file.name, data, true);
         } else {
           const active = layers.find(l => l.id === activeLayerId);
-          if (active && !active.data) { saveOriginal(activeLayerId, data); handleUpdateLayer(activeLayerId, data); }
+          if (active && !active.data) { handleUpdateLayer(activeLayerId, data); saveOriginal(activeLayerId, data); }
           else handleAddLayer(file.name, data, true);
         }
         sfx.playSuccess();
@@ -2401,7 +2430,7 @@ export default function PixelForgePage() {
                   <button
                     onClick={() => {
                       sfx.playClick();
-                      setCustomColors(prev => [...prev, '']);
+                      setCustomColors(prev => [...activePalette.colors, ...prev, '']);
                       setActivePalette({ name: '__custom__', colors: [] });
                     }}
                     className="border border-neutral-700 dark:border-neutral-600 px-1.5 h-6 text-[9px] hover:border-foreground/50 transition-colors"
@@ -2532,9 +2561,14 @@ export default function PixelForgePage() {
 
               {/* Actions */}
               <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-1.5">
-                <button onClick={() => { sfx.playClick(); handleUndo(); }} disabled={historyIndex === 0} className="w-full flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors" style={font}>
-                  <Undo className="w-3 h-3" /> Undo
-                </button>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button onClick={() => { sfx.playClick(); handleUndo(); }} disabled={historyIndex === 0} className="flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors" style={font}>
+                    <Undo className="w-3 h-3" /> Undo
+                  </button>
+                  <button onClick={() => { sfx.playClick(); handleRedo(); }} disabled={historyIndex >= history.length - 1} className="flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors" style={font}>
+                    <Redo className="w-3 h-3" /> Redo
+                  </button>
+                </div>
                 <button
                   onClick={() => { sfx.playClick(); handleRevertLayer(); }}
                   disabled={!activeLayer || (!simplifySourceRef.current.has(activeLayerId) && !originalLayerData.has(activeLayerId))}
