@@ -64,8 +64,18 @@ export async function middleware(request: NextRequest) {
   // ── Rate limiting (applied to ALL API routes, no exceptions) ──
   const ip = getIP(request);
   const isWrite = request.method !== 'GET';
-  const rl = await (isWrite ? writeLimiter : generalLimiter).limit(ip);
-  if (!rl.success) {
+  let rl: Awaited<ReturnType<typeof generalLimiter.limit>> | null = null;
+  try {
+    rl = await (isWrite ? writeLimiter : generalLimiter).limit(ip);
+  } catch {
+    if (isWrite || pathname.startsWith('/api/auth/')) {
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable. Please try again later.' },
+        { status: 503 },
+      );
+    }
+  }
+  if (rl && !rl.success) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again later.' },
       { status: 429, headers: rateLimitHeaders(rl) },

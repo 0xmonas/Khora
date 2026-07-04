@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { sessionOptions, type SessionData } from '@/lib/session';
 
 describe('Session Config', () => {
@@ -17,6 +17,11 @@ describe('Session Config', () => {
   it('should set maxAge to 24 hours', () => {
     const oneDay = 60 * 60 * 24;
     expect(sessionOptions.cookieOptions?.maxAge).toBe(oneDay);
+  });
+
+  it('should set ttl to 24 hours', () => {
+    const oneDay = 60 * 60 * 24;
+    expect(sessionOptions.ttl).toBe(oneDay);
   });
 
   it('should set path to /', () => {
@@ -46,5 +51,17 @@ describe('Session Config', () => {
     expect(session.nonce).toBeUndefined();
     expect(session.address).toBeUndefined();
     expect(session.chainId).toBeUndefined();
+  });
+
+  it('should throw when SESSION_SECRET is shorter than 32 characters', async () => {
+    vi.resetModules();
+    vi.stubEnv('SESSION_SECRET', 'too-short');
+
+    await expect(import('@/lib/session')).rejects.toThrow(
+      'SESSION_SECRET must be at least 32 characters'
+    );
+
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });

@@ -100,6 +100,7 @@ export function SiweProvider({ children }: { children: ReactNode }) {
             uri: window.location.origin,
             version: '1',
             statement: 'Sign in to BOOA.',
+            expirationTime: new Date(Date.now() + 5 * 60 * 1000),
           });
         },
 

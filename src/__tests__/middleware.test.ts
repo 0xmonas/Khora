@@ -109,6 +109,29 @@ describe('Middleware', () => {
     expect(response.status).toBe(200);
   });
 
+  it('should strip forged x-siwe-address on soft-auth path without session', async () => {
+    const { middleware } = await import('@/middleware');
+
+    const request = new NextRequest(
+      new URL('/api/writers-room/state', 'http://localhost:3000'),
+      {
+        method: 'GET',
+        headers: {
+          'x-siwe-address': '0xAtTaCkErAtTaCkErAtTaCkErAtTaCkErAtTaCkEr',
+          'x-siwe-chain-id': '999',
+        },
+      },
+    );
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-middleware-request-x-siwe-address')).toBeNull();
+    expect(response.headers.get('x-middleware-request-x-siwe-chain-id')).toBeNull();
+    const override = response.headers.get('x-middleware-override-headers') ?? '';
+    expect(override).not.toContain('x-siwe-address');
+  });
+
   it('should return 401 if session has nonce but no address', async () => {
     mockSession.nonce = 'some-nonce';
 

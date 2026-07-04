@@ -46,18 +46,35 @@ export async function POST(request: NextRequest) {
 
     // Verify nonce matches session
     if (parsed.nonce !== session.nonce) {
+      session.nonce = undefined;
+      await session.save();
       return NextResponse.json({ error: 'Nonce mismatch' }, { status: 422 });
     }
 
-    // Verify domain
-    const expectedDomain = request.headers.get('host') || '';
-    if (parsed.domain !== expectedDomain) {
+    const isAllowedDomain = (host: string) =>
+      host === 'booa.app' ||
+      host === 'localhost' ||
+      host.startsWith('localhost:') ||
+      host.endsWith('.vercel.app');
+
+    let uriHost: string;
+    try {
+      uriHost = new URL(parsed.uri ?? '').host;
+    } catch {
+      uriHost = '';
+    }
+
+    if (!parsed.domain || !isAllowedDomain(parsed.domain) || !isAllowedDomain(uriHost)) {
+      session.nonce = undefined;
+      await session.save();
       return NextResponse.json({ error: 'Domain mismatch' }, { status: 422 });
     }
 
     // Chain must be supported
     const chain = CHAINS[parsed.chainId as keyof typeof CHAINS];
     if (!chain) {
+      session.nonce = undefined;
+      await session.save();
       return NextResponse.json({ error: 'Unsupported chain' }, { status: 400 });
     }
 
@@ -73,6 +90,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!isValid) {
+      session.nonce = undefined;
+      await session.save();
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 

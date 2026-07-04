@@ -14,6 +14,7 @@ export const generalLimiter = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(60, '60 s'),
   prefix: 'rl:general',
+  timeout: 1000,
 });
 
 /**
@@ -23,6 +24,7 @@ export const writeLimiter = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(30, '60 s'),
   prefix: 'rl:write',
+  timeout: 1000,
 });
 
 /**

@@ -67,17 +67,26 @@ describe('Auth Routes', () => {
   });
 
   describe('GET /api/auth/nonce', () => {
-    it('should return a nonce and store it in session', async () => {
+    it('should return a 32-char hex nonce and store it in session', async () => {
       const { GET } = await import('@/app/api/auth/nonce/route');
 
       const response = await GET();
       const body = await response.json();
 
-      expect(body.nonce).toBe('test-nonce-abc123');
-      expect(mockSession.nonce).toBe('test-nonce-abc123');
+      expect(body.nonce).toMatch(/^[0-9a-f]{32}$/);
+      expect(mockSession.nonce).toBe(body.nonce);
       expect(mockSession.address).toBeUndefined();
       expect(mockSession.chainId).toBeUndefined();
       expect(mockSave).toHaveBeenCalledOnce();
+    });
+
+    it('should generate a fresh nonce on each request', async () => {
+      const { GET } = await import('@/app/api/auth/nonce/route');
+
+      const first = await (await GET()).json();
+      const second = await (await GET()).json();
+
+      expect(first.nonce).not.toBe(second.nonce);
     });
 
     it('should clear existing session data when requesting new nonce', async () => {
@@ -90,7 +99,7 @@ describe('Auth Routes', () => {
 
       expect(mockSession.address).toBeUndefined();
       expect(mockSession.chainId).toBeUndefined();
-      expect(mockSession.nonce).toBe('test-nonce-abc123');
+      expect(mockSession.nonce).toMatch(/^[0-9a-f]{32}$/);
     });
   });
 
@@ -131,13 +140,14 @@ describe('Auth Routes', () => {
       expect(body.error).toBe('Invalid SIWE message');
     });
 
-    it('should return 422 if nonce does not match session', async () => {
+    it('should return 422 and burn the nonce if nonce does not match session', async () => {
       mockSession.nonce = 'session-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'different-nonce',
         address: validAddress,
         chainId: 11011,
         domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
       });
 
       const { POST } = await import('@/app/api/auth/verify/route');
@@ -146,15 +156,36 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(422);
       const body = await res.json();
       expect(body.error).toBe('Nonce mismatch');
+      expect(mockSession.nonce).toBeUndefined();
     });
 
-    it('should return 422 if domain does not match host', async () => {
+    it('should return 422 and burn the nonce for a disallowed domain', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
         chainId: 11011,
         domain: 'evil.com',
+        uri: 'https://evil.com',
+      });
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('Domain mismatch');
+      expect(mockSession.nonce).toBeUndefined();
+    });
+
+    it('should return 422 if uri host is not allowlisted', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'booa.app',
+        uri: 'https://evil.com',
       });
 
       const { POST } = await import('@/app/api/auth/verify/route');
@@ -165,13 +196,49 @@ describe('Auth Routes', () => {
       expect(body.error).toBe('Domain mismatch');
     });
 
-    it('should return 400 if chain is unsupported', async () => {
+    it('should accept a booa.app domain and vercel preview uri', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'booa-git-preview.vercel.app',
+        uri: 'https://booa-git-preview.vercel.app',
+      });
+      mockVerifySiweMessage.mockResolvedValue(true);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(200);
+    });
+
+    it('should return 422 for a localhost-prefixed lookalike domain', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'localhost.evil.com',
+        uri: 'https://localhost.evil.com',
+      });
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('Domain mismatch');
+    });
+
+    it('should return 400 and burn the nonce if chain is unsupported', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
         chainId: 999,
         domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
       });
 
       const { POST } = await import('@/app/api/auth/verify/route');
@@ -180,15 +247,17 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe('Unsupported chain');
+      expect(mockSession.nonce).toBeUndefined();
     });
 
-    it('should return 401 if signature is invalid', async () => {
+    it('should return 401 and burn the nonce if signature is invalid', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
         chainId: 11011,
         domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(false);
 
@@ -198,6 +267,29 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(401);
       const body = await res.json();
       expect(body.error).toBe('Invalid signature');
+      expect(mockSession.nonce).toBeUndefined();
+    });
+
+    it('should reject a message with an expired expirationTime', async () => {
+      mockSession.nonce = 'test-nonce';
+      const parsed = {
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() - 60 * 1000),
+      };
+      mockParseSiweMessage.mockReturnValue(parsed);
+      mockVerifySiweMessage.mockImplementation(() =>
+        Promise.resolve(new Date() < parsed.expirationTime),
+      );
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(401);
+      expect(mockSession.nonce).toBeUndefined();
     });
 
     it('should create session on valid verification', async () => {
@@ -207,6 +299,7 @@ describe('Auth Routes', () => {
         address: validAddress,
         chainId: 11011,
         domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 
@@ -233,6 +326,7 @@ describe('Auth Routes', () => {
         address: validAddress,
         chainId: 360,
         domain: 'localhost:3000',
+        uri: 'http://localhost:3000',
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 
