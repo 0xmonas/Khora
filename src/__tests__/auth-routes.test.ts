@@ -213,6 +213,23 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(200);
     });
 
+    it('should accept the www.booa.app apex-with-www domain', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'www.booa.app',
+        uri: 'https://www.booa.app',
+      });
+      mockVerifySiweMessage.mockResolvedValue(true);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(200);
+    });
+
     it('should return 422 for a localhost-prefixed lookalike domain', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({

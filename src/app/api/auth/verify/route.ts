@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
 
     const isAllowedDomain = (host: string) =>
       host === 'booa.app' ||
+      host === 'www.booa.app' ||
       host === 'localhost' ||
       host.startsWith('localhost:') ||
       host.endsWith('.vercel.app');
