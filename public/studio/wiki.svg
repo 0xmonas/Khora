@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#40318d"/>
+  <g fill="#7869c4" opacity="0.25">
+    <rect x="24" y="24" width="8" height="8"/><rect x="368" y="24" width="8" height="8"/>
+    <rect x="24" y="368" width="8" height="8"/><rect x="368" y="368" width="8" height="8"/>
+    <rect x="196" y="24" width="8" height="8"/><rect x="24" y="196" width="8" height="8"/>
+    <rect x="368" y="196" width="8" height="8"/><rect x="196" y="368" width="8" height="8"/>
+  </g>
+  <g transform="translate(108,84)">
+    <rect x="8" y="8" width="184" height="240" fill="#000000" opacity="0.35"/>
+    <rect width="184" height="240" fill="#e8e6f5"/>
+    <rect width="184" height="240" fill="none" stroke="#1a1440" stroke-width="6"/>
+    <path d="M136 0 L184 48 L136 48 Z" fill="#a59ed8"/>
+    <path d="M136 0 L184 48" stroke="#1a1440" stroke-width="6"/>
+    <g fill="#7869c4">
+      <rect x="24" y="72" width="88" height="10"/>
+      <rect x="24" y="94" width="136" height="6" opacity="0.55"/>
+      <rect x="24" y="110" width="120" height="6" opacity="0.55"/>
+      <rect x="24" y="126" width="136" height="6" opacity="0.55"/>
+      <rect x="24" y="158" width="64" height="8"/>
+      <rect x="24" y="178" width="136" height="6" opacity="0.55"/>
+      <rect x="24" y="194" width="104" height="6" opacity="0.55"/>
+    </g>
+    <text x="24" y="52" font-family="monospace" font-size="26" font-weight="bold" fill="#1a1440">[[BOOA]]</text>
+  </g>
+  <text x="200" y="356" font-family="monospace" font-size="20" fill="#a59ed8" text-anchor="middle">wiki</text>
+</svg>

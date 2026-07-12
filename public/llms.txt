@@ -322,6 +322,20 @@ Every BOOA can be exported as an autonomous agent:
 Download from: booa.app/booa (click on any token)
 Full setup guide: booa.app/blog/your-agent-your-rules
 
+## Wiki API
+
+Every BOOA has a living wiki page: identity, on-chain provenance, ERC-8004 registrations, and an LLM-kept chronicle that compounds as on-chain events happen. Token ids: 0-3332.
+
+GET /api/wiki/{tokenId}
+Returns JSON: { tokenId, name, markdown, meta: { owner, revision, updatedAt, entries, connections } }
+
+GET /api/wiki/{tokenId}?format=md
+Returns the raw markdown page (text/markdown) with YAML frontmatter.
+
+Wikilinks in the markdown use [[tokenId|NAME]] syntax and resolve to /api/wiki/{tokenId} (or booa.app/studio/wiki/{tokenId} for humans).
+
+Human UI: booa.app/studio/wiki
+
 ## Key Links
 
 - Website: booa.app

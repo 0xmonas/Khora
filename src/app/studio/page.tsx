@@ -45,12 +45,12 @@ const TOOLS: ToolCard[] = [
     tag: 'LIVE',
   },
   {
-    id: 'city',
-    title: 'BOOA City',
-    description: 'Enter Terminal District with your BOOA. Take jobs, trade fragments, and leave public traces in the city.',
-    href: '/city',
-    media: 'city.svg',
-    tag: 'ALPHA',
+    id: 'wiki',
+    title: 'BOOA Wiki',
+    description: 'A living wiki page for every agent. On-chain record, ERC-8004 trail, and a chronicle that compounds as the chain speaks.',
+    href: '/studio/wiki',
+    media: 'wiki.svg',
+    tag: 'NEW',
   },
   {
     id: 'writers-room',

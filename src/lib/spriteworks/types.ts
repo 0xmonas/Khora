@@ -38,7 +38,6 @@ export const DEFAULT_ROW_MAP: RowSpec[] = [
 
 export type RGB = [number, number, number];
 
-// Mirrors BOOA_CITY_PALETTE in src/lib/city/assets.ts.
 export const BOOA_C64_PALETTE: RGB[] = [
   [0x00, 0x00, 0x00],
   [0xff, 0xff, 0xff],
