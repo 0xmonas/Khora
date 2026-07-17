@@ -45,6 +45,7 @@ const PUBLIC_READ_PATHS = [
   '/api/banner-nfts',
   '/api/booask',
   '/api/wiki',
+  '/api/migration',
 ];
 
 export async function middleware(request: NextRequest) {
