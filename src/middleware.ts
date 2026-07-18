@@ -46,6 +46,7 @@ const PUBLIC_READ_PATHS = [
   '/api/booask',
   '/api/wiki',
   '/api/migration',
+  '/api/booa-image',
 ];
 
 export async function middleware(request: NextRequest) {

@@ -1,4 +1,4 @@
-import { shape, shapeSepolia } from 'wagmi/chains';
+import { shape, shapeSepolia, mainnet } from 'wagmi/chains';
 
 // ── V2 Contract Addresses ──
 // Four separate contracts: BOOA (ERC721), Storage, Renderer, Minter
@@ -13,9 +13,17 @@ export const BOOA_V2_STORAGE_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_V2_
 export const BOOA_V2_RENDERER_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_V2_RENDERER_ADDRESS || '') as `0x${string}`;
 export const BOOA_V2_RENDERER_ADDRESS_TESTNET = (process.env.NEXT_PUBLIC_BOOA_V2_RENDERER_ADDRESS_TESTNET || '') as `0x${string}`;
 
+// ── Ethereum mainnet (post-migration canonical) — same on-chain interface ──
+// (ownerOf, totalSupply, getImageData, renderer). No Minter (claim-based migration).
+export const BOOA_ETH_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_ADDRESS || '0xbc48fD45aAaf6549293056606397D351a100b222') as `0x${string}`;
+export const BOOA_ETH_STORAGE_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_STORAGE_ADDRESS || '0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96') as `0x${string}`;
+export const BOOA_ETH_RENDERER_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_RENDERER_ADDRESS || '0x7Cf376EE7263a78Db2d163775BE322fA7B842C76') as `0x${string}`;
+
 const MAINNET_IDS = new Set<number>([shape.id]);
+const isEth = (chainId: number) => chainId === mainnet.id;
 
 export function getV2Address(chainId: number): `0x${string}` {
+  if (isEth(chainId)) return BOOA_ETH_ADDRESS;
   if (MAINNET_IDS.has(chainId) && BOOA_V2_ADDRESS.length > 2) return BOOA_V2_ADDRESS;
   return BOOA_V2_ADDRESS_TESTNET;
 }
@@ -26,19 +34,29 @@ export function getV2MinterAddress(chainId: number): `0x${string}` {
 }
 
 export function getV2StorageAddress(chainId: number): `0x${string}` {
+  if (isEth(chainId)) return BOOA_ETH_STORAGE_ADDRESS;
   if (MAINNET_IDS.has(chainId) && BOOA_V2_STORAGE_ADDRESS.length > 2) return BOOA_V2_STORAGE_ADDRESS;
   return BOOA_V2_STORAGE_ADDRESS_TESTNET;
 }
 
 export function getV2RendererAddress(chainId: number): `0x${string}` {
+  if (isEth(chainId)) return BOOA_ETH_RENDERER_ADDRESS;
   if (MAINNET_IDS.has(chainId) && BOOA_V2_RENDERER_ADDRESS.length > 2) return BOOA_V2_RENDERER_ADDRESS;
   return BOOA_V2_RENDERER_ADDRESS_TESTNET;
 }
 
-/** V2 chain ID for contract reads (Shape Sepolia for testnet fallback) */
+/** Chain ID to read BOOA contracts on, given the connected chain. */
 export function getV2ChainId(chainId: number): number {
+  if (isEth(chainId)) return mainnet.id;
   if (MAINNET_IDS.has(chainId) && BOOA_V2_ADDRESS.length > 2) return shape.id;
   return shapeSepolia.id;
+}
+
+/** Alchemy chain slug for /api/gallery + /api/fetch-nfts, per connected chain. */
+export function getBooaChainSlug(chainId: number): 'ethereum' | 'shape' | 'shape-sepolia' {
+  if (isEth(chainId)) return 'ethereum';
+  if (chainId === shape.id) return 'shape';
+  return 'shape-sepolia';
 }
 
 // ── BOOAv2 (ERC721) ABI — read-only functions ──
