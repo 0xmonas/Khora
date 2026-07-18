@@ -46,8 +46,11 @@ function shapeClient() {
 let _operator: ReturnType<typeof privateKeyToAccount> | null = null;
 function operator() {
   if (!_operator) {
-    const key = process.env.MIGRATION_OPERATOR_PRIVATE_KEY;
-    if (!key) throw new Error('MIGRATION_OPERATOR_PRIVATE_KEY not configured');
+    // Op decision (2026-07-13): reuse the existing mint signer as the migration
+    // operator (option A). MIGRATION_OPERATOR_PRIVATE_KEY stays as an override
+    // if the roles ever need separating.
+    const key = process.env.MIGRATION_OPERATOR_PRIVATE_KEY || process.env.SIGNER_PRIVATE_KEY;
+    if (!key) throw new Error('No operator key configured (MIGRATION_OPERATOR_PRIVATE_KEY or SIGNER_PRIVATE_KEY)');
     _operator = privateKeyToAccount(key as Hex);
   }
   return _operator;
