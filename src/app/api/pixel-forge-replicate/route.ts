@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http } from 'viem';
-import { shape } from 'viem/chains';
 import Replicate from 'replicate';
-import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
-import { getRedis } from '@/lib/server/redis';
+import { isHolder } from '@/lib/server/holders';
 
 export const maxDuration = 60;
 
@@ -14,30 +11,6 @@ const ALLOWED_STYLES = new Set([
   'topdown_map', 'topdown_asset', 'ui_element', 'item_sheet',
   'low_res', 'topdown_item', 'skill_icon', 'mc_item', 'mc_texture',
 ]);
-
-const SHAPE_RPC = process.env.NEXT_PUBLIC_SHAPE_RPC_URL || 'https://mainnet.shape.network';
-
-async function isHolder(address: string): Promise<boolean> {
-  const redis = getRedis();
-  const key = `holder:v2:${address.toLowerCase()}`;
-  const cached = await redis.get<number>(key);
-  if (cached !== null) return cached >= 1;
-
-  try {
-    const client = createPublicClient({ transport: http(SHAPE_RPC) });
-    const balance = await client.readContract({
-      address: getV2Address(shape.id),
-      abi: BOOA_V2_ABI,
-      functionName: 'balanceOf',
-      args: [address as `0x${string}`],
-    });
-    const count = Number(balance);
-    await redis.set(key, count, { ex: 300 });
-    return count >= 1;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const walletAddress = request.headers.get('x-siwe-address');

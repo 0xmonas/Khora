@@ -14,6 +14,7 @@ export const maxDuration = 30;
 
 const MODEL = process.env.GEMINI_LORE_MODEL || 'gemini-2.5-flash-lite';
 
+const ETH_MAINNET = 1;
 const SHAPE_MAINNET = 360;
 const SHAPE_SEPOLIA = 11011;
 const BOOA_MAX_TOKEN_ID = 3332;
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
   }
   const chainId = body.chainId;
   const tokenId = body.tokenId;
-  if (typeof chainId !== 'number' || (chainId !== SHAPE_MAINNET && chainId !== SHAPE_SEPOLIA)) {
+  if (typeof chainId !== 'number' || (chainId !== ETH_MAINNET && chainId !== SHAPE_MAINNET && chainId !== SHAPE_SEPOLIA)) {
     return NextResponse.json({ error: 'Unsupported chain. BOOA collection only.' }, { status: 400 });
   }
   if (
@@ -195,17 +196,18 @@ export async function POST(request: NextRequest) {
   }
 
   const { createPublicClient, http, fallback } = await import('viem');
-  const { shape, shapeSepolia } = await import('viem/chains');
+  const { shape, shapeSepolia, mainnet } = await import('viem/chains');
   const booaAddress = getV2Address(chainId);
   const storageAddress = getV2StorageAddress(chainId);
   if (!booaAddress || booaAddress.length <= 2) {
     return NextResponse.json({ error: 'BOOA contract not configured for this chain.' }, { status: 500 });
   }
 
-  const chainEntry = chainId === SHAPE_MAINNET ? shape : shapeSepolia;
+  const chainEntry = chainId === ETH_MAINNET ? mainnet : chainId === SHAPE_MAINNET ? shape : shapeSepolia;
+  const ethRpc = process.env.ALCHEMY_API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}` : undefined;
   const client = createPublicClient({
     chain: chainEntry,
-    transport: fallback([http()]),
+    transport: fallback([http(chainId === ETH_MAINNET ? ethRpc : undefined)]),
   });
 
   // Holder check via on-chain balanceOf — defense in depth on top of client-side HolderGate.

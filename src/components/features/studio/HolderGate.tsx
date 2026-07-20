@@ -75,7 +75,7 @@ export function HolderGate({
     return (
       <CenteredMessage label="Balance check failed">
         <p className="text-sm text-muted-foreground max-w-md text-center" style={font}>
-          We couldn&apos;t read your BOOA balance. Shape RPC may be rate-limited.
+          We couldn&apos;t read your BOOA balance. The RPC may be rate-limited.
         </p>
         <button
           onClick={() => refetchBalance()}
