@@ -7,7 +7,7 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { sfx } from '@/lib/sounds';
 
-const BOOA_CONTRACT = '0x7aecA981734d133d3f695937508C48483BA6b654';
+const BOOA_CONTRACT = '0xbc48fD45aAaf6549293056606397D351a100b222';
 const TOTAL_SUPPLY = 3333;
 
 const RAMPS = {
@@ -167,8 +167,8 @@ export default function BooasciiPage() {
     setAgentName(null);
     try {
       const [svgRes, metaRes] = await Promise.all([
-        fetch(`/api/agent-files/360/${id}/avatar.svg`),
-        fetch(`/api/agent-files/360/${id}/agent.json`).catch(() => null),
+        fetch(`/api/agent-files/1/${id}/avatar.svg`),
+        fetch(`/api/agent-files/1/${id}/agent.json`).catch(() => null),
       ]);
       if (!svgRes.ok) throw new Error(`BOOA #${id} not found`);
       const text = await svgRes.text();
@@ -298,7 +298,7 @@ export default function BooasciiPage() {
   }, [loadAgent, tokenId, tokenInput]);
 
   const openseaUrl = tokenId !== null
-    ? `https://opensea.io/assets/shape/${BOOA_CONTRACT}/${tokenId}`
+    ? `https://opensea.io/assets/ethereum/${BOOA_CONTRACT}/${tokenId}`
     : null;
 
 

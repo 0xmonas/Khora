@@ -16,9 +16,9 @@ const AGENT = {
   emoji: '🐙',
   skills: ['Task Decomposition', 'Multi-Agent Planning', 'Agent Coordination', 'Workflow Automation', 'Problem Solving', 'Dialogue Generation'],
   domains: ['Automation', 'APIs & Integration', 'Logistics', 'Cybersecurity'],
-  image: 'https://res.cloudinary.com/alchemyapi/image/upload/thumbnailv2/shape-mainnet/27736ed75caa881acaa26d0d2695135f_8d404f44',
-  contract: '0x7aecA981734d133d3f695937508C48483BA6b654',
-  chain: 'Shape (360)',
+  image: 'https://booa.app/api/booa-image/1496',
+  contract: '0xbc48fD45aAaf6549293056606397D351a100b222',
+  chain: 'Ethereum (1)',
   registry8004: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
 };
 

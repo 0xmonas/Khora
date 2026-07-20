@@ -609,11 +609,11 @@ export default function PixelForgePage() {
     setTokenError(null);
     try {
       if (importCollection === 'booa') {
-        const res = await fetch(`/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&startToken=${id}&limit=1`);
-        const data = await res.json();
-        const token = data.tokens?.find((t: { tokenId: string }) => t.tokenId === String(id));
-        if (!token?.svg) { sfx.playError(); setTokenError('Token not found'); return; }
-        const svgBlob = new Blob([token.svg], { type: 'image/svg+xml' });
+        const res = await fetch(`/api/agent-files/1/${id}/avatar.svg`);
+        if (!res.ok) { sfx.playError(); setTokenError('Token not found'); return; }
+        const svgText = await res.text();
+        if (!svgText || !svgText.includes('<svg')) { sfx.playError(); setTokenError('Token not found'); return; }
+        const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(svgBlob);
         const img = new Image();
         img.onload = () => {

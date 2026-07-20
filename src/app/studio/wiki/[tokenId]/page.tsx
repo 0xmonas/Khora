@@ -209,7 +209,7 @@ export default function WikiTokenPage() {
                       <>
                         {avatarOk && (
                           <img
-                            src={`/api/agent-files/360/${data.tokenId}/avatar.svg`}
+                            src={`/api/agent-files/1/${data.tokenId}/avatar.svg`}
                             alt={data.name}
                             className="w-full aspect-square border border-neutral-200 dark:border-neutral-800"
                             style={{ imageRendering: 'pixelated' }}

@@ -9,7 +9,11 @@ import { CHAIN_CONFIG } from '@/types/agent';
 const MODEL = process.env.GEMINI_WIKI_MODEL || 'gemini-2.5-flash-lite';
 const DAILY_MAX = Number(process.env.WIKI_DAILY_GLOBAL_MAX || 300);
 const REFRESH_MS = Number(process.env.WIKI_REFRESH_SECONDS || 600) * 1000;
+const ETH_CHAIN_ID = 1;
 const SHAPE_CHAIN_ID = 360;
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
+const ETH_RPC = ALCHEMY_API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}` : '';
+const SHAPE_RPC = process.env.NEXT_PUBLIC_SHAPE_RPC_URL || 'https://mainnet.shape.network';
 const ZERO = '0x0000000000000000000000000000000000000000';
 
 export const MAX_TOKEN_ID = 3332;
@@ -119,18 +123,26 @@ async function getIdentity(tokenId: number): Promise<AgentIdentity | null> {
   return index.get(tokenId) ?? null;
 }
 
-async function fetchChain(tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
+async function fetchChainOn(chainId: number, rpc: string, tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
   const { createPublicClient, http, parseAbiItem } = await import('viem');
-  const { shape } = await import('viem/chains');
-  const client = createPublicClient({ chain: shape, transport: http() });
-  const address = getV2Address(SHAPE_CHAIN_ID);
+  const { shape, mainnet } = await import('viem/chains');
+  const client = createPublicClient({
+    chain: chainId === ETH_CHAIN_ID ? mainnet : shape,
+    transport: http(rpc || undefined),
+  });
+  const address = getV2Address(chainId);
+  if (!address || address.length <= 2) return { owner: null, transfers: null };
 
   let owner: string | null = null;
   try {
     owner = (await client.readContract({
       address, abi: BOOA_V2_ABI, functionName: 'ownerOf', args: [BigInt(tokenId)],
     })) as string;
-  } catch { /* token unreadable — degrade */ }
+  } catch {
+    // ownerOf reverts when the token does not live on this chain (e.g. not yet
+    // migrated to Ethereum) — signal "not here" so the caller can fall back.
+    return { owner: null, transfers: null };
+  }
 
   let transfers: WikiTransfer[] | null = null;
   try {
@@ -163,6 +175,14 @@ async function fetchChain(tokenId: number): Promise<{ owner: string | null; tran
   } catch { /* log scan unavailable — degrade */ }
 
   return { owner, transfers };
+}
+
+async function fetchChain(tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
+  // Canonical home is Ethereum post-migration. Read there first; fall back to
+  // Shape for tokens whose holders have not migrated yet.
+  const eth = await fetchChainOn(ETH_CHAIN_ID, ETH_RPC, tokenId);
+  if (eth.owner) return eth;
+  return fetchChainOn(SHAPE_CHAIN_ID, SHAPE_RPC, tokenId);
 }
 
 async function fetchRegistrations(tokenId: number): Promise<WikiRegistration[]> {
@@ -317,7 +337,7 @@ function connections(identity: AgentIdentity): WikiConnection[] {
 
 function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnection[]): string {
   const { facts, entries } = doc;
-  const contract = getV2Address(SHAPE_CHAIN_ID);
+  const contract = getV2Address(ETH_CHAIN_ID);
   const lines: string[] = [];
 
   lines.push('---');
@@ -325,14 +345,14 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   lines.push(`name: ${identity.name}`);
   lines.push(`creature: ${identity.creature}`);
   lines.push(`owner: ${facts.owner ?? 'unknown'}`);
-  lines.push(`chain: eip155:${SHAPE_CHAIN_ID}`);
+  lines.push(`chain: eip155:${ETH_CHAIN_ID}`);
   lines.push(`updated: ${new Date(doc.updatedAt).toISOString()}`);
   lines.push(`revision: ${doc.revision}`);
   lines.push('---');
   lines.push('');
   lines.push(`# ${identity.name}`);
   lines.push('');
-  lines.push(`> BOOA #${identity.id} · ${identity.vibe} ${identity.emoji} — born onchain, a fully on-chain agent identity on Shape.`);
+  lines.push(`> BOOA #${identity.id} · ${identity.vibe} ${identity.emoji} — born onchain, a fully on-chain agent identity on Ethereum.`);
   lines.push('');
   lines.push('## Identity');
   lines.push('');
@@ -364,7 +384,7 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   lines.push('');
   lines.push('## On-Chain Record');
   lines.push('');
-  lines.push(`- **Contract:** \`${contract}\` (Shape, chain ${SHAPE_CHAIN_ID})`);
+  lines.push(`- **Contract:** \`${contract}\` (Ethereum, chain ${ETH_CHAIN_ID})`);
   lines.push(`- **Token:** #${identity.id}`);
   lines.push(`- **Holder:** ${facts.owner ? `\`${facts.owner}\`` : 'unknown'}`);
   if (facts.transfers && facts.transfers.length) {

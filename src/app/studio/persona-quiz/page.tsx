@@ -11,7 +11,7 @@ const goldBloom = { color: '#c8b439', textShadow: '0 0 8px rgba(200,180,57,0.6),
 const dimText = { color: '#999' };
 const bodyText = { color: '#ccc' };
 
-const BOOA_CONTRACT = '0x7aecA981734d133d3f695937508C48483BA6b654';
+const BOOA_CONTRACT = '0xbc48fD45aAaf6549293056606397D351a100b222';
 
 interface AgentTrait {
   id: number;
@@ -319,7 +319,7 @@ export default function PersonaQuizPage() {
               {matches.map((agent, i) => (
                 <a
                   key={agent.id}
-                  href={`https://opensea.io/assets/shape/${BOOA_CONTRACT}/${agent.id}`}
+                  href={`https://opensea.io/assets/ethereum/${BOOA_CONTRACT}/${agent.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block rounded-lg border border-neutral-200 dark:border-neutral-800 p-5 space-y-3 transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
