@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import type { BooaAgent } from '@/types/agent';
 import { BOOA_NFT_ABI, isMainnetChain } from '@/lib/contracts/booa';
@@ -464,6 +465,14 @@ export async function GET(
   // Resolve and verify registration (single pass — no duplicate RPC)
   const verification = await resolveAndVerify(tokenIdNum, chainIdNum, cachedRegistry);
 
+  // Binding (ERC-8217 / Adapter8004): an agent whose on-chain owner is the adapter
+  // contract is "Awakened" — bound to this NFT, with the current NFT holder as its
+  // controller. registeredBy is the agent's on-chain owner (the adapter, when bound).
+  const adapterAddr = getAdapterAddress(chainIdNum);
+  const bound = !!(verification.registeredBy && adapterAddr && verification.registeredBy.toLowerCase() === adapterAddr.toLowerCase());
+  const bindingContract = bound ? adapterAddr : null;
+  const controller = bound ? verification.currentNftOwner : null;
+
   // No metadata and no registration found
   if (!entry && verification.agentId === null) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -480,6 +489,9 @@ export async function GET(
       registeredBy: verification.registeredBy,
       verified: verification.verified,
       currentNftOwner: verification.currentNftOwner,
+      bound,
+      bindingContract,
+      controller,
     }, {
       headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
     });
@@ -536,6 +548,9 @@ export async function GET(
     registeredBy: verification.registeredBy,
     verified: verification.verified,
     currentNftOwner: verification.currentNftOwner,
+    bound,
+    bindingContract,
+    controller,
   }, {
     headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
   });

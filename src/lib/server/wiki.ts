@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { getRedis } from '@/lib/server/redis';
 import { getAI } from '@/lib/server/gemini';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
+import { getAdapterAddress, BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { CHAIN_CONFIG } from '@/types/agent';
 
 const MODEL = process.env.GEMINI_WIKI_MODEL || 'gemini-2.5-flash-lite';
@@ -46,10 +47,16 @@ interface WikiRegistration {
   registeredBy: string | null;
 }
 
+interface WikiBinding {
+  agentId: number;
+  controller: string | null;
+}
+
 interface WikiFacts {
   owner: string | null;
   transfers: WikiTransfer[] | null;
   registrations: WikiRegistration[];
+  binding: WikiBinding | null;
 }
 
 interface WikiEntry {
@@ -185,6 +192,59 @@ async function fetchChain(tokenId: number): Promise<{ owner: string | null; tran
   return fetchChainOn(SHAPE_CHAIN_ID, SHAPE_RPC, tokenId);
 }
 
+// Is this BOOA Awakened? Read the Adapter8004 binding straight from chain: scan
+// AgentBound events (filtered by the BOOA contract), confirm the current binding
+// via bindingOf, and take the NFT holder as the controller. No cache dependency.
+async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
+  const adapter = getAdapterAddress(ETH_CHAIN_ID);
+  const booa = getV2Address(ETH_CHAIN_ID);
+  if (!adapter || !booa || booa.length <= 2) return null;
+  try {
+    const { createPublicClient, http, parseAbiItem } = await import('viem');
+    const { mainnet } = await import('viem/chains');
+    const client = createPublicClient({ chain: mainnet, transport: http(ETH_RPC || undefined) });
+    const event = parseAbiItem(
+      'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)'
+    );
+    const latest = await client.getBlockNumber();
+    const PAGE = BigInt(9999);
+    const MAX_PAGES = 8;
+    let cursor = latest;
+    let agentId: number | null = null;
+    for (let i = 0; i < MAX_PAGES && agentId === null; i++) {
+      const from = cursor > PAGE ? cursor - PAGE : BigInt(0);
+      const logs = await client.getLogs({
+        address: adapter, event,
+        args: { tokenContract: booa as `0x${string}` },
+        fromBlock: from, toBlock: cursor,
+      });
+      for (let j = logs.length - 1; j >= 0; j--) {
+        if (Number(logs[j].args.tokenId) === tokenId) { agentId = Number(logs[j].args.agentId); break; }
+      }
+      if (from === BigInt(0)) break;
+      cursor = from - BigInt(1);
+    }
+    if (agentId === null) return null;
+
+    // Confirm the agent is still bound to this exact token (guards unbind/rebind).
+    const binding = await client.readContract({
+      address: adapter, abi: BOOA_ADAPTER_ABI, functionName: 'bindingOf', args: [BigInt(agentId)],
+    }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
+    if (Number(binding.tokenId) !== tokenId || binding.tokenContract.toLowerCase() !== booa.toLowerCase()) return null;
+
+    let controller: string | null = null;
+    try {
+      controller = (await client.readContract({
+        address: booa as `0x${string}`, abi: BOOA_V2_ABI, functionName: 'ownerOf', args: [BigInt(tokenId)],
+      })) as string;
+    } catch { /* holder read failed — leave null */ }
+
+    return { agentId, controller };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRegistrations(tokenId: number): Promise<WikiRegistration[]> {
   try {
     const redis = getRedis();
@@ -209,6 +269,7 @@ function hashFacts(facts: WikiFacts): string {
     owner: facts.owner ? facts.owner.toLowerCase() : null,
     blocks: facts.transfers ? facts.transfers.map((t) => t.block) : null,
     regs: facts.registrations.map((r) => `${r.chainId}:${r.agentId}`).sort(),
+    binding: facts.binding ? facts.binding.agentId : null,
   };
   return createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
@@ -232,6 +293,9 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
     for (const r of next.registrations) {
       changes.push(`Registered on the ${r.chain} ERC-8004 registry as agent #${r.agentId}.`);
     }
+    if (next.binding) {
+      changes.push(`Awakened — bound to onchain agent #${next.binding.agentId} via Adapter8004. Whoever holds the NFT controls the agent.`);
+    }
     return changes;
   }
   if (next.owner && prev.owner && next.owner.toLowerCase() !== prev.owner.toLowerCase()) {
@@ -248,6 +312,11 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
     if (!prevRegs.has(`${r.chainId}:${r.agentId}`)) {
       changes.push(`New ERC-8004 registration on ${r.chain}: agent #${r.agentId}.`);
     }
+  }
+  if (next.binding && (!prev.binding || prev.binding.agentId !== next.binding.agentId)) {
+    changes.push(`Awakened onchain — now bound to agent #${next.binding.agentId} via Adapter8004; whoever holds the NFT controls the agent.`);
+  } else if (!next.binding && prev.binding) {
+    changes.push('Binding released — no longer bound to an onchain agent.');
   }
   return changes;
 }
@@ -387,6 +456,12 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   lines.push(`- **Contract:** \`${contract}\` (Ethereum, chain ${ETH_CHAIN_ID})`);
   lines.push(`- **Token:** #${identity.id}`);
   lines.push(`- **Holder:** ${facts.owner ? `\`${facts.owner}\`` : 'unknown'}`);
+  if (facts.binding) {
+    lines.push(`- **Awakened:** yes — bound to onchain agent #${facts.binding.agentId} via Adapter8004 (ERC-8217). The holder controls the agent; it transfers with the NFT.`);
+    if (facts.binding.controller) lines.push(`- **Controller:** \`${facts.binding.controller}\``);
+  } else {
+    lines.push('- **Awakened:** not yet — this BOOA is not bound to an onchain agent. Awaken it at booa.app/studio/awaken.');
+  }
   if (facts.transfers && facts.transfers.length) {
     lines.push('- **Recent transfers:**');
     for (const t of facts.transfers) {
@@ -449,8 +524,8 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
   const doc = await redis.get<WikiDoc>(key);
   if (doc && now - doc.updatedAt < REFRESH_MS) return build(identity, doc);
 
-  const [chain, registrations] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId)]);
-  const facts: WikiFacts = { owner: chain.owner, transfers: chain.transfers, registrations };
+  const [chain, registrations, binding] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId)]);
+  const facts: WikiFacts = { owner: chain.owner, transfers: chain.transfers, registrations, binding };
 
   if (!facts.owner && doc) return build(identity, doc);
 

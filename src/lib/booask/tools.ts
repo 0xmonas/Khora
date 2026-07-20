@@ -119,7 +119,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
     {
       name: 'getAgentByToken',
       description:
-        'Resolve a BOOA NFT token ID to its canonical (non-orphan) ERC-8004 agent. Returns agent name, description, skills, domains, trust models, current owner, verified status, and OpenSea link. Use this for ANY question about a BOOA or its agent.',
+        'Resolve a BOOA NFT token ID to its canonical (non-orphan) ERC-8004 agent. Returns agent name, description, skills, domains, trust models, current owner, verified status, OpenSea link, and binding: `awakened` (true = the BOOA is bound to an onchain agent via Adapter8004) plus `controller` (the holder who controls the agent). Use this for ANY question about a BOOA, its agent, or whether it is awakened/bound.',
       parameters: {
         type: 'object',
         properties: {
@@ -267,6 +267,10 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           currentNftOwner: data.currentNftOwner ?? null,
           registeredBy: data.registeredBy ?? null,
           registeredVia: data.registeredVia ?? null,
+          // Awakened = bound to this NFT via Adapter8004 (ERC-8217); controller is the holder.
+          awakened: data.bound === true,
+          controller: data.controller ?? null,
+          bindingContract: data.bindingContract ?? null,
           agentId: data.registrations?.[0]?.agentId ?? null,
           agentRegistry: data.registrations?.[0]?.agentRegistry ?? null,
           skills,
