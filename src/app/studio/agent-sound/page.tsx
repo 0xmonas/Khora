@@ -408,7 +408,7 @@ export default function AgentSoundPage() {
               {grid && (
                 <div className="mt-8 flex justify-center">
                   <div className="w-full max-w-lg">
-                    <div className="border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-50 dark:bg-neutral-900 rounded-sm overflow-hidden">
+                    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
                       {/* Status */}
                       <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
                         <div className="flex items-center gap-2">

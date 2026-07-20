@@ -102,7 +102,7 @@ export default function WikiTokenPage() {
                 <ArrowLeft className="w-3 h-3" /> BOOA Wiki
               </Link>
 
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 bg-background" style={font}>
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm" style={font}>
                 <div className="flex items-center gap-2 px-3 py-2 border-b-2 border-neutral-700 dark:border-neutral-200">
                   <div className="flex gap-1.5 shrink-0">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#883932]" />

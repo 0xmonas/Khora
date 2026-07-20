@@ -491,10 +491,10 @@ export function WritersRoomClient() {
                       return (
                         <li
                           key={s.id}
-                          className={`border transition-colors p-4 space-y-2 ${
+                          className={`rounded-md border transition-colors p-4 space-y-2 ${
                             isWinner
                               ? 'border-foreground border-2'
-                              : 'border-neutral-300 dark:border-neutral-700 hover:border-foreground/60'
+                              : 'border-neutral-200 dark:border-neutral-800 hover:border-foreground/60'
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2 flex-wrap">

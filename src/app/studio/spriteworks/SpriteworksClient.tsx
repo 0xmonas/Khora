@@ -85,9 +85,9 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
-const fieldClass = 'w-full bg-transparent border-2 border-neutral-700 dark:border-neutral-200 px-2 py-1.5 text-xs text-foreground outline-none';
-const buttonGhost = 'border-2 border-neutral-700 dark:border-neutral-200 px-2 py-1.5 text-[11px] text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
-const buttonPrimary = 'border-2 border-foreground bg-foreground px-3 py-1.5 text-[11px] text-background hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity';
+const fieldClass = 'w-full rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs text-foreground outline-none focus:border-neutral-400 dark:focus:border-neutral-600';
+const buttonGhost = 'rounded-md border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 text-[11px] text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+const buttonPrimary = 'rounded-md bg-foreground px-3 py-1.5 text-[11px] text-background hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity';
 const sectionLabel = 'text-[10px] uppercase tracking-widest text-muted-foreground/60';
 
 const PROVIDER_KEY_DOCS: Record<Provider, string> = {
@@ -780,7 +780,7 @@ export function SpriteworksClient() {
                 <img
                   src={result.atlasDataUrl}
                   alt="generated atlas"
-                  className="h-auto max-w-full border-2 border-neutral-700 dark:border-neutral-200"
+                  className="h-auto max-w-full rounded-md border border-neutral-200 dark:border-neutral-800"
                   style={{ imageRendering: 'pixelated' }}
                 />
               </section>

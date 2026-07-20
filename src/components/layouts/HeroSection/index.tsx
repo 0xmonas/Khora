@@ -112,7 +112,7 @@ const PRODUCTS = [
   {
     name: 'BOOA',
     tagline: 'Born On-chain Owned Agents',
-    desc: 'Fully on-chain AI character NFTs on Shape. AI generates unique pixel art portraits, personalities, and skills — stored permanently via SSTORE2.',
+    desc: 'Fully on-chain AI character NFTs on Ethereum. AI generates unique pixel art portraits, personalities, and skills — stored permanently via SSTORE2.',
     href: '/booa',
     cta: 'Explore BOOA',
   },

@@ -2126,7 +2126,7 @@ export default function PixelForgePage() {
             <div className="w-full lg:w-56 space-y-3 shrink-0">
 
               {/* Import Token */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Import</p>
                 <div className="flex gap-0.5">
                   {(Object.keys(COLLECTIONS) as Array<keyof typeof COLLECTIONS>).map(key => (
@@ -2166,7 +2166,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Upload file */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Upload</p>
                 <div
                   className="border border-dashed border-neutral-600 dark:border-neutral-400 p-3 text-center cursor-pointer hover:border-foreground/50 transition-colors"
@@ -2179,7 +2179,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Canvas Size */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Canvas Size</p>
                 <div className="flex items-center gap-1">
                   <input
@@ -2266,7 +2266,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Tools */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Tools</p>
                 <div className="grid grid-cols-4 gap-1">
                   {tools.map(({ type, icon: Icon, label }) => (
@@ -2488,7 +2488,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Layers */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Layers ({layers.length})</p>
                   <button onClick={() => { sfx.playClick(); handleAddLayer(); }} className="text-muted-foreground hover:text-foreground"><Plus className="w-3 h-3" /></button>
@@ -2560,7 +2560,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Actions */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-1.5">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5">
                 <div className="grid grid-cols-2 gap-1.5">
                   <button onClick={() => { sfx.playClick(); handleUndo(); }} disabled={historyIndex === 0} className="flex items-center justify-center gap-2 border border-neutral-700 dark:border-neutral-600 p-1.5 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors" style={font}>
                     <Undo className="w-3 h-3" /> Undo
@@ -2592,7 +2592,7 @@ export default function PixelForgePage() {
                   ))}
                 </select>
                 <div className="space-y-1">
-                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="w-full flex items-center justify-center gap-1 border-2 border-neutral-700 dark:border-neutral-200 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
+                  <button onClick={() => { sfx.playSuccess(); handleDownload(); }} className="w-full flex items-center justify-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 p-1.5 text-[10px] uppercase hover:bg-foreground/5 transition-colors" style={font}>
                     <Download className="w-3 h-3" /> PNG
                   </button>
                   {spriteMode && layers.length >= 2 && (
@@ -2622,7 +2622,7 @@ export default function PixelForgePage() {
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 border-2 border-neutral-700 dark:border-neutral-200 bg-muted/20 overflow-hidden min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[900px] lg:self-start flex flex-col">
+            <div className="flex-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-muted/20 overflow-hidden min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[900px] lg:self-start flex flex-col">
               {visibleGroupIds.length > 1 && (
                 <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5 flex items-center gap-2 text-[10px]" style={font}>
                   <button
@@ -2680,7 +2680,7 @@ export default function PixelForgePage() {
                 <div className="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2 flex flex-wrap items-center gap-3 text-[10px]" style={font}>
                   <button
                     onClick={() => { sfx.playClick(); setSpritePlaying(p => !p); }}
-                    className="border-2 border-neutral-700 dark:border-neutral-200 px-3 py-1 uppercase hover:bg-foreground/5 transition-colors min-w-[72px]"
+                    className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-1 uppercase hover:bg-foreground/5 transition-colors min-w-[72px]"
                     style={font}
                   >
                     {spritePlaying ? 'Pause' : 'Play'}
@@ -2721,7 +2721,7 @@ export default function PixelForgePage() {
             {/* Right sidebar */}
             <div className="w-full lg:w-56 space-y-3 shrink-0">
               {/* AI Generate */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1" style={font}>
                   <Wand2 className="w-3 h-3" /> AI Generate
                 </p>
@@ -2814,7 +2814,7 @@ export default function PixelForgePage() {
                 <button
                   onClick={() => { sfx.playClick(); handleGenerate(); }}
                   disabled={genState.isGenerating || !prompt.trim()}
-                  className="w-full flex items-center justify-center gap-2 border-2 border-neutral-700 dark:border-neutral-200 p-2 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-800 p-2 text-[10px] uppercase disabled:opacity-30 hover:bg-foreground/5 transition-colors"
                   style={font}
                 >
                   {genState.isGenerating ? <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</> : <><Wand2 className="w-3 h-3" /> Generate</>}
@@ -2822,7 +2822,7 @@ export default function PixelForgePage() {
               </div>
 
               {/* Provider + API Key */}
-              <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 space-y-2">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50" style={font}>Provider</p>
                 <div className="grid grid-cols-3 gap-1">
                   {AI_MODELS.map((m) => {
@@ -2926,7 +2926,7 @@ export default function PixelForgePage() {
           onClick={confirmDialog.onCancel}
         >
           <div
-            className="w-full max-w-sm bg-background border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-4"
+            className="w-full max-w-sm bg-background rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-sm p-5 space-y-4"
             onClick={e => e.stopPropagation()}
             style={font}
           >
@@ -2943,13 +2943,13 @@ export default function PixelForgePage() {
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => { sfx.playClick(); confirmDialog.onCancel(); }}
-                className="flex-1 h-9 border-2 border-neutral-700 dark:border-neutral-200 text-[10px] uppercase hover:bg-foreground/5 transition-colors"
+                className="flex-1 h-9 rounded-md border border-neutral-200 dark:border-neutral-800 text-[10px] uppercase hover:bg-foreground/5 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { sfx.playClick(); confirmDialog.onConfirm(); }}
-                className="flex-1 h-9 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-[10px] uppercase hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors"
+                className="flex-1 h-9 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-[10px] uppercase hover:opacity-90 transition-opacity"
               >
                 Continue
               </button>

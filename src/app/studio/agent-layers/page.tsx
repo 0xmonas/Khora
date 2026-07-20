@@ -184,7 +184,7 @@ function LayerDetail({ layerId }: { layerId: LayerId }) {
 
   return (
     <div
-      className="border-2 p-4 transition-colors duration-200"
+      className="rounded-lg border-2 p-4 transition-colors duration-200"
       style={{ borderColor: layer.color, ...uiFont }}
     >
       <div className="flex items-center gap-2 mb-4">
@@ -225,7 +225,7 @@ export default function AgentLayersPage() {
           </div>
 
           {/* Agent header */}
-          <div className="flex items-center gap-4 mb-8 border-2 border-neutral-700 dark:border-neutral-200 p-4" style={uiFont}>
+          <div className="flex items-center gap-4 mb-8 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4" style={uiFont}>
             <img
               src={AGENT.image}
               alt={AGENT.name}
@@ -264,7 +264,7 @@ export default function AgentLayersPage() {
           </div>
 
           {/* Bottom CTA */}
-          <div className="mt-8 border-2 border-neutral-700 dark:border-neutral-200 p-4 text-center" style={uiFont}>
+          <div className="mt-8 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-center" style={uiFont}>
             <p className="text-xs text-muted-foreground mb-2">Every BOOA starts at Layer 1. How far you take it is up to you.</p>
             <div className="flex flex-wrap justify-center gap-4 text-[10px]">
               <a href="https://opensea.io/collection/booa" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">Get a BOOA</a>

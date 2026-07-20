@@ -124,3 +124,20 @@ a {
 .blinking-cursor {
   animation: blink 1s step-end infinite;
 }
+
+@keyframes rainbow-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.rainbow-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    #ff0040, #ff8c00, #ffd500, #00d26a, #00b3ff, #7a5cff, #ff0040
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-shimmer 3s linear infinite;
+}

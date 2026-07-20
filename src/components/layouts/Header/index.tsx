@@ -114,8 +114,9 @@ function WalletButton() {
   );
 }
 
-const NAV_LINKS: { href: string; label: string; highlight?: boolean }[] = [
+const NAV_LINKS: { href: string; label: string; highlight?: boolean; shimmer?: boolean }[] = [
   { href: '/booa', label: 'BOOA' },
+  { href: '/migrate', label: 'Migrate', shimmer: true },
   { href: '/bridge', label: 'Bridge' },
   { href: '/studio', label: 'Studio' },
   { href: '/blog', label: 'Blog' },
@@ -181,9 +182,11 @@ export function Header() {
                     key={link.href}
                     href={link.href}
                     className={`text-sm transition-colors ${
-                      link.highlight
-                        ? 'text-green-600 dark:text-green-500 hover:text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                      link.shimmer
+                        ? 'rainbow-shimmer font-semibold hover:opacity-80'
+                        : link.highlight
+                          ? 'text-green-600 dark:text-green-500 hover:text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
                     }`}
                     style={walletFont}
                   >
@@ -254,9 +257,11 @@ export function Header() {
               href={link.href}
               onClick={() => setMenuOpen(false)}
               className={`text-lg transition-colors ${
-                link.highlight
-                  ? 'text-green-600 dark:text-green-500 hover:text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                link.shimmer
+                  ? 'rainbow-shimmer font-semibold hover:opacity-80'
+                  : link.highlight
+                    ? 'text-green-600 dark:text-green-500 hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
               }`}
               style={walletFont}
             >

@@ -31,7 +31,7 @@ export function TokenLookup({
   };
 
   return (
-    <div className="w-full max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
+    <div className="w-full max-w-sm rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm p-5 space-y-5">
       {/* Network toggle — hidden in production */}
       {!HIDE_TESTNETS && (
         <div>
@@ -42,9 +42,9 @@ export function TokenLookup({
             <button
               type="button"
               onClick={() => setNetwork('mainnet')}
-              className={`flex-1 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
+              className={`flex-1 py-2 rounded-l-md border border-neutral-200 dark:border-neutral-800 text-xs transition-colors ${
                 network === 'mainnet'
-                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                   : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
               style={font}
@@ -54,9 +54,9 @@ export function TokenLookup({
             <button
               type="button"
               onClick={() => setNetwork('testnet')}
-              className={`flex-1 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${
+              className={`flex-1 py-2 rounded-r-md border border-l-0 border-neutral-200 dark:border-neutral-800 text-xs transition-colors ${
                 network === 'testnet'
-                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                   : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
               style={font}
@@ -79,7 +79,7 @@ export function TokenLookup({
           onChange={(e) => setTokenId(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           placeholder="0"
-          className="w-full p-2.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 text-sm outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
+          className="w-full p-2.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-sm text-foreground outline-none focus:border-neutral-400 dark:focus:border-neutral-600 placeholder:text-neutral-400 dark:placeholder:text-neutral-600"
           style={font}
         />
       </div>
@@ -93,7 +93,7 @@ export function TokenLookup({
       <button
         onClick={handleSubmit}
         disabled={!tokenId || loading}
-        className="w-full h-11 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-full h-11 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
         style={font}
       >
         {loading ? loadingLabel : buttonLabel}

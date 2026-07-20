@@ -52,7 +52,7 @@ export default function WikiLandingPage() {
                   <Shuffle className="w-3 h-3" /> Random page
                 </button>
 
-                <div className="border-2 border-neutral-700 dark:border-neutral-200 p-4 space-y-3">
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm p-4 space-y-3">
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground" style={font}>
                     Public API — no key required
                   </p>

@@ -32,11 +32,10 @@ function GithubIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-const NFT_CONTRACT = process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS || process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS_TESTNET || '';
-const isMainnet = !!process.env.NEXT_PUBLIC_BOOA_NFT_ADDRESS;
-const openseaUrl = isMainnet
-  ? `https://opensea.io/assets/shape/${NFT_CONTRACT}`
-  : `https://testnets.opensea.io/assets/shape-sepolia/${NFT_CONTRACT}`;
+const COLLECTIONS = [
+  { label: 'NEW', chain: 'Ethereum', url: 'https://opensea.io/collection/booa' },
+  { label: 'MIGRATED', chain: 'Shape', url: 'https://opensea.io/collection/booa-old' },
+];
 
 export function Footer() {
   return (
@@ -47,29 +46,41 @@ export function Footer() {
           <div className="lg:col-span-10 space-y-6">
 
             {/* NFT Collection row */}
-            {NFT_CONTRACT && (
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-sm text-neutral-500" style={footerFont}>
-                  BOOA NFT
-                </span>
-                <span className="text-xs text-neutral-400 break-all" style={footerFont}>
-                  {NFT_CONTRACT}
-                </span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <span className="text-sm text-neutral-500" style={footerFont}>
+                BOOA NFT
+              </span>
+              {COLLECTIONS.map((c) => (
                 <Link
-                  href={openseaUrl}
+                  key={c.label}
+                  href={c.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 group"
                 >
                   <Image
                     src="/opensea.png"
                     alt="OpenSea"
-                    width={20}
-                    height={20}
-                    className="rounded-full hover:opacity-80 transition-opacity"
+                    width={18}
+                    height={18}
+                    className="rounded-full group-hover:opacity-80 transition-opacity"
                   />
+                  <span className="text-sm text-neutral-500 group-hover:text-black dark:group-hover:text-white transition-colors" style={footerFont}>
+                    {c.chain}
+                  </span>
+                  <span
+                    className={`text-[9px] uppercase tracking-wider px-1 py-px rounded-sm ${
+                      c.label === 'NEW'
+                        ? 'text-green-600 dark:text-green-500 border border-green-600/40 dark:border-green-500/40'
+                        : 'text-neutral-400 border border-neutral-300 dark:border-neutral-700'
+                    }`}
+                    style={footerFont}
+                  >
+                    {c.label}
+                  </span>
                 </Link>
-              </div>
-            )}
+              ))}
+            </div>
 
             {/* Links row */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

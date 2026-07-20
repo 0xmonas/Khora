@@ -779,16 +779,16 @@ export default function BannerBuilderPage() {
 
               {!hasLoaded && (
                 <div className="mt-8 flex justify-center">
-                  <div className="w-full max-w-sm border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-5">
+                  <div className="w-full max-w-sm rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm p-5 space-y-5">
                     <div>
                       <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>Network</label>
                       {!HIDE_TESTNETS && (
                         <div className="flex">
                           <button type="button" onClick={() => setNetwork('mainnet')}
-                            className={`flex-1 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${network === 'mainnet' ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900' : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
+                            className={`flex-1 py-2 rounded-l-md border border-neutral-200 dark:border-neutral-800 text-xs transition-colors ${network === 'mainnet' ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black' : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
                             style={font}>Shape</button>
                           <button type="button" onClick={() => setNetwork('testnet')}
-                            className={`flex-1 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 text-xs transition-colors ${network === 'testnet' ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900' : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
+                            className={`flex-1 py-2 rounded-r-md border border-l-0 border-neutral-200 dark:border-neutral-800 text-xs transition-colors ${network === 'testnet' ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black' : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
                             style={font}>Shape Sepolia</button>
                         </div>
                       )}
@@ -797,7 +797,7 @@ export default function BannerBuilderPage() {
                       <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 block" style={font}>Wallet Address</label>
                       <input type="text" value={addressInput} onChange={(e) => { setAddressInput(e.target.value); setError(''); }}
                         onKeyDown={(e) => e.key === 'Enter' && fetchNfts(addressInput)} placeholder="0x..."
-                        className="w-full p-2.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 text-sm outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400 font-mono"
+                        className="w-full p-2.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-foreground text-sm outline-none focus:border-neutral-400 dark:focus:border-neutral-600 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 font-mono"
                         style={font} />
                     </div>
                     {connectedAddress && (
@@ -809,7 +809,7 @@ export default function BannerBuilderPage() {
                     )}
                     {error && <p className="text-[10px] text-red-500" style={font}>{error}</p>}
                     <button onClick={() => fetchNfts(addressInput)} disabled={!addressInput || loading}
-                      className="w-full h-11 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="w-full h-11 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
                       style={font}>
                       {loading ? 'LOADING...' : 'LOAD AGENTS'}
                     </button>
@@ -951,7 +951,7 @@ export default function BannerBuilderPage() {
                       </div>
 
                       <button onClick={handleExport} disabled={selectedNfts.length === 0}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-[10px] transition-colors hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-[10px] transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
                         style={font}>
                         <Download className="w-3 h-3" />
                         EXPORT PNG
@@ -960,7 +960,7 @@ export default function BannerBuilderPage() {
                     </aside>
 
                     <div className="flex-1 min-w-0 space-y-2">
-                      <div className="border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 p-2">
+                      <div className="rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 p-2">
                         <div className="relative max-w-full" style={{ aspectRatio: aspectStyle, maxHeight: 'min(70vh, 640px)' }}>
                           <canvas ref={canvasRef} className="w-full h-full block" style={{ imageRendering: 'pixelated' }} />
                           <div className="absolute inset-0">
@@ -1036,7 +1036,7 @@ export default function BannerBuilderPage() {
                         const sel = isSelected(nft.tokenId);
                         return (
                           <button key={`${nft.tokenId}-${idx}`} onClick={() => sel ? removeNft(nft.tokenId) : addNft(nft)}
-                            className={`relative aspect-square border-2 transition-all ${sel ? 'border-neutral-400 dark:border-white ring-1 ring-neutral-400/30 dark:ring-white/30' : 'border-neutral-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400'}`}>
+                            className={`relative aspect-square rounded-md overflow-hidden ring-1 transition-all ${sel ? 'ring-2 ring-foreground' : 'ring-neutral-200 dark:ring-neutral-800 hover:ring-neutral-400 dark:hover:ring-neutral-500'}`}>
                             {nft.svg ? (
                               <img src={`data:image/svg+xml,${encodeURIComponent(nft.svg)}`} alt={nft.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
                             ) : nft.imageUrl ? (

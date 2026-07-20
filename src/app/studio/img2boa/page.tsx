@@ -144,7 +144,7 @@ export default function Img2BooaPage() {
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
                     onClick={() => inputRef.current?.click()}
-                    className={`w-full aspect-square max-w-sm border-2 border-dashed cursor-pointer flex flex-col items-center justify-center gap-3 transition-colors ${
+                    className={`w-full aspect-square max-w-sm rounded-lg border-2 border-dashed cursor-pointer flex flex-col items-center justify-center gap-3 transition-colors ${
                       dragOver
                         ? 'border-neutral-900 dark:border-white bg-neutral-50 dark:bg-white/[0.02]'
                         : 'border-neutral-400 dark:border-neutral-600 hover:border-neutral-700 dark:hover:border-neutral-300'
@@ -175,7 +175,7 @@ export default function Img2BooaPage() {
                           Original
                         </span>
                         <div
-                          className="w-full border-2 border-neutral-300 dark:border-neutral-600 overflow-hidden bg-neutral-100 dark:bg-neutral-800"
+                          className="w-full rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-100 dark:bg-neutral-800"
                           style={{ aspectRatio: `${originalRatio[0]}/${originalRatio[1]}` }}
                         >
                           <img
@@ -192,7 +192,7 @@ export default function Img2BooaPage() {
                           BOOA
                         </span>
                         <div
-                          className="w-full border-2 border-neutral-700 dark:border-neutral-200 overflow-hidden bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center"
+                          className="w-full rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center"
                           style={{ aspectRatio: `${resultRatio[0]}/${resultRatio[1]}` }}
                         >
                           {loading ? (
@@ -217,7 +217,7 @@ export default function Img2BooaPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={reset}
-                        className="h-10 px-4 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 text-xs dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2"
+                        className="h-10 px-4 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2"
                         style={font}
                       >
                         <X className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export default function Img2BooaPage() {
                       {result && (
                         <button
                           onClick={handleDownload}
-                          className="h-10 px-4 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-xs hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors flex items-center gap-2"
+                          className="h-10 px-4 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-xs hover:opacity-90 transition-opacity flex items-center gap-2"
                           style={font}
                         >
                           <Download className="w-3.5 h-3.5" />

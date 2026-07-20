@@ -79,7 +79,7 @@ export function HolderGate({
         </p>
         <button
           onClick={() => refetchBalance()}
-          className="mt-2 border-2 border-neutral-700 dark:border-neutral-200 px-4 py-2 text-xs uppercase hover:bg-foreground/5 transition-colors"
+          className="mt-2 rounded-md border border-neutral-200 dark:border-neutral-800 px-4 py-2 text-xs uppercase hover:bg-foreground/5 transition-colors"
           style={font}
         >
           Retry

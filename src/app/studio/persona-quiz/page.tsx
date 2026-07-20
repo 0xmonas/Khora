@@ -293,7 +293,7 @@ export default function PersonaQuizPage() {
                   <button
                     key={i}
                     onClick={() => handleAnswer(i)}
-                    className="w-full text-left p-4 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 active:bg-neutral-700/10 dark:active:bg-neutral-200/10"
+                    className="w-full text-left p-4 rounded-md border border-neutral-200 dark:border-neutral-800 text-xs transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 active:bg-neutral-700/10 dark:active:bg-neutral-200/10"
                   >
                     {opt.label}
                   </button>
@@ -322,7 +322,7 @@ export default function PersonaQuizPage() {
                   href={`https://opensea.io/assets/shape/${BOOA_CONTRACT}/${agent.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block border-2 border-neutral-700 dark:border-neutral-200 p-5 space-y-3 transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
+                  className="block rounded-lg border border-neutral-200 dark:border-neutral-800 p-5 space-y-3 transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
                 >
                   <div className="flex gap-4">
                     {agent.image && (
@@ -368,7 +368,7 @@ export default function PersonaQuizPage() {
               <div className="flex items-center justify-center gap-4 pt-4">
                 <button
                   onClick={reset}
-                  className="h-10 px-6 border-2 border-neutral-700 dark:border-neutral-200 text-xs transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
+                  className="h-10 px-6 rounded-md border border-neutral-200 dark:border-neutral-800 text-xs transition-colors hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5"
                 >
                   Try Again
                 </button>
