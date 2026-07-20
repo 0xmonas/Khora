@@ -91,7 +91,9 @@ export default function AwakenPage() {
     }
   }, [address, booaEth]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Reload on connect/address change AND on network switch — holders often flip
+  // to Ethereum right here and expect their BOOA to appear without a manual refresh.
+  useEffect(() => { void load(); }, [load, chainId]);
 
   const awaken = useCallback(async () => {
     if (!address || !selected) return;
