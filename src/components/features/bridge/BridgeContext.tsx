@@ -1,21 +1,23 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { useAccount, useChainId, useWriteContract, usePublicClient, useSwitchChain, useConfig } from 'wagmi';
 import { getPublicClient } from '@wagmi/core';
-import { decodeEventLog } from 'viem';
+import { decodeEventLog, isAddress } from 'viem';
 import { useSiweStatus } from '@/components/providers/siwe-provider';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress, isSupportedRegistryChain } from '@/lib/contracts/identity-registry';
+import { BOOA_ADAPTER_ABI, getAdapterAddress, TOKEN_STANDARD_ERC721 } from '@/lib/contracts/booa-adapter';
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
-import { toAgentDataURI } from '@/utils/helpers/exportFormats';
+import { toAgentDataURI, traitsToAgent, toERC8004 } from '@/utils/helpers/exportFormats';
+import { getV2Address } from '@/lib/contracts/booa-v2';
 import type { AgentService } from '@/types/agent';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 import { skillLabelsToSlugs, domainLabelsToSlugs, skillSlugsToLabels, domainSlugsToLabels } from '@/lib/oasf-taxonomy';
 
 export type BridgeStep = 'select' | 'configure' | 'registering' | 'complete';
 
-import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
+import { CHAIN_CONFIG, type SupportedChain, type DiscoveredAgent } from '@/types/agent';
 
 const SUPPORTED_CHAINS = Object.keys(CHAIN_CONFIG) as SupportedChain[];
 type BridgeChain = SupportedChain;
@@ -24,6 +26,16 @@ const CHAIN_IDS: Record<string, number> = Object.fromEntries(
   Object.entries(CHAIN_CONFIG).map(([key, val]) => [key, val.chainId])
 );
 
+const BOOA_ORIGIN_CHAIN_IDS = [1, 360, 11011];
+function isBooaOriginContract(caipContract: string): boolean {
+  const addr = (caipContract.split(':')[2] || '').toLowerCase();
+  if (!addr) return false;
+  return BOOA_ORIGIN_CHAIN_IDS.some((id) => {
+    const a = getV2Address(id);
+    return !!a && a.length > 2 && a.toLowerCase() === addr;
+  });
+}
+
 interface BridgeContextType {
   // NFT listing
   nfts: NFTItem[];
@@ -31,14 +43,16 @@ interface BridgeContextType {
   loadMore: () => void;
   hasMore: boolean;
   selectedChain: BridgeChain;
-  setSelectedChain: (chain: BridgeChain) => void;
 
   // Selected NFT
   selectedNFT: NFTItem | null;
   selectNFT: (nft: NFTItem) => void;
   clearSelection: () => void;
   isExistingAgent: boolean;
+  isAdapterBound: boolean;
   configLoading: boolean;
+  // Agent already bound to the selected NFT on its own chain (null = none found)
+  boundAgentId: number | null;
 
   // ERC-8004 config (pre-filled from NFT metadata, user-editable)
   agentName: string;
@@ -71,6 +85,24 @@ interface BridgeContextType {
   reset: () => void;
   isModalOpen: boolean;
   closeModal: () => void;
+
+  // Sync a BOOA-origin agent's metadata back to the NFT's on-chain traits
+  ogDrift: boolean;
+  canSyncToOG: boolean;
+  syncToOG: () => Promise<void>;
+
+  // Upgrade legacy native agent → adapter-bound (via Adapter8004.bindExisting)
+  canUpgradeToAdapter: boolean;
+  upgradeStatus: 'idle' | 'approving' | 'binding' | 'success' | 'error';
+  upgradeError: string | null;
+  upgradeApproveTxHash: `0x${string}` | null;
+  upgradeBindTxHash: `0x${string}` | null;
+  upgradeAgentToAdapter: () => Promise<void>;
+
+  // Adapter-vs-native choice for new registrations (only shown when adapter is available + same-chain)
+  canUseAdapterForNewRegister: boolean;
+  useAdapterForNewRegister: boolean;
+  setUseAdapterForNewRegister: (v: boolean) => void;
 }
 
 const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
@@ -96,17 +128,27 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [pageKey, setPageKey] = useState<string | null>(null);
-  const [selectedChain, setSelectedChain] = useState<BridgeChain>('shape');
+  const selectedChain = useMemo<BridgeChain>(() => {
+    return SUPPORTED_CHAINS.find((key) => CHAIN_CONFIG[key].chainId === walletChainId) ?? 'ethereum';
+  }, [walletChainId]);
 
   // Selected NFT
   const [selectedNFT, setSelectedNFT] = useState<NFTItem | null>(null);
   const [isExistingAgent, setIsExistingAgent] = useState(false);
+  const [isAdapterBound, setIsAdapterBound] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
+  const [upgradeStatus, setUpgradeStatus] = useState<'idle' | 'approving' | 'binding' | 'success' | 'error'>('idle');
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [upgradeApproveTxHash, setUpgradeApproveTxHash] = useState<`0x${string}` | null>(null);
+  const [upgradeBindTxHash, setUpgradeBindTxHash] = useState<`0x${string}` | null>(null);
+  const [useAdapterForNewRegister, setUseAdapterForNewRegister] = useState(true);
   const [preservedNftOrigin, setPreservedNftOrigin] = useState<{
     contract: string;
     tokenId: number;
     originalOwner: string;
   } | null>(null);
+  const [ogDrift, setOgDrift] = useState(false);
+  const [boundAgentId, setBoundAgentId] = useState<number | null>(null);
 
   // 8004 config
   const [agentName, setAgentName] = useState('');
@@ -174,15 +216,46 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
   // Select NFT or Agent and auto-fill config
   const selectNFT = useCallback(async (nft: NFTItem) => {
+    // Check if this is an existing agent (from discover-agents, contractAddress='0x8004')
+    const existing = nft.contractAddress === '0x8004';
+    if (!existing && !isAddress(nft.contractAddress)) {
+      setSelectedNFT(null);
+      setError('Invalid NFT contract address.');
+      return;
+    }
     setSelectedNFT(nft);
     setRegistryChain(nft.chain as BridgeChain);
     setError(null);
+    setOgDrift(false);
+    setBoundAgentId(null);
 
-    // Check if this is an existing agent (from discover-agents, contractAddress='0x8004')
-    const existing = nft.contractAddress === '0x8004';
     setIsExistingAgent(existing);
+    setIsAdapterBound(false);
 
     if (existing) {
+      // Probe agent-binding metadata to know whether edits must route through adapter.
+      const agentChainId = CHAIN_IDS[nft.chain];
+      const adapterAddress = agentChainId ? getAdapterAddress(agentChainId) : null;
+      if (adapterAddress && agentChainId) {
+        try {
+          const { createPublicClient, http } = await import('viem');
+          const { CHAIN_CONFIG } = await import('@/types/agent');
+          const cfg = Object.values(CHAIN_CONFIG).find(c => c.chainId === agentChainId);
+          if (cfg) {
+            const probeClient = createPublicClient({ transport: http(cfg.rpcUrls[0]) });
+            const bindingMeta = await probeClient.readContract({
+              address: getRegistryAddress(agentChainId),
+              abi: IDENTITY_REGISTRY_ABI,
+              functionName: 'getMetadata',
+              args: [BigInt(parseInt(nft.tokenId)), 'agent-binding'],
+            }) as `0x${string}`;
+            if (bindingMeta && bindingMeta.toLowerCase() === adapterAddress.toLowerCase()) {
+              setIsAdapterBound(true);
+            }
+          }
+        } catch { /* no binding → leave as false */ }
+      }
+
       // Existing agent — fetch full registration data via /api/fetch-agent
       setAgentName(nft.name || '');
       setAgentDescription(nft.description || '');
@@ -232,6 +305,21 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
                 tokenId: o.tokenId,
                 originalOwner: o.originalOwner,
               });
+
+              if (isBooaOriginContract(o.contract)) {
+                try {
+                  const tRes = await fetch(`/api/booa-token?network=mainnet&tokenId=${o.tokenId}`);
+                  if (tRes.ok) {
+                    const tData = await tRes.json();
+                    const tAttrs = (tData.attributes || []) as { trait_type: string; value: string }[];
+                    const ogName = String(tData.name || '').trim();
+                    const ogDesc = (tAttrs.find(a => a.trait_type === 'Description')?.value || '').trim();
+                    const nameDrift = !!ogName && String(reg.name || '').trim() !== ogName;
+                    const descDrift = !!ogDesc && String(reg.description || '').trim() !== ogDesc;
+                    setOgDrift(nameDrift || descDrift);
+                  }
+                } catch { /* drift unknown → leave false */ }
+              }
             }
           }
         }
@@ -241,10 +329,9 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       const attrs = nft.raw.attributes || [];
       const findAttr = (key: string) => attrs.find(a => a.trait_type?.toLowerCase() === key.toLowerCase())?.value;
       const isBOOA = nft.collection?.toLowerCase().includes('booa') || /^BOOA #\d+$/i.test(nft.name || '');
-      const characterName = isBOOA ? (findAttr('Name') as string | undefined) : undefined;
       const characterDesc = isBOOA ? (findAttr('Description') as string | undefined) : undefined;
 
-      setAgentName(characterName || nft.name || `${nft.collection} #${nft.tokenId}`);
+      setAgentName(nft.name || `${nft.collection} #${nft.tokenId}`);
       setAgentDescription(characterDesc || nft.description || '');
       setAgentImage(nft.image || '');
 
@@ -259,13 +346,33 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setPreservedNftOrigin(null);
       setConfigLoading(false);
       setStep('configure');
+
+      // Probe whether this NFT already has an adapter-bound agent on its own chain,
+      // so same-chain re-register can be blocked (other chains stay allowed).
+      if (address) {
+        try {
+          const res = await fetch(`/api/discover-agents?address=${address}&chain=${nft.chain}`);
+          const data = await res.json();
+          const bound = ((data.agents || []) as DiscoveredAgent[]).find((a) =>
+            !!a.boundContract &&
+            a.boundContract === nft.contractAddress.toLowerCase() &&
+            String(a.boundTokenId) === nft.tokenId
+          );
+          if (bound) setBoundAgentId(bound.tokenId);
+        } catch { /* probe failed → leave null */ }
+      }
     }
-  }, []);
+  }, [address]);
 
   const clearSelection = useCallback(() => {
     setSelectedNFT(null);
     setIsExistingAgent(false);
+    setIsAdapterBound(false);
     setConfigLoading(false);
+    setUpgradeStatus('idle');
+    setUpgradeError(null);
+    setUpgradeApproveTxHash(null);
+    setUpgradeBindTxHash(null);
     setAgentName('');
     setAgentDescription('');
     setAgentImage('');
@@ -275,6 +382,8 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     setX402Support(false);
     setSupportedTrust([]);
     setPreservedNftOrigin(null);
+    setOgDrift(false);
+    setBoundAgentId(null);
     setError(null);
     setStep('select');
   }, []);
@@ -352,10 +461,19 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setError('Please connect and sign in with your wallet to continue.');
       return;
     }
+    if (boundAgentId !== null && registryChain === selectedNFT.chain) {
+      setError(`Already registered on ${CHAIN_CONFIG[registryChain]?.name || registryChain} as Agent #${boundAgentId}. Pick a different chain, or edit it from the Agents tab.`);
+      return;
+    }
 
     // Use the user-selected registry chain (defaults to NFT's chain, can be changed)
     const targetChainId = CHAIN_IDS[registryChain] || walletChainId;
     const registryAddress = getRegistryAddress(targetChainId);
+
+    if (!isSupportedRegistryChain(targetChainId)) {
+      setError('This chain is not supported for agent registration.');
+      return;
+    }
 
     // Auto-switch wallet to the correct chain if needed
     if (walletChainId !== targetChainId) {
@@ -388,12 +506,34 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       const agentURI = toAgentDataURI(registration);
 
-      const hash = await writeContractAsync({
-        address: registryAddress,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'register',
-        args: [agentURI],
-      });
+      // Adapter route requires:
+      //   1. Adapter deployed on target chain
+      //   2. NFT lives on the same chain as the agent (adapter calls IERC721.ownerOf locally)
+      //   3. User opted in (default ON when available)
+      const adapterAddress = getAdapterAddress(targetChainId);
+      const sameChainNFT = selectedNFT.chain === registryChain && selectedNFT.contractAddress !== '0x8004';
+      const goAdapter = !!adapterAddress && sameChainNFT && useAdapterForNewRegister;
+
+      const hash = goAdapter
+        ? await writeContractAsync({
+            address: adapterAddress,
+            chainId: targetChainId,
+            abi: BOOA_ADAPTER_ABI,
+            functionName: 'register',
+            args: [
+              TOKEN_STANDARD_ERC721,
+              selectedNFT.contractAddress as `0x${string}`,
+              BigInt(selectedNFT.tokenId),
+              agentURI,
+            ],
+          })
+        : await writeContractAsync({
+            address: registryAddress,
+            chainId: targetChainId,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'register',
+            args: [agentURI],
+          });
 
       setRegisterTxHash(hash);
 
@@ -441,7 +581,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       setStep('configure');
       setIsModalOpen(false);
     }
-  }, [selectedNFT, address, isAuthenticated, walletChainId, registryChain, agentImage, buildRegistrationJSON, writeContractAsync, switchChainAsync, wagmiConfig, publicClient]);
+  }, [selectedNFT, address, isAuthenticated, walletChainId, registryChain, agentImage, buildRegistrationJSON, writeContractAsync, switchChainAsync, wagmiConfig, publicClient, useAdapterForNewRegister, boundAgentId]);
 
   // Update EXISTING agent on Identity Registry (setAgentURI)
   const updateAgent = useCallback(async () => {
@@ -454,6 +594,11 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     const agentTokenId = parseInt(selectedNFT.tokenId);
     const agentChainId = CHAIN_IDS[selectedNFT.chain] || walletChainId;
     const registryAddress = getRegistryAddress(agentChainId);
+
+    if (!isSupportedRegistryChain(agentChainId)) {
+      setError('This chain is not supported for agent updates.');
+      return;
+    }
 
     // Auto-switch wallet to the correct chain if needed
     if (walletChainId !== agentChainId) {
@@ -488,17 +633,41 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       const agentURI = toAgentDataURI(registration);
 
-      const hash = await writeContractAsync({
-        address: registryAddress,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'setAgentURI',
-        args: [BigInt(agentTokenId), agentURI],
-      });
+      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
+      if (!client) throw new Error('No public client');
+
+      const adapterAddress = getAdapterAddress(agentChainId);
+      let isAdapterBound = false;
+      if (adapterAddress) {
+        try {
+          const bindingMeta = await client.readContract({
+            address: registryAddress,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'getMetadata',
+            args: [BigInt(agentTokenId), 'agent-binding'],
+          }) as `0x${string}`;
+          isAdapterBound = !!bindingMeta && bindingMeta.toLowerCase() === adapterAddress.toLowerCase();
+        } catch { /* no binding metadata → native agent */ }
+      }
+
+      const hash = isAdapterBound
+        ? await writeContractAsync({
+            address: adapterAddress!,
+            chainId: agentChainId,
+            abi: BOOA_ADAPTER_ABI,
+            functionName: 'setAgentURI',
+            args: [BigInt(agentTokenId), agentURI],
+          })
+        : await writeContractAsync({
+            address: registryAddress,
+            chainId: agentChainId,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'setAgentURI',
+            args: [BigInt(agentTokenId), agentURI],
+          });
 
       setRegisterTxHash(hash);
 
-      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
-      if (!client) throw new Error('No public client');
       await client.waitForTransactionReceipt({ hash });
 
       setRegistryAgentId(BigInt(agentTokenId));
@@ -516,6 +685,237 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [selectedNFT, address, isAuthenticated, walletChainId, agentImage, buildRegistrationJSON, writeContractAsync, switchChainAsync, wagmiConfig, publicClient]);
 
+  const syncToOG = useCallback(async () => {
+    if (!selectedNFT || !address || !preservedNftOrigin) return;
+    if (!isAuthenticated) {
+      setError('Please connect and sign in with your wallet to continue.');
+      return;
+    }
+
+    const agentTokenId = parseInt(selectedNFT.tokenId);
+    const agentChainId = CHAIN_IDS[selectedNFT.chain] || walletChainId;
+    const registryAddress = getRegistryAddress(agentChainId);
+
+    if (!isSupportedRegistryChain(agentChainId)) {
+      setError('This chain is not supported for agent updates.');
+      return;
+    }
+
+    if (walletChainId !== agentChainId) {
+      try {
+        await switchChainAsync({ chainId: agentChainId });
+      } catch {
+        const chainName = SUPPORTED_CHAINS.find(c => CHAIN_IDS[c] === agentChainId) || selectedNFT.chain;
+        setError(`Please switch your wallet to ${chainName} to update this agent.`);
+        return;
+      }
+    }
+
+    setError(null);
+    setStep('registering');
+    setIsModalOpen(true);
+    setRegisterTxHash(null);
+
+    try {
+      const res = await fetch(`/api/booa-token?network=mainnet&tokenId=${preservedNftOrigin.tokenId}`);
+      if (!res.ok) throw new Error('Could not load BOOA traits. Try again.');
+      const data = await res.json();
+      const attributes = (data.attributes || []) as { trait_type: string; value: string }[];
+      if (attributes.length === 0) throw new Error('BOOA traits unavailable. Try again.');
+
+      const registration = toERC8004(traitsToAgent(attributes), preservedNftOrigin, {
+        agentId: agentTokenId,
+        agentRegistry: `eip155:${agentChainId}:${registryAddress}`,
+      });
+      registration.name = String(data.name || `BOOA #${preservedNftOrigin.tokenId}`);
+      registration.image = `https://booa.app/api/booa-image/${preservedNftOrigin.tokenId}`;
+      const agentURI = toAgentDataURI(registration);
+
+      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
+      if (!client) throw new Error('No public client');
+
+      const adapterAddress = getAdapterAddress(agentChainId);
+      let bound = false;
+      if (adapterAddress) {
+        try {
+          const bindingMeta = await client.readContract({
+            address: registryAddress,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'getMetadata',
+            args: [BigInt(agentTokenId), 'agent-binding'],
+          }) as `0x${string}`;
+          bound = !!bindingMeta && bindingMeta.toLowerCase() === adapterAddress.toLowerCase();
+        } catch { /* no binding metadata → native agent */ }
+      }
+
+      const hash = bound
+        ? await writeContractAsync({
+            address: adapterAddress!,
+            chainId: agentChainId,
+            abi: BOOA_ADAPTER_ABI,
+            functionName: 'setAgentURI',
+            args: [BigInt(agentTokenId), agentURI],
+          })
+        : await writeContractAsync({
+            address: registryAddress,
+            chainId: agentChainId,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'setAgentURI',
+            args: [BigInt(agentTokenId), agentURI],
+          });
+
+      setRegisterTxHash(hash);
+      await client.waitForTransactionReceipt({ hash });
+
+      setRegistryAgentId(BigInt(agentTokenId));
+      setOgDrift(false);
+      setStep('complete');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sync failed';
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setStep('configure');
+        setIsModalOpen(false);
+        return;
+      }
+      setError(friendlyError(msg));
+      setStep('configure');
+      setIsModalOpen(false);
+    }
+  }, [selectedNFT, address, isAuthenticated, preservedNftOrigin, walletChainId, switchChainAsync, writeContractAsync, wagmiConfig, publicClient]);
+
+  const canSyncToOG = !!(
+    isExistingAgent &&
+    preservedNftOrigin &&
+    isBooaOriginContract(preservedNftOrigin.contract)
+  );
+
+  // Compute upgrade eligibility: legacy native agent + current owner + adapter chain + has nftOrigin.
+  const agentChainIdForUpgrade = selectedNFT && CHAIN_IDS[selectedNFT.chain];
+  const canUpgradeToAdapter = !!(
+    isExistingAgent &&
+    !isAdapterBound &&
+    preservedNftOrigin &&
+    agentChainIdForUpgrade &&
+    getAdapterAddress(agentChainIdForUpgrade)
+  );
+
+  // Compute adapter eligibility for NEW registrations.
+  const registryChainId = CHAIN_IDS[registryChain];
+  const canUseAdapterForNewRegister = !!(
+    !isExistingAgent &&
+    selectedNFT &&
+    selectedNFT.contractAddress !== '0x8004' &&
+    selectedNFT.chain === registryChain &&
+    registryChainId &&
+    getAdapterAddress(registryChainId)
+  );
+
+  // Upgrade legacy native agent → adapter-bound via Adapter8004.bindExisting (v0.0.6+).
+  // Two transactions:
+  //   1. registry.approve(adapter, agentId)  — let the adapter transfer the agent NFT
+  //   2. adapter.bindExisting(agentId, ERC721, BOOA, tokenId)  — adapter takes ownership,
+  //      writes binding metadata, leaves agentURI + non-binding metadata intact
+  // Same agentId is preserved (no orphan), the agent's URI and history stay attached.
+  const upgradeAgentToAdapter = useCallback(async () => {
+    if (!selectedNFT || !address || !isAuthenticated) return;
+    if (!preservedNftOrigin) {
+      setUpgradeError('Agent has no nftOrigin metadata — cannot derive the bound NFT.');
+      setUpgradeStatus('error');
+      return;
+    }
+
+    const agentTokenId = parseInt(selectedNFT.tokenId);
+    const agentChainId = CHAIN_IDS[selectedNFT.chain];
+    const adapterAddress = agentChainId ? getAdapterAddress(agentChainId) : null;
+    if (!adapterAddress || !agentChainId) {
+      setUpgradeError('No adapter deployed on this chain.');
+      setUpgradeStatus('error');
+      return;
+    }
+    if (!isSupportedRegistryChain(agentChainId)) {
+      setUpgradeError('This chain is not supported for agent binding.');
+      setUpgradeStatus('error');
+      return;
+    }
+
+    const contractMatch = preservedNftOrigin.contract.match(/^eip155:(\d+):(0x[a-fA-F0-9]{40})$/);
+    if (!contractMatch) {
+      setUpgradeError('Invalid nftOrigin format on the existing agent.');
+      setUpgradeStatus('error');
+      return;
+    }
+    const boundChainId = parseInt(contractMatch[1]);
+    const boundContract = contractMatch[2] as `0x${string}`;
+    if (boundChainId !== agentChainId) {
+      setUpgradeError('Cross-chain nftOrigin upgrade not supported yet.');
+      setUpgradeStatus('error');
+      return;
+    }
+
+    if (walletChainId !== agentChainId) {
+      try {
+        await switchChainAsync({ chainId: agentChainId });
+      } catch {
+        setUpgradeError('Please switch your wallet to the agent chain.');
+        setUpgradeStatus('error');
+        return;
+      }
+    }
+
+    setUpgradeError(null);
+    setUpgradeApproveTxHash(null);
+    setUpgradeBindTxHash(null);
+    setIsModalOpen(true);
+
+    try {
+      const registryAddress = getRegistryAddress(agentChainId);
+      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
+      if (!client) throw new Error('No public client');
+
+      // Step 1 — approve adapter to transfer the agent NFT on the registry.
+      setUpgradeStatus('approving');
+      const approveHash = await writeContractAsync({
+        address: registryAddress,
+        chainId: agentChainId,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'approve',
+        args: [adapterAddress, BigInt(agentTokenId)],
+      });
+      setUpgradeApproveTxHash(approveHash);
+      await client.waitForTransactionReceipt({ hash: approveHash });
+
+      // Step 2 — call adapter.bindExisting. Adapter transfers the agent NFT from
+      // holder → adapter and writes the canonical binding metadata. agentURI and
+      // non-binding metadata are preserved by the adapter; same agentId continues.
+      setUpgradeStatus('binding');
+      const bindHash = await writeContractAsync({
+        address: adapterAddress,
+        chainId: agentChainId,
+        abi: BOOA_ADAPTER_ABI,
+        functionName: 'bindExisting',
+        args: [
+          BigInt(agentTokenId),
+          TOKEN_STANDARD_ERC721,
+          boundContract,
+          BigInt(preservedNftOrigin.tokenId),
+        ],
+      });
+      setUpgradeBindTxHash(bindHash);
+      await client.waitForTransactionReceipt({ hash: bindHash });
+
+      setUpgradeStatus('success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upgrade failed';
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setUpgradeStatus('idle');
+        setIsModalOpen(false);
+        return;
+      }
+      setUpgradeError(friendlyError(msg));
+      setUpgradeStatus('error');
+    }
+  }, [selectedNFT, address, isAuthenticated, preservedNftOrigin, walletChainId, switchChainAsync, writeContractAsync, wagmiConfig, publicClient]);
+
   const reset = useCallback(() => {
     clearSelection();
     setRegistryAgentId(null);
@@ -530,8 +930,8 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <BridgeContext.Provider value={{
-      nfts, loading, loadMore, hasMore, selectedChain, setSelectedChain: setSelectedChain as (chain: BridgeChain) => void,
-      selectedNFT, selectNFT, clearSelection, isExistingAgent, configLoading,
+      nfts, loading, loadMore, hasMore, selectedChain,
+      selectedNFT, selectNFT, clearSelection, isExistingAgent, isAdapterBound, configLoading, boundAgentId,
       agentName, setAgentName, agentDescription, setAgentDescription, agentImage,
       erc8004Services, setErc8004Services,
       selectedSkills, setSelectedSkills, selectedDomains, setSelectedDomains,
@@ -540,6 +940,9 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       registryChain, setRegistryChain,
       step, registryAgentId, registerTxHash, error, register, updateAgent, reset,
       isModalOpen, closeModal,
+      canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeApproveTxHash, upgradeBindTxHash, upgradeAgentToAdapter,
+      ogDrift, canSyncToOG, syncToOG,
+      canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     }}>
       {children}
     </BridgeContext.Provider>

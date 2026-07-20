@@ -34,10 +34,22 @@ export function RegisterModal() {
     isModalOpen, closeModal,
     step, registryAgentId, registerTxHash, error,
     agentName, agentImage, reset,
+    upgradeStatus, upgradeError, upgradeApproveTxHash, upgradeBindTxHash,
   } = useBridge();
 
   const chainId = useChainId();
   const [countdown, setCountdown] = useState(30);
+
+  const isUpgrade = step !== 'registering' && step !== 'complete' && upgradeStatus !== 'idle';
+  const title = isUpgrade
+    ? (upgradeStatus === 'approving'
+        ? 'Approving Adapter'
+        : upgradeStatus === 'binding'
+        ? 'Binding to Adapter'
+        : upgradeStatus === 'success'
+        ? 'Upgrade Complete'
+        : 'Upgrade Failed')
+    : (step === 'registering' ? 'Registering Agent' : 'Registration Complete');
 
   // Auto-close on complete
   useEffect(() => {
@@ -55,18 +67,26 @@ export function RegisterModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-neutral-900 border-2 border-neutral-700 dark:border-neutral-200 w-full max-w-md mx-4 p-6">
+      <div className="bg-white dark:bg-neutral-900 rounded-md border border-neutral-200 dark:border-neutral-800 w-full max-w-md mx-4 p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-mono text-sm dark:text-white">
-            {step === 'registering' ? 'Registering Agent' : 'Registration Complete'}
+            {title}
           </h2>
-          {step === 'complete' && (
+          {!isUpgrade && step === 'complete' && (
             <button
               onClick={closeModal}
               className="font-mono text-xs text-neutral-500 hover:text-black dark:hover:text-white"
             >
               Close ({countdown}s)
+            </button>
+          )}
+          {isUpgrade && (upgradeStatus === 'success' || upgradeStatus === 'error') && (
+            <button
+              onClick={closeModal}
+              className="font-mono text-xs text-neutral-500 hover:text-black dark:hover:text-white"
+            >
+              Close
             </button>
           )}
         </div>
@@ -138,14 +158,98 @@ export function RegisterModal() {
 
             <button
               onClick={reset}
-              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors mt-4"
+              className="w-full h-10 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors mt-4"
             >
               BRIDGE ANOTHER NFT
             </button>
           </div>
         )}
 
-        {error && (
+        {isUpgrade && (upgradeStatus === 'approving' || upgradeStatus === 'binding') && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-neutral-400 border-t-neutral-700 dark:border-neutral-500 dark:border-t-neutral-200 rounded-full animate-spin" />
+              <p className="font-mono text-xs dark:text-neutral-300">
+                {upgradeStatus === 'approving'
+                  ? 'Approving adapter to transfer your agent NFT...'
+                  : 'Binding your agent to the adapter...'}
+              </p>
+            </div>
+            {upgradeApproveTxHash && (
+              <a
+                href={getExplorerUrl(chainId, upgradeApproveTxHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block font-mono text-[10px] text-neutral-400 hover:text-neutral-200 break-all"
+              >
+                approve tx: {upgradeApproveTxHash.slice(0, 10)}...{upgradeApproveTxHash.slice(-8)}
+              </a>
+            )}
+            {upgradeBindTxHash && (
+              <a
+                href={getExplorerUrl(chainId, upgradeBindTxHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block font-mono text-[10px] text-neutral-400 hover:text-neutral-200 break-all"
+              >
+                bind tx: {upgradeBindTxHash.slice(0, 10)}...{upgradeBindTxHash.slice(-8)}
+              </a>
+            )}
+          </div>
+        )}
+
+        {isUpgrade && upgradeStatus === 'success' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-green-500 font-mono">&#10003;</span>
+              <p className="font-mono text-xs dark:text-neutral-300">
+                Agent bound to adapter. Same agent ID.
+              </p>
+            </div>
+            {upgradeApproveTxHash && (
+              <a
+                href={getExplorerUrl(chainId, upgradeApproveTxHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block font-mono text-[10px] text-neutral-400 hover:text-neutral-200 break-all"
+              >
+                approve tx: {upgradeApproveTxHash.slice(0, 10)}...{upgradeApproveTxHash.slice(-8)}
+              </a>
+            )}
+            {upgradeBindTxHash && (
+              <a
+                href={getExplorerUrl(chainId, upgradeBindTxHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block font-mono text-[10px] text-neutral-400 hover:text-neutral-200 break-all"
+              >
+                bind tx: {upgradeBindTxHash.slice(0, 10)}...{upgradeBindTxHash.slice(-8)}
+              </a>
+            )}
+            <button
+              onClick={closeModal}
+              className="w-full h-10 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors mt-4"
+            >
+              DONE
+            </button>
+          </div>
+        )}
+
+        {isUpgrade && upgradeStatus === 'error' && (
+          <div className="space-y-3">
+            <p className="font-mono text-xs text-red-500">
+              {upgradeError || 'Upgrade failed'}
+            </p>
+            <button
+              onClick={closeModal}
+              className="w-full h-10 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors mt-2"
+            >
+              CLOSE
+            </button>
+          </div>
+        )}
+
+        {error && !isUpgrade && (
           <p className="font-mono text-xs text-red-500 mt-3">{error}</p>
         )}
       </div>

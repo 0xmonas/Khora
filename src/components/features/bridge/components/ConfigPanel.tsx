@@ -5,8 +5,12 @@ import { ChevronDown, Plus, X as XIcon } from 'lucide-react';
 import { useBridge } from '../BridgeContext';
 import { OASF_SKILLS, OASF_DOMAINS, ALL_OASF_SKILLS, ALL_OASF_DOMAINS, type OASFCategory } from '@/lib/oasf-taxonomy';
 import type { SupportedChain } from '@/types/agent';
+import { CHAIN_CONFIG } from '@/types/agent';
 import type { AgentService } from '@/types/agent';
 import { VISIBLE_CHAIN_OPTIONS } from '@/utils/constants/chains';
+import { getAdapterAddress, isBindingChain } from '@/lib/contracts/booa-adapter';
+import { AgentBindingCard } from '@/components/features/AgentBindingCard';
+import { shape } from 'wagmi/chains';
 
 const CHAIN_OPTIONS = VISIBLE_CHAIN_OPTIONS;
 
@@ -33,7 +37,10 @@ function isValidEndpoint(type: string, endpoint: string): boolean {
 
 export function ConfigPanel() {
   const {
-    selectedNFT, clearSelection, isExistingAgent, configLoading,
+    selectedNFT, clearSelection, isExistingAgent, isAdapterBound, configLoading, boundAgentId,
+    ogDrift, canSyncToOG, syncToOG,
+    canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeAgentToAdapter,
+    canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     agentName, setAgentName,
     agentDescription, setAgentDescription,
     agentImage,
@@ -138,7 +145,7 @@ export function ConfigPanel() {
         </button>
 
         {/* Selected NFT mini preview */}
-        <div className="border-2 border-neutral-700 dark:border-neutral-200 p-3 flex items-center gap-3">
+        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 flex items-center gap-3">
           {agentImage && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -154,10 +161,42 @@ export function ConfigPanel() {
           </div>
         </div>
 
+        {(() => {
+          if (!isExistingAgent || !isAdapterBound) return null;
+          const agentChainId = CHAIN_CONFIG[selectedNFT.chain as SupportedChain]?.chainId;
+          const adapterAddress = agentChainId ? getAdapterAddress(agentChainId) : null;
+          if (!adapterAddress || !agentChainId) return null;
+          return (
+            <AgentBindingCard
+              agentId={parseInt(selectedNFT.tokenId)}
+              bindingContract={adapterAddress}
+              chainId={agentChainId}
+            />
+          );
+        })()}
+
+        {isExistingAgent && canSyncToOG && !configLoading && (
+          <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+            <p className={`font-mono text-[11px] ${ogDrift ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-400 dark:text-neutral-500'}`}>
+              {ogDrift
+                ? 'Agent metadata modified — differs from this BOOA’s onchain traits.'
+                : 'Agent metadata matches this BOOA’s onchain traits.'}
+            </p>
+            <button
+              type="button"
+              onClick={syncToOG}
+              disabled={step === 'registering'}
+              className="w-full py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black font-mono text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {step === 'registering' ? 'SYNCING...' : 'SYNC METADATA TO NFT'}
+            </button>
+          </div>
+        )}
+
         {/* Agent Name */}
         <div>
           <h3 className="text-sm font-mono mb-1 dark:text-white">Agent name</h3>
-          <div className="w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm">
+          <div className="w-full p-3 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-foreground font-mono text-sm">
             <input
               type="text"
               value={agentName}
@@ -171,7 +210,7 @@ export function ConfigPanel() {
         {/* Description */}
         <div>
           <h3 className="text-sm font-mono mb-1 dark:text-white">Description</h3>
-          <div className="w-full p-3 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-sm">
+          <div className="w-full p-3 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-foreground font-mono text-sm">
             <textarea
               value={agentDescription}
               onChange={(e) => setAgentDescription(e.target.value)}
@@ -209,6 +248,32 @@ export function ConfigPanel() {
               ) : (
                 <p className="font-mono text-[10px] text-neutral-400 mt-1">
                   Your agent identity will be registered on this chain
+                </p>
+              )}
+
+              {canUseAdapterForNewRegister && (
+                <div className="mt-3 border border-neutral-300 dark:border-neutral-700 p-2 space-y-1.5">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useAdapterForNewRegister}
+                      onChange={(e) => setUseAdapterForNewRegister(e.target.checked)}
+                      className="mt-0.5 accent-neutral-700 dark:accent-neutral-200"
+                    />
+                    <span className="font-mono text-[11px] dark:text-white">
+                      Bind via Adapter (recommended)
+                    </span>
+                  </label>
+                  <p className="font-mono text-[9px] text-neutral-500 leading-tight pl-5">
+                    {useAdapterForNewRegister
+                      ? 'Agent control transfers atomically with the NFT. No re-register on sale.'
+                      : 'Legacy native register. NFT sale creates orphan agent; new owner must re-register.'}
+                  </p>
+                </div>
+              )}
+              {!isCrossChain && !isBindingChain(CHAIN_CONFIG[registryChain]?.chainId ?? 0) && (
+                <p className="font-mono text-[9px] text-amber-500/80 mt-2 leading-tight">
+                  Binding is not available on {regChainLabel} yet, so your agent registers natively (no onchain NFT-to-agent binding). Binding is live on Ethereum and Base.
                 </p>
               )}
             </div>
@@ -396,17 +461,73 @@ export function ConfigPanel() {
 
       {/* Action Button */}
       <div className="mt-6">
+        {!isExistingAgent && boundAgentId !== null && registryChain === selectedNFT.chain && (
+          <div className="mb-3 rounded-md border border-neutral-200 dark:border-neutral-800 p-3">
+            <p className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+              Already registered on {CHAIN_CONFIG[registryChain as SupportedChain]?.name || registryChain} as Agent #{boundAgentId}. Edit it from the Agents tab, or pick a different chain above to register there.
+            </p>
+          </div>
+        )}
         <button
           type="button"
           onClick={isExistingAgent ? updateAgent : register}
-          disabled={!agentName.trim() || isBusy || configLoading}
-          className="w-full h-12 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-sm hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          disabled={!agentName.trim() || isBusy || configLoading || upgradeStatus !== 'idle' || (!isExistingAgent && boundAgentId !== null && registryChain === selectedNFT.chain)}
+          className="w-full h-12 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 font-mono text-sm hover:bg-neutral-600 dark:hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isBusy
-            ? (isExistingAgent ? 'UPDATING...' : 'REGISTERING...')
-            : (isExistingAgent ? 'UPDATE AGENT' : 'REGISTER AS AGENT')
+          {!isExistingAgent && boundAgentId !== null && registryChain === selectedNFT.chain
+            ? 'ALREADY REGISTERED'
+            : isBusy
+              ? (isExistingAgent ? 'UPDATING...' : 'REGISTERING...')
+              : (isExistingAgent ? 'UPDATE AGENT' : 'REGISTER AS AGENT')
           }
         </button>
+
+        {canUpgradeToAdapter && (() => {
+          const agentChainId = selectedNFT && CHAIN_CONFIG[selectedNFT.chain as SupportedChain]?.chainId;
+          const adapterAddr = agentChainId ? getAdapterAddress(agentChainId) : null;
+          const isMainnet = agentChainId === shape.id;
+          const explorerBase = isMainnet ? 'https://shapescan.xyz' : 'https://sepolia.shapescan.xyz';
+          const adapterScan = adapterAddr ? `${explorerBase}/address/${adapterAddr}` : '#';
+          const shortAdapter = adapterAddr ? `${adapterAddr.slice(0, 6)}...${adapterAddr.slice(-4)}` : '';
+          return (
+          <div className="mt-3 pt-3 border-t border-neutral-300 dark:border-neutral-700 space-y-1">
+            <button
+              type="button"
+              onClick={upgradeAgentToAdapter}
+              disabled={isBusy || configLoading || upgradeStatus === 'approving' || upgradeStatus === 'binding'}
+              className="w-full h-10 rounded-md border border-amber-600 dark:border-amber-400 text-amber-700 dark:text-amber-300 bg-transparent font-mono text-xs hover:bg-amber-600 hover:text-white dark:hover:bg-amber-400 dark:hover:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {upgradeStatus === 'approving' && 'APPROVING ADAPTER...'}
+              {upgradeStatus === 'binding' && 'BINDING TO ADAPTER...'}
+              {upgradeStatus === 'success' && 'UPGRADED ✓'}
+              {(upgradeStatus === 'idle' || upgradeStatus === 'error') && 'UPGRADE TO ADAPTER'}
+            </button>
+            {upgradeStatus === 'idle' && (
+              <p className="font-mono text-[9px] text-neutral-500 leading-tight">
+                Approves adapter{' '}
+                <a
+                  href={adapterScan}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={adapterAddr || ''}
+                  className="text-neutral-700 dark:text-neutral-200 hover:underline"
+                >
+                  {shortAdapter}
+                </a>
+                {' '}then binds your existing agent to your NFT. 2 transactions, your agent ID stays the same.
+              </p>
+            )}
+            {upgradeStatus === 'error' && upgradeError && (
+              <p className="font-mono text-[10px] text-red-500">{upgradeError}</p>
+            )}
+            {upgradeStatus === 'success' && (
+              <p className="font-mono text-[10px] text-green-600 dark:text-green-400">
+                Bound to adapter. Same agent ID, now controlled via the bound NFT. Refresh to see the badge.
+              </p>
+            )}
+          </div>
+          );
+        })()}
         <p className="font-mono text-[10px] text-neutral-400 text-center mt-1">
           gas only, no fee
         </p>

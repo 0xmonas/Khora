@@ -42,7 +42,7 @@ function agentToNFTItem(agent: DiscoveredAgent): NFTItem {
 export function NFTGrid() {
   const {
     nfts, loading, loadMore, hasMore,
-    selectedChain, setSelectedChain,
+    selectedChain,
     selectedNFT, selectNFT,
   } = useBridge();
 
@@ -140,9 +140,9 @@ export function NFTGrid() {
             <button
               type="button"
               onClick={() => setTab('nfts')}
-              className={`px-4 py-2 border-2 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
+              className={`px-4 py-2 rounded-l-md border border-neutral-200 dark:border-neutral-800 font-mono text-xs transition-colors ${
                 tab === 'nfts'
-                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                   : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
               }`}
             >
@@ -151,9 +151,9 @@ export function NFTGrid() {
             <button
               type="button"
               onClick={() => setTab('agents')}
-              className={`px-4 py-2 border-2 border-l-0 border-neutral-700 dark:border-neutral-200 font-mono text-xs transition-colors ${
+              className={`px-4 py-2 rounded-r-md border border-l-0 border-neutral-200 dark:border-neutral-800 font-mono text-xs transition-colors ${
                 tab === 'agents'
-                  ? 'bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900'
+                  ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                   : 'bg-white dark:bg-neutral-900 dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5'
               }`}
             >
@@ -164,20 +164,14 @@ export function NFTGrid() {
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className="p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
+              className="p-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-foreground font-mono text-[10px] cursor-pointer outline-none"
             >
               <option value="latest">Latest</option>
               <option value="oldest">Oldest</option>
             </select>
-            <select
-              value={selectedChain}
-              onChange={(e) => setSelectedChain(e.target.value as typeof selectedChain)}
-              className="w-32 p-1.5 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-900 font-mono text-[10px] cursor-pointer outline-none"
-            >
-              {CHAIN_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <span className="px-2 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+              {chainLabel}
+            </span>
           </div>
         </div>
         <input
@@ -185,7 +179,7 @@ export function NFTGrid() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search by name, id, or collection..."
-          className="w-full p-2 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-xs text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400 outline-none"
+          className="w-full p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 font-mono text-xs text-neutral-700 dark:text-neutral-300 placeholder:text-neutral-400 outline-none"
         />
       </div>
 
@@ -221,7 +215,7 @@ export function NFTGrid() {
       {isLoading && (
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-1.5">
           {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="border border-neutral-200 dark:border-neutral-700">
+            <div key={i} className="rounded-md overflow-hidden border border-neutral-200 dark:border-neutral-800">
               <div className="aspect-square bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
               <div className="p-1.5 space-y-0.5">
                 <div className="h-2 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse w-2/3" />

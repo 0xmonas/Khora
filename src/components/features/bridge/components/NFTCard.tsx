@@ -13,10 +13,10 @@ export function NFTCard({ nft, isSelected, onClick, badge }: NFTCardProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left border transition-colors ${
+      className={`w-full text-left rounded-md overflow-hidden border transition-colors ${
         isSelected
           ? 'border-green-500 dark:border-green-400 bg-green-50 dark:bg-green-950/20'
-          : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500'
+          : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-500'
       }`}
     >
       <div className="aspect-square bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative">
@@ -37,7 +37,7 @@ export function NFTCard({ nft, isSelected, onClick, badge }: NFTCardProps) {
           </div>
         )}
         {badge && (
-          <span className="absolute top-0.5 right-0.5 px-1 py-px bg-green-600 text-white font-mono text-[7px] uppercase tracking-wider leading-none">
+          <span className="absolute top-0.5 right-0.5 px-1 py-px rounded-sm bg-green-600 text-white font-mono text-[7px] uppercase tracking-wider leading-none">
             {badge}
           </span>
         )}

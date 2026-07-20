@@ -18,7 +18,7 @@ export function SelectedNFTPreview() {
   return (
     <div className="space-y-6">
       {/* Large Image */}
-      <div className="border-2 border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 aspect-square max-w-md overflow-hidden">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-800 aspect-square max-w-md overflow-hidden">
         {agentImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
