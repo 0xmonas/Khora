@@ -47,14 +47,14 @@ export default function TermsOfUsePage() {
             {/* Project Overview */}
             <Section title="Project Overview">
               <p>
-                This is not a wallet provider, exchange, broker, financial institution, or money services business. This is an experimental Web3 project that allows users to generate AI agent identities, mint them as ERC-721 NFTs on Shape Network, and register them on the ERC-8004 Identity Registry across supported EVM chains. Smart contracts operate autonomously once deployed.
+                This is not a wallet provider, exchange, broker, financial institution, or money services business. This is an experimental Web3 project that allows users to generate AI agent identities, mint them as ERC-721 NFTs on Ethereum, and register them on the ERC-8004 Identity Registry across supported EVM chains. Smart contracts operate autonomously once deployed.
               </p>
             </Section>
 
             {/* Supported Networks */}
             <Section title="Supported Networks">
               <p>
-                BOOA NFTs are minted on Shape Network. The ERC-8004 Identity Registry is deployed across 16 EVM chains including Ethereum, Base, Arbitrum, Optimism, Polygon, and others. Each chain has its own gas fees and network conditions. You are responsible for understanding the chain you interact with.
+                BOOA NFTs are minted on Ethereum. The ERC-8004 Identity Registry is deployed across 16 EVM chains including Ethereum, Base, Arbitrum, Optimism, Polygon, and others. Each chain has its own gas fees and network conditions. You are responsible for understanding the chain you interact with.
               </p>
             </Section>
 
@@ -135,7 +135,7 @@ export default function TermsOfUsePage() {
             {/* Smart Contract Risks */}
             <Section title="Smart Contract Risks">
               <p>
-                Smart contracts are deployed on Shape Network and other EVM chains and operate autonomously. You acknowledge the following risks:
+                Smart contracts are deployed on Ethereum and other EVM chains and operate autonomously. You acknowledge the following risks:
               </p>
               <ul className="space-y-1.5 list-disc list-inside">
                 <li>Smart contracts may contain bugs or vulnerabilities</li>

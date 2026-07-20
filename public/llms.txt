@@ -4,7 +4,7 @@
 
 ## Overview
 
-BOOA provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Shape Network) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
+BOOA provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Ethereum) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
 
 ## Collection Status
 
@@ -16,10 +16,14 @@ ERC-8004 registered: 1,600+ agents
 
 Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract, monad
 
-## On-Chain Contracts (Shape Mainnet, Chain ID: 360)
+## On-Chain Contracts (Ethereum Mainnet, Chain ID: 1)
 
+BOOA NFT (ERC-721): 0xbc48fD45aAaf6549293056606397D351a100b222
+BOOAStorage: 0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96
+BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+
+Origin collection (Shape Mainnet, Chain ID: 360) — still live for holders who have not migrated:
 BOOA NFT (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
-BOOAMinter: 0xec96E4C7457B884f4624bA1272470a9bCB1992e8
 BOOAStorage: 0x966aB07b061d75b8b30Ae4D06853dDf26d0f4EB0
 BOOARenderer: 0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8
 

@@ -19,31 +19,18 @@ export const DOCS: DocSection[] = [
       {
         slug: 'what-is-booa',
         title: 'What is BOOA?',
-        description: 'On-chain AI agent identities on Shape Network.',
-        content: `BOOA is a collection of 3,333 AI agent identities on Shape Network. Every BOOA is a unique AI agent with its own name, personality, skills, boundaries, and pixel art — all stored permanently on-chain.
+        description: 'On-chain AI agent identities on Ethereum.',
+        content: `BOOA is a collection of 3,333 AI agent identities on Ethereum. Every BOOA is a unique AI agent with its own name, personality, skills, boundaries, and pixel art — all stored permanently on-chain.
 
 Not a profile picture. Not a membership card. A full agent identity that can be deployed as an autonomous AI agent.
 
 Every BOOA's art is a 64x64 pixel portrait rendered in the Commodore 64 16-color palette. The art is stored as a 2,048-byte bitmap via SSTORE2 directly in the smart contract. No IPFS. No servers. No external dependencies. If everything else goes down, your BOOA still exists exactly as it was minted.
 
-The collection is sold out. 3,333 total supply, no more will ever be minted. Secondary market is on OpenSea.
+All 3,333 agents live fully on-chain. The focus now is agentic — turning each identity into a deployable, autonomous agent. Secondary market is on OpenSea.
 
-Key numbers:
-- 3,333 unique agents
-- 16 EVM chains supported via ERC-8004
-- CC0 license (artwork), MIT license (contracts)
-- 100% on-chain storage (SSTORE2)
-- Public API — no authentication required`,
-      },
-      {
-        slug: 'what-is-booa',
-        title: 'What is BOOA?',
-        description: 'The studio, the collection, the agents.',
-        content: `BOOA is an open-source studio building tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it.
+Each agent lives in Khôra — a fictional cyberpunk megacity, the universe in which all 3,333 agents exist. The lore isn't just flavor — it defines each agent's creature type, personality, and role: street-level hustlers, corporate data brokers, junkyard mechanics, and rogue diplomats.
 
-The flagship is the BOOA collection: 3,333 NFTs on Shape Network where each token is a unique on-chain AI agent identity with permanent pixel art.
-
-The platform includes:
+BOOA is also an open-source studio building tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it. The platform includes:
 
 Website: booa.app — collection gallery, agent tools, bridge, studio
 Bridge: Register and manage your agent's ERC-8004 identity across 16 chains
@@ -51,9 +38,12 @@ Studio: Agent Chat, Pixel Forge, Agent Sound, Banner Builder, and more
 Agent Files API: Public endpoints for fetching agent identity, traits, and pixel art
 SKILL.md: Setup guide that any AI can follow to onboard your agent
 
-Each agent lives in Khôra — a fictional cyberpunk megacity, the universe in which all 3,333 agents exist. The lore isn't just flavor — it defines each agent's creature type, personality, and role: street-level hustlers, corporate data brokers, junkyard mechanics, and rogue diplomats.
-
-Built on Shape Network (EVM L2). Open source (MIT).`,
+Key numbers:
+- 3,333 unique agents
+- 16 EVM chains supported via ERC-8004
+- CC0 license (artwork), MIT license (contracts)
+- 100% on-chain storage (SSTORE2)
+- Public API — no authentication required`,
       },
       {
         slug: 'quick-start',
@@ -103,14 +93,17 @@ Technical details:
 - SVG rendered on-chain by the BOOARenderer contract
 - Bayer dithering for the retro aesthetic
 
-The art is permanent. It doesn't depend on any server, gateway, or third party. As long as Shape Network exists, your BOOA's art exists.
+The art is permanent. It doesn't depend on any server, gateway, or third party. As long as Ethereum exists, your BOOA's art exists.
 
 The CC0 license means you can use your BOOA's art however you want — commercially, personally, or as input for derivative works.
 
-Contract addresses (Shape Mainnet):
-- BOOA (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
-- BOOAStorage: 0x966aB07b061d75b8b30Ae4D06853dDf26d0f4EB0
-- BOOARenderer: 0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8`,
+Contract addresses (Ethereum Mainnet):
+- BOOA (ERC-721): 0xbc48fD45aAaf6549293056606397D351a100b222
+- BOOAStorage: 0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96
+- BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+
+Origin (Shape Mainnet, still live until fully migrated):
+- BOOA (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654`,
       },
       {
         slug: 'agent-files',
@@ -375,7 +368,7 @@ Your agent signs via a scoped API token. It never sees the private key.
 
 Install: curl -fsSL https://docs.openwallet.sh/install.sh | bash
 Create: ows wallet create --name "my-agent"
-Policy: Restrict to Shape + Base chains
+Policy: Restrict to Ethereum + Base chains
 API Key: ows key create --name "agent" --wallet my-agent --policy agent-policy
 
 Full guide: booa.app/skills/references/wallet-setup.md
@@ -527,7 +520,7 @@ Community tools:
     slug: 'api',
     pages: [
       {
-        slug: 'overview',
+        slug: 'api-overview',
         title: 'API Overview',
         description: 'Public API endpoints.',
         content: `All BOOA API endpoints are public. No authentication required. Rate limit: 60 requests / 60 seconds per IP.
@@ -592,11 +585,13 @@ Cobbee: cobbee.fun
 OWS: openwallet.sh
 x402: x402.org
 
-Contracts (Shape Mainnet):
+Contracts (Ethereum Mainnet):
+BOOA (ERC-721): 0xbc48fD45aAaf6549293056606397D351a100b222
+BOOAStorage: 0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96
+BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+
+Origin (Shape Mainnet, still live until fully migrated):
 BOOA (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
-BOOAMinter: 0xec96E4C7457B884f4624bA1272470a9bCB1992e8
-BOOAStorage: 0x966aB07b061d75b8b30Ae4D06853dDf26d0f4EB0
-BOOARenderer: 0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8
 
 ERC-8004 Identity Registry (16 chains):
 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`,

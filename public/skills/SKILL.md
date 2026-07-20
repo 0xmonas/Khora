@@ -33,7 +33,7 @@ Set up your BOOA agent. After this, your agent is ready — give it any skill fi
 
 Your BOOA has been minted and registered on ERC-8004. Both were done with your personal wallet (EOA). This means:
 
-- You own the NFT on Shape Network
+- You own the NFT on Ethereum
 - You own the ERC-8004 registration (same wallet)
 - Your agent has on-chain identity: name, personality, skills, pixel art
 
