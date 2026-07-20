@@ -54,6 +54,7 @@ export default function AwakenPage() {
   const publicClient = usePublicClient({ chainId: mainnet.id });
 
   const [boois, setBoois] = useState<BOOA[]>([]);
+  const [shapeCount, setShapeCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<BOOA | null>(null);
   const [state, setState] = useState<AwakenState>('idle');
@@ -65,15 +66,26 @@ export default function AwakenPage() {
   const booaEth = getBooaEthAddress();
 
   const load = useCallback(async () => {
-    if (!address || !booaEth) { setBoois([]); return; }
+    if (!address || !booaEth) { setBoois([]); setShapeCount(0); return; }
     setLoading(true);
     setSelected(null);
     try {
-      const res = await fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`);
-      const data = await res.json();
-      setBoois(Array.isArray(data.nfts) ? data.nfts : []);
+      const [ethRes, shapeRes] = await Promise.all([
+        fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`),
+        // Count Shape BOOAs so the empty state can point un-migrated holders to /migrate.
+        fetch(`/api/migration/holdings/${address}`).catch(() => null),
+      ]);
+      const ethData = await ethRes.json();
+      setBoois(Array.isArray(ethData.nfts) ? ethData.nfts : []);
+      if (shapeRes && shapeRes.ok) {
+        const shapeData = await shapeRes.json();
+        setShapeCount(Array.isArray(shapeData.tokenIds) ? shapeData.tokenIds.length : 0);
+      } else {
+        setShapeCount(0);
+      }
     } catch {
       setBoois([]);
+      setShapeCount(0);
     } finally {
       setLoading(false);
     }
@@ -206,9 +218,30 @@ export default function AwakenPage() {
                             <p className="text-xs text-muted-foreground" style={font}>Loading your BOOAs</p>
                           </div>
                         ) : boois.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-16 gap-1.5 text-center">
-                            <p className="text-xs text-muted-foreground" style={font}>No BOOA on Ethereum for this wallet.</p>
-                            <p className="text-[10px] text-muted-foreground/50" style={font}>Migrate your BOOA to Ethereum first.</p>
+                          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                            {shapeCount > 0 ? (
+                              <>
+                                <p className="text-xs text-foreground" style={font}>
+                                  You hold {shapeCount} BOOA on Shape, but none on Ethereum yet.
+                                </p>
+                                <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
+                                  Awakening binds your BOOA to an onchain agent on Ethereum, so it has to live on Ethereum first. Migrate it, then come back here to awaken.
+                                </p>
+                                <Link href="/migrate" className="mt-1 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                                  Migrate to Ethereum
+                                </Link>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-xs text-muted-foreground" style={font}>No BOOA in this wallet.</p>
+                                <p className="text-[11px] text-muted-foreground/60 max-w-xs leading-relaxed" style={font}>
+                                  Awaken runs on Ethereum. If your BOOA is still on Shape, migrate it first, then it shows up here.
+                                </p>
+                                <Link href="/migrate" className="mt-1 text-[11px] text-muted-foreground underline hover:text-foreground transition-colors" style={font}>
+                                  Go to migrate
+                                </Link>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
