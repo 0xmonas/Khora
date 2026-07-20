@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, fallback } from 'viem';
-import { shape } from 'wagmi/chains';
 import { CHAIN_CONFIG } from '@/types/agent';
-import { getV2Address, BOOA_V2_ABI } from '@/lib/contracts/booa-v2';
 import { getRedis } from '@/lib/server/redis';
 import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
@@ -25,16 +22,9 @@ export async function GET(request: NextRequest) {
   const filterChainId = request.nextUrl.searchParams.get('chainId');
 
   try {
-    const config = CHAIN_CONFIG['shape'];
-    const client = createPublicClient({
-      transport: fallback(config.rpcUrls.map((url) => http(url))),
-    });
-
-    const booaSupply = await client.readContract({
-      address: getV2Address(shape.id),
-      abi: BOOA_V2_ABI,
-      functionName: 'totalSupply',
-    }) as bigint;
+    // Collection is sold out at MAX_SUPPLY. Not a per-chain read: Ethereum's
+    // totalSupply reflects migration progress, not the fixed collection size.
+    const booaSupply = BigInt(3333);
 
     const redis = getRedis();
     let agentsCount = 0;

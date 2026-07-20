@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
-import { getV2Address, getV2StorageAddress, BOOA_V2_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
+import { getV2Address, getV2RendererAddress, getV2StorageAddress, BOOA_V2_RENDERER_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
 import { traitsToAgent, toSoulMd, toIdentityMd, toERC8004 } from '@/utils/helpers/exportFormats';
 
 export const maxDuration = 15;
@@ -49,9 +49,10 @@ async function fetchOnChainData(chainId: number, tokenId: number): Promise<OnCha
 
   const config = CHAIN_CONFIG[chainKey];
   const booaAddress = getV2Address(chainId);
+  const rendererAddress = getV2RendererAddress(chainId);
   const storageAddress = getV2StorageAddress(chainId);
 
-  if (!booaAddress || booaAddress.length <= 2) throw new Error('BOOA contract not configured');
+  if (!rendererAddress || rendererAddress.length <= 2) throw new Error("BOOA renderer not configured");
 
   const client = createPublicClient({
     transport: fallback(config.rpcUrls.map((url) => http(url))),
@@ -65,9 +66,9 @@ async function fetchOnChainData(chainId: number, tokenId: number): Promise<OnCha
       args: [BigInt(tokenId)],
     }) as Promise<string>,
     client.readContract({
-      address: booaAddress,
-      abi: BOOA_V2_ABI,
-      functionName: 'tokenURI',
+      address: rendererAddress,
+      abi: BOOA_V2_RENDERER_ABI,
+      functionName: "tokenURI",
       args: [BigInt(tokenId)],
     }) as Promise<string>,
   ]);

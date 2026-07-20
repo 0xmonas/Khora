@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount, useChainId, useReadContracts } from 'wagmi';
-import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
-import { shape } from 'wagmi/chains';
+import { BOOA_V2_ABI, getV2Address, getV2ChainId, getBooaChainSlug } from '@/lib/contracts/booa-v2';
 
 const PAGE_SIZE = 50;
 
@@ -35,7 +34,7 @@ export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest'
   const nextTokenRef = useRef<string | undefined>(undefined);
   const fetchedRef = useRef(false);
 
-  const chain = chainId === shape.id ? 'shape' : 'shape-sepolia';
+  const chain = getBooaChainSlug(chainId);
 
   // Fetch one page of collection tokens
   const fetchPage = useCallback(async (isInitial = false) => {

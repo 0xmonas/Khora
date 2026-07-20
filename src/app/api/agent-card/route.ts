@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, fallback } from 'viem';
-import { shape, shapeSepolia } from 'viem/chains';
+import { shape, shapeSepolia, mainnet } from 'viem/chains';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getRegistryAddress, IDENTITY_REGISTRY_ABI } from '@/lib/contracts/identity-registry';
-import { BOOA_V2_ABI } from '@/lib/contracts/booa-v2';
+import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
 
 export const maxDuration = 30;
@@ -106,15 +106,13 @@ export async function GET(request: NextRequest) {
 
     if (nftOrigin?.tokenId !== undefined) {
       try {
-        const booaContract = chainId === 360
-          ? process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS
-          : process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET;
+        const booaContract = getV2Address(chainId);
 
-        if (booaContract) {
-          const shapeChain = chainId === 360 ? shape : shapeSepolia;
-          const shapeClient = createPublicClient({ chain: shapeChain, transport: http() });
-          currentNftOwner = (await shapeClient.readContract({
-            address: booaContract as `0x${string}`,
+        if (booaContract && booaContract.length > 2) {
+          const booaChain = chainId === 1 ? mainnet : chainId === 360 ? shape : shapeSepolia;
+          const booaClient = createPublicClient({ chain: booaChain, transport: http() });
+          currentNftOwner = (await booaClient.readContract({
+            address: booaContract,
             abi: BOOA_V2_ABI,
             functionName: 'ownerOf',
             args: [BigInt(nftOrigin.tokenId)],

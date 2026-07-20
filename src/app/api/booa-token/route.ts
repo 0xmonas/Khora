@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { BOOA_V2_RENDERER_ABI, getV2RendererAddress } from '@/lib/contracts/booa-v2';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 
@@ -20,13 +20,15 @@ export async function GET(request: NextRequest) {
   }
 
   const tokenId = Number(tokenIdStr);
-  const chain: SupportedChain = network === 'mainnet' ? 'shape' : 'shape-sepolia';
+  // Post-migration canonical chain is Ethereum. Read from the RENDERER (not the
+  // token contract) so all 3,333 render even for tokens not yet migrated/minted
+  // on Ethereum — storage holds the full collection, renderer isn't ownership-gated.
+  const chain: SupportedChain = network === 'mainnet' ? 'ethereum' : 'shape-sepolia';
   const config = CHAIN_CONFIG[chain];
-  const chainId = getV2ChainId(config.chainId);
-  const contractAddress = getV2Address(chainId);
+  const rendererAddress = getV2RendererAddress(config.chainId);
 
-  if (!contractAddress || contractAddress.length <= 2) {
-    return NextResponse.json({ error: 'BOOA contract not configured' }, { status: 500 });
+  if (!rendererAddress || rendererAddress.length <= 2) {
+    return NextResponse.json({ error: 'BOOA renderer not configured' }, { status: 500 });
   }
 
   try {
@@ -36,8 +38,8 @@ export async function GET(request: NextRequest) {
     });
 
     const tokenURI = await client.readContract({
-      address: contractAddress,
-      abi: BOOA_V2_ABI,
+      address: rendererAddress,
+      abi: BOOA_V2_RENDERER_ABI,
       functionName: 'tokenURI',
       args: [BigInt(tokenId)],
     }) as string;

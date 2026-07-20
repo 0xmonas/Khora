@@ -289,20 +289,56 @@ async function resolveAndVerify(
         }
       } catch { /* parse failed */ }
 
-      const verified =
-        (originalOwner !== null && originalOwner === currentNftOwner) ||
-        (current8004Owner !== null && current8004Owner === currentNftOwner);
+      // If the cached agent's URI was wiped (no nftOrigin) it was likely deprecated
+      // by an "Upgrade to Adapter" flow. Fall through to full scan to surface the
+      // newer adapter-bound agent for this NFT.
+      const looksDeprecated = originalOwner === null;
+      if (!looksDeprecated) {
+        let verified =
+          (originalOwner !== null && originalOwner === currentNftOwner) ||
+          (current8004Owner !== null && current8004Owner === currentNftOwner);
 
-      return {
-        verified,
-        currentNftOwner,
-        agentId: cachedRegistry.agentId,
-        registeredBy: current8004Owner || cachedRegistry.registeredBy || null,
-      };
+        // ERC-8217: if the agent's owner is an adapter contract whose binding points
+        // at the queried NFT, the current NFT owner is the controller by construction.
+        if (!verified && current8004Owner) {
+          try {
+            const binding = await client.readContract({
+              address: current8004Owner as `0x${string}`,
+              abi: [{
+                type: 'function',
+                name: 'bindingOf',
+                stateMutability: 'view',
+                inputs: [{ name: 'agentId', type: 'uint256' }],
+                outputs: [{
+                  name: 'binding',
+                  type: 'tuple',
+                  components: [
+                    { name: 'standard', type: 'uint8' },
+                    { name: 'tokenContract', type: 'address' },
+                    { name: 'tokenId', type: 'uint256' },
+                  ],
+                }],
+              }] as const,
+              functionName: 'bindingOf',
+              args: [BigInt(cachedRegistry.agentId)],
+            }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
+            if (Number(binding.tokenId) === tokenIdNum) {
+              verified = true;
+            }
+          } catch { /* not an adapter */ }
+        }
+
+        return {
+          verified,
+          currentNftOwner,
+          agentId: cachedRegistry.agentId,
+          registeredBy: current8004Owner || cachedRegistry.registeredBy || null,
+        };
+      }
     }
   }
 
-  // No cache — full on-chain scan by nftOrigin
+  // No cache (or cached looked deprecated) — full on-chain scan by nftOrigin
   let allRegs = await findAllRegistrations(tokenIdNum, chainIdNum);
 
   // Fallback: if nftOrigin scan found nothing, try name-based matching
@@ -321,10 +357,57 @@ async function resolveAndVerify(
     return { verified: false, currentNftOwner, agentId: null, registeredBy: null };
   }
 
-  // Find the verified registration matching current NFT owner
-  const verifiedReg = allRegs.find(r =>
-    r.originalOwner === currentNftOwner || r.current8004Owner === currentNftOwner
-  );
+  // Prefer matches by originalOwner (fresh agents — including adapter-bound — carry this
+  // in their URI). Fall back to current8004Owner match (legacy native where user holds
+  // the agent NFT directly). This way an adapter-bound agent wins over a wiped legacy.
+  const byOrigin = allRegs.find(r => r.originalOwner === currentNftOwner);
+  const byOwner = allRegs.find(r => r.current8004Owner === currentNftOwner);
+  let verifiedReg = byOrigin || byOwner;
+
+  // ERC-8217 fallback: if no direct owner/origin match, check whether any agent is
+  // adapter-bound to this NFT. Adapter enforces controller == NFT owner on every write,
+  // so a valid binding equals canonical verification regardless of who minted originally.
+  if (!verifiedReg && allRegs.length > 0) {
+    const { createPublicClient, http, fallback } = await import('viem');
+    const { CHAIN_CONFIG } = await import('@/types/agent');
+    const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+    if (chainEntry) {
+      const client = createPublicClient({
+        transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
+      });
+      const bindingAbi = [{
+        type: 'function',
+        name: 'bindingOf',
+        stateMutability: 'view',
+        inputs: [{ name: 'agentId', type: 'uint256' }],
+        outputs: [{
+          name: 'binding',
+          type: 'tuple',
+          components: [
+            { name: 'standard', type: 'uint8' },
+            { name: 'tokenContract', type: 'address' },
+            { name: 'tokenId', type: 'uint256' },
+          ],
+        }],
+      }] as const;
+      for (const r of allRegs) {
+        if (!r.current8004Owner) continue;
+        try {
+          const binding = await client.readContract({
+            address: r.current8004Owner as `0x${string}`,
+            abi: bindingAbi,
+            functionName: 'bindingOf',
+            args: [BigInt(r.agentId)],
+          }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
+          if (Number(binding.tokenId) === tokenIdNum) {
+            verifiedReg = r;
+            break;
+          }
+        } catch { /* not an adapter — skip */ }
+      }
+    }
+  }
+
   const bestReg = verifiedReg || allRegs[allRegs.length - 1];
   const verified = !!verifiedReg;
 
@@ -551,7 +634,52 @@ export async function POST(
       return NextResponse.json({ error: 'agentId mismatch' }, { status: 400 });
     }
     if (verifiedOwner.toLowerCase() !== address.toLowerCase()) {
-      return NextResponse.json({ error: 'owner mismatch' }, { status: 400 });
+      // ERC-8217 adapter case: agent owner is the adapter contract, but user is the
+      // bound NFT holder (controller). Resolve binding and verify.
+      let isController = false;
+      try {
+        const binding = await client.readContract({
+          address: verifiedOwner as `0x${string}`,
+          abi: [{
+            type: 'function',
+            name: 'bindingOf',
+            stateMutability: 'view',
+            inputs: [{ name: 'agentId', type: 'uint256' }],
+            outputs: [{
+              name: 'binding',
+              type: 'tuple',
+              components: [
+                { name: 'standard', type: 'uint8' },
+                { name: 'tokenContract', type: 'address' },
+                { name: 'tokenId', type: 'uint256' },
+              ],
+            }],
+          }] as const,
+          functionName: 'bindingOf',
+          args: [verifiedAgentId],
+        }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
+
+        const nftOwner = await client.readContract({
+          address: binding.tokenContract,
+          abi: [{
+            type: 'function',
+            name: 'ownerOf',
+            stateMutability: 'view',
+            inputs: [{ name: 'tokenId', type: 'uint256' }],
+            outputs: [{ name: '', type: 'address' }],
+          }] as const,
+          functionName: 'ownerOf',
+          args: [binding.tokenId],
+        }) as string;
+
+        if (nftOwner.toLowerCase() === address.toLowerCase()) {
+          isController = true;
+        }
+      } catch { /* verifiedOwner is not an ERC-8217 adapter */ }
+
+      if (!isController) {
+        return NextResponse.json({ error: 'owner mismatch' }, { status: 400 });
+      }
     }
   } catch (err) {
     console.error('TX verification error:', err);

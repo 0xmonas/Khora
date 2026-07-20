@@ -1,14 +1,12 @@
 /** Ensure image data URI is small enough for on-chain storage.
- *  SVG data URIs (~6KB) pass through. Large PNG data URIs (>50KB) get downscaled to 64x64.
- *  Non-data URIs (https://, ipfs://, ar://) pass through as-is. */
+ *  Non-data URIs (https://, ipfs://, ar://) pass through as-is (just a reference).
+ *  Small data URIs (<6KB) pass through. Anything bigger — SVG or PNG — is
+ *  rasterized to a 64x64 PNG. A BOOA's ~9KB on-chain SVG becomes ~1KB, which
+ *  cuts adapter register gas from ~7M to ~1.5M. For 64x64 pixel art this is
+ *  lossless; the full-fidelity art always remains on the bound NFT itself. */
 export function ensureSmallImageURI(dataURI: string): Promise<string> {
-  // Non-data URIs (https://, ipfs://, ar://) are fine — just a reference string
   if (!dataURI.startsWith('data:')) return Promise.resolve(dataURI);
-  // SVG data URIs are already small
-  if (dataURI.startsWith('data:image/svg+xml')) return Promise.resolve(dataURI);
-  // Small enough (<50KB) — pass through
-  if (dataURI.length < 50_000) return Promise.resolve(dataURI);
-  // Large PNG/other — downscale to 64x64 thumbnail
+  if (dataURI.length < 6_000) return Promise.resolve(dataURI);
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {

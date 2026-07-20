@@ -96,4 +96,6 @@ export interface DiscoveredAgent {
   image: string | null;
   description: string | null;
   hasMetadata: boolean;
+  boundContract?: string;
+  boundTokenId?: number;
 }

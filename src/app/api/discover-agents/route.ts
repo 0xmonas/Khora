@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
 import { getAgentsByOwner } from '@/lib/server/eight004scan';
 
@@ -14,6 +15,22 @@ export const maxDuration = 30;
 
 // Multicall3 — deployed at the same address on all EVM chains
 const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as const;
+
+// Public RPCs enforce tiny eth_getLogs ranges (1rpc caps at 50 blocks) and flaky
+// multicall limits. Prefer Alchemy where we have coverage; public URLs stay as fallback.
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
+const ALCHEMY_NETWORKS: Partial<Record<number, string>> = {
+  1: 'eth-mainnet',
+  8453: 'base-mainnet',
+  360: 'shape-mainnet',
+  11011: 'shape-sepolia',
+};
+
+function rpcUrlsFor(chainId: number, urls: string[]): string[] {
+  const net = ALCHEMY_NETWORKS[chainId];
+  if (ALCHEMY_API_KEY && net) return [`https://${net}.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, ...urls];
+  return urls;
+}
 
 const REGISTRY_ABI = [
   {
@@ -259,7 +276,7 @@ async function discoverOnChain(
   const registryAddress = getRegistryForChain(chain);
   const { createPublicClient, http, fallback } = await import('viem');
   const client = createPublicClient({
-    transport: fallback(config.rpcUrls.map((url) => http(url))),
+    transport: fallback(rpcUrlsFor(config.chainId, config.rpcUrls).map((url) => http(url))),
   });
   try {
     // Step 1: Quick balance check — skip chain if 0
@@ -337,6 +354,125 @@ async function discoverOnChain(
   }
 }
 
+/** Discover adapter-controlled agents whose bound NFT is owned by `address`. */
+async function discoverAdapterControlled(
+  chain: SupportedChain,
+  address: string,
+): Promise<DiscoveredAgent[]> {
+  const config = CHAIN_CONFIG[chain];
+  const adapterAddress = getAdapterAddress(config.chainId);
+  if (!adapterAddress) return [];
+
+  try {
+    const { createPublicClient, http, fallback, parseAbiItem } = await import('viem');
+    const client = createPublicClient({
+      transport: fallback(rpcUrlsFor(config.chainId, config.rpcUrls).map((url: string) => http(url))),
+    });
+
+    const agentBoundEvent = parseAbiItem(
+      'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)'
+    );
+
+    // Paginate over blocks — RPCs cap eth_getLogs range at 10k. Premm's Eth/Base
+    // adapters are SHARED canonical contracts (many projects), so an unbounded
+    // scan could return thousands of events and blow up Alchemy usage. Hard-cap
+    // the scan: at most MAX_PAGES getLogs calls and MAX_LOGS events processed.
+    const PAGE_SIZE = BigInt(9_999);
+    const MAX_PAGES = 6;                 // ~60k blocks — bounded RPC cost on any chain
+    const MAX_LOGS = 1500;               // bound the downstream multicall too
+    const latest = await client.getBlockNumber();
+
+    type AgentBoundLog = Awaited<ReturnType<typeof client.getLogs<typeof agentBoundEvent>>>[number];
+    const logs: AgentBoundLog[] = [];
+    let cursor = latest;
+    let pages = 0;
+    let truncated = false;
+    while (pages < MAX_PAGES) {
+      const from = cursor > PAGE_SIZE ? cursor - PAGE_SIZE : BigInt(0);
+      const page = await client.getLogs({
+        address: adapterAddress,
+        event: agentBoundEvent,
+        fromBlock: from,
+        toBlock: cursor,
+      });
+      logs.push(...page);
+      pages++;
+      if (logs.length >= MAX_LOGS) { truncated = true; break; }
+      if (from === BigInt(0)) break;
+      cursor = from - BigInt(1);
+    }
+    if (pages >= MAX_PAGES || truncated) {
+      console.warn(`discoverAdapterControlled [${chain}]: scan capped (pages=${pages}, logs=${logs.length}) — recent bindings only.`);
+    }
+
+    if (logs.length === 0) return [];
+
+    const ownerChecks = logs.map((log) => ({
+      address: log.args.tokenContract as `0x${string}`,
+      abi: REGISTRY_ABI,
+      functionName: 'ownerOf' as const,
+      args: [log.args.tokenId as bigint],
+    }));
+
+    const owners = await client.multicall({
+      contracts: ownerChecks,
+      multicallAddress: MULTICALL3,
+      allowFailure: true,
+    });
+
+    const controlled: { agentId: number; boundContract: string; boundTokenId: number }[] = [];
+    for (let i = 0; i < owners.length; i++) {
+      const r = owners[i] as { status: string; result?: string };
+      if (r.status === 'success' && (r.result as string).toLowerCase() === address.toLowerCase()) {
+        controlled.push({
+          agentId: Number(logs[i].args.agentId),
+          boundContract: (logs[i].args.tokenContract as string).toLowerCase(),
+          boundTokenId: Number(logs[i].args.tokenId),
+        });
+      }
+    }
+
+    if (controlled.length === 0) return [];
+
+    const registryAddress = getRegistryForChain(chain);
+    const uriContracts = controlled.map((c) => ({
+      address: registryAddress,
+      abi: REGISTRY_ABI,
+      functionName: 'tokenURI' as const,
+      args: [BigInt(c.agentId)],
+    }));
+
+    const uriResults = await client.multicall({
+      contracts: uriContracts,
+      multicallAddress: MULTICALL3,
+      allowFailure: true,
+    });
+
+    return controlled.map((c, i) => {
+      const r = uriResults[i] as { status: string; result?: string };
+      const uri = r.status === 'success' ? (r.result as string) || '' : '';
+      const meta = extractMetaFromDataURI(uri);
+      return {
+        chain,
+        chainName: config.name,
+        tokenId: c.agentId,
+        name: meta.name,
+        image: meta.image,
+        description: meta.description,
+        hasMetadata: !!uri,
+        boundContract: c.boundContract,
+        boundTokenId: c.boundTokenId,
+      };
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (!msg.includes('returned no data') && !msg.includes('fetch failed')) {
+      console.error(`discoverAdapterControlled [${chain}] error:`, err);
+    }
+    return [];
+  }
+}
+
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address');
 
@@ -357,25 +493,32 @@ export async function GET(request: NextRequest) {
   }
   const chains = [chainParam];
 
-  // Query chains in parallel
+  // Query chains in parallel — owner-side and adapter-controlled
   const results = await Promise.allSettled(
-    chains.map((chain) => discoverOnChain(chain, address)),
+    chains.flatMap((chain) => [
+      discoverOnChain(chain, address).then((r) => ({ chain, kind: 'owner' as const, ...r })),
+      discoverAdapterControlled(chain, address).then((agents) => ({ chain, kind: 'adapter' as const, agents, error: undefined })),
+    ]),
   );
 
-  const agents: DiscoveredAgent[] = [];
+  const agentMap = new Map<string, DiscoveredAgent>();
   const errors: { chain: SupportedChain; message: string }[] = [];
 
-  results.forEach((result, index) => {
-    const chain = chains[index];
+  results.forEach((result) => {
     if (result.status === 'fulfilled') {
-      agents.push(...result.value.agents);
+      for (const a of result.value.agents) {
+        const key = `${a.chain}:${a.tokenId}`;
+        if (!agentMap.has(key)) agentMap.set(key, a);
+      }
       if (result.value.error) {
-        errors.push({ chain, message: result.value.error });
+        errors.push({ chain: result.value.chain, message: result.value.error });
       }
     } else {
-      errors.push({ chain, message: result.reason?.message || 'Chain query failed' });
+      errors.push({ chain: chains[0], message: result.reason?.message || 'Chain query failed' });
     }
   });
+
+  const agents: DiscoveredAgent[] = Array.from(agentMap.values());
 
   // Sort: agents with metadata first, then by chain, then by tokenId
   agents.sort((a, b) => {

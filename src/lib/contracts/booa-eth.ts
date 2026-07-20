@@ -5,7 +5,9 @@ export const SHAPE_MAINNET_CHAIN_ID = 360;
 
 export const MIGRATION_MAX_SUPPLY = 3333;
 
-export const BOOA_ETH_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_ADDRESS || '') as `0x${string}`;
+// Canonical BOOAEth (Ethereum mainnet, verified). Deployed 2026-07-13, permanent.
+// Hardcoded fallback so tools work without the env set; env overrides.
+export const BOOA_ETH_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_ADDRESS || '0xbc48fD45aAaf6549293056606397D351a100b222') as `0x${string}`;
 export const BOOA_BURN_HELPER_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_BURN_HELPER_ADDRESS || '') as `0x${string}`;
 export const BOOA_SHAPE_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS || '') as `0x${string}`;
 

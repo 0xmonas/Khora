@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Alchemy API key not configured' }, { status: 500 });
   }
 
-  const network = chain === 'shape' ? 'shape-mainnet' : 'shape-sepolia';
+  const network = chain === 'ethereum' ? 'eth-mainnet'
+    : chain === 'shape' ? 'shape-mainnet'
+    : 'shape-sepolia';
 
   try {
     const url = new URL(
