@@ -21,8 +21,8 @@ export function MigratePanel() {
   const { isConnected } = useAccount();
   const {
     status, loadingStatus, holdings, selected, step, error, progressNote,
-    burnTxHash, claimTxHash, claimedTokenIds,
-    selectAll, clearSelection, migrate, reset,
+    burnTxHash, claimTxHash, claimedTokenIds, pending,
+    selectAll, clearSelection, migrate, claimBurned, reset,
   } = useMigrate();
 
   const count = selected.size;
@@ -74,7 +74,41 @@ export function MigratePanel() {
     );
   }
 
+  const showRecovery = pending.length > 0;
+
   return (
+    <div className="space-y-3">
+    {showRecovery && (
+      <div className="border-2 border-amber-500/70 dark:border-amber-400/70 bg-amber-500/5 p-4 space-y-3">
+        <p className="text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wider" style={font}>
+          {pending.length} BOOA burned, not yet claimed
+        </p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed" style={font}>
+          You already burned these on Shape but the claim didn&apos;t land. They&apos;re safe — burns are permanent and there is no deadline. Claim them on Ethereum now; no re-burning needed.
+        </p>
+        <p className="text-[10px] text-muted-foreground/70 break-words" style={font}>
+          #{pending.slice(0, 30).join(', #')}{pending.length > 30 ? '…' : ''}
+        </p>
+        {error && step === 'error' && <p className="text-[10px] text-red-400 leading-relaxed" style={font}>{error}</p>}
+        {busy && (
+          <div className="flex items-center gap-2 text-[10px] text-foreground border border-amber-500/40 p-2" style={font}>
+            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+            <span>{progressNote || STEP_LABEL[step]}</span>
+          </div>
+        )}
+        <button
+          onClick={() => (step === 'error' ? reset() : claimBurned())}
+          disabled={!isConnected || busy}
+          className="w-full flex items-center justify-center gap-2 border-2 border-amber-500/70 dark:border-amber-400/70 p-2.5 text-[11px] uppercase text-amber-700 dark:text-amber-300 disabled:opacity-30 hover:bg-amber-500/10 transition-colors"
+          style={font}
+        >
+          {busy ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Working…</>
+            : step === 'error' ? 'Reset'
+            : <><ArrowRight className="w-3.5 h-3.5" /> Claim {pending.length} BOOA on Ethereum</>}
+        </button>
+      </div>
+    )}
+
     <div className="border-2 border-neutral-700 dark:border-neutral-200 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-foreground uppercase tracking-wider" style={font}>Migrate to Ethereum</p>
@@ -122,6 +156,7 @@ export function MigratePanel() {
       <p className="text-[9px] text-muted-foreground/50 leading-relaxed" style={font}>
         Burning is irreversible. Your Shape BOOA is destroyed and re-minted 1:1 on Ethereum with the same token ID and art.
       </p>
+    </div>
     </div>
   );
 }

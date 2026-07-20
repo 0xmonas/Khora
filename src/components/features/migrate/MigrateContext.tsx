@@ -42,11 +42,15 @@ interface MigrateState {
   burnTxHash: `0x${string}` | null;
   claimTxHash: `0x${string}` | null;
   claimedTokenIds: number[];
+  pending: number[];
+  loadingPending: boolean;
   toggle: (id: number) => void;
   selectAll: () => void;
   clearSelection: () => void;
   refreshHoldings: () => Promise<void>;
+  refreshPending: () => Promise<void>;
   migrate: () => Promise<void>;
+  claimBurned: () => Promise<void>;
   reset: () => void;
 }
 
@@ -78,6 +82,8 @@ export function MigrateProvider({ children }: { children: ReactNode }) {
   const [burnTxHash, setBurnTxHash] = useState<`0x${string}` | null>(null);
   const [claimTxHash, setClaimTxHash] = useState<`0x${string}` | null>(null);
   const [claimedTokenIds, setClaimedTokenIds] = useState<number[]>([]);
+  const [pending, setPending] = useState<number[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +116,23 @@ export function MigrateProvider({ children }: { children: ReactNode }) {
   }, [address]);
 
   useEffect(() => { void refreshHoldings(); }, [refreshHoldings]);
+
+  // Recovery: tokens already burned on Shape but not yet claimed on Ethereum.
+  const refreshPending = useCallback(async () => {
+    if (!address) { setPending([]); return; }
+    setLoadingPending(true);
+    try {
+      const res = await fetch(`/api/migration/pending/${address}`);
+      const data = await res.json();
+      setPending(Array.isArray(data.tokenIds) ? data.tokenIds : []);
+    } catch {
+      setPending([]);
+    } finally {
+      setLoadingPending(false);
+    }
+  }, [address]);
+
+  useEffect(() => { void refreshPending(); }, [refreshPending]);
 
   const toggle = useCallback((id: number) => {
     setSelected((prev) => {
@@ -236,12 +259,61 @@ export function MigrateProvider({ children }: { children: ReactNode }) {
     }
   }, [address, status, selected, chainId, shapeClient, ethClient, switchChainAsync, writeContractAsync, refreshHoldings, fail]);
 
+  // Claim-only recovery: the burn already happened; skip approve+burn and go
+  // straight to tickets → switch → claim. Fixes strandings where the claim tx
+  // failed after a successful burn (wallet timeout, page reload).
+  const claimBurned = useCallback(async () => {
+    if (!address) return fail('Connect your wallet first.');
+    if (!status?.enabled || !status.booaEth) return fail('Migration is not live yet.');
+    if (!ethClient) return fail('RPC client unavailable. Retry in a moment.');
+    const ids = [...pending].sort((a, b) => a - b);
+    if (ids.length === 0) return fail('No burned tokens are waiting to be claimed.');
+    const booaEth = status.booaEth;
+
+    try {
+      setError(null);
+      setStep('awaiting_tickets');
+      setProgressNote(`Signing tickets for ${ids.length} already-burned BOOA…`);
+      const tickets = await pollTickets(address, ids);
+      const ready = tickets.filter((t) => t.status === 'ready' && t.signature);
+      if (ready.length === 0) {
+        return fail('No tickets were issued. Burns may still be confirming — retry in a minute.');
+      }
+
+      setStep('switching');
+      setProgressNote('Switch your wallet to Ethereum…');
+      await switchChainAsync({ chainId: ETH_MAINNET_CHAIN_ID });
+
+      setStep('claiming');
+      setProgressNote(`Claiming ${ready.length} BOOA on Ethereum…`);
+      const claimTx = await writeContractAsync({
+        chainId: ETH_MAINNET_CHAIN_ID,
+        address: booaEth,
+        abi: BOOA_ETH_ABI,
+        functionName: 'claim',
+        args: [ready.map((t) => BigInt(t.tokenId)), ready.map((t) => t.signature as `0x${string}`)],
+      });
+      setClaimTxHash(claimTx);
+      await ethClient.waitForTransactionReceipt({ hash: claimTx });
+
+      setClaimedTokenIds(ready.map((t) => t.tokenId));
+      setStep('done');
+      setProgressNote('');
+      void refreshHoldings();
+      void refreshPending();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Claim failed.';
+      fail(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
+    }
+  }, [address, status, ethClient, pending, switchChainAsync, writeContractAsync, refreshHoldings, refreshPending, fail]);
+
   const value = useMemo<MigrateState>(() => ({
     status, loadingStatus, holdings, loadingHoldings, selected, step, error, progressNote,
-    burnTxHash, claimTxHash, claimedTokenIds,
-    toggle, selectAll, clearSelection, refreshHoldings, migrate, reset,
+    burnTxHash, claimTxHash, claimedTokenIds, pending, loadingPending,
+    toggle, selectAll, clearSelection, refreshHoldings, refreshPending, migrate, claimBurned, reset,
   }), [status, loadingStatus, holdings, loadingHoldings, selected, step, error, progressNote,
-    burnTxHash, claimTxHash, claimedTokenIds, toggle, selectAll, clearSelection, refreshHoldings, migrate, reset]);
+    burnTxHash, claimTxHash, claimedTokenIds, pending, loadingPending,
+    toggle, selectAll, clearSelection, refreshHoldings, refreshPending, migrate, claimBurned, reset]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

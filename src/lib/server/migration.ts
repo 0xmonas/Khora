@@ -221,6 +221,63 @@ export async function verifyBurn(holder: `0x${string}`, tokenId: number): Promis
 }
 
 /**
+ * Recovery: find tokens this holder already burned on Shape but has NOT yet
+ * claimed on Ethereum. Covers the case where the claim tx failed after the burn
+ * succeeded (wallet timeout, page reload) — the burn is permanent, so the holder
+ * must be able to claim later without re-burning. Reads purely on-chain.
+ */
+export async function findBurnedUnclaimed(holder: `0x${string}`): Promise<number[]> {
+  const booaEth = getBooaEthAddress();
+  const helper = getBurnHelperAddress();
+  const shapeBooa = getShapeBooaAddress();
+  if (!booaEth || (!helper && !shapeBooa)) return [];
+
+  const client = shapeClient();
+  const latest = await client.getBlockNumber();
+  const floor = latest > BURN_LOOKBACK_BLOCKS ? latest - BURN_LOOKBACK_BLOCKS : BigInt(0);
+  const holderLc = holder.toLowerCase();
+
+  // Fetch by event topic only and filter the holder in JS. Filtering the holder
+  // via an indexed topic makes some Shape RPCs reject the request (partial/trailing
+  // null topics), so we keep the query shape minimal and match locally instead.
+  const burned = new Set<number>();
+  let cursor = latest;
+  while (cursor >= floor) {
+    const from = cursor > LOG_PAGE ? cursor - LOG_PAGE : BigInt(0);
+    try {
+      const helperBurns = helper
+        ? await client.getLogs({ address: helper, event: MIGRATION_BURN_EVENT, fromBlock: from, toBlock: cursor })
+        : [];
+      for (const l of helperBurns) {
+        if ((l.args as { holder?: string }).holder?.toLowerCase() !== holderLc) continue;
+        const id = Number((l.args as { tokenId?: bigint }).tokenId);
+        if (Number.isInteger(id)) burned.add(id);
+      }
+    } catch { /* page failed — continue scanning */ }
+    if (from === BigInt(0)) break;
+    cursor = from - BigInt(1);
+  }
+  if (burned.size === 0) return [];
+
+  // Keep only tokens NOT yet claimed on Ethereum.
+  const eth = createPublicClient({
+    chain: mainnet,
+    transport: http(process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com'),
+  });
+  const claimedAbi = [
+    { type: 'function', name: 'claimed', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] },
+  ] as const;
+  const pending: number[] = [];
+  for (const id of Array.from(burned).sort((a, b) => a - b)) {
+    const claimed = await eth
+      .readContract({ address: booaEth, abi: claimedAbi, functionName: 'claimed', args: [BigInt(id)] })
+      .catch(() => false);
+    if (!claimed) pending.push(id);
+  }
+  return pending;
+}
+
+/**
  * Sign a claim ticket for (claimer, tokenId) — ONLY after the burn is verified.
  * Isolated behind this function so a KMS/HSM signer can replace the raw-key path
  * without touching callers.
