@@ -365,25 +365,25 @@ Endpoints
 
 1. Agent identity — get a complete ERC-8004 agent profile in one call:
 
-curl https://booa.app/api/agent-card?chain=shape&agentId=0
+curl https://booa.app/api/agent-card?chain=ethereum&agentId=0
 
 Returns: name, description, image, services, skills, domains, x402 support, trust mechanisms, and agent scores.
 
 2. Agent discovery — find all agents owned by a wallet on a specific chain:
 
-curl https://booa.app/api/discover-agents?address=0x...&chain=shape
+curl https://booa.app/api/discover-agents?address=0x...&chain=ethereum
 
 Scans the chain using multicall, returns every agent that wallet controls.
 
 3. Collection browser — paginated BOOA NFTs with on-chain SVG art:
 
-curl https://booa.app/api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
+curl https://booa.app/api/gallery?contract=0xbc48fD45aAaf6549293056606397D351a100b222&chain=ethereum&limit=50
 
 Returns tokenId, raw SVG, image URL, and name for each token. Pass startToken for pagination.
 
 4. Wallet NFTs — all NFTs owned by a wallet on any supported chain:
 
-curl https://booa.app/api/fetch-nfts?address=0x...&chain=shape
+curl https://booa.app/api/fetch-nfts?address=0x...&chain=ethereum
 
 Filter by contract with &contract=0x... to get only BOOA tokens.
 

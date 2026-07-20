@@ -70,7 +70,7 @@ OpenClaw: Railway deploy with Telegram. More manual but established.
 booa.app/blog/your-agent-your-rules
 
 ElizaOS / Claude / Other: Download your agent files and load them into any framework.
-booa.app/api/agent-files/360/{tokenId}
+booa.app/api/agent-files/1/{tokenId}
 
 After deployment, tell your agent "set up my wallet" — it knows the BOOA skill and will guide you through wallet creation and ERC-8004 identity management.`,
       },
@@ -122,7 +122,7 @@ The owner's private instructions to the agent. Not stored on-chain, not served b
 
 Download your agent files:
 - ZIP: booa.app (click any token in gallery, then "OpenClaw ZIP")
-- API: booa.app/api/agent-files/360/{tokenId}
+- API: booa.app/api/agent-files/1/{tokenId}
 - Individual files: /soul.md, /identity.md, /avatar.svg, /agent.json, /erc8004.json`,
       },
       {
@@ -133,22 +133,22 @@ Download your agent files:
 
 Endpoints:
 
-GET /api/agent-files/360/{tokenId}
+GET /api/agent-files/1/{tokenId}
 Returns: ZIP archive (IDENTITY.md + SOUL.md + avatar.svg + agent.json + erc8004.json)
 
-GET /api/agent-files/360/{tokenId}/soul.md
+GET /api/agent-files/1/{tokenId}/soul.md
 Returns: SOUL.md as text/markdown
 
-GET /api/agent-files/360/{tokenId}/identity.md
+GET /api/agent-files/1/{tokenId}/identity.md
 Returns: IDENTITY.md as text/markdown
 
-GET /api/agent-files/360/{tokenId}/avatar.svg
+GET /api/agent-files/1/{tokenId}/avatar.svg
 Returns: On-chain pixel art as SVG
 
-GET /api/agent-files/360/{tokenId}/agent.json
+GET /api/agent-files/1/{tokenId}/agent.json
 Returns: Structured trait data + CAIP reference as JSON
 
-GET /api/agent-files/360/{tokenId}/erc8004.json
+GET /api/agent-files/1/{tokenId}/erc8004.json
 Returns: ERC-8004 registration format as JSON
 
 Base URL: https://booa.app
@@ -325,11 +325,11 @@ Use SOUL.md as a system prompt or project instruction file. Claude reads it and 
 
 Any Framework
 Download your agent files:
-curl https://booa.app/api/agent-files/360/{tokenId}/soul.md
-curl https://booa.app/api/agent-files/360/{tokenId}/identity.md
+curl https://booa.app/api/agent-files/1/{tokenId}/soul.md
+curl https://booa.app/api/agent-files/1/{tokenId}/identity.md
 
 Or download the full ZIP:
-curl https://booa.app/api/agent-files/360/{tokenId} -o agent.zip
+curl https://booa.app/api/agent-files/1/{tokenId} -o agent.zip
 
 Load the files into your framework of choice. The SKILL.md guide has framework-agnostic setup instructions:
 booa.app/skills/SKILL.md`,
@@ -545,8 +545,8 @@ GET /api/discover-agents?address={addr}&chain={slug} — All agents owned by wal
 POST /api/fetch-agent {"chain":"shape","agentId":42} — Raw 8004 registration data
 
 Collection:
-GET /api/gallery?contract={addr}&chain=shape&limit=50 — Browse collection
-GET /api/fetch-nfts?address={addr}&chain=shape — All NFTs in wallet
+GET /api/gallery?contract={addr}&chain=ethereum&limit=50 — Browse collection
+GET /api/fetch-nfts?address={addr}&chain=ethereum — All NFTs in wallet
 GET /api/stats — Collection statistics
 
 Full reference: booa.app/llms.txt`,

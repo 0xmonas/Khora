@@ -81,12 +81,18 @@ async function buildSearchIndex(): Promise<SearchEntry[]> {
   return items;
 }
 
+const ETH_MAINNET = 1;
 const SHAPE_MAINNET = 360;
 const SHAPE_SEPOLIA = 11011;
 
+// BOOA's canonical home is Ethereum post-migration. Art/traits are read from the
+// Ethereum renderer (all 3,333 tokens, migration not required); wallet holdings are
+// read from both chains during the migration window.
+const BOOA_ETH_CONTRACT = process.env.NEXT_PUBLIC_BOOA_ETH_ADDRESS || '0xbc48fD45aAaf6549293056606397D351a100b222';
+
 const OPENSEA_COLLECTION_SLUG = 'booa';
 const OPENSEA_COLLECTION_URL = `https://opensea.io/collection/${OPENSEA_COLLECTION_SLUG}`;
-const OPENSEA_ASSET_BASE = 'https://opensea.io/assets/shape';
+const OPENSEA_ASSET_BASE = 'https://opensea.io/assets/ethereum';
 const OPENSEA_API_BASE = 'https://api.opensea.io/api/v2';
 
 function getOriginFromRequest(request: NextRequest): string {
@@ -102,9 +108,8 @@ function getBooaContractFromEnv(): string | null {
 }
 
 function buildOpenSeaItemUrl(tokenId: number): string | null {
-  const contract = getBooaContractFromEnv();
-  if (!contract) return null;
-  return `${OPENSEA_ASSET_BASE}/${contract.toLowerCase()}/${tokenId}`;
+  if (!BOOA_ETH_CONTRACT) return null;
+  return `${OPENSEA_ASSET_BASE}/${BOOA_ETH_CONTRACT.toLowerCase()}/${tokenId}`;
 }
 
 export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: Record<string, ToolExecutor> } {
@@ -121,7 +126,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           tokenId: { type: 'integer', description: 'BOOA token ID (0-3332)' },
           chainId: {
             type: 'integer',
-            description: `EVM chain ID. Default ${SHAPE_MAINNET} (Shape mainnet). Testnet ${SHAPE_SEPOLIA}.`,
+            description: `EVM chain ID. Default ${ETH_MAINNET} (Ethereum, canonical). Also Shape ${SHAPE_MAINNET}, testnet ${SHAPE_SEPOLIA}.`,
           },
         },
         required: ['tokenId'],
@@ -153,7 +158,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           agentId: { type: 'integer', description: 'ERC-8004 agent ID' },
           chainId: {
             type: 'integer',
-            description: `EVM chain ID. Default ${SHAPE_MAINNET} (Shape mainnet). Testnet ${SHAPE_SEPOLIA}.`,
+            description: `EVM chain ID. Default ${ETH_MAINNET} (Ethereum, canonical). Also Shape ${SHAPE_MAINNET}, testnet ${SHAPE_SEPOLIA}.`,
           },
         },
         required: ['agentId'],
@@ -191,7 +196,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
     {
       name: 'getHolderBooas',
       description:
-        'Check if a wallet address holds BOOAs and list which token IDs it owns. Use for "is X a holder", "what does wallet 0xabc own", "how many BOOAs does Y have", "show me address Z\'s BOOAs". Locked to BOOA collection on Shape Network only — cannot query other collections.',
+        'Check if a wallet address holds BOOAs and list which token IDs it owns. Use for "is X a holder", "what does wallet 0xabc own", "how many BOOAs does Y have", "show me address Z\'s BOOAs". Locked to the BOOA collection (Ethereum + Shape) only — cannot query other collections.',
       parameters: {
         type: 'object',
         properties: {
@@ -218,7 +223,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
   const executors: Record<string, ToolExecutor> = {
     getAgentByToken: async (args) => {
       const tokenIdRaw = args.tokenId;
-      const chainIdRaw = args.chainId ?? SHAPE_MAINNET;
+      const chainIdRaw = args.chainId ?? ETH_MAINNET;
       const tokenId = typeof tokenIdRaw === 'number' ? tokenIdRaw : Number(tokenIdRaw);
       const chainId = typeof chainIdRaw === 'number' ? chainIdRaw : Number(chainIdRaw);
       if (!Number.isInteger(tokenId) || tokenId < 0 || tokenId > 3332) {
@@ -293,7 +298,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
         }
         if (!res.ok) return { error: `booa-token returned ${res.status}` };
         const data = await res.json();
-        const chainIdForImage = network === 'testnet' ? SHAPE_SEPOLIA : SHAPE_MAINNET;
+        const chainIdForImage = network === 'testnet' ? SHAPE_SEPOLIA : ETH_MAINNET;
         return {
           found: true,
           tokenId,
@@ -311,7 +316,7 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
 
     getReputation: async (args) => {
       const agentIdRaw = args.agentId;
-      const chainIdRaw = args.chainId ?? SHAPE_MAINNET;
+      const chainIdRaw = args.chainId ?? ETH_MAINNET;
       const agentId = typeof agentIdRaw === 'number' ? agentIdRaw : Number(agentIdRaw);
       const chainId = typeof chainIdRaw === 'number' ? chainIdRaw : Number(chainIdRaw);
       if (!Number.isInteger(agentId) || agentId < 0) {
@@ -319,13 +324,13 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
       }
       try {
         const { createPublicClient, http } = await import('viem');
-        const { shape, shapeSepolia } = await import('viem/chains');
+        const { shape, shapeSepolia, mainnet } = await import('viem/chains');
         const { getReputationAddress, REPUTATION_REGISTRY_ABI } = await import('@/lib/contracts/reputation-registry');
         const registry = getReputationAddress(chainId);
         if (!registry || registry.length <= 2) {
           return { error: 'ReputationRegistry not configured for this chain' };
         }
-        const chain = chainId === SHAPE_SEPOLIA ? shapeSepolia : shape;
+        const chain = chainId === SHAPE_SEPOLIA ? shapeSepolia : chainId === ETH_MAINNET ? mainnet : shape;
         const client = createPublicClient({ chain, transport: http() });
         const clients = (await client.readContract({
           address: registry,
@@ -403,10 +408,10 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
       if (!Number.isInteger(tokenId) || tokenId < 0 || tokenId > 3332) {
         return { error: 'Invalid tokenId' };
       }
-      const contract = getBooaContractFromEnv();
+      const contract = BOOA_ETH_CONTRACT;
       if (!contract) return { error: 'BOOA contract not configured' };
       try {
-        const url = `${OPENSEA_API_BASE}/orders/shape/seaport/listings?asset_contract_address=${contract}&token_ids=${tokenId}&limit=5&order_by=eth_price&order_direction=asc`;
+        const url = `${OPENSEA_API_BASE}/orders/ethereum/seaport/listings?asset_contract_address=${contract}&token_ids=${tokenId}&limit=5&order_by=eth_price&order_direction=asc`;
         const res = await fetch(url, {
           headers: { 'X-API-KEY': apiKey, accept: 'application/json' },
         });
@@ -477,22 +482,33 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
       if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
         return { error: 'Invalid wallet address. Expected 0x followed by 40 hex chars.' };
       }
-      const contract = getBooaContractFromEnv();
-      if (!contract) return { error: 'BOOA contract not configured' };
+      const shapeContract = getBooaContractFromEnv();
+      // Query both homes: a wallet's BOOAs can sit on Ethereum (migrated) and/or
+      // Shape (not yet migrated) during the migration window. Merge and dedupe.
+      const fetchIds = async (chain: string, contract: string | null): Promise<number[]> => {
+        if (!contract || contract.length <= 2) return [];
+        try {
+          const res = await fetch(`${origin}/api/fetch-nfts?address=${address}&chain=${chain}&contract=${contract}`, { method: 'GET' });
+          if (!res.ok) return [];
+          const data = await res.json();
+          const nfts = Array.isArray(data.nfts) ? data.nfts : [];
+          return nfts
+            .map((n: Record<string, unknown>) => Number(n.tokenId))
+            .filter((n: number) => Number.isInteger(n) && n >= 0 && n <= 3332);
+        } catch {
+          return [];
+        }
+      };
       try {
-        const url = `${origin}/api/fetch-nfts?address=${address}&chain=shape&contract=${contract}`;
-        const res = await fetch(url, { method: 'GET' });
-        if (!res.ok) return { error: `fetch-nfts returned ${res.status}` };
-        const data = await res.json();
-        const nfts = Array.isArray(data.nfts) ? data.nfts : [];
-        const tokenIds = nfts
-          .map((n: Record<string, unknown>) => Number(n.tokenId))
-          .filter((n: number) => Number.isInteger(n) && n >= 0 && n <= 3332)
-          .sort((a: number, b: number) => a - b);
+        const [ethIds, shapeIds] = await Promise.all([
+          fetchIds('ethereum', BOOA_ETH_CONTRACT),
+          fetchIds('shape', shapeContract),
+        ]);
+        const tokenIds = Array.from(new Set([...ethIds, ...shapeIds])).sort((a, b) => a - b);
         const preview = tokenIds.slice(0, 5).map((id: number) => ({
           tokenId: id,
           openSeaUrl: buildOpenSeaItemUrl(id),
-          imageUrl: `${origin}/api/agent-files/${SHAPE_MAINNET}/${id}/avatar.svg`,
+          imageUrl: `${origin}/api/agent-files/${ETH_MAINNET}/${id}/avatar.svg`,
         }));
         return {
           address: address.toLowerCase(),
