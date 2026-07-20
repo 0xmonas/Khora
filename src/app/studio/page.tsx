@@ -29,6 +29,14 @@ interface ToolCard {
 
 const TOOLS: ToolCard[] = [
   {
+    id: 'awaken',
+    title: 'Awaken',
+    description: 'Awaken your BOOA into a live onchain ERC-8004 agent. Control follows the BOOA, provable onchain. Ethereum.',
+    href: '/studio/awaken',
+    media: 'awaken.svg',
+    tag: 'NEW',
+  },
+  {
     id: 'booask',
     title: 'BOOASK',
     description: 'Ask anything about a BOOA, an agent, or how any of this works. Read-only oracle, no wallet required.',
@@ -339,7 +347,7 @@ function ExternalToolCard({ tool }: { tool: ToolCard }) {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 h-9 border-2 border-neutral-700 dark:border-neutral-200 text-[10px] uppercase hover:bg-foreground/5 transition-colors"
+                className="flex-1 h-9 rounded-md border border-neutral-200 dark:border-neutral-800 text-[10px] uppercase hover:bg-foreground/5 transition-colors"
                 style={font}
               >
                 Go Back
@@ -349,7 +357,7 @@ function ExternalToolCard({ tool }: { tool: ToolCard }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setShowModal(false)}
-                className="flex-1 h-9 flex items-center justify-center gap-1.5 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 text-[10px] uppercase hover:bg-neutral-600 dark:hover:bg-neutral-300 transition-colors"
+                className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black text-[10px] uppercase hover:opacity-90 transition-opacity"
                 style={font}
               >
                 Continue

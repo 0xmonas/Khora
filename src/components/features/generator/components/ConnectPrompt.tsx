@@ -25,7 +25,7 @@ function WalletConnectButton() {
 
   if (!ConnectButton) {
     return (
-      <button className="h-12 px-8 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-sm dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors">
+      <button className="h-12 px-8 rounded-md bg-neutral-900 dark:bg-neutral-100 font-mono text-sm text-white dark:text-black hover:opacity-90 transition-opacity">
         Connect
       </button>
     );
@@ -37,7 +37,7 @@ function WalletConnectButton() {
         <button
           onClick={openConnectModal}
           disabled={!mounted}
-          className="h-12 px-8 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 font-mono text-sm dark:text-white hover:bg-neutral-700/5 dark:hover:bg-neutral-200/5 transition-colors"
+          className="h-12 px-8 rounded-md bg-neutral-900 dark:bg-neutral-100 font-mono text-sm text-white dark:text-black hover:opacity-90 transition-opacity"
         >
           Connect Wallet
         </button>

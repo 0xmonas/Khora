@@ -1,19 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, FileCode, Image as ImageIcon, X, Search } from 'lucide-react';
 import Image from 'next/image';
-import { useChainId, useReadContract, useWriteContract, usePublicClient, useAccount } from 'wagmi';
-import { decodeEventLog } from 'viem';
-import { shape } from 'wagmi/chains';
+import { useChainId, useReadContract, useAccount } from 'wagmi';
+import { shape, mainnet } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
 import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
 import { useAgentMetadata } from '@/hooks/useAgentMetadata';
 import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 import { BOOA_V2_STORAGE_ABI, getV2Address, getV2StorageAddress } from '@/lib/contracts/booa-v2';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
-import { toERC8004, toAgentDataURI, utf8ToBase64, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import type { BooaAgent } from '@/types/agent';
 
 interface OnChainTrait {
@@ -69,28 +66,6 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
 }
 
-function TxHashLink({ hash, label, chainId }: { hash: `0x${string}`; label: string; chainId: number }) {
-  const isMainnet = chainId === shape.id;
-  const explorerBase = isMainnet
-    ? 'https://shapescan.xyz'
-    : 'https://explorer-sepolia.shape.network';
-  const short = `${hash.slice(0, 6)}...${hash.slice(-4)}`;
-
-  return (
-    <div className="flex justify-between font-mono text-[10px]">
-      <span className="text-neutral-500">{label}:</span>
-      <a
-        href={`${explorerBase}/tx/${hash}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-500 hover:underline"
-      >
-        {short}
-      </a>
-    </div>
-  );
-}
-
 import { traitsToAgent } from '@/utils/helpers/exportFormats';
 
 async function downloadFormat(
@@ -130,6 +105,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const { address } = useAccount();
   const contract = getV2Address(chainId);
   const storage = getV2StorageAddress(chainId);
+  const isEth = chainId === mainnet.id;
   const isMainnet = chainId === shape.id;
   const tokenId = token.tokenId.toString();
   const traits = useOnChainTraits(token.tokenId, storage);
@@ -137,136 +113,21 @@ function TokenDetail({ token }: { token: GalleryToken }) {
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // Registration state
-  const [registerStatus, setRegisterStatus] = useState<'idle' | 'registering' | 'success' | 'error' | 'already_registered' | 'registered_by_other'>('idle');
-  const [registryCheckLoading, setRegistryCheckLoading] = useState(true);
-  const [registerError, setRegisterError] = useState<string | null>(null);
-  const [registerTxHash, setRegisterTxHash] = useState<`0x${string}` | null>(null);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
-  const { writeContractAsync } = useWriteContract();
-  const publicClient = usePublicClient();
 
-  // Check if this token is already registered on the Identity Registry
+  // Fetch this token's registered 8004 agent id (for the 8004scan link).
   useEffect(() => {
     let cancelled = false;
-    setRegistryCheckLoading(true);
     fetch(`/api/agent-registry/${chainId}/${token.tokenId.toString()}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!cancelled && data?.registrations?.length > 0) {
           setRegistryAgentId(BigInt(data.registrations[0].agentId));
-          if (token.isOwned) {
-            if (data.verified === false) {
-              // 8004 exists but current NFT owner doesn't match — orphan or previous owner's registration
-              setRegisterStatus('registered_by_other');
-            } else {
-              setRegisterStatus('already_registered');
-            }
-          }
         }
       })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setRegistryCheckLoading(false); });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [chainId, token.tokenId, token.isOwned, address]);
-
-  const handleRegister = useCallback(async () => {
-    if (!token.isOwned || !publicClient) return;
-
-    setRegisterStatus('registering');
-    setRegisterError(null);
-    setRegisterTxHash(null);
-
-    try {
-      // Build agent from Upstash metadata or on-chain traits
-      const agent = metadata || traitsToAgent(traits);
-
-      // Build ERC-8004 registration JSON with nftOrigin for immutable linking
-      const nftOrigin = address ? {
-        contract: `eip155:${chainId}:${contract}`,
-        tokenId: Number(token.tokenId),
-        originalOwner: address,
-      } : undefined;
-      const registryAddr = getRegistryAddress(chainId);
-      const registryInfo: RegistryInfo = { agentRegistry: `eip155:${chainId}:${registryAddr}` };
-      const registration = toERC8004(agent, nftOrigin, registryInfo);
-
-      // Fetch on-chain SVG and embed as data URI (WA005 fix)
-      if (token.svg) {
-        registration.image = `data:image/svg+xml;base64,${utf8ToBase64(token.svg)}`;
-      }
-
-      // Strip empty endpoint from OASF (WA009 fix)
-      for (const svc of registration.services) {
-        if (svc.name === 'OASF' && !svc.endpoint.trim()) {
-          delete (svc as unknown as Record<string, unknown>).endpoint;
-        }
-      }
-
-      // Encode as on-chain data URI (UTF-8 safe)
-      const agentURI = toAgentDataURI(registration);
-
-      // Register on Identity Registry
-      const registryAddress = getRegistryAddress(chainId);
-      const hash = await writeContractAsync({
-        address: registryAddress,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'register',
-        args: [agentURI],
-      });
-
-      setRegisterTxHash(hash);
-
-      // Wait for receipt
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      // Decode Registered event to get agentId
-      let registeredAgentId: bigint | null = null;
-      for (const log of receipt.logs) {
-        try {
-          const decoded = decodeEventLog({
-            abi: IDENTITY_REGISTRY_ABI,
-            data: log.data,
-            topics: log.topics,
-          });
-          if (decoded.eventName === 'Registered') {
-            registeredAgentId = (decoded.args as { agentId: bigint }).agentId;
-            break;
-          }
-        } catch { /* Not our event */ }
-      }
-
-      if (registeredAgentId === null) {
-        throw new Error('Could not find Registered event in transaction');
-      }
-
-      setRegistryAgentId(registeredAgentId);
-
-      // Save registry data to backend
-      try {
-        const address = receipt.from;
-        await fetch(`/api/agent-registry/${chainId}/${tokenId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            address,
-            registryAgentId: Number(registeredAgentId),
-            txHash: hash,
-          }),
-        });
-      } catch { /* best effort */ }
-
-      setRegisterStatus('success');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Registration failed';
-      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
-        setRegisterStatus('idle');
-        return;
-      }
-      setRegisterError(msg.slice(0, 200));
-      setRegisterStatus('error');
-    }
-  }, [token.isOwned, token.svg, publicClient, metadata, traits, chainId, tokenId, writeContractAsync, address, contract, token.tokenId]);
 
   // Close lightbox on Escape
   useEffect(() => {
@@ -278,15 +139,19 @@ function TokenDetail({ token }: { token: GalleryToken }) {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [lightboxOpen]);
 
-  const marketplaceUrl = isMainnet
-    ? `https://opensea.io/assets/shape/${contract}/${tokenId}`
-    : `https://testnet.rarible.com/token/shape/${contract}:${tokenId}`;
+  const marketplaceUrl = isEth
+    ? `https://opensea.io/assets/ethereum/${contract}/${tokenId}`
+    : isMainnet
+      ? `https://opensea.io/assets/shape/${contract}/${tokenId}`
+      : `https://testnet.rarible.com/token/shape/${contract}:${tokenId}`;
 
-  const chainSlug = isMainnet ? 'shape' : 'shape-sepolia';
+  const chainSlug = isEth ? 'ethereum' : isMainnet ? 'shape' : 'shape-sepolia';
   const onchainCheckerUrl = `https://onchainchecker.xyz/collection/${chainSlug}/${contract}/${tokenId}`;
 
   const scan8004Url = registryAgentId !== null
-    ? isMainnet
+    ? isEth
+      ? `https://www.8004scan.io/agents/ethereum/${registryAgentId.toString()}`
+      : isMainnet
       ? `https://www.8004scan.io/agents/shape/${registryAgentId.toString()}`
       : `https://testnet.8004scan.io/agents/shape-sepolia/${registryAgentId.toString()}`
     : null;
@@ -345,7 +210,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={iconBtn}
-                title={isMainnet ? 'OpenSea' : 'Rarible'}
+                title={isEth || isMainnet ? 'OpenSea' : 'Rarible'}
               >
                 <Image src="/openseatransparent.svg" alt="OpenSea" width={14} height={14} className="invert dark:invert-0" />
               </a>
@@ -444,7 +309,7 @@ function TokenDetail({ token }: { token: GalleryToken }) {
               </button>
               <button
                 onClick={() => {
-                  const chainPrefix = isMainnet ? '360' : '11011';
+                  const chainPrefix = isEth ? '1' : isMainnet ? '360' : '11011';
                   const imgRef = `eip155:${chainPrefix}/erc721:${contract}/${tokenId}`;
                   downloadFormat(metadata || traitsToAgent(traits), token.svg, 'openclaw', imgRef);
                 }}
@@ -477,108 +342,6 @@ function TokenDetail({ token }: { token: GalleryToken }) {
           </div>
         )}
 
-        {/* Register on Agent Protocol — only for owned tokens */}
-        {token.isOwned && registryCheckLoading && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
-            <div className="w-full h-10 bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
-          </div>
-        )}
-
-        {token.isOwned && !registryCheckLoading && registerStatus === 'already_registered' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
-            {registryAgentId !== null && (
-              <div className="flex justify-between font-mono text-[10px]">
-                <span className="text-neutral-500">Registry ID:</span>
-                <span className="dark:text-white">#{registryAgentId.toString()}</span>
-              </div>
-            )}
-            <p className="font-mono text-xs text-green-600 dark:text-green-400">
-              Registered on ERC-8004 protocol.
-            </p>
-          </div>
-        )}
-
-        {token.isOwned && !registryCheckLoading && registerStatus === 'registered_by_other' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
-            <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
-              8004 identity registered by a previous owner.
-            </p>
-            <button
-              onClick={handleRegister}
-              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
-            >
-              REGISTER AS NEW OWNER
-            </button>
-            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1">
-              creates a new 8004 identity under your wallet
-            </p>
-          </div>
-        )}
-
-        {token.isOwned && !registryCheckLoading && registerStatus === 'idle' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
-            <button
-              onClick={handleRegister}
-              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
-            >
-              REGISTER ON AGENT PROTOCOL
-            </button>
-            <p className="font-mono text-[10px] text-neutral-400 text-center mt-1 truncate">
-              gas only, no fee
-            </p>
-          </div>
-        )}
-
-        {token.isOwned && registerStatus === 'registering' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
-            <button
-              disabled
-              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-neutral-100 dark:bg-neutral-800 dark:text-white font-mono text-xs cursor-not-allowed opacity-70"
-            >
-              REGISTERING...
-            </button>
-            {registerTxHash && (
-              <TxHashLink hash={registerTxHash} label="Register tx" chainId={chainId} />
-            )}
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-neutral-700 dark:bg-neutral-200 animate-pulse" />
-              <span className="font-mono text-[10px] text-neutral-500">Waiting for confirmation...</span>
-            </div>
-          </div>
-        )}
-
-        {token.isOwned && registerStatus === 'success' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
-            {registryAgentId !== null && (
-              <div className="flex justify-between font-mono text-[10px]">
-                <span className="text-neutral-500">Registry ID:</span>
-                <span className="dark:text-white">#{registryAgentId.toString()}</span>
-              </div>
-            )}
-            {registerTxHash && (
-              <TxHashLink hash={registerTxHash} label="Register tx" chainId={chainId} />
-            )}
-            <p className="font-mono text-xs text-green-600 dark:text-green-400">
-              Agent registered on ERC-8004 protocol.
-            </p>
-          </div>
-        )}
-
-        {token.isOwned && registerStatus === 'error' && (
-          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3 space-y-2">
-            {registerError && (
-              <div className="border border-red-500 p-2">
-                <p className="font-mono text-[10px] text-red-500" style={{ overflowWrap: 'anywhere' }}>{registerError}</p>
-              </div>
-            )}
-            <button
-              onClick={handleRegister}
-              className="w-full h-10 border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 dark:text-white font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
-            >
-              RETRY REGISTER
-            </button>
-          </div>
-        )}
       </div>
     </CustomScrollArea>
 
@@ -648,10 +411,10 @@ export function Gallery() {
 
   return (
     <div
-      className="border-2 border-neutral-700 dark:border-neutral-200 bg-white dark:bg-neutral-900 overflow-hidden w-full aspect-square min-w-0 max-w-full"
+      className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm overflow-hidden w-full h-[min(760px,calc(100vh-240px))] min-h-[480px] min-w-0 max-w-full"
     >
       {/* Title bar */}
-      <div className="h-10 border-b-2 border-neutral-700 dark:border-neutral-200 p-2 flex justify-between items-center">
+      <div className="h-10 border-b border-neutral-100 dark:border-neutral-800 px-3 flex justify-between items-center">
         {selectedToken ? (
           <button
             onClick={() => setSelectedToken(null)}
@@ -716,7 +479,7 @@ export function Gallery() {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 p-3">
                   {filteredTokens.map((token) => (
                     <GalleryThumbnail
                       key={token.tokenId.toString()}
@@ -732,7 +495,7 @@ export function Gallery() {
                   <div className="flex justify-center p-3">
                     <button
                       onClick={loadMore}
-                      className="px-4 py-2 border-2 border-neutral-700 dark:border-neutral-200 text-xs font-mono hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      className="px-4 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-xs font-mono hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                       Load More
                     </button>

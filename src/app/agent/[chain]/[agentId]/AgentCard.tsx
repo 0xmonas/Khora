@@ -29,6 +29,8 @@ interface AgentCardProps {
   agent: AgentData;
   scores: AgentScores;
   scan8004Url: string | null;
+  /** True when scores are pulled live from 8004scan; false when locally estimated. */
+  isLiveScore?: boolean;
 }
 
 const cardFont = { fontFamily: 'var(--font-departure-mono)' };
@@ -79,7 +81,7 @@ const RANK_GLOW: Record<string, string> = {
   D: '',
 };
 
-export function AgentCard({ agent, scores, scan8004Url }: AgentCardProps) {
+export function AgentCard({ agent, scores, scan8004Url, isLiveScore = true }: AgentCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
   const [flipped, setFlipped] = useState(false);
@@ -434,6 +436,12 @@ export function AgentCard({ agent, scores, scan8004Url }: AgentCardProps) {
       <p className="text-[8px] uppercase tracking-[0.25em]" style={{ color: '#333' }}>
         Click to flip
       </p>
+
+      {!isLiveScore && (
+        <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400 text-center max-w-[300px] leading-tight">
+          Estimated score view. Live 8004scan rank loads once this agent has been indexed.
+        </p>
+      )}
     </div>
   );
 }

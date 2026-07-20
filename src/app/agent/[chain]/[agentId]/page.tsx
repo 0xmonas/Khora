@@ -6,6 +6,7 @@ import { calculateAgentScores, fetch8004ScanScore, type AgentScoreInput } from '
 import { AgentCard } from './AgentCard';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
+import Image from 'next/image';
 import type { Metadata } from 'next';
 import { getRedis } from '@/lib/server/redis';
 
@@ -36,7 +37,6 @@ interface AgentData {
   x402Support: boolean;
   supportedTrust: string[];
   registryAgentId: number | null;
-  registeredBy: string | null;
 }
 
 async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<AgentData | null> {
@@ -104,7 +104,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
     } catch { /* empty */ }
 
     let registryAgentId: number | null = null;
-    let registeredBy: string | null = null;
     let services: AgentData['services'] = [];
     let x402Support = false;
     let supportedTrust: string[] = [];
@@ -112,10 +111,9 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
 
     try {
       const registryKey = `agent:registry:${chainId}:${tokenId}`;
-      const registryData = await redis.get<{ agentId: number; registeredBy?: string }>(registryKey);
+      const registryData = await redis.get<{ agentId: number }>(registryKey);
       if (registryData) {
         registryAgentId = registryData.agentId;
-        registeredBy = registryData.registeredBy || null;
       }
 
       const metadataKey = `agent:metadata:${chainId}:${tokenId}`;
@@ -146,7 +144,6 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       x402Support,
       supportedTrust,
       registryAgentId,
-      registeredBy,
     };
   } catch {
     return null;
@@ -199,9 +196,39 @@ export default async function AgentPage({
 
   const chainId = CHAIN_CONFIG[chain as SupportedChain].chainId;
 
-  let scores = agent.registryAgentId !== null
-    ? await fetch8004ScanScore(chainId, agent.registryAgentId)
-    : null;
+  // If this BOOA hasn't been registered as an ERC-8004 agent (native or adapter-bound),
+  // render a minimal "not yet registered" placeholder instead of a card with estimated data.
+  if (agent.registryAgentId === null) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+            {agent.image && (
+              <Image src={agent.image} alt={agent.name} width={160} height={160} className="border-2 border-neutral-700 dark:border-neutral-200" unoptimized />
+            )}
+            <p className="font-mono text-sm dark:text-white">{agent.emoji ? `${agent.emoji} ` : ''}{agent.name}</p>
+            <p className="font-mono text-xs text-neutral-500">BOOA #{agent.tokenId} on {agent.chainName}</p>
+            <p className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed mt-2">
+              This BOOA hasn&apos;t been registered as an ERC-8004 agent yet. Identity cards are only generated for registered or adapter-bound agents.
+            </p>
+            <a
+              href="/booa/gallery"
+              className="mt-2 inline-flex items-center justify-center h-10 px-4 border-2 border-neutral-700 dark:border-neutral-200 font-mono text-xs hover:bg-neutral-700 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-neutral-900 transition-colors"
+            >
+              Open in Gallery
+            </a>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Registered path: try live 8004scan first, fall back to estimated local score.
+  const liveScores = await fetch8004ScanScore(chainId, agent.registryAgentId);
+  const isLiveScore = liveScores !== null;
+  let scores = liveScores;
 
   if (!scores) {
     const scoreInput: AgentScoreInput = {
@@ -212,7 +239,7 @@ export default async function AgentPage({
       services: agent.services,
       x402Support: agent.x402Support,
       supportedTrust: agent.supportedTrust,
-      chainCount: agent.registryAgentId !== null ? 1 : 0,
+      chainCount: 1,
       hasImage: !!agent.image,
       personality: agent.personality,
       boundaries: [],
@@ -220,11 +247,9 @@ export default async function AgentPage({
     scores = calculateAgentScores(scoreInput);
   }
   const isMainnet = chainId !== 84532 && chainId !== 11011;
-  const scan8004Url = agent.registryAgentId !== null
-    ? isMainnet
-      ? `https://www.8004scan.io/agents/${chain}/${agent.registryAgentId}`
-      : `https://testnet.8004scan.io/agents/${chain}/${agent.registryAgentId}`
-    : null;
+  const scan8004Url = isMainnet
+    ? `https://www.8004scan.io/agents/${chain}/${agent.registryAgentId}`
+    : `https://testnet.8004scan.io/agents/${chain}/${agent.registryAgentId}`;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -235,12 +260,8 @@ export default async function AgentPage({
             agent={agent}
             scores={scores}
             scan8004Url={scan8004Url}
+            isLiveScore={isLiveScore}
           />
-          {agent.registeredBy && agent.owner && agent.registeredBy.toLowerCase() !== agent.owner.toLowerCase() && (
-            <p className="font-mono text-[10px] text-amber-600 dark:text-amber-400 text-center max-w-xs">
-              8004 identity registered by {agent.registeredBy.slice(0, 6)}...{agent.registeredBy.slice(-4)}
-            </p>
-          )}
         </div>
       </main>
       <Footer />

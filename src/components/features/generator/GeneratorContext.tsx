@@ -8,7 +8,7 @@ import { useWriteContract, usePublicClient } from 'wagmi';
 import { decodeEventLog } from 'viem';
 import type { BooaAgent, AgentService, SupportedChain } from '@/types/agent';
 import { CHAIN_CONFIG } from '@/types/agent';
-import { IDENTITY_REGISTRY_ABI, getRegistryAddress } from '@/lib/contracts/identity-registry';
+import { IDENTITY_REGISTRY_ABI, getRegistryAddress, isSupportedRegistryChain } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { toERC8004, toAgentDataURI, type NFTOriginInput, type RegistryInfo } from '@/utils/helpers/exportFormats';
 import { friendlyError } from '@/utils/helpers/friendlyError';
@@ -340,6 +340,23 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (mode === 'import' && importedRegistryTokenId) {
+      if (!importedAgentChain) {
+        setError(friendlyError('Missing agent chain for registration'));
+        return;
+      }
+      const agentChainId = CHAIN_CONFIG[importedAgentChain].chainId;
+      if (mint.chainId !== agentChainId) {
+        setError(`Please switch your wallet to ${importedAgentChain === 'shape' ? 'Shape' : CHAIN_CONFIG[importedAgentChain].name} to update this agent.`);
+        return;
+      }
+    }
+
+    if (!isSupportedRegistryChain(mint.chainId)) {
+      setError('This chain is not supported for agent registration.');
+      return;
+    }
+
     setError(null);
     setCurrentStep('registering');
 
@@ -385,6 +402,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       if (mode === 'import' && importedRegistryTokenId) {
         hash = await writeRegister({
           address: registryAddress,
+          chainId,
           abi: IDENTITY_REGISTRY_ABI,
           functionName: 'setAgentURI',
           args: [BigInt(importedRegistryTokenId), agentURI],
@@ -392,6 +410,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       } else {
         hash = await writeRegister({
           address: registryAddress,
+          chainId,
           abi: IDENTITY_REGISTRY_ABI,
           functionName: 'register',
           args: [agentURI],
@@ -458,7 +477,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
       setError(friendlyError(msg));
       setCurrentStep('complete');
     }
-  }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, writeRegister, publicClient]);
+  }, [mintedTokenId, mint.address, mint.chainId, agent, mode, importedRegistryTokenId, importedAgentChain, writeRegister, publicClient]);
 
   // ── UPDATE ONLY: update registry without minting ──
   const updateAgentOnly = useCallback(async () => {
@@ -484,6 +503,11 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     // Wallet must be on the same chain as the agent's registry
     if (mint.chainId !== agentChainId) {
       setError(`Please switch your wallet to ${importedAgentChain === 'shape' ? 'Shape' : CHAIN_CONFIG[importedAgentChain].name} to update this agent.`);
+      return;
+    }
+
+    if (!isSupportedRegistryChain(agentChainId)) {
+      setError('This chain is not supported for agent updates.');
       return;
     }
 
@@ -559,6 +583,7 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
 
       const hash = await writeRegister({
         address: registryAddress,
+        chainId: agentChainId,
         abi: IDENTITY_REGISTRY_ABI,
         functionName: 'setAgentURI',
         args: [BigInt(importedRegistryTokenId), agentURI],

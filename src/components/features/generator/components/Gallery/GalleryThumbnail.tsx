@@ -13,13 +13,13 @@ interface GalleryThumbnailProps {
 export function GalleryThumbnail({ tokenId, svg, name, isOwned, onClick }: GalleryThumbnailProps) {
   const [hovered, setHovered] = useState(false);
 
-  const borderClass = isOwned
-    ? 'border-2 border-green-500'
-    : 'border border-neutral-300 dark:border-neutral-700';
+  const ringClass = isOwned
+    ? 'ring-2 ring-green-500'
+    : 'ring-1 ring-neutral-200 dark:ring-neutral-800 hover:ring-neutral-400 dark:hover:ring-neutral-600';
 
   return (
     <div
-      className={`relative aspect-square ${borderClass} bg-neutral-100 dark:bg-neutral-800 overflow-hidden cursor-pointer transition-transform duration-150 hover:scale-[1.03]`}
+      className={`relative aspect-square rounded-md ${ringClass} bg-neutral-50 dark:bg-neutral-900 overflow-hidden cursor-pointer transition-all duration-150 hover:scale-[1.03]`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
