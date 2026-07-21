@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Github } from 'lucide-react';
 import { useGalleryTokens } from '@/hooks/useGalleryTokens';
@@ -23,6 +23,14 @@ function LiveStats() {
 
   const count = totalSupply !== undefined ? Number(totalSupply) : null;
 
+  const [awakened, setAwakened] = useState<number | null>(null);
+  useEffect(() => {
+    fetch('/api/awakened')
+      .then((r) => r.json())
+      .then((d) => setAwakened(typeof d.count === 'number' ? d.count : null))
+      .catch(() => {});
+  }, []);
+
   if (!enabled) return null;
 
   return (
@@ -36,6 +44,10 @@ function LiveStats() {
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>AGENTIC</p>
         <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>3,333 supply</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl sm:text-3xl text-foreground" style={font}>{awakened ?? '—'}</p>
+        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>awakened onchain</p>
       </div>
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>100%</p>

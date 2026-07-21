@@ -732,5 +732,15 @@ export async function POST(
     txHash,
   });
 
+  // Clean Bridge-adoption marker: written ONLY here (verified register via our
+  // Bridge), never on a GET lookup — so counting these gives a precise "NFTs
+  // registered on 8004 through BOOA" number, unlike the lookup-polluted cache key.
+  await redis.set(`bridge:registered:${chainIdNum}:${tokenIdNum}`, {
+    agentId: Number(registryAgentId),
+    registeredBy: address.toLowerCase(),
+    registeredAt: Date.now(),
+    txHash,
+  });
+
   return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });
 }

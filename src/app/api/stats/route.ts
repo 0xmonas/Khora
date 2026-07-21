@@ -27,15 +27,19 @@ export async function GET(request: NextRequest) {
     const booaSupply = BigInt(3333);
 
     const redis = getRedis();
+    const chainScope = filterChainId && VALID_CHAIN_IDS.has(Number(filterChainId)) ? filterChainId : null;
+    // agentsRegistered = cache keys (lookup-polluted, kept for back-compat).
+    // bridgeRegistered = clean count of NFTs registered on 8004 THROUGH our Bridge
+    // (marker written only on a verified POST, never on a GET lookup).
     let agentsCount = 0;
+    let bridgeCount = 0;
     try {
-      if (filterChainId && VALID_CHAIN_IDS.has(Number(filterChainId))) {
-        const keys = await redis.keys(`agent:registry:${filterChainId}:*`);
-        agentsCount = keys.length;
-      } else {
-        const keys = await redis.keys('agent:registry:*');
-        agentsCount = keys.length;
-      }
+      const [regKeys, bridgeKeys] = await Promise.all([
+        redis.keys(chainScope ? `agent:registry:${chainScope}:*` : 'agent:registry:*'),
+        redis.keys(chainScope ? `bridge:registered:${chainScope}:*` : 'bridge:registered:*'),
+      ]);
+      agentsCount = regKeys.length;
+      bridgeCount = bridgeKeys.length;
     } catch { /* keep 0 */ }
 
     const mainnetChains = Object.entries(CHAIN_CONFIG)
@@ -45,6 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       booaMinted: Number(booaSupply),
       agentsRegistered: agentsCount,
+      bridgeRegistered: bridgeCount,
       chainsSupported: mainnetChains.length,
       chains: mainnetChains,
       filteredByChain: filterChainId ? Number(filterChainId) : null,
@@ -55,6 +60,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       booaMinted: 3333,
       agentsRegistered: 0,
+      bridgeRegistered: 0,
       chainsSupported: 16,
       chains: [],
       filteredByChain: null,
