@@ -473,6 +473,27 @@ export async function GET(
   const bindingContract = bound ? adapterAddr : null;
   const controller = bound ? verification.currentNftOwner : null;
 
+  // On-chain agent wallet: the controller sets it via adapter.setAgentWallet(agentId).
+  // A runtime (e.g. the Hermes template) links itself by matching its own wallet here.
+  let agentWallet: string | null = null;
+  if (bound && adapterAddr && verification.agentId !== null) {
+    try {
+      const { createPublicClient, http, fallback } = await import('viem');
+      const { CHAIN_CONFIG } = await import('@/types/agent');
+      const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+      if (chainEntry) {
+        const client = createPublicClient({ transport: fallback(chainEntry.rpcUrls.map((u: string) => http(u))) });
+        const w = (await client.readContract({
+          address: adapterAddr,
+          abi: [{ type: 'function', name: 'getAgentWallet', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ name: '', type: 'address' }] }] as const,
+          functionName: 'getAgentWallet',
+          args: [BigInt(verification.agentId)],
+        })) as string;
+        if (w && w !== '0x0000000000000000000000000000000000000000') agentWallet = w.toLowerCase();
+      }
+    } catch { /* no agent wallet set (or read failed) — leave null */ }
+  }
+
   // No metadata and no registration found
   if (!entry && verification.agentId === null) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -492,6 +513,7 @@ export async function GET(
       bound,
       bindingContract,
       controller,
+      agentWallet,
     }, {
       headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
     });
@@ -551,6 +573,7 @@ export async function GET(
     bound,
     bindingContract,
     controller,
+    agentWallet,
   }, {
     headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
   });
