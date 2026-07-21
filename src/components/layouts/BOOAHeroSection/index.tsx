@@ -47,7 +47,7 @@ function LiveStats() {
       </div>
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>{awakened ?? '—'}</p>
-        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>awakened onchain</p>
+        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>awakened</p>
       </div>
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>100%</p>
