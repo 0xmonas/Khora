@@ -45,10 +45,10 @@ function LiveStats() {
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>AGENTIC</p>
         <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>3,333 supply</p>
       </div>
-      <div className="text-center">
-        <p className="text-2xl sm:text-3xl text-foreground" style={font}>{awakened ?? '—'}</p>
-        <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>awakened</p>
-      </div>
+      <Link href="/studio/awaken" className="text-center group cursor-pointer" title="Awaken your BOOA">
+        <p className="text-2xl sm:text-3xl text-foreground group-hover:opacity-70 transition-opacity" style={font}>{awakened ?? '—'}</p>
+        <p className="text-[10px] text-muted-foreground group-hover:text-foreground uppercase mt-1 transition-colors" style={font}>awakened</p>
+      </Link>
       <div className="text-center">
         <p className="text-2xl sm:text-3xl text-foreground" style={font}>100%</p>
         <p className="text-[10px] text-muted-foreground uppercase mt-1" style={font}>on-chain</p>
