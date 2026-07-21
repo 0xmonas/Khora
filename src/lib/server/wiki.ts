@@ -50,6 +50,8 @@ interface WikiRegistration {
 interface WikiBinding {
   agentId: number;
   controller: string | null;
+  awakenedBy: string | null;
+  awakenedAt: number | null;
 }
 
 interface WikiFacts {
@@ -211,6 +213,8 @@ async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
     const MAX_PAGES = 8;
     let cursor = latest;
     let agentId: number | null = null;
+    let awakenedBy: string | null = null;
+    let awakenBlock: bigint | null = null;
     for (let i = 0; i < MAX_PAGES && agentId === null; i++) {
       const from = cursor > PAGE ? cursor - PAGE : BigInt(0);
       const logs = await client.getLogs({
@@ -219,7 +223,12 @@ async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
         fromBlock: from, toBlock: cursor,
       });
       for (let j = logs.length - 1; j >= 0; j--) {
-        if (Number(logs[j].args.tokenId) === tokenId) { agentId = Number(logs[j].args.agentId); break; }
+        if (Number(logs[j].args.tokenId) === tokenId) {
+          agentId = Number(logs[j].args.agentId);
+          awakenedBy = ((logs[j].args.registeredBy as string) || '').toLowerCase() || null;
+          awakenBlock = logs[j].blockNumber ?? null;
+          break;
+        }
       }
       if (from === BigInt(0)) break;
       cursor = from - BigInt(1);
@@ -239,7 +248,13 @@ async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
       })) as string;
     } catch { /* holder read failed — leave null */ }
 
-    return { agentId, controller };
+    let awakenedAt: number | null = null;
+    if (awakenBlock !== null) {
+      const blk = await client.getBlock({ blockNumber: awakenBlock }).catch(() => null);
+      if (blk) awakenedAt = Number(blk.timestamp) * 1000;
+    }
+
+    return { agentId, controller, awakenedBy, awakenedAt };
   } catch {
     return null;
   }
@@ -294,7 +309,7 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
       changes.push(`Registered on the ${r.chain} ERC-8004 registry as agent #${r.agentId}.`);
     }
     if (next.binding) {
-      changes.push(`Awakened — bound to onchain agent #${next.binding.agentId} via Adapter8004. Whoever holds the NFT controls the agent.`);
+      changes.push(`Awakened — bound to onchain agent #${next.binding.agentId} via Adapter8004${next.binding.awakenedBy ? ` by ${shortAddr(next.binding.awakenedBy)}` : ''}${next.binding.awakenedAt ? ` on ${fmtDate(next.binding.awakenedAt)}` : ''}. Whoever holds the NFT controls the agent.`);
     }
     return changes;
   }
@@ -314,7 +329,7 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
     }
   }
   if (next.binding && (!prev.binding || prev.binding.agentId !== next.binding.agentId)) {
-    changes.push(`Awakened onchain — now bound to agent #${next.binding.agentId} via Adapter8004; whoever holds the NFT controls the agent.`);
+    changes.push(`Awakened onchain — now bound to agent #${next.binding.agentId} via Adapter8004${next.binding.awakenedBy ? ` by ${shortAddr(next.binding.awakenedBy)}` : ''}${next.binding.awakenedAt ? ` on ${fmtDate(next.binding.awakenedAt)}` : ''}; whoever holds the NFT controls the agent.`);
   } else if (!next.binding && prev.binding) {
     changes.push('Binding released — no longer bound to an onchain agent.');
   }
@@ -458,6 +473,7 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   lines.push(`- **Holder:** ${facts.owner ? `\`${facts.owner}\`` : 'unknown'}`);
   if (facts.binding) {
     lines.push(`- **Awakened:** yes — bound to onchain agent #${facts.binding.agentId} via Adapter8004 (ERC-8217). The holder controls the agent; it transfers with the NFT.`);
+    if (facts.binding.awakenedBy) lines.push(`- **Awakened by:** \`${facts.binding.awakenedBy}\`${facts.binding.awakenedAt ? ` on ${fmtDate(facts.binding.awakenedAt)}` : ''}`);
     if (facts.binding.controller) lines.push(`- **Controller:** \`${facts.binding.controller}\``);
   } else {
     lines.push('- **Awakened:** not yet — this BOOA is not bound to an onchain agent. Awaken it at booa.app/studio/awaken.');

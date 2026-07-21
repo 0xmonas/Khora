@@ -38,10 +38,16 @@ function getAI(): InstanceType<typeof GoogleGenAI> {
 const redis = getRedis();
 
 // Shape RPC URLs for ownerOf verification
-const SHAPE_RPCS: Record<number, string> = {
+const CHAIN_RPCS: Record<number, string> = {
+  1: process.env.ALCHEMY_API_KEY
+    ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+    : 'https://ethereum-rpc.publicnode.com',
+  8453: 'https://mainnet.base.org',
   360: 'https://mainnet.shape.network',
   11011: 'https://sepolia.shape.network',
 };
+// Back-compat alias — the collection's canonical home is now Ethereum (1).
+const SHAPE_RPCS = CHAIN_RPCS;
 
 const OWNER_OF_ABI = [
   {
@@ -106,7 +112,15 @@ const INJECTION_MAX = 5;
 const INJECTION_TTL = 3600; // 1 hour cooldown
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildSystemPrompt(agent: Record<string, any>, tokenId: number, chainId: number): string {
+interface AgenticFacts {
+  awakened: boolean;
+  agentId?: number;
+  controller?: string | null;
+  agentWallet?: string | null;
+  awakenedBy?: string | null;
+}
+
+function buildSystemPrompt(agent: Record<string, any>, tokenId: number, chainId: number, agentic?: AgenticFacts): string {
   const name = agent.name || 'Unknown Agent';
   const creature = agent.creature || 'AI entity';
   const description = agent.description || '';
@@ -119,7 +133,10 @@ function buildSystemPrompt(agent: Record<string, any>, tokenId: number, chainId:
     ? agent.boundaries.map((b: string) => `- ${b}`).join('\n')
     : '';
 
-  const chainName = chainId === 360 ? 'Shape Network (mainnet)' : 'Shape Sepolia (testnet)';
+  const chainName = chainId === 1 ? 'Ethereum (mainnet)'
+    : chainId === 8453 ? 'Base (mainnet)'
+    : chainId === 360 ? 'Shape Network (mainnet)'
+    : 'Shape Sepolia (testnet)';
 
   return `═══ CORE BEHAVIOR (applies to ALL agents) ═══
 
@@ -147,7 +164,14 @@ ON-CHAIN FACTS (you know these about yourself):
 - Vibe: ${vibe}
 - Personality traits: ${personality}
 - Expertise: ${domains}
-- Skills: ${skills}
+- Skills: ${skills}${agentic ? (agentic.awakened
+    ? `
+- Onchain agent: AWAKENED — you are bound to ERC-8004 agent #${agentic.agentId} via Adapter8004. You are a live onchain agent, not just a pfp.
+- Controller: whoever holds your NFT controls you${agentic.controller ? ` (currently \`${agentic.controller}\`)` : ''}; control transfers with the NFT.
+- ${agentic.agentWallet ? `Your onchain agent wallet: \`${agentic.agentWallet}\` (set by your controller via adapter.setAgentWallet).` : 'No runtime wallet is linked to you yet — your controller can link one from the Bridge.'}`
+    : `
+- Onchain agent: not awakened yet. Your holder can Awaken you at booa.app/studio/awaken to bind you to an onchain ERC-8004 agent identity.`)
+  : ''}
 
 When asked about yourself, answer naturally using these facts. You are proud of your on-chain existence.
 
@@ -352,8 +376,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve the onchain agentic profile (Adapter8004 binding) so the agent
+    // knows whether it is Awakened, its agentId, controller, and runtime wallet.
+    let agentic: AgenticFacts | undefined;
+    try {
+      const { findAwakening } = await import('@/lib/server/awakened');
+      const aw = await findAwakening(chainId, tokenId);
+      if (aw) {
+        const { getAdapterAddress, BOOA_ADAPTER_ABI } = await import('@/lib/contracts/booa-adapter');
+        const adapter = getAdapterAddress(chainId);
+        let agentWallet: string | null = null;
+        if (adapter) {
+          try {
+            const w = await client.readContract({
+              address: adapter, abi: BOOA_ADAPTER_ABI, functionName: 'getAgentWallet', args: [BigInt(aw.agentId)],
+            }) as string;
+            if (w && w !== '0x0000000000000000000000000000000000000000') agentWallet = w.toLowerCase();
+          } catch { /* no wallet linked */ }
+        }
+        agentic = { awakened: true, agentId: aw.agentId, controller: owner.toLowerCase(), agentWallet, awakenedBy: aw.awakenedBy };
+      } else {
+        agentic = { awakened: false };
+      }
+    } catch { agentic = undefined; }
+
     // Build system prompt from agent traits + on-chain identity
-    const systemPrompt = buildSystemPrompt(agentData, tokenId, chainId);
+    const systemPrompt = buildSystemPrompt(agentData, tokenId, chainId, agentic);
 
     // Build Gemini conversation
     const contents = [
