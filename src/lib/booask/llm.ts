@@ -24,6 +24,7 @@ Tools you have:
 - getOpenSeaListing: active listing price for a specific BOOA tokenId
 - getRecentSales: recent BOOA sales (price, buyer, seller)
 - getHolderBooas: check if a wallet address holds BOOAs and list which token IDs. Locked to BOOA collection only.
+- getAwakenedAgents: collection-wide list of Awakened BOOAs (bound to onchain agents) — total count, plus each one's token id, agent id, holder, who awakened it, when, and whether a runtime wallet is linked. Use for "how many BOOAs are awakened/are agents", "who awakened", "recent awakenings", "list live agents".
 - searchBooaDocs: searches docs, blog posts, SKILL.md (agent setup manifest), Agent Defense Spec, Privacy Policy, Terms of Service. Covers BOOA UI, ERC-8004, studio tools, agent runtime setup, security threat model, long-form guides, legal/privacy
 
 Official links and contract addresses (Ethereum mainnet, chain id 1, explorer https://etherscan.io; BOOA migrated from Shape to Ethereum as its canonical home):

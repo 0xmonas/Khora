@@ -216,7 +216,7 @@ describe('getAgentByToken — input validation', () => {
     expect(r.domains).toEqual(['games']);
   });
 
-  it('uses default chainId 360 when not provided', async () => {
+  it('uses default chainId 1 (Ethereum, canonical) when not provided', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -225,15 +225,16 @@ describe('getAgentByToken — input validation', () => {
     const { executors } = buildTools(makeRequest());
     await executors.getAgentByToken({ tokenId: 100 });
     const url = fetchMock.mock.calls[0][0] as string;
-    expect(url).toContain('/api/agent-registry/360/100');
+    expect(url).toContain('/api/agent-registry/1/100');
   });
 });
 
 describe('tool defs registry', () => {
   it('exposes all tools with required parameters', () => {
     const { defs } = buildTools(makeRequest());
-    expect(defs.length).toBe(8);
+    expect(defs.length).toBe(9);
     const names = defs.map((d) => d.name);
+    expect(names).toContain('getAwakenedAgents');
     expect(names).toContain('getAgentByToken');
     expect(names).toContain('getBooaTraits');
     expect(names).toContain('getReputation');
@@ -327,9 +328,11 @@ describe('getHolderBooas — input validation + scope', () => {
     });
     const { executors } = buildTools(makeRequest());
     await executors.getHolderBooas({ address: '0x0000000000000000000000000000000000000001' });
-    const url = fetchMock.mock.calls[0][0] as string;
-    expect(url).toContain('chain=shape');
-    expect(url).toContain('contract=');
+    // Queries both homes during the migration window (Ethereum + Shape), each locked to a BOOA contract.
+    const urls = fetchMock.mock.calls.map((c) => c[0] as string);
+    expect(urls.some((u) => u.includes('chain=ethereum'))).toBe(true);
+    expect(urls.some((u) => u.includes('chain=shape'))).toBe(true);
+    expect(urls.every((u) => u.includes('contract='))).toBe(true);
   });
 });
 

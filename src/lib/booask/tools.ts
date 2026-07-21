@@ -206,6 +206,17 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
       },
     },
     {
+      name: 'getAwakenedAgents',
+      description:
+        'Collection-wide view of BOOAs that have been Awakened (bound to an onchain ERC-8004 agent via Adapter8004). Returns the total count and, for each, the BOOA token id, agent id, current holder, who awakened it, when, and whether a runtime wallet is linked. Use for "how many BOOAs are awakened / are agents", "how many agents are live", "who has awakened their BOOA", "list the awakened agents", "recent awakenings", or any collection-level agent/binding question.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Max agents to detail in the response (default 20, max 50). Count is always the true total.' },
+        },
+      },
+    },
+    {
       name: 'searchBooaDocs',
       description:
         'Full-text search over BOOA public knowledge base: docs (collection info, ERC-8004, studio tools, agent setup, bridge, security), blog posts (long-form guides, announcements, tutorials), SKILL.md (agent setup manifest with API endpoints), Agent Defense Specification (threat model + invariants for autonomous agents), Privacy Policy (what data we collect, retention, third-party services), and Terms of Service (eligibility, NFT ownership, liability). Use for "how do I", "what is", "explain", "what data do you collect", "what are the terms", or any user-facing legal/privacy questions.',
@@ -521,6 +532,34 @@ export function buildTools(request: NextRequest): { defs: ToolDef[]; executors: 
           tokenIds,
           preview,
           collectionUrl: OPENSEA_COLLECTION_URL,
+        };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : 'fetch failed' };
+      }
+    },
+
+    getAwakenedAgents: async (args) => {
+      const limitRaw = args.limit;
+      const limit = Math.max(1, Math.min(50, typeof limitRaw === 'number' ? limitRaw : 20));
+      try {
+        const res = await fetch(`${origin}/api/awakened`, { method: 'GET' });
+        if (!res.ok) return { error: `awakened returned ${res.status}` };
+        const data = await res.json();
+        const agents = Array.isArray(data.agents) ? data.agents : [];
+        const detailed = agents.slice(0, limit).map((a: Record<string, unknown>) => ({
+          tokenId: a.tokenId,
+          agentId: a.agentId,
+          holder: a.holder,
+          awakenedBy: a.awakenedBy,
+          awakenedAt: typeof a.awakenedAt === 'number' ? new Date(a.awakenedAt).toISOString() : null,
+          runtimeWalletLinked: a.walletLinked === true,
+          imageUrl: `${origin}/api/agent-files/${ETH_MAINNET}/${a.tokenId}/avatar.svg`,
+          openSeaUrl: buildOpenSeaItemUrl(Number(a.tokenId)),
+        }));
+        return {
+          count: typeof data.count === 'number' ? data.count : agents.length,
+          shown: detailed.length,
+          agents: detailed,
         };
       } catch (e) {
         return { error: e instanceof Error ? e.message : 'fetch failed' };
