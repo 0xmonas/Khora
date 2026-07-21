@@ -2,22 +2,23 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Github } from 'lucide-react';
 import { useGalleryTokens } from '@/hooks/useGalleryTokens';
-import { useReadContract, useChainId } from 'wagmi';
-import { BOOA_V2_ABI, getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { useReadContract } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
+import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 function LiveStats() {
-  const chainId = useChainId();
-  const booaAddress = getV2Address(chainId);
-  const targetChainId = getV2ChainId(chainId);
+  // Canonical home is Ethereum — read the count there regardless of the connected
+  // or default chain, so it's consistent everywhere (Vercel was defaulting to Shape).
+  const booaAddress = getV2Address(mainnet.id);
   const enabled = !!booaAddress && booaAddress.length > 2;
 
   const { data: totalSupply } = useReadContract({
     address: booaAddress,
     abi: BOOA_V2_ABI,
     functionName: 'totalSupply',
-    chainId: targetChainId,
+    chainId: mainnet.id,
     query: { enabled },
   });
 
