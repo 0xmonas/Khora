@@ -263,7 +263,10 @@ async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
 async function fetchRegistrations(tokenId: number): Promise<WikiRegistration[]> {
   try {
     const redis = getRedis();
-    const chains = Object.entries(CHAIN_CONFIG).filter(([slug]) => !slug.includes('sepolia'));
+    // Exclude Shape: it is the migration origin, so a cached Shape registration
+    // for a token now on Ethereum is orphaned. The canonical agent lives on
+    // Ethereum (shown in the Awakened/binding section).
+    const chains = Object.entries(CHAIN_CONFIG).filter(([slug]) => !slug.includes('sepolia') && slug !== 'shape');
     const keys = chains.map(([, c]) => `agent:registry:${c.chainId}:${tokenId}`);
     const vals = (await redis.mget(...keys)) as ({ agentId?: number; registeredBy?: string } | null)[];
     const regs: WikiRegistration[] = [];
@@ -302,8 +305,8 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
   if (!prev) {
     changes.push(`First archive entry for BOOA #${tokenId}.`);
     const mint = next.transfers?.find((t) => t.from === ZERO);
-    if (mint) changes.push(`Minted on Shape at block ${mint.block} (${fmtDate(mint.time)}).`);
-    else changes.push('Minted on Shape during the genesis mint (March 2026).');
+    if (mint) changes.push(`Entered its onchain home at block ${mint.block} (${fmtDate(mint.time)}).`);
+    else changes.push('Born in the genesis mint (March 2026, originally on Shape), now living on Ethereum.');
     if (next.owner) changes.push(`Currently held by ${shortAddr(next.owner)}.`);
     for (const r of next.registrations) {
       changes.push(`Registered on the ${r.chain} ERC-8004 registry as agent #${r.agentId}.`);
