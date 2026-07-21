@@ -47,6 +47,7 @@ const PUBLIC_READ_PATHS = [
   '/api/wiki',
   '/api/migration',
   '/api/booa-image',
+  '/api/awakened',
 ];
 
 export async function middleware(request: NextRequest) {
