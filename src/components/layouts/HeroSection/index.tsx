@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Github, ArrowRight } from 'lucide-react';
 import { ShaderLogo } from '@/components/ui/ShaderLogo';
+import { CHAIN_META } from '@/utils/constants/chains';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const micro = 'text-[9px] uppercase tracking-[0.2em]';
@@ -13,27 +14,12 @@ const micro = 'text-[9px] uppercase tracking-[0.2em]';
    DATA — reflects the full BOOA ecosystem
    ═══════════════════════════════════════ */
 
-const SUPPORTED_CHAINS = [
-  { name: 'Ethereum', chainId: 1, logo: '/chains/ethereum.png' },
-  { name: 'Base', chainId: 8453, logo: '/chains/base.png' },
-  { name: 'Shape', chainId: 360, logo: '/chains/shape.png' },
-  { name: 'Polygon', chainId: 137, logo: '/chains/polygon.png' },
-  { name: 'Arbitrum', chainId: 42161, logo: '/chains/arbitrum.png' },
-  { name: 'OP Mainnet', chainId: 10, logo: '/chains/optimism.png' },
-  { name: 'Avalanche', chainId: 43114, logo: '/chains/avalanche.png' },
-  { name: 'BNB Chain', chainId: 56, logo: '/chains/bnb.png' },
-  { name: 'Celo', chainId: 42220, logo: '/chains/celo.png' },
-  { name: 'Gnosis', chainId: 100, logo: '/chains/gnosis.png' },
-  { name: 'Scroll', chainId: 534352, logo: '/chains/scroll.png' },
-  { name: 'Linea', chainId: 59144, logo: '/chains/linea.png' },
-  { name: 'Mantle', chainId: 5000, logo: '/chains/mantle.png' },
-  { name: 'Metis', chainId: 1088, logo: '/chains/metis.png' },
-  { name: 'Abstract', chainId: 2741, logo: '/chains/abstract.png' },
-  { name: 'Monad', chainId: 143, logo: '/chains/monad.png' },
-];
+// Mainnets only for the landing chain selector (drop Shape Sepolia).
+const SUPPORTED_CHAINS = CHAIN_META.filter((c) => c.chainId !== 11011);
 
 function LiveStats() {
   const [stats, setStats] = useState<{ booaMinted: number; agentsRegistered: number; chainsSupported: number } | null>(null);
+  const [awakened, setAwakened] = useState<number | null>(null);
   const [selectedChain, setSelectedChain] = useState<number | null>(null);
 
   useEffect(() => {
@@ -44,6 +30,15 @@ function LiveStats() {
       .catch(() => {});
   }, [selectedChain]);
 
+  useEffect(() => {
+    // Awakened = BOOAs bound to an onchain agent via Adapter8004 (default Ethereum).
+    const url = selectedChain ? `/api/awakened?chainId=${selectedChain}` : '/api/awakened';
+    fetch(url)
+      .then(r => r.json())
+      .then(d => setAwakened(typeof d.count === 'number' ? d.count : null))
+      .catch(() => {});
+  }, [selectedChain]);
+
   const selectedName = selectedChain
     ? SUPPORTED_CHAINS.find(c => c.chainId === selectedChain)?.name
     : null;
@@ -51,9 +46,9 @@ function LiveStats() {
   const items = [
     { label: 'BOOA Minted', value: stats?.booaMinted ?? '—' },
     {
-      label: 'Agents Registered',
-      value: stats?.agentsRegistered ?? '—',
-      sub: selectedName ? `on ${selectedName}` : 'via BOOA',
+      label: 'Agents Awakened',
+      value: awakened ?? '—',
+      sub: selectedName ? `on ${selectedName}` : 'onchain',
     },
     { label: 'Chains Supported', value: stats?.chainsSupported ?? '—' },
   ];

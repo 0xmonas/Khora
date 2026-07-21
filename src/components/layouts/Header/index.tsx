@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Moon, Sun, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { sfx } from '@/lib/sounds';
-import { shape, shapeSepolia } from 'wagmi/chains';
+import { getChainMeta } from '@/utils/constants/chains';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -42,21 +42,9 @@ function WalletButtonInner({ account, chain, openAccountModal, openChainModal, o
   const handleChainClick = needsAuth ? openConnectModal : openChainModal;
   const handleAccountClick = needsAuth ? openConnectModal : openAccountModal;
 
-  const isShape = chain.id === shape.id;
-  const isShapeSepolia = chain.id === shapeSepolia.id;
-  const isSupported = isShape || isShapeSepolia;
-
-  const dotColor = isShape
-    ? 'bg-green-500'
-    : isShapeSepolia
-      ? 'bg-yellow-500'
-      : 'bg-red-500';
-
-  const chainLabel = isShape
-    ? 'Shape'
-    : isShapeSepolia
-      ? 'Sepolia'
-      : 'Wrong Network';
+  const meta = getChainMeta(chain.id);
+  const isSupported = !!meta;
+  const chainLabel = meta?.name || chain.name || 'Unsupported network';
 
   return (
     <div className="flex items-center gap-2">
@@ -70,7 +58,11 @@ function WalletButtonInner({ account, chain, openAccountModal, openChainModal, o
             : 'bg-transparent text-red-600 dark:text-red-400 hover:opacity-70'
         }`}
       >
-        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+        {meta ? (
+          <Image src={meta.logo} alt={meta.name} width={16} height={16} className="rounded-full shrink-0" />
+        ) : (
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+        )}
         {chainLabel}
       </button>
 
