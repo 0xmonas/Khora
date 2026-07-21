@@ -11,6 +11,7 @@ import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { toAgentDataURI, traitsToAgent, toERC8004 } from '@/utils/helpers/exportFormats';
 import { getV2Address } from '@/lib/contracts/booa-v2';
+import { decodeAgentWalletBlob } from '@/lib/contracts/agent-wallet';
 import type { AgentService } from '@/types/agent';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 import { skillLabelsToSlugs, domainLabelsToSlugs, skillSlugsToLabels, domainSlugsToLabels } from '@/lib/oasf-taxonomy';
@@ -91,6 +92,13 @@ interface BridgeContextType {
   canSyncToOG: boolean;
   syncToOG: () => Promise<void>;
 
+  // Link a runtime (agent) wallet via adapter.setAgentWallet
+  agentWallet: string | null;
+  linkStatus: 'idle' | 'linking' | 'success' | 'error';
+  linkError: string | null;
+  linkTxHash: `0x${string}` | null;
+  linkAgentWallet: (blob: string) => Promise<void>;
+
   // Upgrade legacy native agent → adapter-bound (via Adapter8004.bindExisting)
   canUpgradeToAdapter: boolean;
   upgradeStatus: 'idle' | 'approving' | 'binding' | 'success' | 'error';
@@ -149,6 +157,11 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [ogDrift, setOgDrift] = useState(false);
   const [boundAgentId, setBoundAgentId] = useState<number | null>(null);
+  // Runtime (agent) wallet linked onchain via adapter.setAgentWallet
+  const [agentWallet, setAgentWalletState] = useState<string | null>(null);
+  const [linkStatus, setLinkStatus] = useState<'idle' | 'linking' | 'success' | 'error'>('idle');
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkTxHash, setLinkTxHash] = useState<`0x${string}` | null>(null);
 
   // 8004 config
   const [agentName, setAgentName] = useState('');
@@ -231,6 +244,10 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
     setIsExistingAgent(existing);
     setIsAdapterBound(false);
+    setAgentWalletState(null);
+    setLinkStatus('idle');
+    setLinkError(null);
+    setLinkTxHash(null);
 
     if (existing) {
       // Probe agent-binding metadata to know whether edits must route through adapter.
@@ -251,6 +268,16 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
             }) as `0x${string}`;
             if (bindingMeta && bindingMeta.toLowerCase() === adapterAddress.toLowerCase()) {
               setIsAdapterBound(true);
+              // Read the currently-linked runtime wallet (0x0 = none linked yet).
+              try {
+                const w = await probeClient.readContract({
+                  address: adapterAddress,
+                  abi: BOOA_ADAPTER_ABI,
+                  functionName: 'getAgentWallet',
+                  args: [BigInt(parseInt(nft.tokenId))],
+                }) as `0x${string}`;
+                setAgentWalletState(w && w !== '0x0000000000000000000000000000000000000000' ? w.toLowerCase() : null);
+              } catch { setAgentWalletState(null); }
             }
           }
         } catch { /* no binding → leave as false */ }
@@ -384,6 +411,10 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     setPreservedNftOrigin(null);
     setOgDrift(false);
     setBoundAgentId(null);
+    setAgentWalletState(null);
+    setLinkStatus('idle');
+    setLinkError(null);
+    setLinkTxHash(null);
     setError(null);
     setStep('select');
   }, []);
@@ -789,6 +820,76 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
     isBooaOriginContract(preservedNftOrigin.contract)
   );
 
+  // Link a runtime (agent) wallet: the holder submits the agent's own EIP-712
+  // consent (produced by the runtime, pasted in as a blob) through the adapter.
+  const linkAgentWallet = useCallback(async (blobStr: string) => {
+    if (!selectedNFT || !address) return;
+    if (!isAuthenticated) {
+      setLinkStatus('error');
+      setLinkError('Please connect and sign in with your wallet to continue.');
+      return;
+    }
+    const agentTokenId = parseInt(selectedNFT.tokenId);
+    const agentChainId = CHAIN_IDS[selectedNFT.chain] || walletChainId;
+    const adapterAddress = getAdapterAddress(agentChainId);
+    if (!adapterAddress) {
+      setLinkStatus('error');
+      setLinkError('Binding adapter is not available on this chain.');
+      return;
+    }
+
+    const blob = decodeAgentWalletBlob(blobStr);
+    if (!blob) {
+      setLinkStatus('error');
+      setLinkError('Invalid link payload. Copy it exactly from your runtime.');
+      return;
+    }
+    if (blob.chainId !== agentChainId) {
+      setLinkStatus('error');
+      setLinkError(`This link is for a different chain (id ${blob.chainId}).`);
+      return;
+    }
+    if (blob.agentId !== String(agentTokenId)) {
+      setLinkStatus('error');
+      setLinkError(`This link is for agent #${blob.agentId}, not the selected #${agentTokenId}.`);
+      return;
+    }
+    if (Number(blob.deadline) * 1000 < Date.now()) {
+      setLinkStatus('error');
+      setLinkError('This link has expired. Generate a fresh one in your runtime.');
+      return;
+    }
+
+    try {
+      setLinkError(null);
+      setLinkStatus('linking');
+      setLinkTxHash(null);
+      if (walletChainId !== agentChainId) {
+        await switchChainAsync({ chainId: agentChainId });
+      }
+      const hash = await writeContractAsync({
+        address: adapterAddress,
+        chainId: agentChainId,
+        abi: BOOA_ADAPTER_ABI,
+        functionName: 'setAgentWallet',
+        args: [BigInt(agentTokenId), blob.wallet, BigInt(blob.deadline), blob.signature],
+      });
+      setLinkTxHash(hash);
+      const client = getPublicClient(wagmiConfig, { chainId: agentChainId }) || publicClient;
+      if (client) await client.waitForTransactionReceipt({ hash });
+      setAgentWalletState(blob.wallet.toLowerCase());
+      setLinkStatus('success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Linking failed';
+      if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('denied')) {
+        setLinkStatus('idle');
+        return;
+      }
+      setLinkError(friendlyError(msg));
+      setLinkStatus('error');
+    }
+  }, [selectedNFT, address, isAuthenticated, walletChainId, switchChainAsync, writeContractAsync, wagmiConfig, publicClient]);
+
   // Compute upgrade eligibility: legacy native agent + current owner + adapter chain + has nftOrigin.
   const agentChainIdForUpgrade = selectedNFT && CHAIN_IDS[selectedNFT.chain];
   const canUpgradeToAdapter = !!(
@@ -942,6 +1043,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       isModalOpen, closeModal,
       canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeApproveTxHash, upgradeBindTxHash, upgradeAgentToAdapter,
       ogDrift, canSyncToOG, syncToOG,
+      agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet,
       canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     }}>
       {children}

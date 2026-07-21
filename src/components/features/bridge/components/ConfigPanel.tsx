@@ -39,6 +39,7 @@ export function ConfigPanel() {
   const {
     selectedNFT, clearSelection, isExistingAgent, isAdapterBound, configLoading, boundAgentId,
     ogDrift, canSyncToOG, syncToOG,
+    agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet,
     canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeAgentToAdapter,
     canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     agentName, setAgentName,
@@ -64,6 +65,7 @@ export function ConfigPanel() {
   const [openDomainCats, setOpenDomainCats] = useState<Set<string>>(new Set());
   const [customSkills, setCustomSkills] = useState<string[]>([]);
   const [customDomains, setCustomDomains] = useState<string[]>([]);
+  const [walletBlob, setWalletBlob] = useState('');
 
   if (!selectedNFT) return null;
 
@@ -190,6 +192,54 @@ export function ConfigPanel() {
             >
               {step === 'registering' ? 'SYNCING...' : 'SYNC METADATA TO NFT'}
             </button>
+          </div>
+        )}
+
+        {/* Link runtime (agent) wallet — adapter.setAgentWallet */}
+        {isExistingAgent && isAdapterBound && !configLoading && (
+          <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">Runtime wallet</p>
+            {agentWallet ? (
+              <p className="font-mono text-[11px] text-green-600 dark:text-green-500 break-all">
+                Linked: {agentWallet.slice(0, 6)}…{agentWallet.slice(-4)}
+              </p>
+            ) : (
+              <p className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">
+                No runtime wallet linked. Paste the link code from your agent runtime (e.g. Hermes) to bind its wallet.
+              </p>
+            )}
+
+            {linkStatus === 'success' ? (
+              <p className="font-mono text-[11px] text-green-600 dark:text-green-500">Runtime wallet linked ✓</p>
+            ) : (
+              <>
+                <textarea
+                  value={walletBlob}
+                  onChange={(e) => setWalletBlob(e.target.value)}
+                  placeholder="Paste link code…"
+                  rows={2}
+                  className="w-full p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 font-mono text-[10px] text-foreground outline-none resize-none break-all placeholder:text-neutral-400 dark:placeholder:text-neutral-600"
+                />
+                {linkError && <p className="font-mono text-[10px] text-red-500 leading-relaxed">{linkError}</p>}
+                <button
+                  type="button"
+                  onClick={() => linkAgentWallet(walletBlob)}
+                  disabled={!walletBlob.trim() || linkStatus === 'linking'}
+                  className="w-full py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black font-mono text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {linkStatus === 'linking' ? 'LINKING…' : agentWallet ? 'RELINK RUNTIME WALLET' : 'LINK RUNTIME WALLET'}
+                </button>
+              </>
+            )}
+            {linkTxHash && (
+              <a
+                href={`${CHAIN_CONFIG[selectedNFT.chain as SupportedChain]?.chainId === 1 ? 'https://etherscan.io' : 'https://basescan.org'}/tx/${linkTxHash}`}
+                target="_blank" rel="noopener noreferrer"
+                className="block font-mono text-[10px] text-neutral-400 hover:text-foreground transition-colors"
+              >
+                View transaction ↗
+              </a>
+            )}
           </div>
         )}
 
