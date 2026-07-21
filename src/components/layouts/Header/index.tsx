@@ -52,14 +52,14 @@ function WalletButtonInner({ account, chain, openAccountModal, openChainModal, o
       <button
         onClick={handleChainClick}
         style={walletFont}
-        className={`h-10 sm:h-12 px-3 text-xs flex items-center gap-2 transition-opacity ${
+        className={`h-10 sm:h-12 px-3 text-sm flex items-center gap-2 transition-opacity ${
           isSupported
             ? 'bg-transparent text-foreground hover:opacity-70'
             : 'bg-transparent text-red-600 dark:text-red-400 hover:opacity-70'
         }`}
       >
         {meta ? (
-          <Image src={meta.logo} alt={meta.name} width={16} height={16} className="rounded-full shrink-0" />
+          <Image src={meta.logo} alt={meta.name} width={18} height={18} className="rounded-full shrink-0" />
         ) : (
           <span className="w-2 h-2 rounded-full bg-red-500" />
         )}
