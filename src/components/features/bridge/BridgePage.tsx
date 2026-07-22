@@ -14,7 +14,7 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 
 export default function BridgePage() {
   const { isConnected } = useAccount();
-  const { selectedNFT } = useBridge();
+  const { selectedNFT, pendingLinkAgentId } = useBridge();
 
   return (
     <div className="bg-background p-4 md:p-8 lg:p-12">
@@ -31,6 +31,19 @@ export default function BridgePage() {
               Turn any NFT into an ERC-8004 registered agent. Pick an NFT, set its identity, and bind it onchain. Register across supported chains; your original Shape works stay visible here.
             </p>
           </div>
+
+          {pendingLinkAgentId !== null && !selectedNFT && (
+            <div className="mb-6 rounded-md border border-green-500/40 bg-green-500/5 p-4 space-y-1" style={font}>
+              <p className="text-sm text-foreground">
+                Runtime wallet link loaded for <span className="text-green-600 dark:text-green-500">agent #{pendingLinkAgentId}</span>
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {isConnected
+                  ? `Open the Agents tab, select agent #${pendingLinkAgentId}, then confirm under Runtime wallet — the link code is already filled in.`
+                  : 'Connect the wallet that holds this BOOA to finish linking.'}
+              </p>
+            </div>
+          )}
 
           {isConnected ? (
             <>

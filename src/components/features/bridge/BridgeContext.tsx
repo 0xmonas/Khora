@@ -98,6 +98,10 @@ interface BridgeContextType {
   linkError: string | null;
   linkTxHash: `0x${string}` | null;
   linkAgentWallet: (blob: string) => Promise<void>;
+  // Runtime deep-link: a ?link=<blob> in the URL pre-fills the link code so the
+  // holder just selects the agent and confirms (no copy-paste from the runtime).
+  pendingLinkBlob: string | null;
+  pendingLinkAgentId: number | null;
 
   // Upgrade legacy native agent → adapter-bound (via Adapter8004.bindExisting)
   canUpgradeToAdapter: boolean;
@@ -162,6 +166,20 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
   const [linkStatus, setLinkStatus] = useState<'idle' | 'linking' | 'success' | 'error'>('idle');
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkTxHash, setLinkTxHash] = useState<`0x${string}` | null>(null);
+  const [pendingLinkBlob, setPendingLinkBlob] = useState<string | null>(null);
+  const [pendingLinkAgentId, setPendingLinkAgentId] = useState<number | null>(null);
+
+  // Read ?link=<blob> once on mount: the runtime hands the holder a
+  // booa.app/bridge?link=… deep-link, so linking is select-agent + confirm.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = new URLSearchParams(window.location.search).get('link');
+    if (!raw) return;
+    const blob = decodeAgentWalletBlob(raw);
+    if (!blob) return;
+    setPendingLinkBlob(raw);
+    setPendingLinkAgentId(Number(blob.agentId));
+  }, []);
 
   // 8004 config
   const [agentName, setAgentName] = useState('');
@@ -1044,6 +1062,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
       canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeApproveTxHash, upgradeBindTxHash, upgradeAgentToAdapter,
       ogDrift, canSyncToOG, syncToOG,
       agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet,
+      pendingLinkBlob, pendingLinkAgentId,
       canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     }}>
       {children}

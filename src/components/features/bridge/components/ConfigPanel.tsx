@@ -39,7 +39,7 @@ export function ConfigPanel() {
   const {
     selectedNFT, clearSelection, isExistingAgent, isAdapterBound, configLoading, boundAgentId,
     ogDrift, canSyncToOG, syncToOG,
-    agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet,
+    agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet, pendingLinkBlob,
     canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeAgentToAdapter,
     canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     agentName, setAgentName,
@@ -66,6 +66,9 @@ export function ConfigPanel() {
   const [customSkills, setCustomSkills] = useState<string[]>([]);
   const [customDomains, setCustomDomains] = useState<string[]>([]);
   const [walletBlob, setWalletBlob] = useState('');
+  useEffect(() => {
+    if (pendingLinkBlob) setWalletBlob(pendingLinkBlob);
+  }, [pendingLinkBlob]);
 
   if (!selectedNFT) return null;
 
@@ -213,6 +216,11 @@ export function ConfigPanel() {
               <p className="font-mono text-[11px] text-green-600 dark:text-green-500">Runtime wallet linked ✓</p>
             ) : (
               <>
+                {pendingLinkBlob && (
+                  <p className="font-mono text-[11px] text-green-600 dark:text-green-500">
+                    Link code loaded from your runtime ✓ — just confirm below.
+                  </p>
+                )}
                 <textarea
                   value={walletBlob}
                   onChange={(e) => setWalletBlob(e.target.value)}
