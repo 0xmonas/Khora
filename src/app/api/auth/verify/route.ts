@@ -45,27 +45,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify nonce matches session
-    if (parsed.nonce !== session.nonce) {
+    const expectedNonce = session.nonce;
+    if (!expectedNonce || parsed.nonce !== expectedNonce) {
       session.nonce = undefined;
       await session.save();
       return NextResponse.json({ error: 'Nonce mismatch' }, { status: 422 });
     }
 
-    const isAllowedDomain = (host: string) =>
-      host === 'booa.app' ||
-      host === 'www.booa.app' ||
-      host === 'localhost' ||
-      host.startsWith('localhost:') ||
-      host.endsWith('.vercel.app');
+    // SIWE domain binding: the domain the user saw in their wallet MUST be the host
+    // actually serving this request. Without it, a signature phished on any
+    // attacker-controlled origin replays here to open a session as the victim.
+    //
+    // We use the `host` header, NOT `x-forwarded-host`. On Vercel a request only
+    // reaches this deployment if its Host matches one of THIS project's domains
+    // (Vercel routes by Host), so `host` cannot be spoofed to an attacker's own
+    // domain — whereas `x-forwarded-host` is a client-settable header that Vercel
+    // only backfills when absent, so trusting it re-opens the bypass off-Vercel.
+    // If a reverse proxy is ever placed in front of Vercel, revisit this.
+    const serverHost = (request.headers.get('host') || '').split(',')[0].trim().toLowerCase();
 
     let uriHost: string;
     try {
-      uriHost = new URL(parsed.uri ?? '').host;
+      uriHost = new URL(parsed.uri ?? '').host.toLowerCase();
     } catch {
       uriHost = '';
     }
 
-    if (!parsed.domain || !isAllowedDomain(parsed.domain) || !isAllowedDomain(uriHost)) {
+    if (
+      !serverHost ||
+      !parsed.domain ||
+      parsed.domain.toLowerCase() !== serverHost ||
+      uriHost !== serverHost
+    ) {
       session.nonce = undefined;
       await session.save();
       return NextResponse.json({ error: 'Domain mismatch' }, { status: 422 });
@@ -84,10 +95,14 @@ export async function POST(request: NextRequest) {
       transport: http(),
     });
 
-    // Full SIWE verification (ERC-6492 smart wallet support)
+    // Full SIWE verification (ERC-6492 smart wallet support). domain/nonce/address
+    // are passed explicitly — omitting them makes viem skip those checks entirely.
     const isValid = await verifySiweMessage(publicClient, {
       message,
       signature: signature as `0x${string}`,
+      address: parsed.address,
+      domain: serverHost,
+      nonce: expectedNonce,
     });
 
     if (!isValid) {

@@ -56,6 +56,7 @@ vi.mock('viem', async () => {
 });
 
 vi.mock('viem/chains', () => ({
+  mainnet: { id: 1 },
   shape: { id: 360 },
   shapeSepolia: { id: 11011 },
 }));
@@ -78,6 +79,14 @@ vi.mock('@/lib/contracts/identity-registry', () => ({
 vi.mock('@/lib/contracts/booa', () => ({
   BOOA_NFT_ABI: [{ name: 'getSVG', type: 'function' }],
   isMainnetChain: () => true,
+  isTestnetChain: () => false,
+}));
+
+// POST ownership gate: only the current BOOA owner may write a token's registry entry.
+let mockOwnsBooa = true;
+vi.mock('@/lib/server/nft-owner', () => ({
+  ownsBooa: vi.fn(async () => mockOwnsBooa),
+  getBooaOwner: vi.fn(async () => (mockOwnsBooa ? '0xalice' : null)),
 }));
 
 vi.mock('@/utils/helpers/exportFormats', () => ({
@@ -210,7 +219,7 @@ describe('agent-registry GET: verified field', () => {
   });
 
   // Scenario 3: Bob registered, transferred 8004 to agent wallet
-  it('returns verified:true when originalOwner matches NFT owner (agent wallet scenario)', async () => {
+  it('returns verified:false when only the self-asserted originalOwner matches', async () => {
     mockRedisStore['agent:registry:360:0'] = {
       agentId: 312,
       registeredBy: '0xbob',
@@ -240,9 +249,79 @@ describe('agent-registry GET: verified field', () => {
     const res = await GET(req, { params: Promise.resolve({ chainId: '360', tokenId: '0' }) });
     const data = await res.json();
 
-    // originalOwner (Bob) == NFT owner (Bob) → verified
+    // nftOrigin.originalOwner is authored by whoever registered the agent, so matching
+    // it proves nothing — only the on-chain 8004 owner or a valid adapter binding does.
+    expect(data.verified).toBe(false);
+    expect(data.currentNftOwner).toBe('0xbob');
+  });
+
+  // Scenario B (recommended): Bob registered via the ownership-gated POST (trusted
+  // registrantOwner), then moved the 8004 agent to his agent wallet. Still verified.
+  it('returns verified:true via trusted registrantOwner when 8004 moved to agent wallet', async () => {
+    mockRedisStore['agent:registry:360:0'] = {
+      agentId: 312,
+      registeredBy: '0xbob',
+      registrantOwner: '0xbob',
+      registeredAt: Date.now(),
+      txHash: '0xdef',
+    };
+
+    let callCount = 0;
+    mockReadContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+      callCount++;
+      if (functionName === 'ownerOf') {
+        if (callCount === 1) return '0xbob';          // getNftOwner → Bob owns the BOOA
+        return '0xagent_wallet';                        // 8004 ownerOf → moved to agent wallet
+      }
+      if (functionName === 'tokenURI') {
+        const data = { nftOrigin: { tokenId: 0, originalOwner: '0xbob' } };
+        return `data:application/json;base64,${Buffer.from(JSON.stringify(data)).toString('base64')}`;
+      }
+      if (functionName === 'getSVG') return '<svg></svg>';
+      return null;
+    });
+
+    const { GET } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    const req = new NextRequest('http://localhost/api/agent-registry/360/0');
+    const res = await GET(req, { params: Promise.resolve({ chainId: '360', tokenId: '0' }) });
+    const data = await res.json();
+
     expect(data.verified).toBe(true);
     expect(data.currentNftOwner).toBe('0xbob');
+  });
+
+  // registrantOwner must break the moment the NFT is sold — the new owner did not register.
+  it('returns verified:false via registrantOwner once the NFT is sold', async () => {
+    mockRedisStore['agent:registry:360:0'] = {
+      agentId: 312,
+      registeredBy: '0xbob',
+      registrantOwner: '0xbob',
+      registeredAt: Date.now(),
+      txHash: '0xdef',
+    };
+
+    let callCount = 0;
+    mockReadContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+      callCount++;
+      if (functionName === 'ownerOf') {
+        if (callCount === 1) return '0xcarol';         // NFT sold to Carol
+        return '0xagent_wallet';                        // 8004 still on Bob's agent wallet
+      }
+      if (functionName === 'tokenURI') {
+        const data = { nftOrigin: { tokenId: 0, originalOwner: '0xbob' } };
+        return `data:application/json;base64,${Buffer.from(JSON.stringify(data)).toString('base64')}`;
+      }
+      if (functionName === 'getSVG') return '<svg></svg>';
+      return null;
+    });
+
+    const { GET } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    const req = new NextRequest('http://localhost/api/agent-registry/360/0');
+    const res = await GET(req, { params: Promise.resolve({ chainId: '360', tokenId: '0' }) });
+    const data = await res.json();
+
+    expect(data.verified).toBe(false);
+    expect(data.currentNftOwner).toBe('0xcarol');
   });
 
   // Scenario 4: Both NFT + 8004 transferred to agent wallet
@@ -317,5 +396,55 @@ describe('agent-registry GET: verified field', () => {
     expect(data.name).toBe('TestAgent');
     expect(data.registrations[0].agentId).toBe(100);
     expect(data.verified).toBe(true);
+  });
+});
+
+describe('agent-registry POST: ownership gate', () => {
+  const VALID_TX = '0x' + 'a'.repeat(64);
+  const ADDR = '0x' + '1'.repeat(40);
+
+  function postReq(body: unknown, headers: Record<string, string> = {}) {
+    return new NextRequest('http://localhost/api/agent-registry/360/42', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    mockOwnsBooa = true;
+    for (const k of Object.keys(mockRedisStore)) delete mockRedisStore[k];
+  });
+
+  it('returns 401 without a verified session', async () => {
+    const { POST } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    const res = await POST(postReq({ address: ADDR, registryAgentId: 7, txHash: VALID_TX }), {
+      params: Promise.resolve({ chainId: '360', tokenId: '42' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when the signed-in wallet does not own the BOOA (poison defense)', async () => {
+    mockOwnsBooa = false;
+    const { POST } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    const res = await POST(
+      postReq({ address: ADDR, registryAgentId: 7, txHash: VALID_TX }, { 'x-siwe-address': ADDR }),
+      { params: Promise.resolve({ chainId: '360', tokenId: '42' }) },
+    );
+    expect(res.status).toBe(403);
+    // Nothing was written to the victim's token cache.
+    expect(mockRedisStore['agent:registry:360:42']).toBeUndefined();
+    expect(mockRedisStore['bridge:registered:360:42']).toBeUndefined();
+  });
+
+  it('checks ownership against the SESSION wallet, not the body address', async () => {
+    const nftOwner = await import('@/lib/server/nft-owner');
+    mockOwnsBooa = false;
+    const { POST } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    await POST(
+      postReq({ address: ADDR, registryAgentId: 7, txHash: VALID_TX }, { 'x-siwe-address': ADDR }),
+      { params: Promise.resolve({ chainId: '360', tokenId: '42' }) },
+    );
+    expect(nftOwner.ownsBooa).toHaveBeenCalledWith(ADDR, 42, 360);
   });
 });

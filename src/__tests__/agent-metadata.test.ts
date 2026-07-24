@@ -34,6 +34,13 @@ vi.mock('@/lib/ratelimit', () => ({
   resetGenerationQuota: vi.fn(),
 }));
 
+const mockOwnsBooa = vi.fn().mockResolvedValue(true);
+
+vi.mock('@/lib/server/nft-owner', () => ({
+  ownsBooa: (...args: unknown[]) => mockOwnsBooa(...args),
+  getBooaOwner: vi.fn(),
+}));
+
 // ── Helpers ──
 
 const VALID_ADDRESS = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
@@ -84,6 +91,7 @@ describe('Agent Metadata API', () => {
     mockRedisGet.mockResolvedValue(null);
     mockRedisSet.mockResolvedValue('OK');
     mockRedisExists.mockResolvedValue(0);
+    mockOwnsBooa.mockResolvedValue(true);
   });
 
   // ════════════════════════════════════════════════
@@ -241,6 +249,24 @@ describe('Agent Metadata API', () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
       const res = await POST(makePostRequest(validBody));
       expect(res.status).toBe(401);
+    });
+
+    it('should return 403 when the session wallet does not own the token', async () => {
+      mockOwnsBooa.mockResolvedValue(false);
+      const { POST } = await import('@/app/api/agent-metadata/route');
+      const res = await POST(
+        makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }),
+      );
+
+      expect(res.status).toBe(403);
+      expect(mockRedisSet).not.toHaveBeenCalled();
+    });
+
+    it('should check ownership against the session wallet, not the body address', async () => {
+      const { POST } = await import('@/app/api/agent-metadata/route');
+      await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
+
+      expect(mockOwnsBooa).toHaveBeenCalledWith(VALID_ADDRESS.toLowerCase(), 1, 11011);
     });
 
     it('should return 400 when address is missing', async () => {

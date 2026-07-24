@@ -9,6 +9,7 @@ import { NFTGrid } from './components/NFTGrid';
 import { ConfigPanel } from './components/ConfigPanel';
 import { SelectedNFTPreview } from './components/SelectedNFTPreview';
 import { RegisterModal } from './components/RegisterModal';
+import { LinkWalletModal } from './components/LinkWalletModal';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -60,6 +61,7 @@ export default function BridgePage() {
                 <NFTGrid />
               )}
               <RegisterModal />
+              <LinkWalletModal />
             </>
           ) : (
             <ConnectPrompt />

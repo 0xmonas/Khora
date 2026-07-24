@@ -148,6 +148,7 @@ describe('Auth Routes', () => {
         chainId: 11011,
         domain: 'localhost:3000',
         uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
 
       const { POST } = await import('@/app/api/auth/verify/route');
@@ -196,24 +197,31 @@ describe('Auth Routes', () => {
       expect(body.error).toBe('Domain mismatch');
     });
 
-    it('should accept a booa.app domain and vercel preview uri', async () => {
+    it('should reject a vercel.app domain when it is not the serving host', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
         address: validAddress,
         chainId: 11011,
-        domain: 'booa-git-preview.vercel.app',
-        uri: 'https://booa-git-preview.vercel.app',
+        domain: 'attacker-site.vercel.app',
+        uri: 'https://attacker-site.vercel.app',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 
       const { POST } = await import('@/app/api/auth/verify/route');
-      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+      const res = await POST(
+        makeRequest({ message: validMessage, signature: validSignature }, 'booa.app'),
+      );
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('Domain mismatch');
+      expect(mockSession.nonce).toBeUndefined();
+      expect(mockSession.address).toBeUndefined();
     });
 
-    it('should accept the www.booa.app apex-with-www domain', async () => {
+    it('should accept a domain equal to the serving host', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue({
         nonce: 'test-nonce',
@@ -221,13 +229,48 @@ describe('Auth Routes', () => {
         chainId: 11011,
         domain: 'www.booa.app',
         uri: 'https://www.booa.app',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 
       const { POST } = await import('@/app/api/auth/verify/route');
-      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+      const res = await POST(
+        makeRequest({ message: validMessage, signature: validSignature }, 'www.booa.app'),
+      );
 
       expect(res.status).toBe(200);
+    });
+
+    it('should ignore x-forwarded-host and bind to the real Host header', async () => {
+      // Attacker forges x-forwarded-host to match their phishing domain; the route
+      // must ignore it and bind to the real serving Host, so this is rejected.
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({
+        nonce: 'test-nonce',
+        address: validAddress,
+        chainId: 11011,
+        domain: 'evil-test.vercel.app',
+        uri: 'https://evil-test.vercel.app',
+      });
+      mockVerifySiweMessage.mockResolvedValue(true);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(
+        new Request('http://localhost:3000/api/auth/verify', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            host: 'booa.app',
+            'x-forwarded-host': 'evil-test.vercel.app',
+          },
+          body: JSON.stringify({ message: validMessage, signature: validSignature }),
+        }) as never,
+      );
+
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('Domain mismatch');
+      expect(mockSession.address).toBeUndefined();
     });
 
     it('should return 422 for a localhost-prefixed lookalike domain', async () => {
@@ -256,6 +299,7 @@ describe('Auth Routes', () => {
         chainId: 999,
         domain: 'localhost:3000',
         uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
 
       const { POST } = await import('@/app/api/auth/verify/route');
@@ -275,6 +319,7 @@ describe('Auth Routes', () => {
         chainId: 11011,
         domain: 'localhost:3000',
         uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
       mockVerifySiweMessage.mockResolvedValue(false);
 
@@ -317,6 +362,7 @@ describe('Auth Routes', () => {
         chainId: 11011,
         domain: 'localhost:3000',
         uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 
@@ -344,6 +390,7 @@ describe('Auth Routes', () => {
         chainId: 360,
         domain: 'localhost:3000',
         uri: 'http://localhost:3000',
+        expirationTime: new Date(Date.now() + 5 * 60 * 1000),
       });
       mockVerifySiweMessage.mockResolvedValue(true);
 

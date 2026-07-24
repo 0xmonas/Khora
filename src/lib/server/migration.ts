@@ -1,6 +1,7 @@
 import { createPublicClient, http, getAddress, parseAbiItem, type Hex } from 'viem';
 import { shape, mainnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
+import { getRedis } from '@/lib/server/redis';
 import {
   claimDigest,
   getBooaEthAddress,
@@ -30,9 +31,18 @@ const SHAPE_RPC =
 /** Shape confirmations required before a burn is considered final (reorg guard). */
 export const MIGRATION_CONFIRMATIONS = BigInt(process.env.MIGRATION_CONFIRMATIONS || '10');
 
-/** How many blocks back to scan for burn events (Shape ~2s blocks). */
-const BURN_LOOKBACK_BLOCKS = BigInt(process.env.MIGRATION_BURN_LOOKBACK || '2000000');
+/**
+ * Hard floor for burn-event scans: the block BOOABurnHelper was deployed on Shape.
+ * No migration burn can exist before it, so scanning down to this block gives
+ * complete coverage for the entire life of the migration. A rolling
+ * `latest - N` window instead makes older burns silently unprovable, which for an
+ * already-burned token means permanent loss.
+ */
+const BURN_FLOOR_BLOCK = BigInt(process.env.MIGRATION_BURN_FLOOR_BLOCK || '31303050');
 const LOG_PAGE = BigInt(9_999);
+
+/** Confirmed burns are memoised forever so a token is scanned deeply only once. */
+const BURN_MEMO_PREFIX = 'migration:burn:v1:';
 
 function makeShapeClient() {
   return createPublicClient({ chain: shape, transport: http(SHAPE_RPC) });
@@ -43,14 +53,46 @@ function shapeClient() {
   return _shape;
 }
 
+/**
+ * True when the migration operator key derives to the SAME address as the Shape mint
+ * signer (SIGNER_PRIVATE_KEY) — whether via the fallback below or because both env
+ * vars hold the same key. BOOAEth.claim() trusts this signature alone (no on-chain
+ * burn proof), so a shared key means one leak compromises both minting and migration.
+ * This detects the shared state by comparing derived addresses, not env presence, so
+ * it cannot be fooled by pasting the same key into MIGRATION_OPERATOR_PRIVATE_KEY.
+ */
+export function isSharedSigner(): boolean {
+  const opKey = process.env.MIGRATION_OPERATOR_PRIVATE_KEY || process.env.SIGNER_PRIVATE_KEY;
+  const mintKey = process.env.SIGNER_PRIVATE_KEY;
+  if (!opKey || !mintKey) return false;
+  try {
+    return (
+      privateKeyToAccount(opKey as Hex).address.toLowerCase() ===
+      privateKeyToAccount(mintKey as Hex).address.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
+
 let _operator: ReturnType<typeof privateKeyToAccount> | null = null;
 function operator() {
   if (!_operator) {
-    // Op decision (2026-07-13): reuse the existing mint signer as the migration
-    // operator (option A). MIGRATION_OPERATOR_PRIVATE_KEY stays as an override
-    // if the roles ever need separating.
+    // Fallback kept so the live migration keeps working; rotating to a dedicated
+    // KMS key + BOOAEth.setOperatorSigner() is an operator action, not a code one.
+    // The shared state is surfaced loudly (warn below + `sharedSigner` in the status
+    // API) rather than silently, and can no longer re-merge unnoticed.
     const key = process.env.MIGRATION_OPERATOR_PRIVATE_KEY || process.env.SIGNER_PRIVATE_KEY;
-    if (!key) throw new Error('No operator key configured (MIGRATION_OPERATOR_PRIVATE_KEY or SIGNER_PRIVATE_KEY)');
+    if (!key) {
+      throw new Error('No operator key configured (MIGRATION_OPERATOR_PRIVATE_KEY or SIGNER_PRIVATE_KEY)');
+    }
+    if (isSharedSigner()) {
+      console.warn(
+        '[migration] operator key equals the Shape mint signer (SIGNER_PRIVATE_KEY). ' +
+          'Rotate to a dedicated KMS key and call BOOAEth.setOperatorSigner — a single ' +
+          'leak currently compromises both minting and L1 migration claims.',
+      );
+    }
     _operator = privateKeyToAccount(key as Hex);
   }
   return _operator;
@@ -72,6 +114,7 @@ export interface MigrationConfig {
   burnHelper: `0x${string}` | null;
   shapeBooa: `0x${string}` | null;
   operator: `0x${string}` | null;
+  sharedSigner: boolean;
   ethChainId: number;
   confirmations: number;
 }
@@ -87,6 +130,7 @@ export function migrationConfig(): MigrationConfig {
     burnHelper: getBurnHelperAddress(),
     shapeBooa: getShapeBooaAddress(),
     operator: op,
+    sharedSigner: isSharedSigner(),
     ethChainId: ETH_MAINNET_CHAIN_ID,
     confirmations: Number(MIGRATION_CONFIRMATIONS),
   };
@@ -177,9 +221,16 @@ export async function verifyBurn(holder: `0x${string}`, tokenId: number): Promis
   }
   if (stillExists) return { ok: false, reason: 'not_burned' };
 
+  // A burn already proven for this holder never needs re-scanning.
+  const memoKey = `${BURN_MEMO_PREFIX}${tokenId}`;
+  try {
+    const memo = await getRedis().get<{ holder: string }>(memoKey);
+    if (memo?.holder && memo.holder === holder.toLowerCase()) return { ok: true };
+  } catch { /* cache unavailable — fall through to the scan */ }
+
   // (2) + (3) Find a burn event crediting this holder, confirmed deep enough.
   const latest = await client.getBlockNumber();
-  const floor = latest > BURN_LOOKBACK_BLOCKS ? latest - BURN_LOOKBACK_BLOCKS : BigInt(0);
+  const floor = latest > BURN_FLOOR_BLOCK ? BURN_FLOOR_BLOCK : BigInt(0);
   const helper = getBurnHelperAddress();
 
   let cursor = latest;
@@ -210,6 +261,12 @@ export async function verifyBurn(holder: `0x${string}`, tokenId: number): Promis
     if (hit) {
       const confirmations = latest - (hit.blockNumber ?? latest);
       if (confirmations < MIGRATION_CONFIRMATIONS) return { ok: false, reason: 'unconfirmed' };
+      try {
+        await getRedis().set(memoKey, {
+          holder: holder.toLowerCase(),
+          block: Number(hit.blockNumber ?? 0),
+        });
+      } catch { /* cache write is best-effort */ }
       return { ok: true };
     }
 
@@ -234,7 +291,7 @@ export async function findBurnedUnclaimed(holder: `0x${string}`): Promise<number
 
   const client = shapeClient();
   const latest = await client.getBlockNumber();
-  const floor = latest > BURN_LOOKBACK_BLOCKS ? latest - BURN_LOOKBACK_BLOCKS : BigInt(0);
+  const floor = latest > BURN_FLOOR_BLOCK ? BURN_FLOOR_BLOCK : BigInt(0);
   const holderLc = holder.toLowerCase();
 
   // Fetch by event topic only and filter the holder in JS. Filtering the holder

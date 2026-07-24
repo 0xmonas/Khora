@@ -133,6 +133,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
+  // Only the current on-chain owner may write a token's metadata. This value is read
+  // back into the owner's own chat system prompt and served as their public ERC-8004
+  // JSON, so an unowned write is both an injection vector and a permanent squat.
+  const { ownsBooa } = await import('@/lib/server/nft-owner');
+  if (!(await ownsBooa(sessionAddress, tokenIdNum, chainIdNum))) {
+    return NextResponse.json({ error: 'You do not own this token' }, { status: 403 });
+  }
+
   // Size check: agent JSON should be reasonable (max 500KB)
   if (typeof agent !== 'object' || agent === null || Array.isArray(agent)) {
     return NextResponse.json({ error: 'Agent must be a JSON object' }, { status: 400 });

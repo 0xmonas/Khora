@@ -50,6 +50,13 @@ const PUBLIC_READ_PATHS = [
   '/api/awakened',
 ];
 
+// Public for reads, but writes must carry a verified session. PUBLIC_READ_PATHS is
+// prefix-matched and method-agnostic, so without this a POST to one of those paths
+// would bypass the session check entirely.
+const AUTHENTICATED_WRITE_PREFIXES = [
+  '/api/agent-registry',
+];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -90,8 +97,21 @@ export async function middleware(request: NextRequest) {
     return sanitizedNext();
   }
 
+  // Only genuinely mutating methods need a session. OPTIONS (CORS preflight) and HEAD
+  // must still fall through to the public-read branch, or agent-facing GET consumers
+  // of these public endpoints lose preflight.
+  const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+  const writeNeedsSession =
+    isMutating &&
+    AUTHENTICATED_WRITE_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(prefix + '/'),
+    );
+
   // Public read-only routes — skip auth, already rate-limited above
-  if (PUBLIC_READ_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'))) {
+  if (
+    !writeNeedsSession &&
+    PUBLIC_READ_PATHS.some((path) => pathname === path || pathname.startsWith(path + '/'))
+  ) {
     // Handle CORS preflight (OPTIONS) requests
     if (request.method === 'OPTIONS') {
       return new NextResponse(null, {

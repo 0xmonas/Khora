@@ -18,6 +18,7 @@ export async function GET() {
       burnHelper: cfg.burnHelper,
       shapeBooa: cfg.shapeBooa,
       operator: cfg.operator,
+      sharedSigner: cfg.sharedSigner,
       ethChainId: cfg.ethChainId,
       shapeChainId: 360,
       confirmations: cfg.confirmations,

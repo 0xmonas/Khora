@@ -5,7 +5,25 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getRegistryAddress, IDENTITY_REGISTRY_ABI } from '@/lib/contracts/identity-registry';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
+import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
+import { getRedis } from '@/lib/server/redis';
+
+const BINDING_OF_ABI = [{
+  type: 'function',
+  name: 'bindingOf',
+  stateMutability: 'view',
+  inputs: [{ name: 'agentId', type: 'uint256' }],
+  outputs: [{
+    name: 'binding',
+    type: 'tuple',
+    components: [
+      { name: 'standard', type: 'uint8' },
+      { name: 'tokenContract', type: 'address' },
+      { name: 'tokenId', type: 'uint256' },
+    ],
+  }],
+}] as const;
 
 export const maxDuration = 30;
 
@@ -99,7 +117,7 @@ export async function GET(request: NextRequest) {
 
     const scores = calculateAgentScores(scoreInput);
 
-    // Verify: check if 8004 owner or originalOwner matches NFT owner on Shape
+    // Verify against on-chain facts only (see the three arms below).
     let verified = false;
     let currentNftOwner: string | null = null;
     const nftOrigin = registration.nftOrigin as { tokenId?: number; originalOwner?: string; contract?: string } | undefined;
@@ -118,9 +136,52 @@ export async function GET(request: NextRequest) {
             args: [BigInt(nftOrigin.tokenId)],
           }) as string).toLowerCase();
 
-          const ownerLower = owner.toLowerCase();
-          const originalOwner = nftOrigin.originalOwner?.toLowerCase();
-          verified = ownerLower === currentNftOwner || originalOwner === currentNftOwner;
+          // Only on-chain facts count; nftOrigin.originalOwner is self-asserted and
+          // can never prove ownership. Three sound arms:
+          // 1) the agent's registry owner is the current NFT owner (self-hold / secondary),
+          // 2) the agent is bound through our canonical adapter to this BOOA + tokenId (Awakened),
+          // 3) the ownership-gated registrant is still the NFT owner (8004 moved to agent wallet).
+          verified = owner.toLowerCase() === currentNftOwner;
+
+          const adapterAddr = getAdapterAddress(chainId);
+          if (!verified && adapterAddr && owner.toLowerCase() === adapterAddr.toLowerCase()) {
+            try {
+              const client = createPublicClient({
+                transport: fallback(CHAIN_CONFIG[chain].rpcUrls.map((u) => http(u))),
+              });
+              const binding = await client.readContract({
+                address: adapterAddr,
+                abi: BINDING_OF_ABI,
+                functionName: 'bindingOf',
+                args: [BigInt(agentId)],
+              }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
+              if (
+                Number(binding.tokenId) === nftOrigin.tokenId &&
+                binding.tokenContract.toLowerCase() === booaContract.toLowerCase()
+              ) {
+                verified = true;
+              }
+            } catch { /* binding unreadable */ }
+          }
+
+          if (!verified) {
+            try {
+              const cached = await getRedis().get<{ agentId?: number; registrantOwner?: string }>(
+                `agent:registry:${chainId}:${nftOrigin.tokenId}`,
+              );
+              // registrantOwner is trusted, but this endpoint is keyed by agentId while
+              // nftOrigin.tokenId is self-asserted in the agent's URI. Bind the trusted
+              // record to THIS agent — otherwise a hostile agent that merely names a
+              // victim's registered token would inherit the victim's verified badge.
+              if (
+                cached?.registrantOwner &&
+                cached.agentId === agentId &&
+                cached.registrantOwner === currentNftOwner
+              ) {
+                verified = true;
+              }
+            } catch { /* cache unavailable */ }
+          }
         }
       } catch { /* NFT lookup failed — leave verified false */ }
     }

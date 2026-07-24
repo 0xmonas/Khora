@@ -10,6 +10,8 @@
 // `ownerOf(agentId)` returns onchain), and the holder submits the tx through the
 // adapter, which is authorized as the controller.
 
+import { recoverTypedDataAddress } from 'viem';
+
 export const AGENT_WALLET_DOMAIN_NAME = 'ERC8004IdentityRegistry';
 export const AGENT_WALLET_DOMAIN_VERSION = '1';
 
@@ -90,5 +92,38 @@ export function decodeAgentWalletBlob(input: string): AgentWalletBlob | null {
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Recover the signer of a link code and check it is the wallet the code asks to bind.
+ *
+ * The registry performs this check on-chain, but doing it locally lets the UI show the
+ * holder a verified address BEFORE they sign. Returns 'ok' when the signature is a
+ * plain EOA consent from `blob.wallet`, 'mismatch' when it recovers to someone else,
+ * and 'unrecoverable' when no address can be recovered — which is also the expected
+ * result for an ERC-1271 smart-contract wallet, so callers should warn rather than
+ * hard-fail on it.
+ */
+export async function checkAgentWalletBlobSignature(
+  blob: AgentWalletBlob,
+  registry: `0x${string}`,
+  owner: `0x${string}`,
+): Promise<'ok' | 'mismatch' | 'unrecoverable'> {
+  try {
+    const recovered = await recoverTypedDataAddress({
+      ...buildAgentWalletTypedData({
+        chainId: blob.chainId,
+        registry,
+        agentId: BigInt(blob.agentId),
+        newWallet: blob.wallet,
+        owner,
+        deadline: BigInt(blob.deadline),
+      }),
+      signature: blob.signature,
+    });
+    return recovered.toLowerCase() === blob.wallet.toLowerCase() ? 'ok' : 'mismatch';
+  } catch {
+    return 'unrecoverable';
   }
 }

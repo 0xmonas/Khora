@@ -120,18 +120,37 @@ interface AgenticFacts {
   awakenedBy?: string | null;
 }
 
+// Agent fields are stored per token and end up inside this system prompt. Strip
+// control chars and angle brackets, collapse whitespace and truncate so a crafted
+// field cannot inject new instructions or fake prompt sections.
+const MAX_PROMPT_FIELD = 240;
+const MAX_PROMPT_ITEMS = 12;
+function sanitizeField(s: unknown): string {
+  if (typeof s !== 'string' || !s) return '';
+  return s
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_PROMPT_FIELD);
+}
+function sanitizeList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, MAX_PROMPT_ITEMS).map(sanitizeField).filter(Boolean);
+}
+
 function buildSystemPrompt(agent: Record<string, any>, tokenId: number, chainId: number, agentic?: AgenticFacts): string {
-  const name = agent.name || 'Unknown Agent';
-  const creature = agent.creature || 'AI entity';
-  const description = agent.description || '';
-  const vibe = agent.vibe || '';
-  const emoji = agent.emoji || '';
-  const personality = Array.isArray(agent.personality) ? agent.personality.join(', ') : '';
-  const domains = Array.isArray(agent.domains) ? agent.domains.join(', ') : '';
-  const skills = Array.isArray(agent.skills) ? agent.skills.join(', ') : '';
-  const boundaries = Array.isArray(agent.boundaries)
-    ? agent.boundaries.map((b: string) => `- ${b}`).join('\n')
-    : '';
+  const name = sanitizeField(agent.name) || 'Unknown Agent';
+  const creature = sanitizeField(agent.creature) || 'AI entity';
+  const description = sanitizeField(agent.description);
+  const vibe = sanitizeField(agent.vibe);
+  const emoji = sanitizeField(agent.emoji);
+  const personality = sanitizeList(agent.personality).join(', ');
+  const domains = sanitizeList(agent.domains).join(', ');
+  const skills = sanitizeList(agent.skills).join(', ');
+  const boundaries = sanitizeList(agent.boundaries)
+    .map((b: string) => `- ${b}`)
+    .join('\n');
 
   const chainName = chainId === 1 ? 'Ethereum (mainnet)'
     : chainId === 8453 ? 'Base (mainnet)'

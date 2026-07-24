@@ -39,7 +39,7 @@ export function ConfigPanel() {
   const {
     selectedNFT, clearSelection, isExistingAgent, isAdapterBound, configLoading, boundAgentId,
     ogDrift, canSyncToOG, syncToOG,
-    agentWallet, linkStatus, linkError, linkTxHash, linkAgentWallet, pendingLinkBlob,
+    agentWallet, linkStatus, linkError, linkTxHash, prepareLink, pendingLinkBlob,
     canUpgradeToAdapter, upgradeStatus, upgradeError, upgradeAgentToAdapter,
     canUseAdapterForNewRegister, useAdapterForNewRegister, setUseAdapterForNewRegister,
     agentName, setAgentName,
@@ -219,8 +219,9 @@ export function ConfigPanel() {
             ) : (
               <>
                 {pendingLinkBlob && (
-                  <p className="font-mono text-[11px] text-green-600 dark:text-green-500">
-                    Link code loaded from your runtime ✓ — just confirm below.
+                  <p className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
+                    A link code was loaded from the URL. Review the wallet address it binds
+                    on the next screen before approving.
                   </p>
                 )}
                 <textarea
@@ -233,11 +234,11 @@ export function ConfigPanel() {
                 {linkError && <p className="font-mono text-[10px] text-red-500 leading-relaxed">{linkError}</p>}
                 <button
                   type="button"
-                  onClick={() => linkAgentWallet(walletBlob)}
+                  onClick={() => prepareLink(walletBlob)}
                   disabled={!walletBlob.trim() || linkStatus === 'linking'}
                   className="w-full py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black font-mono text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  {linkStatus === 'linking' ? 'LINKING…' : agentWallet ? 'CHANGE AGENT WALLET' : 'SET AGENT WALLET'}
+                  {linkStatus === 'linking' ? 'LINKING…' : agentWallet ? 'REVIEW & CHANGE AGENT WALLET' : 'REVIEW AGENT WALLET'}
                 </button>
               </>
             )}
