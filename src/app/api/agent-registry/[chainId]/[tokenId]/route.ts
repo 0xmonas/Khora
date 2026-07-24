@@ -4,7 +4,7 @@ import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import type { BooaAgent } from '@/types/agent';
-import { BOOA_NFT_ABI, isMainnetChain } from '@/lib/contracts/booa';
+import { BOOA_NFT_ABI, isMainnetChain, isTestnetChain } from '@/lib/contracts/booa';
 import type { Chain } from 'viem';
 import { getRedis } from '@/lib/server/redis';
 
@@ -40,8 +40,10 @@ async function getNftOwner(tokenIdNum: number, chainIdNum: number): Promise<stri
 
   // The collection's canonical home is Ethereum. Migrated tokens are burned on
   // Shape, so an Ethereum-first read with a Shape fallback covers both migrated
-  // and not-yet-migrated BOOAs. Testnet queries stay on Shape Sepolia.
-  const candidates = isMainnetChain(chainIdNum)
+  // and not-yet-migrated BOOAs. Testnet queries stay on Shape Sepolia. Note:
+  // isMainnetChain() means "is Shape" (legacy), so gate on !isTestnetChain —
+  // any production registry chain (Ethereum, Base, …) reads the mainnet homes.
+  const candidates = !isTestnetChain(chainIdNum)
     ? [{ chain: mainnet, address: getV2Address(mainnet.id) }, { chain: shape, address: getV2Address(shape.id) }]
     : [{ chain: shapeSepolia, address: getV2Address(shapeSepolia.id) }];
 
