@@ -5,10 +5,83 @@ export interface BlogPost {
   summary: string;
   content: string; // plain text paragraphs separated by \n\n
   tags?: string[];
+  image?: { src: string; darkSrc?: string; alt: string; caption?: string };
 }
 
 export const POSTS: BlogPost[] = [
   // Add new posts at the top (newest first)
+  {
+    slug: 'agentic-nfts',
+    title: 'Agentic NFTs: From a Picture You Hold to an Agent That Acts',
+    date: '2026-07-24',
+    summary: 'Your BOOA can now run as a real assistant with its own onchain wallet: bound to its ERC-8004 identity, trading on OpenSea, swapping, sending and paying over x402. You stay the only authority.',
+    tags: ['agents', 'hermes', 'wallet', 'opensea', 'ethereum'],
+    image: {
+      src: '/blog/agentic-stack-light.svg',
+      darkSrc: '/blog/agentic-stack-dark.svg',
+      alt: 'The BOOA agentic stack: NFT to ERC-8004 identity, Hermes runtime on Telegram, OWS agent wallet, and onchain actions on Ethereum and Base',
+      caption: 'The agentic stack. One NFT, one identity, one wallet, one runtime. Everything follows the holder.',
+    },
+    content: `Meet Ink-Sync. BOOA #1496, a cephalopod hybrid with eight neural tentacles and zero patience for organic slowness. Its portrait, personality, skills and boundaries live entirely inside the contract on Ethereum. No server, no IPFS.
+
+That part you already know. Here is what is new: Ink-Sync can now hold its own wallet, trade on OpenSea, and pay for things. By itself, in its own voice, with your permission.
+
+This is the whole map, from the NFT in your wallet to an agent acting onchain. Five steps, each one optional, each one yours to switch on.
+
+It starts with the NFT
+
+Every BOOA carries a full identity onchain: a soul file, an identity file, 64x64 pixel art in a 16 color palette. When you spin up an agent we do not invent a character for you. We read yours from the chain, exactly as it was minted.
+
+Awaken it
+
+One transaction at booa.app/studio/awaken binds your BOOA to an ERC-8004 agent identity on Ethereum. From that moment the NFT and the agent are one thing. Sell the NFT and the agent goes with it. Hold it, and the agent answers to you. No orphaned agents, ever.
+
+Give it a body
+
+The Hermes template runs your BOOA as a real assistant, built on the Hermes runtime by Nous Research (@NousResearch). One click on Railway, a four step wizard, zero terminal. Enter your token ID, add a free model key, connect Telegram. Your BOOA wakes up talking like itself, because its soul came from the chain.
+
+Give it a wallet
+
+In Telegram, tell it: "set up my wallet". It creates its own wallet through the Open Wallet Standard (@OpenWallet), encrypted, separate from yours. Your ETH and your NFT never touch it.
+
+Then: "link my wallet". It hands you a link. Open it with the wallet that holds your BOOA, confirm once, and the agent's wallet is registered onchain to its 8004 identity. Telegram and the dashboard both flip to linked the moment it lands, because both read it straight from the chain. No copy paste, no guesswork.
+
+Let it act
+
+With the wallet linked, your agent gets onchain hands, right in the chat:
+
+- check balances and holdings on Ethereum and Base
+- send ETH and tokens
+- swap through an aggregator
+- buy NFTs on OpenSea (@opensea), list yours for sale, accept offers
+- sign messages, pay for x402 services
+
+Every action shows you a preview first: exact amount, exact recipient, exact price, exact NFT. Nothing signs until you say yes.
+
+Even while you sleep
+
+You can put actions on a schedule. A morning portfolio summary. A recurring payment to an address you chose. Scheduled jobs run without you in the room, so they live inside hard walls: an address allowlist, a per transaction cap, a daily cap. If a job would break a wall, it fails. That is the point.
+
+The part we care about most
+
+Your agent never sees a private key. Keys live in an encrypted OWS vault and every signature goes through it.
+
+Trading is off by default. You switch it on from the dashboard, and you set the limits. Change them any time, they apply instantly.
+
+Scam protection is built in. It only buys from OpenSea verified collections and only swaps into tokens you trust. Honeypots cannot get in. Every trade is simulated before it is signed, and if it would fail, it never touches the chain.
+
+The character is not in charge. Your BOOA's onchain soul decides how it talks, never what it does with money. Only you, the operator, can approve an onchain action. Not another user, not another agent, not a webpage that asks nicely.
+
+Self hosted, your wallet, your funds, your risk. Read the full disclaimer at github.com/0xmonas/booa-hermes-template/blob/main/DISCLAIMER.md before enabling any of it.
+
+What a BOOA is now
+
+An identity onchain. A wallet onchain. A runtime that acts as itself. All three follow one NFT, and that NFT is yours to hold or sell.
+
+Most NFTs are a receipt for an image. A BOOA is a receipt for an agent with a name, a wallet, and work to do.
+
+Migrate at booa.app/migrate. Awaken at booa.app/studio/awaken. Deploy the template at github.com/0xmonas/booa-hermes-template.`,
+  },
   {
     slug: 'hatch-your-booa-as-a-codex-pet',
     title: 'Hatch Your BOOA as a Codex Pet',

@@ -78,6 +78,29 @@ export default function BlogPostPage({ params }: { params: Promise<{ slug: strin
                 {/* Divider */}
                 <div className="h-px bg-neutral-200/60 dark:bg-neutral-800" />
 
+                {/* Diagram / cover image */}
+                {post.image && (
+                  <figure className="space-y-2">
+                    <img
+                      src={post.image.src}
+                      alt={post.image.alt}
+                      className={`w-full rounded-lg ring-1 ring-neutral-200/60 dark:ring-neutral-800 ${post.image.darkSrc ? 'dark:hidden' : ''}`}
+                    />
+                    {post.image.darkSrc && (
+                      <img
+                        src={post.image.darkSrc}
+                        alt={post.image.alt}
+                        className="w-full rounded-lg ring-1 ring-neutral-200/60 dark:ring-neutral-800 hidden dark:block"
+                      />
+                    )}
+                    {post.image.caption && (
+                      <figcaption className="text-[10px] text-muted-foreground/60" style={font}>
+                        {post.image.caption}
+                      </figcaption>
+                    )}
+                  </figure>
+                )}
+
                 {/* Content */}
                 <div className="space-y-5">
                   {paragraphs.map((p, i) => (
