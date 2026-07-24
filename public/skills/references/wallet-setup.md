@@ -251,7 +251,7 @@ The fastest path is a deep-link. Either ask the agent in chat — **"link my wal
    ```bash
    cd /app && OWS_PASSPHRASE=<ows_key_or_vault_passphrase> python3 -m booa.agent_wallet_link
    ```
-   It prints the ready-to-open `booa.app/bridge?link=…` URL. Alternatively the operator can click **Generate link code** on the dashboard's Agent Wallet Status card — same output, no terminal.
+   It prints the ready-to-open `booa.app/bridge?link=…` URL. **The link is valid for ~4 minutes** (the registry enforces a 5-minute deadline cap) — generate it right before the operator is ready to click, and regenerate if it expires. Alternatively the operator can click **Generate link code** on the dashboard's Agent Wallet Status card — same output, no terminal.
 2. **Open it** with the wallet that holds your BOOA (tap the link on the same phone, or scan the QR from desktop). The Bridge opens with the link code already filled in.
 3. **Select agent #<id>** (shown in the banner) under **Runtime wallet** and confirm the transaction with your **holder** wallet.
 4. Done. The dashboard and Telegram both flip to **linked** once `adapter.getAgentWallet` matches your agent wallet — they read it straight from the chain.
