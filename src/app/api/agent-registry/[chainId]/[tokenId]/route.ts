@@ -33,31 +33,35 @@ interface VerificationResult {
 }
 
 async function getNftOwner(tokenIdNum: number, chainIdNum: number): Promise<string | null> {
-  const { createPublicClient, http } = await import('viem');
-  const { shape, shapeSepolia } = await import('viem/chains');
-  const { BOOA_V2_ABI } = await import('@/lib/contracts/booa-v2');
+  const { createPublicClient, http, fallback } = await import('viem');
+  const { mainnet, shape, shapeSepolia } = await import('viem/chains');
+  const { BOOA_V2_ABI, getV2Address } = await import('@/lib/contracts/booa-v2');
+  const { CHAIN_CONFIG } = await import('@/types/agent');
 
-  const booaContract = isMainnetChain(chainIdNum)
-    ? process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS
-    : process.env.NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET;
+  // The collection's canonical home is Ethereum. Migrated tokens are burned on
+  // Shape, so an Ethereum-first read with a Shape fallback covers both migrated
+  // and not-yet-migrated BOOAs. Testnet queries stay on Shape Sepolia.
+  const candidates = isMainnetChain(chainIdNum)
+    ? [{ chain: mainnet, address: getV2Address(mainnet.id) }, { chain: shape, address: getV2Address(shape.id) }]
+    : [{ chain: shapeSepolia, address: getV2Address(shapeSepolia.id) }];
 
-  if (!booaContract) return null;
-
-  const client = createPublicClient({
-    chain: isMainnetChain(chainIdNum) ? shape : shapeSepolia,
-    transport: http(),
-  });
-
-  try {
-    return (await client.readContract({
-      address: booaContract as `0x${string}`,
-      abi: BOOA_V2_ABI,
-      functionName: 'ownerOf',
-      args: [BigInt(tokenIdNum)],
-    }) as string).toLowerCase();
-  } catch {
-    return null;
+  for (const { chain, address } of candidates) {
+    if (!address || address.length < 4) continue;
+    const cfg = Object.values(CHAIN_CONFIG).find(c => c.chainId === chain.id);
+    const client = createPublicClient({
+      chain,
+      transport: cfg?.rpcUrls?.length ? fallback(cfg.rpcUrls.map((u: string) => http(u))) : http(),
+    });
+    try {
+      return (await client.readContract({
+        address: address as `0x${string}`,
+        abi: BOOA_V2_ABI,
+        functionName: 'ownerOf',
+        args: [BigInt(tokenIdNum)],
+      }) as string).toLowerCase();
+    } catch { /* burned here (migrated) or RPC failed — try the next home */ }
   }
+  return null;
 }
 
 /**
