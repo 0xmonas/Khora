@@ -243,12 +243,16 @@ Because an Awakened agent is owned onchain by the **adapter** (not by you direct
 
 The fastest path is a deep-link. Either ask the agent in chat — **"link my wallet"** — or use the dashboard button; both produce the same thing.
 
-1. **Get the link.** In chat, the agent runs `python -m booa.agent_wallet_link` and hands you a `booa.app/bridge?link=…` URL (and a QR from the dashboard). It signs an EIP-712 consent with the agent's OWS wallet — proof the wallet agrees to be linked.
+1. **Get the link.** In chat, the agent runs the link generator and hands you a `booa.app/bridge?link=…` URL (and a QR from the dashboard). It signs an EIP-712 consent with the agent's OWS wallet — proof the wallet agrees to be linked. The exact command (the module lives in `/app`, and OWS needs the passphrase to sign non-interactively):
+   ```bash
+   cd /app && OWS_PASSPHRASE=<ows_key_or_vault_passphrase> python3 -m booa.agent_wallet_link
+   ```
+   It prints the ready-to-open `booa.app/bridge?link=…` URL. Alternatively the operator can click **Generate link code** on the dashboard's Agent Wallet Status card — same output, no terminal.
 2. **Open it** with the wallet that holds your BOOA (tap the link on the same phone, or scan the QR from desktop). The Bridge opens with the link code already filled in.
 3. **Select agent #<id>** (shown in the banner) under **Runtime wallet** and confirm the transaction with your **holder** wallet.
 4. Done. The dashboard and Telegram both flip to **linked** once `adapter.getAgentWallet` matches your agent wallet — they read it straight from the chain.
 
-> **Operator tip (agent-facing):** when the operator asks to link/bind the agent's wallet, run `python -m booa.agent_wallet_link`, then reply with the returned link and one line: open it with your holder wallet and confirm. Do not paste the raw blob unless they ask — the link is enough.
+> **Operator tip (agent-facing):** when the operator asks to link/bind the agent's wallet, run `cd /app && OWS_PASSPHRASE=... python3 -m booa.agent_wallet_link` (ask the operator for the OWS key/passphrase if you don't have it in env), then reply with the returned `booa.app/bridge?link=…` URL and one line: open it with your holder wallet and confirm. Do not offer the old challenge-sign menu, do not paste the raw blob unless asked — the link is the whole flow.
 
 > **Result:** The agent can use its wallet for SIWA, x402, and signing. Your NFT and 8004 identity stay exactly where they are — nothing is transferred, and control still follows whoever holds the BOOA.
 >
