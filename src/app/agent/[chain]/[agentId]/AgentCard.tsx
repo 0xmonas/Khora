@@ -126,6 +126,9 @@ export function AgentCard({ agent, scores, scan8004Url, isLiveScore = true }: Ag
   }, []);
 
   const shortOwner = agent.owner;
+  // Tolerate a scores object without the breakdown (older cached shape) instead of crashing.
+  const dims = scores.dimensions ?? [];
+  const weightedTotal = scores.weightedTotal ?? 0;
   const glow = RANK_GLOW[scores.rank] || '';
   const isHighRank = scores.rank === 'S' || scores.rank === 'A' || scores.rank === 'B';
 
@@ -260,17 +263,12 @@ export function AgentCard({ agent, scores, scan8004Url, isLiveScore = true }: Ag
 
                 <div className="h-px bg-[#444] my-1.5" />
 
-                {/* Stats grid */}
-                <div className="grid grid-cols-4 gap-1">
-                  {[
-                    { label: 'IDENT', value: scores.identity },
-                    { label: 'SERVC', value: scores.service },
-                    { label: 'TRUST', value: scores.trust },
-                    { label: 'REACH', value: scores.reach },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="relative text-center py-1 border border-[#444] bg-[#111]">
+                {/* Stats grid — 5 dimensions when scored live by 8004scan, 4 when estimated */}
+                <div className={`grid gap-1 ${dims.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                  {dims.map(({ key, label, score }) => (
+                    <div key={key} className="relative text-center py-1 border border-[#444] bg-[#111]">
                       <CornerDots />
-                      <p className="text-[11px]" style={goldBloom}>{value}</p>
+                      <p className="text-[11px]" style={goldBloom}>{score === null ? '—' : score}</p>
                       <p className="text-[6px] uppercase tracking-wider" style={dimText}>{label}</p>
                     </div>
                   ))}
@@ -328,32 +326,46 @@ export function AgentCard({ agent, scores, scan8004Url, isLiveScore = true }: Ag
                   </div>
                 )}
 
-                {/* Stats with bars */}
+                {/* Score breakdown — each dimension with its weight and weighted contribution */}
                 <div>
-                  <p className="text-[7px] uppercase tracking-wider mb-1.5" style={dimText}>ASSESSMENT</p>
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <p className="text-[7px] uppercase tracking-wider" style={dimText}>
+                      {scores.source === 'live' ? 'SCORE BREAKDOWN' : 'ASSESSMENT (ESTIMATED)'}
+                    </p>
+                    <p className="text-[6px] uppercase tracking-wider" style={dimText}>
+                      {dims.length}-DIM
+                    </p>
+                  </div>
                   <div className="space-y-1.5">
-                    {[
-                      { label: 'IDENTITY', value: scores.identity },
-                      { label: 'SERVICE', value: scores.service },
-                      { label: 'TRUST', value: scores.trust },
-                      { label: 'REACH', value: scores.reach },
-                    ].map(({ label, value }, i) => (
-                      <div key={label} className="flex items-center gap-2">
-                        <span className="text-[7px] uppercase w-14 shrink-0" style={dimText}>{label}</span>
+                    {dims.map(({ key, longLabel, score, weight, weighted }, i) => (
+                      <div key={key} className="flex items-center gap-1.5">
+                        <span className="text-[7px] uppercase w-14 shrink-0" style={dimText}>{longLabel}</span>
+                        <span className="text-[6px] w-6 shrink-0 text-right" style={dimText}>
+                          {Math.round(weight * 100)}%
+                        </span>
                         <div className="flex-1 h-[4px] bg-[#1a1a1a] border border-[#444]/30 overflow-hidden">
                           <div
                             className={`h-full ${i < 2 ? 'bg-[#c8b439]' : 'bg-[#e8833a]'}`}
                             style={{
-                              width: `${value}%`,
+                              width: `${score ?? 0}%`,
                               boxShadow: i < 2
                                 ? '0 0 6px rgba(200,180,57,0.5)'
                                 : '0 0 6px rgba(232,131,58,0.5)',
                             }}
                           />
                         </div>
-                        <span className="text-[8px] w-6 text-right" style={bodyText}>{value}</span>
+                        <span className="text-[8px] w-5 text-right" style={bodyText}>
+                          {score === null ? '—' : score}
+                        </span>
+                        <span className="text-[6px] w-7 text-right shrink-0" style={dimText}>
+                          {score === null ? '' : `+${weighted.toFixed(1)}`}
+                        </span>
                       </div>
                     ))}
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1.5 pt-1 border-t border-[#444]/40">
+                    <span className="text-[6px] uppercase tracking-wider" style={dimText}>WEIGHTED TOTAL</span>
+                    <span className="text-[8px]" style={bodyText}>{weightedTotal.toFixed(1)}</span>
                   </div>
                 </div>
 

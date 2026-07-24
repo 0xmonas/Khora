@@ -1,3 +1,20 @@
+/** 8004scan v5 dimensions, in the order and weighting the scanner itself reports. */
+const SCAN_DIMENSIONS: { key: string; label: string; longLabel: string; weight: number }[] = [
+  { key: 'engagement', label: 'ENGMT', longLabel: 'ENGAGEMENT', weight: 0.30 },
+  { key: 'service', label: 'SERVC', longLabel: 'SERVICE', weight: 0.25 },
+  { key: 'publisher', label: 'PUBLR', longLabel: 'PUBLISHER', weight: 0.20 },
+  { key: 'compliance', label: 'COMPL', longLabel: 'COMPLIANCE', weight: 0.15 },
+  { key: 'momentum', label: 'MOMTM', longLabel: 'MOMENTUM', weight: 0.10 },
+];
+
+function rankFor(overall: number): string {
+  if (overall >= 85) return 'S';
+  if (overall >= 70) return 'A';
+  if (overall >= 50) return 'B';
+  if (overall >= 30) return 'C';
+  return 'D';
+}
+
 export async function fetch8004ScanScore(chainId: number, tokenId: number): Promise<AgentScores | null> {
   try {
     const res = await fetch(`https://api.8004scan.io/api/v1/agents/scores/v5/${chainId}/${tokenId}`, {
@@ -8,21 +25,42 @@ export async function fetch8004ScanScore(chainId: number, tokenId: number): Prom
     const data = await res.json();
     if (!data.total_score && data.total_score !== 0) return null;
 
+    // A dimension the scanner has no data for comes back as null. Keep it null —
+    // folding it into 0 (or averaging it with another dimension) invents a number.
+    const apiWeights = (data.weights ?? {}) as Record<string, number>;
+    const dimensions: ScoreDimension[] = SCAN_DIMENSIONS.map((d) => {
+      const entry = data[d.key] as { score?: number; weight?: number; weighted_score?: number; explanation?: string } | null;
+      const weight = entry?.weight ?? apiWeights[d.key] ?? d.weight;
+      return {
+        key: d.key,
+        label: d.label,
+        longLabel: d.longLabel,
+        score: entry && typeof entry.score === 'number' ? Math.round(entry.score) : null,
+        weight,
+        weighted: entry && typeof entry.weighted_score === 'number' ? entry.weighted_score : 0,
+        explanation: entry?.explanation ?? null,
+      };
+    });
+
     const overall = Math.round(data.total_score);
-    let rank: string;
-    if (overall >= 85) rank = 'S';
-    else if (overall >= 70) rank = 'A';
-    else if (overall >= 50) rank = 'B';
-    else if (overall >= 30) rank = 'C';
-    else rank = 'D';
 
     return {
-      identity: Math.round(((data.engagement?.score ?? 0) + (data.publisher?.score ?? 0)) / 2),
-      service: Math.round(data.service?.score ?? 0),
-      trust: Math.round(data.compliance?.score ?? 0),
-      reach: Math.round(data.momentum?.score ?? 0),
+      // Legacy 4-field shape, kept so existing consumers (incl. /api/agent-card) don't break.
+      // Direct aliases — never averaged across unrelated dimensions.
+      identity: dimensions.find((d) => d.key === 'engagement')?.score ?? 0,
+      service: dimensions.find((d) => d.key === 'service')?.score ?? 0,
+      trust: dimensions.find((d) => d.key === 'compliance')?.score ?? 0,
+      reach: dimensions.find((d) => d.key === 'momentum')?.score ?? 0,
       overall,
-      rank,
+      rank: rankFor(overall),
+      source: 'live',
+      scoredAt: typeof data.last_scored_at === 'string' ? data.last_scored_at : null,
+      version: typeof data.version === 'string' ? data.version : null,
+      dimensions,
+      // The scanner's own total_score is authoritative and is NOT the sum of the
+      // weighted contributions (its leaderboard policy applies extra rules), so both
+      // are surfaced separately rather than recomputed.
+      weightedTotal: Math.round(dimensions.reduce((s, d) => s + d.weighted, 0) * 10) / 10,
     };
   } catch {
     return null;
@@ -43,6 +81,16 @@ export interface AgentScoreInput {
   boundaries?: string[];
 }
 
+export interface ScoreDimension {
+  key: string;
+  label: string;         // short label for the compact card grid
+  longLabel: string;     // full label for the breakdown list
+  score: number | null;  // null = the scanner has no data for this dimension yet
+  weight: number;        // 0..1
+  weighted: number;      // this dimension's weighted contribution
+  explanation?: string | null;
+}
+
 export interface AgentScores {
   identity: number;    // 0-100: how complete is the agent's identity
   service: number;     // 0-100: service & capability depth
@@ -50,6 +98,12 @@ export interface AgentScores {
   reach: number;       // 0-100: multichain presence
   overall: number;     // 0-100: weighted average
   rank: string;        // S/A/B/C/D rank label
+  /** 'live' = pulled from 8004scan (5 dimensions); 'estimated' = local (4 dimensions). */
+  source: 'live' | 'estimated';
+  dimensions: ScoreDimension[];
+  weightedTotal: number;
+  scoredAt?: string | null;
+  version?: string | null;
 }
 
 export function calculateAgentScores(input: AgentScoreInput): AgentScores {
@@ -89,13 +143,18 @@ export function calculateAgentScores(input: AgentScoreInput): AgentScores {
     reach * 0.25
   );
 
-  // ── Rank ──
-  let rank: string;
-  if (overall >= 85) rank = 'S';
-  else if (overall >= 70) rank = 'A';
-  else if (overall >= 50) rank = 'B';
-  else if (overall >= 30) rank = 'C';
-  else rank = 'D';
+  const dimensions: ScoreDimension[] = [
+    { key: 'identity', label: 'IDENT', longLabel: 'IDENTITY', score: identity, weight: 0.30, weighted: identity * 0.30 },
+    { key: 'service', label: 'SERVC', longLabel: 'SERVICE', score: service, weight: 0.30, weighted: service * 0.30 },
+    { key: 'trust', label: 'TRUST', longLabel: 'TRUST', score: trust, weight: 0.15, weighted: trust * 0.15 },
+    { key: 'reach', label: 'REACH', longLabel: 'REACH', score: reach, weight: 0.25, weighted: reach * 0.25 },
+  ].map((d) => ({ ...d, weighted: Math.round(d.weighted * 10) / 10 }));
 
-  return { identity, service, trust, reach, overall, rank };
+  return {
+    identity, service, trust, reach, overall,
+    rank: rankFor(overall),
+    source: 'estimated',
+    dimensions,
+    weightedTotal: Math.round(dimensions.reduce((s, d) => s + d.weighted, 0) * 10) / 10,
+  };
 }
