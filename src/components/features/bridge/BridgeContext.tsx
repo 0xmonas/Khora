@@ -277,14 +277,21 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
           const { CHAIN_CONFIG } = await import('@/types/agent');
           const cfg = Object.values(CHAIN_CONFIG).find(c => c.chainId === agentChainId);
           if (cfg) {
-            const probeClient = createPublicClient({ transport: http(cfg.rpcUrls[0]) });
-            const bindingMeta = await probeClient.readContract({
-              address: getRegistryAddress(agentChainId),
-              abi: IDENTITY_REGISTRY_ABI,
-              functionName: 'getMetadata',
-              args: [BigInt(parseInt(nft.tokenId)), 'agent-binding'],
-            }) as `0x${string}`;
-            if (bindingMeta && bindingMeta.toLowerCase() === adapterAddress.toLowerCase()) {
+            const { fallback } = await import('viem');
+            const probeClient = createPublicClient({ transport: fallback(cfg.rpcUrls.map((u: string) => http(u))) });
+            // Bound == the adapter owns the 8004 agent. ownerOf is the on-chain
+            // truth for every bound agent; the 'agent-binding' metadata key is
+            // not guaranteed to be set (Awaken-minted agents lack it).
+            let owner8004: string | null = null;
+            try {
+              owner8004 = (await probeClient.readContract({
+                address: getRegistryAddress(agentChainId),
+                abi: IDENTITY_REGISTRY_ABI,
+                functionName: 'ownerOf',
+                args: [BigInt(parseInt(nft.tokenId))],
+              }) as string).toLowerCase();
+            } catch { /* burned/invalid */ }
+            if (owner8004 && owner8004 === adapterAddress.toLowerCase()) {
               setIsAdapterBound(true);
               // Read the currently-linked runtime wallet (0x0 = none linked yet).
               try {
