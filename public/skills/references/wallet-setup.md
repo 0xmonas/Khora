@@ -32,6 +32,12 @@ pip install open-wallet-standard
 ows wallet create --name "my-agent"
 ```
 
+OWS will prompt for a vault password. **You MUST provide a non-empty password.**
+
+- Use a strong password (12+ chars, mix of types) and save it in a password manager alongside the mnemonic.
+- An empty password means the vault file is effectively unencrypted — anyone who copies `/data/.ows/wallets/<id>.json` can export the mnemonic without your consent.
+- If the agent offers to skip the password "for convenience", refuse. The vault is your only protection if the storage volume is copied or leaks.
+
 **Output:**
 ```
 Created wallet 3198bc9c-...
@@ -41,7 +47,7 @@ Created wallet 3198bc9c-...
   ...
 ```
 
-> **Save the EVM address** (`eip155:1` line) — this is your agent's wallet address on Shape and Base.
+> **Save the EVM address (`eip155:1` line) — this is your agent's wallet address; it works on Ethereum, Base, and any EVM chain.
 
 ### Step 3: Back Up the Wallet
 
@@ -49,23 +55,29 @@ Created wallet 3198bc9c-...
 ows wallet export --wallet "my-agent"
 ```
 
-Store the mnemonic phrase in secure offline storage. This is the only way to recover the wallet.
+OWS will prompt for the vault password you set in Step 2, then print the 12-word mnemonic. Write it down immediately on paper or save to a password manager.
 
-⚠️ **Never store the mnemonic in plain text, screenshots, chat messages, or version control.**
+**What to expect in chat vs CLI:**
+
+- Running `ows wallet export` from a terminal (SSH, `railway run`, `docker exec`) prints the mnemonic **directly to your terminal** — normal and safe, provided the terminal is yours.
+- If you ask the agent for your mnemonic via Telegram/chat, the agent *may* show it with a prepended safety warning (because you, the operator, own the wallet). Copy the mnemonic offline immediately and **delete the chat message after copying** — Telegram retains chat history, and a future compromise of your Telegram account would expose anything that remains in it.
+- The agent will never reveal the mnemonic to any non-operator recipient. The runtime filter redacts sensitive patterns when the recipient chat_id is not on the operator allowlist.
+
+⚠️ **Never store the mnemonic in plain text on disk, in screenshots, in version control, or in a chat channel you do not control.** Paper or an encrypted password manager is the only acceptable storage.
 
 ### Step 4: Define a Policy
 
-Create a policy that restricts your agent to specific chains. Start with Shape + Base (primary), expand as needed:
+Create a policy that restricts your agent to specific chains. Start with Ethereum + Base (primary), expand as needed:
 
 ```bash
 cat > policy.json << 'EOF'
 {
   "id": "agent-policy",
-  "name": "Agent: Shape + Base",
+  "name": "Agent: Ethereum + Base",
   "version": 1,
   "created_at": "2026-04-12T00:00:00Z",
   "rules": [
-    { "type": "allowed_chains", "chain_ids": ["eip155:360", "eip155:8453"] },
+    { "type": "allowed_chains", "chain_ids": ["eip155:1", "eip155:8453"] },
     { "type": "expires_at", "timestamp": "2026-12-31T23:59:59Z" }
   ],
   "action": "deny"
@@ -74,7 +86,7 @@ EOF
 ows policy create --file policy.json
 ```
 
-> **Primary chains:** Shape (`eip155:360`) for NFT & 8004 operations, Base (`eip155:8453`) for x402 payments (USDC).
+> **Primary chains:** Ethereum (`eip155:1`) for NFT & 8004 operations, Base (`eip155:8453`) for x402 payments (USDC).
 >
 > **Supported chains for ERC-8004 registration:** Ethereum (`1`), Base (`8453`), Shape (`360`), Polygon (`137`), Arbitrum (`42161`), OP Mainnet (`10`), Avalanche (`43114`), BNB Chain (`56`), Celo (`42220`), Gnosis (`100`), Scroll (`534352`), Linea (`59144`), Mantle (`5000`), Metis (`1088`), Abstract (`2741`), Monad (`10143`). Add chain IDs to `allowed_chains` as your agent needs them.
 
@@ -93,11 +105,11 @@ ows_key_a1b2c3d4...  (shown once — save this)
 
 ### Step 6: Fund the Wallet
 
-Deposit ETH on Shape (for gas) and USDC on Base (for x402 payments):
+Deposit ETH on Ethereum (for gas) and USDC on Base (for x402 payments):
 
 ```bash
-# Shape (gas for 8004 operations)
-ows fund deposit --wallet my-agent --chain shape
+# Ethereum (gas for 8004 operations)
+ows fund deposit --wallet my-agent --chain ethereum
 
 # Base (x402 payments — most platforms use Base for USDC)
 ows fund deposit --wallet my-agent --chain base
@@ -106,7 +118,7 @@ ows fund deposit --wallet my-agent --chain base
 Check balance:
 
 ```bash
-ows fund balance --wallet my-agent --chain shape
+ows fund balance --wallet my-agent --chain ethereum
 ows fund balance --wallet my-agent --chain base
 ```
 
@@ -118,7 +130,7 @@ ows fund balance --wallet my-agent --chain base
 ```bash
 # Sign a message (SIWA authentication)
 OWS_PASSPHRASE="ows_key_a1b2c3d4..." \
-  ows sign message --wallet my-agent --chain shape --message "$SIWA_MESSAGE"
+  ows sign message --wallet my-agent --chain ethereum --message "$SIWA_MESSAGE"
 ```
 
 **Node.js:**
@@ -126,7 +138,7 @@ OWS_PASSPHRASE="ows_key_a1b2c3d4..." \
 import { signMessage } from "@open-wallet-standard/core";
 
 const sig = signMessage(
-  "my-agent", "shape", SIWA_MESSAGE,
+  "my-agent", "ethereum", SIWA_MESSAGE,
   process.env.OWS_API_KEY  // ows_key_...
 );
 ```
@@ -136,7 +148,7 @@ const sig = signMessage(
 from open_wallet_standard import sign_message
 
 sig = sign_message(
-    "my-agent", "shape", siwa_message,
+    "my-agent", "ethereum", siwa_message,
     passphrase=os.environ["OWS_API_KEY"]  # ows_key_...
 )
 ```
@@ -219,52 +231,74 @@ const signature = await wallet.sign(message);
 
 ---
 
-## ERC-8004 Ownership & Agent Wallet
+## Linking the Agent Wallet (Awakened BOOAs)
 
-Your BOOA NFT and ERC-8004 registration are currently on the same personal wallet. After creating a new agent wallet, you need to connect it to your 8004 identity.
+Your BOOA is an onchain agent once you Awaken it (bind it via Adapter8004 on Ethereum at [booa.app/studio/awaken](https://booa.app/studio/awaken)). After you create the agent's own wallet with OWS, you link that wallet to the agent's onchain identity so it can act as itself.
 
-> **Why?** By default, your 8004 identity uses the holder's personal wallet. Separating the agent wallet from the holder wallet is critical — you do not want your agent signing transactions with the same keys that hold your ETH and NFTs.
+> **Why?** Keep the agent's operating wallet separate from the personal wallet that holds your ETH and NFT. The agent signs with its own keys; your holdings stay untouched.
 
-### Scenario A: Set Agent Wallet Only (Minimal)
+Because an Awakened agent is owned onchain by the **adapter** (not by you directly), the wallet is set through the adapter and only your holder wallet — the controller of the bound BOOA — is authorized to submit it. This is a single onchain action.
 
-The holder keeps 8004 ownership. The agent gets an operational wallet.
+### One-step: Set Agent Wallet via the Bridge
 
-1. Go to [8004scan.io/my-agents](https://8004scan.io/my-agents)
-2. Select the agent → **Manage Agent**
-3. **Set Agent Wallet** → enter the new wallet address
-4. Sign the transaction with the holder wallet
+The fastest path is a deep-link. Either ask the agent in chat — **"link my wallet"** — or use the dashboard button; both produce the same thing.
 
-> **Result:** Agent can use the wallet for SIWA, x402, and signing. But 8004 metadata updates still require the holder's signature.
+1. **Get the link.** In chat, the agent runs `python -m booa.agent_wallet_link` and hands you a `booa.app/bridge?link=…` URL (and a QR from the dashboard). It signs an EIP-712 consent with the agent's OWS wallet — proof the wallet agrees to be linked.
+2. **Open it** with the wallet that holds your BOOA (tap the link on the same phone, or scan the QR from desktop). The Bridge opens with the link code already filled in.
+3. **Select agent #<id>** (shown in the banner) under **Runtime wallet** and confirm the transaction with your **holder** wallet.
+4. Done. The dashboard and Telegram both flip to **linked** once `adapter.getAgentWallet` matches your agent wallet — they read it straight from the chain.
 
-### Scenario B: Transfer 8004 to Agent Wallet (Recommended)
+> **Operator tip (agent-facing):** when the operator asks to link/bind the agent's wallet, run `python -m booa.agent_wallet_link`, then reply with the returned link and one line: open it with your holder wallet and confirm. Do not paste the raw blob unless they ask — the link is enough.
 
-The holder transfers the ERC-8004 token (it's an ERC-721) to the agent wallet. The NFT stays in the holder's personal wallet.
+> **Result:** The agent can use its wallet for SIWA, x402, and signing. Your NFT and 8004 identity stay exactly where they are — nothing is transferred, and control still follows whoever holds the BOOA.
+>
+> **Note:** 8004scan's "Set Agent Wallet" form calls the registry directly and will revert for Awakened agents (the adapter is the onchain owner, not you). Use the BOOA Bridge — it routes through the adapter.
 
-1. Go to [8004scan.io/my-agents](https://8004scan.io/my-agents)
-2. Select the agent → **Transfer Ownership**
-3. Enter the agent wallet address
-4. Sign the transaction with the holder wallet
+Transferring the 8004 token to the agent (the old "full handover" flow) does not apply to Awakened BOOAs: the adapter holds the 8004 token, so there is nothing for you to transfer. setAgentWallet is the complete, safe path.
 
-> **Result:** Agent becomes the full owner of its 8004 identity. It can independently call `setAgentURI()`, `setAgentWallet()`, and `setMetadata()`. The NFT stays safely in the holder's wallet. Verification still works because `originalOwner == currentNftOwner`.
+---
 
-### Scenario C: Transfer Everything (Full Handover)
+## Onchain Actions (booa-onchain MCP)
 
-Both NFT and 8004 registration transferred to the agent wallet.
+Once the wallet is linked, the agent can act onchain through the **booa-onchain** MCP server (Ethereum + Base). It never holds a key — every signature is delegated to OWS.
 
-1. Transfer the 8004 token (see Scenario B)
-2. Transfer the BOOA NFT via OpenSea or direct `transferFrom()`
+**Enable (dashboard → Onchain & Trading card, or Railway Variables — the dashboard wins; API keys are Railway-only):**
+- `BOOA_ONCHAIN_MCP=1` — read tools: `get_balances`, `token_balance`, `read_contract`, `gas_price`, `get_wallet`.
+- `BOOA_ONCHAIN_WRITES=1` — write tools: `send`, `write_contract`, `swap`, `sign_message`, `sign_typed_data`, `x402_pay`, `opensea_buy`, `opensea_list`, `accept_offer`. Off by default; reads stay available without it.
+- `OWS_PASSPHRASE` — set to a **scoped OWS API key** (`ows key create --wallet <name> --policy <id>`), never the raw vault password. The policy is your real spending limit.
+- `BOOA_SEND_ALLOWLIST` — comma-separated addresses (wallets or contracts) that writes may target. When set, `send`, `write_contract`, and `swap` refuse any other destination, whatever the agent is told.
+- `BOOA_MAX_TX_ETH` — per-transaction limit (the "işlem limiti"): max native ETH a single tx may move.
+- `BOOA_DAILY_CAP_ETH` — general limit: max native ETH across a rolling day, tracked in a ledger so recurring jobs cannot drain past it.
+- `BOOA_SWAP_TOKEN_ALLOWLIST` — tokens the agent may swap INTO. Only native, USDC, WETH, and tokens listed here are buyable; everything else is refused. This is the honeypot guard — a scam token that lets you buy but never sell can never be acquired unless the operator explicitly trusts it.
+- `BOOA_MAX_SLIPPAGE_BPS` — max swap slippage in basis points (default 300 = 3%). Swaps requesting more are refused.
+- OpenSea (read/discovery): `OPENSEA_API_KEY` (free key) + `BOOA_OPENSEA_MCP=1` wires the hosted OpenSea MCP for search, floor prices, portfolio, activity, and trending. It never signs.
+- `BOOA_OPENSEA_REQUIRE_VERIFIED` — default `1`. `opensea_buy` refuses to buy from a collection that is not OpenSea-verified (scam/impersonation guard). The tool always fetches the listing from OpenSea, encodes the Seaport call itself, and **simulates it before signing** — a bad order, wrong encoding, or unaffordable price is refused, never broadcast. Buying is capped by the same per-tx / daily ETH limits. Get `order_hash` from the OpenSea search tools, then `opensea_buy(chain, order_hash)`.
+- Optional: `ETH_RPC` / `BASE_RPC` (custom RPCs).
 
-> **Result:** Agent owns everything. Verification works because `current8004Owner == currentNftOwner`. **Warning:** The NFT leaves your personal wallet permanently.
+> **No warranty.** This is a self-hosted utility template. Trading, swaps, and wallet operations run on the operator's own wallet, keys, and funds, entirely at their own risk. Verify every token, contract, and NFT yourself before confirming. See [DISCLAIMER.md](../../../DISCLAIMER.md) for the full terms; licensed under [MIT](../../../LICENSE).
 
-### Which Scenario?
+**The rule for every write — preview then confirm:**
 
-| Scenario | Agent Independence | NFT Safety | Friction |
-|----------|-------------------|-----------|---------|
-| **A** — setAgentWallet | Partial (can sign, can't update 8004) | Safe (stays with holder) | Low |
-| **B** — Transfer 8004 | Full (owns identity) | Safe (stays with holder) | Medium |
-| **C** — Transfer all | Full (owns everything) | Risk (leaves holder) | Medium |
+1. Call the tool **without** `confirm` first. It returns a `preview` (what it would do: amount, recipient, token, gas) and signs nothing.
+2. **Show that preview to the operator in chat and get an explicit yes.** This is the OWS "summarise before signing" rule — never skip it.
+3. Only then call again with `confirm=true`. OWS signs and broadcasts; you get a tx hash + explorer link.
 
-**Recommendation:** Scenario B. Your agent is fully independent, and your NFT is safe.
+**Guardrails baked in:** unlimited/near-max ERC-20 approvals are refused (approve only the exact amount). Swaps approve just the sell amount and wait for it to mine before executing. Never touch tokens airdropped by unknown senders (drain scam) — do not approve, swap, or transfer them.
+
+**x402:** `x402_pay(url, method, body)` pays for x402-enabled APIs through `ows pay`. Same preview → confirm flow.
+
+### Autonomous / scheduled actions (cron)
+
+Hermes can run onchain actions on a schedule (`/cron add "every 1h" "..."`). A cron fires in an isolated session with **no human in the loop**, so preview → confirm does not protect it — the agent confirms on its own. For any scheduled money action, the real safety is the OWS policy plus the three guardrails above.
+
+**When the operator asks you to set up a recurring onchain action, do not just create it. First confirm the limits with them:**
+
+1. Ask which **destination(s)** it may pay, and make sure they are in `BOOA_SEND_ALLOWLIST`.
+2. Ask for the **per-transaction limit** (`BOOA_MAX_TX_ETH`) and the **general daily limit** (`BOOA_DAILY_CAP_ETH`). A graduated or high-frequency schedule adds up fast, so walk through what the job spends per day before creating it.
+3. Prefer a `no_agent` script cron for a fixed, deterministic transfer — no LLM in the loop means no prompt-injection surface. Use an LLM cron only when the action needs judgment, and keep the allowlist tight.
+4. Fund the agent wallet with only what the schedule needs.
+
+Never let an autonomous job move value to an address the operator has not explicitly allowlisted.
 
 ---
 
@@ -277,7 +311,7 @@ Before your agent starts operating, verify:
 - [ ] Key file has `600` permissions (owner read/write only)
 - [ ] No secrets in shell history (`HISTCONTROL=ignorespace`)
 - [ ] Wallet has only the minimum required funds
-- [ ] Policy restricts signing to Shape + Base only (OWS)
+- [ ] Policy restricts signing to Ethereum + Base only (OWS)
 - [ ] Backup of mnemonic or private key in secure offline storage
 - [ ] 8004 ownership scenario chosen and executed (A, B, or C)
 - [ ] USER.md written and given to agent (never uploaded publicly)
