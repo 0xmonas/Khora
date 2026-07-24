@@ -35,11 +35,11 @@ export default function BridgePage() {
           {pendingLinkAgentId !== null && !selectedNFT && (
             <div className="mb-6 rounded-md border border-green-500/40 bg-green-500/5 p-4 space-y-1" style={font}>
               <p className="text-sm text-foreground">
-                Runtime wallet link loaded for <span className="text-green-600 dark:text-green-500">agent #{pendingLinkAgentId}</span>
+                Agent wallet link code loaded for <span className="text-green-600 dark:text-green-500">agent #{pendingLinkAgentId}</span>
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {isConnected
-                  ? `Open the Agents tab, select agent #${pendingLinkAgentId}, then confirm under Runtime wallet — the link code is already filled in.`
+                  ? `Open the Agents tab, select agent #${pendingLinkAgentId}, then confirm under Agent wallet — the link code is already filled in.`
                   : 'Connect the wallet that holds this BOOA to finish linking.'}
               </p>
             </div>

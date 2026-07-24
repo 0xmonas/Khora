@@ -201,19 +201,21 @@ export function ConfigPanel() {
         {/* Link runtime (agent) wallet — adapter.setAgentWallet */}
         {isExistingAgent && isAdapterBound && !configLoading && (
           <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">Runtime wallet</p>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">Agent wallet</p>
             {agentWallet ? (
               <p className="font-mono text-[11px] text-green-600 dark:text-green-500 break-all">
-                Linked: {agentWallet.slice(0, 6)}…{agentWallet.slice(-4)}
+                Set onchain: {agentWallet.slice(0, 6)}…{agentWallet.slice(-4)}
               </p>
             ) : (
               <p className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">
-                No runtime wallet linked. Paste the link code from your agent runtime (e.g. Hermes) to bind its wallet.
+                No agent wallet set. Paste the link code your agent generates (Hermes dashboard or &quot;link my wallet&quot; in chat).
+                A bare address can&apos;t be set: the contract requires the wallet&apos;s own co-signature, and the link code is
+                that address + signature packed together.
               </p>
             )}
 
             {linkStatus === 'success' ? (
-              <p className="font-mono text-[11px] text-green-600 dark:text-green-500">Runtime wallet linked ✓</p>
+              <p className="font-mono text-[11px] text-green-600 dark:text-green-500">Agent wallet set onchain ✓</p>
             ) : (
               <>
                 {pendingLinkBlob && (
@@ -235,7 +237,7 @@ export function ConfigPanel() {
                   disabled={!walletBlob.trim() || linkStatus === 'linking'}
                   className="w-full py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black font-mono text-xs uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  {linkStatus === 'linking' ? 'LINKING…' : agentWallet ? 'RELINK RUNTIME WALLET' : 'LINK RUNTIME WALLET'}
+                  {linkStatus === 'linking' ? 'LINKING…' : agentWallet ? 'CHANGE AGENT WALLET' : 'SET AGENT WALLET'}
                 </button>
               </>
             )}
@@ -492,7 +494,7 @@ export function ConfigPanel() {
                 {isAdapterBound ? (
                   <p className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500 leading-relaxed">
                     This agent is Awakened (adapter-bound): set its operational wallet in the{' '}
-                    <span className="text-foreground">Runtime wallet</span> section above.
+                    <span className="text-foreground">Agent wallet</span> section above.
                     8004scan&apos;s form will revert for bound agents — the Bridge is the only path.
                   </p>
                 ) : (
