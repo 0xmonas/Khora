@@ -339,6 +339,43 @@ async function resolveAndVerify(
     }
   }
 
+  // Adapter-bound (Awakened) lookup first: the AgentBound event scan resolves a
+  // bound NFT straight to its agentId. The id-range scan below stops at 3000 and
+  // can never reach mainnet's 36k+ agent ids, so awakened agents would 404 here.
+  const adapterForChain = getAdapterAddress(chainIdNum);
+  if (adapterForChain) {
+    try {
+      const { findAwakening } = await import('@/lib/server/awakened');
+      const awakening = await findAwakening(chainIdNum, tokenIdNum);
+      if (awakening) {
+        const { createPublicClient, http, fallback } = await import('viem');
+        const { IDENTITY_REGISTRY_ABI } = await import('@/lib/contracts/identity-registry');
+        const { CHAIN_CONFIG } = await import('@/types/agent');
+        const chainEntry = Object.values(CHAIN_CONFIG).find(c => c.chainId === chainIdNum);
+        if (chainEntry) {
+          const client = createPublicClient({
+            transport: fallback(chainEntry.rpcUrls.map((url: string) => http(url))),
+          });
+          const owner8004 = (await client.readContract({
+            address: getRegistryAddress(chainIdNum),
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'ownerOf',
+            args: [BigInt(awakening.agentId)],
+          }) as string).toLowerCase();
+          // Still bound (adapter owns the agent) → controller == NFT owner by construction.
+          if (owner8004 === adapterForChain.toLowerCase()) {
+            return {
+              verified: true,
+              currentNftOwner,
+              agentId: awakening.agentId,
+              registeredBy: owner8004,
+            };
+          }
+        }
+      }
+    } catch { /* fall through to the range scan */ }
+  }
+
   // No cache (or cached looked deprecated) — full on-chain scan by nftOrigin
   let allRegs = await findAllRegistrations(tokenIdNum, chainIdNum);
 
