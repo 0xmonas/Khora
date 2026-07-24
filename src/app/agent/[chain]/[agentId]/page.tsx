@@ -42,34 +42,61 @@ interface AgentData {
 async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<AgentData | null> {
   try {
     const { createPublicClient, http, fallback } = await import('viem');
+    const { mainnet, shape, shapeSepolia } = await import('viem/chains');
     const config = CHAIN_CONFIG[chain];
     const chainId = config.chainId;
 
-    if (chain !== 'shape' && chain !== 'shape-sepolia') return null;
+    // The URL chain selects which ERC-8004 registry to read. Where the NFT itself
+    // lives is independent: Ethereum is canonical post-migration, Shape still holds
+    // not-yet-migrated tokens. Try each home and use the first that resolves, so a
+    // migrated token (burned on Shape) no longer 404s.
+    const homeChainIds = chainId === shapeSepolia.id || chainId === 84532
+      ? [shapeSepolia.id]
+      : [mainnet.id, shape.id];
 
-    const booaAddress = getV2Address(chainId);
-    const storageAddress = getV2StorageAddress(chainId);
+    let home: {
+      booa: `0x${string}`;
+      storage: `0x${string}`;
+      owner: string;
+      client: ReturnType<typeof createPublicClient>;
+    } | null = null;
 
-    if (!booaAddress || booaAddress.length <= 2) return null;
+    for (const homeChainId of homeChainIds) {
+      const booa = getV2Address(homeChainId);
+      if (!booa || booa.length <= 2) continue;
+      const homeCfg = Object.values(CHAIN_CONFIG).find((c) => c.chainId === homeChainId);
+      const homeClient = createPublicClient({
+        transport: homeCfg?.rpcUrls?.length
+          ? fallback(homeCfg.rpcUrls.map((url) => http(url)))
+          : http(),
+      });
+      try {
+        const owner = (await homeClient.readContract({
+          address: booa,
+          abi: BOOA_V2_ABI,
+          functionName: 'ownerOf',
+          args: [BigInt(tokenId)],
+        })) as string;
+        home = { booa, storage: getV2StorageAddress(homeChainId), owner, client: homeClient };
+        break;
+      } catch { /* burned here (migrated) or RPC failed — try the next home */ }
+    }
 
-    const client = createPublicClient({
-      transport: fallback(config.rpcUrls.map((url) => http(url))),
-    });
+    if (!home) return null;
 
-    const [owner, traitsHex] = await Promise.all([
-      client.readContract({
-        address: booaAddress,
-        abi: BOOA_V2_ABI,
-        functionName: 'ownerOf',
-        args: [BigInt(tokenId)],
-      }) as Promise<string>,
-      client.readContract({
-        address: storageAddress,
+    const client = home.client;
+    const booaAddress = home.booa;
+    const owner = home.owner;
+
+    let traitsHex = '0x';
+    try {
+      traitsHex = (await client.readContract({
+        address: home.storage,
         abi: BOOA_V2_STORAGE_ABI,
         functionName: 'getTraits',
         args: [BigInt(tokenId)],
-      }) as Promise<string>,
-    ]);
+      })) as string;
+    } catch { /* traits unreadable — fall back to defaults below */ }
 
     let traits: OnChainTrait[] = [];
     if (traitsHex && traitsHex !== '0x') {
