@@ -45,12 +45,12 @@ interface AgentTile {
 function Badge({ tone, children }: { tone: 'live' | 'ok' | 'muted'; children: React.ReactNode }) {
   const cls =
     tone === 'live'
-      ? 'border-green-600/50 text-green-600 dark:text-green-500'
+      ? 'border-green-600/80 dark:border-green-500/80 text-green-700 dark:text-green-400'
       : tone === 'ok'
-        ? 'border-neutral-400 dark:border-neutral-600 text-foreground'
-        : 'border-neutral-300 dark:border-neutral-700 text-muted-foreground';
+        ? 'border-neutral-300 dark:border-neutral-700 text-foreground'
+        : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground';
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded-sm text-[9px] uppercase tracking-wider ${cls}`} style={font}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded-sm text-[8px] uppercase tracking-[0.15em] ${cls}`} style={font}>
       {children}
     </span>
   );
@@ -86,70 +86,75 @@ function Tile({ tile, booaEth, adapter, highlight, onLink }: {
   const identUrl = `/agent/ethereum/${tile.tokenId}`;
 
   return (
-    <div
-      className={`relative flex flex-col border-2 rounded-md overflow-hidden bg-background transition-shadow ${
-        highlight
-          ? 'border-green-600 shadow-[0_0_0_1px_rgba(22,163,74,0.5),0_0_24px_rgba(22,163,74,0.25)]'
-          : 'border-neutral-700 dark:border-neutral-200'
-      }`}
-    >
-      {/* Art */}
-      <div className="relative aspect-square bg-neutral-100 dark:bg-neutral-900">
+    <div className="group block">
+      {/* Art — studio card language: square, rounded-lg, hairline ring */}
+      <div
+        className={`relative aspect-square overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900 ring-1 transition-all duration-300 ${
+          highlight
+            ? 'ring-green-600/80 dark:ring-green-500/80'
+            : 'ring-neutral-200/60 dark:ring-neutral-800 group-hover:ring-neutral-400 dark:group-hover:ring-neutral-600'
+        }`}
+      >
         {tile.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={tile.image} alt={tile.name} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
+          <img src={tile.image} alt={tile.name} className="w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs" style={font}>#{tile.tokenId}</div>
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]" style={font}>#{tile.tokenId}</div>
         )}
+        <span
+          className={`absolute top-2 right-2 text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 border rounded-sm bg-background/85 backdrop-blur-sm ${
+            awakened
+              ? 'border-green-600/80 dark:border-green-500/80 text-green-700 dark:text-green-400'
+              : 'border-neutral-300 dark:border-neutral-700 text-muted-foreground'
+          }`}
+          style={font}
+        >
+          {awakened ? 'Awakened' : 'Dormant'}
+        </span>
         {highlight && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 bg-green-600 text-white rounded-sm text-[9px] uppercase tracking-wider" style={font}>
-            <Sparkles className="w-3 h-3" /> Just awakened
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[8px] uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-sm bg-green-600 text-white" style={font}>
+            <Sparkles className="w-2.5 h-2.5" /> New
           </span>
         )}
       </div>
 
-      {/* Body */}
-      <div className="flex flex-col gap-2 p-3">
+      {/* Body — text block sits outside the frame, like studio tool cards */}
+      <div className="mt-3 space-y-1">
         <div className="min-w-0">
-          <p className="text-sm text-foreground truncate" style={font}>{tile.name || `BOOA #${tile.tokenId}`}</p>
+          <h3 className="text-xs text-foreground truncate" style={font}>{tile.name || `BOOA #${tile.tokenId}`}</h3>
           <p className="text-[10px] text-muted-foreground" style={font}>
             BOOA #{tile.tokenId}{awakened ? ` · agent #${tile.agentId}` : ''}
           </p>
         </div>
 
         {/* Badges */}
-        <div className="flex flex-wrap gap-1">
-          {awakened ? (
-            <Badge tone="live"><Check className="w-2.5 h-2.5" /> Awakened</Badge>
-          ) : (
-            <Badge tone="muted">Not awakened</Badge>
-          )}
-          {awakened && tile.verified === true && <Badge tone="ok">Verified</Badge>}
-          {awakened && (
+        {awakened && (tile.verified === true || tile.detailLoaded) && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {tile.verified === true && <Badge tone="ok"><Check className="w-2 h-2" /> Verified</Badge>}
             <Badge tone={tile.walletLinked ? 'ok' : 'muted'}>
-              {tile.walletLinked ? 'Wallet linked' : 'No agent wallet'}
+              {tile.walletLinked ? 'Wallet linked' : 'No wallet'}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Agent wallet + metadata (awakened only) */}
-        {awakened && (
-          <div className="flex flex-col gap-1 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+        {/* Agent wallet (awakened only) */}
+        {awakened && tile.detailLoaded && (
+          <div className="pt-1 space-y-0.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground" style={font}>Agent wallet</span>
+              <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground/70" style={font}>Agent wallet</span>
               <button
                 onClick={(e) => { e.stopPropagation(); onLink(tile); }}
-                className="text-[10px] px-2 py-0.5 border border-neutral-700 dark:border-neutral-200 rounded-sm uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors"
                 style={font}
               >
                 {tile.agentWallet ? 'Change' : 'Link'}
               </button>
             </div>
-            <p className="text-[10px] text-foreground break-all" style={font}>
-              {tile.agentWallet ? `${tile.agentWallet.slice(0, 10)}…${tile.agentWallet.slice(-6)}` : 'Not linked yet'}
+            <p className="text-[10px] text-foreground/80 truncate" style={font}>
+              {tile.agentWallet ? `${tile.agentWallet.slice(0, 10)}…${tile.agentWallet.slice(-6)}` : '—'}
             </p>
-            {tile.detailLoaded && (tile.services !== null || tile.skills !== null) && (
-              <p className="text-[9px] text-muted-foreground" style={font}>
+            {(tile.services !== null || tile.skills !== null) && (
+              <p className="text-[9px] text-muted-foreground/60" style={font}>
                 {tile.services ?? 0} services · {tile.skills ?? 0} skills
               </p>
             )}
@@ -157,29 +162,29 @@ function Tile({ tile, booaEth, adapter, highlight, onLink }: {
         )}
 
         {/* Detail links */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1">
           <LinkChip href={openseaUrl}>OpenSea</LinkChip>
           {scanUrl && <LinkChip href={scanUrl}>8004scan</LinkChip>}
           {awakened && adapterUrl && <LinkChip href={adapterUrl}>Adapter</LinkChip>}
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="flex items-center gap-2 pt-1.5">
           {awakened ? (
             <>
-              <Link href={identUrl} className="flex-1 min-w-[72px] text-center text-[10px] px-2 py-1.5 border border-neutral-700 dark:border-neutral-200 rounded-sm uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors" style={font}>
-                Ident
-              </Link>
-              <Link href="/studio/agent-chat" className="flex-1 min-w-[72px] text-center text-[10px] px-2 py-1.5 border border-neutral-700 dark:border-neutral-200 rounded-sm uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors" style={font}>
-                Chat
-              </Link>
-              <Link href="/bridge" className="flex-1 min-w-[72px] text-center text-[10px] px-2 py-1.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-sm uppercase tracking-wider hover:opacity-90 transition-opacity" style={font}>
-                Configure
-              </Link>
+              <Link href={identUrl} className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Ident</Link>
+              <span className="text-muted-foreground/30">·</span>
+              <Link href="/studio/agent-chat" className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Chat</Link>
+              <span className="text-muted-foreground/30">·</span>
+              <Link href="/bridge" className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Configure</Link>
             </>
           ) : (
-            <Link href={`/studio/awaken`} className="flex-1 text-center text-[10px] px-2 py-1.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-sm uppercase tracking-wider hover:opacity-90 transition-opacity" style={font}>
-              Awaken this BOOA
+            <Link
+              href="/studio/awaken"
+              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-foreground hover:opacity-70 transition-opacity"
+              style={font}
+            >
+              Awaken <ArrowUpRight className="w-2.5 h-2.5" />
             </Link>
           )}
         </div>
@@ -308,7 +313,7 @@ function MyAgentsInner() {
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 border border-neutral-700 dark:border-neutral-200 rounded-md uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           style={font}
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -343,7 +348,7 @@ function MyAgentsInner() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
           {tiles.map((t) => (
             <Tile
               key={t.tokenId}

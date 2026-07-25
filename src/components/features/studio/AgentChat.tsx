@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Send, Trash2, ChevronDown } from 'lucide-react';
 import { useChainId } from 'wagmi';
-import { getV2Address, getV2ChainId } from '@/lib/contracts/booa-v2';
+import { getV2Address, getV2ChainId, getBooaChainSlug } from '@/lib/contracts/booa-v2';
 import { useAuth } from '@/hooks/useAuth';
 import type { NFTItem } from '@/app/api/fetch-nfts/route';
 
@@ -43,11 +43,8 @@ function saveHistory(chainId: number, tokenId: string, messages: ChatMessage[]) 
   } catch { /* quota exceeded */ }
 }
 
-// Map chainId to fetch-nfts chain slug
-function getChainSlug(chainId: number): string {
-  if (chainId === 360) return 'shape';
-  return 'shape-sepolia';
-}
+// Chain slug for /api/fetch-nfts. Uses the shared Ethereum-aware resolver — a local
+// Shape-only map silently sent Ethereum holders to Shape Sepolia and found nothing.
 
 export function AgentChat() {
   const { address, isConnected } = useAuth();
@@ -78,7 +75,7 @@ export function AgentChat() {
     }
 
     const booaContract = getV2Address(targetChainId).toLowerCase();
-    const slug = getChainSlug(targetChainId);
+    const slug = getBooaChainSlug(targetChainId);
 
     setTokensLoading(true);
     fetch(`/api/fetch-nfts?address=${address}&chain=${slug}&contract=${booaContract}`)

@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useChainId, useSwitchChain, useWriteContract, useConfig, usePublicClient } from 'wagmi';
 import { getPublicClient } from '@wagmi/core';
-import { AlertTriangle, Check, X as XIcon } from 'lucide-react';
+import { AlertTriangle, Check } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
 } from '@/components/ui/dialog';
 import { BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
@@ -133,15 +133,17 @@ export function LinkAgentWalletModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle style={font} className="text-sm">
-            {currentWallet ? 'Change' : 'Link'} agent wallet — agent #{agentId}
+          <DialogTitle style={font} className="text-xs">
+            {currentWallet ? 'Change' : 'Link'} agent wallet · #{agentId}
           </DialogTitle>
+          <DialogClose className="text-muted-foreground hover:text-foreground" />
         </DialogHeader>
 
+        <div className="p-4">
         {status === 'success' ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
             <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center">
               <Check className="w-5 h-5" />
             </div>
@@ -149,7 +151,7 @@ export function LinkAgentWalletModal({
             <button onClick={onClose} className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black uppercase tracking-wider" style={font}>Done</button>
           </div>
         ) : !preview ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-[11px] text-muted-foreground leading-relaxed" style={font}>
               Paste the link code your agent generates (Hermes dashboard or “link my wallet” in chat).
               The address it binds is shown for you to confirm on the next step.
@@ -177,7 +179,7 @@ export function LinkAgentWalletModal({
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-[11px] text-muted-foreground leading-relaxed" style={font}>
               This will set the wallet below as your agent’s onchain wallet. Anything resolving this
               agent treats it as the agent. Check it against your runtime.
@@ -221,8 +223,7 @@ export function LinkAgentWalletModal({
             </div>
           </div>
         )}
-
-        <button onClick={onClose} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground" aria-label="Close"><XIcon className="w-4 h-4" /></button>
+        </div>
       </DialogContent>
     </Dialog>
   );
