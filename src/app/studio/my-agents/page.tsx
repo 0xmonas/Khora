@@ -203,6 +203,7 @@ function MyAgentsInner() {
   const adapter = getAdapterAddress(mainnet.id);
 
   const [tiles, setTiles] = useState<AgentTile[]>([]);
+  const [shapeCount, setShapeCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkTarget, setLinkTarget] = useState<AgentTile | null>(null);
@@ -212,10 +213,22 @@ function MyAgentsInner() {
     setLoading(true);
     setError(null);
     try {
-      const [nftsRes, awkRes] = await Promise.all([
+      const [nftsRes, awkRes, shapeRes] = await Promise.all([
         fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`),
         fetch(`/api/awakened?chainId=${mainnet.id}`),
+        // Un-migrated holders land here with an empty list; knowing the Shape count lets
+        // the empty state send them to /migrate instead of a dead end.
+        fetch(`/api/migration/holdings/${address}`).catch(() => null),
       ]);
+
+      if (shapeRes && shapeRes.ok) {
+        try {
+          const s = await shapeRes.json();
+          setShapeCount(Array.isArray(s.tokenIds) ? s.tokenIds.length : 0);
+        } catch { setShapeCount(0); }
+      } else {
+        setShapeCount(0);
+      }
 
       const nftsJson = nftsRes.ok ? await nftsRes.json() : { nfts: [] };
       const owned: OwnedBooa[] = (nftsJson.nfts || []).map((n: { tokenId: string; name?: string; image?: string }) => ({
@@ -328,28 +341,71 @@ function MyAgentsInner() {
         </div>
       ) : tiles.length === 0 ? (
         <div className="px-4 py-16 flex flex-col items-center justify-center gap-3 text-center">
-          <p className="text-xs text-foreground" style={font}>No BOOA on Ethereum in this wallet.</p>
-          <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
-            Agents live on Ethereum. If your BOOA is still on Shape, migrate it first — then Awaken it into a live agent.
-          </p>
-          <div className="flex items-center gap-3 pt-1">
-            <Link href="/migrate" className="text-[11px] text-muted-foreground underline hover:text-foreground transition-colors" style={font}>Migrate</Link>
-            <Link href="/studio/awaken" className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>Awaken</Link>
-          </div>
+          {shapeCount > 0 ? (
+            <>
+              <p className="text-xs text-foreground" style={font}>
+                You hold {shapeCount} BOOA on Shape, none on Ethereum yet.
+              </p>
+              <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
+                Agents live on Ethereum, so your BOOA has to move there first. Migrate it, then
+                awaken it into a live onchain agent.
+              </p>
+              <Link href="/migrate" className="mt-1 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                Migrate to Ethereum
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-foreground" style={font}>No BOOA in this wallet.</p>
+              <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
+                Agents are BOOAs you own. Grab one, then awaken it into a live onchain agent.
+              </p>
+              <Link href="/booa/gallery" className="mt-1 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                Browse gallery
+              </Link>
+            </>
+          )}
         </div>
       ) : (
-        <div className="px-4 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-6">
-          {tiles.map((t) => (
-            <Tile
-              key={t.tokenId}
-              tile={t}
-              booaEth={booaEth!}
-              adapter={adapter}
-              highlight={t.tokenId === highlightId || t.agentId === highlightId}
-              onLink={setLinkTarget}
-            />
-          ))}
-        </div>
+        <>
+          {/* Holder owns BOOAs but has awakened none — explain what awakening is and lead there. */}
+          {awakenedCount === 0 && (
+            <div className="px-4 pt-4">
+              <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 space-y-1">
+                  <p className="text-xs text-foreground flex items-center gap-1.5" style={font}>
+                    <Sparkles className="w-3 h-3" />
+                    {tiles.length === 1 ? 'Your BOOA is not awake yet' : 'None of your BOOAs are awake yet'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed max-w-md" style={font}>
+                    Awakening binds a BOOA to its own ERC-8004 agent onchain — it gets an identity,
+                    a score, and can hold its own wallet. Control follows the NFT, so it stays yours.
+                  </p>
+                </div>
+                <Link
+                  href="/studio/awaken"
+                  className="shrink-0 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider text-center"
+                  style={font}
+                >
+                  Awaken {tiles.length === 1 ? 'it' : 'one'}
+                </Link>
+              </div>
+            </div>
+          )}
+
+          <div className="px-4 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-6">
+            {tiles.map((t) => (
+              <Tile
+                key={t.tokenId}
+                tile={t}
+                booaEth={booaEth!}
+                adapter={adapter}
+                highlight={t.tokenId === highlightId || t.agentId === highlightId}
+                onLink={setLinkTarget}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {linkTarget && linkTarget.agentId !== null && adapter && (
