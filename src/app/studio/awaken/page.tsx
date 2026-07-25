@@ -68,7 +68,9 @@ export default function AwakenPage() {
   const onEthereum = chainId === mainnet.id;
   const booaEth = getBooaEthAddress();
 
-  const load = useCallback(async () => {
+  // `fresh` bypasses the awakened cache so a BOOA awakened seconds ago is not offered
+  // again — a second register would mint a duplicate agent for the same BOOA.
+  const load = useCallback(async (fresh = false) => {
     if (!address || !booaEth) { setBoois([]); setShapeCount(0); return; }
     setLoading(true);
     setSelected(null);
@@ -79,7 +81,7 @@ export default function AwakenPage() {
         fetch(`/api/migration/holdings/${address}`).catch(() => null),
         // Already-awakened tokens must not be offered again — binding is one-way and a
         // second register would mint a duplicate agent for the same BOOA.
-        fetch(`/api/awakened?chainId=${mainnet.id}`).catch(() => null),
+        fetch(`/api/awakened?chainId=${mainnet.id}${fresh ? '&fresh=1' : ''}`).catch(() => null),
       ]);
       const ethData = await ethRes.json();
       const owned: BOOA[] = Array.isArray(ethData.nfts) ? ethData.nfts : [];
@@ -164,7 +166,7 @@ export default function AwakenPage() {
     }
   }, [address, selected, chainId, publicClient, switchChainAsync, writeContractAsync]);
 
-  const reset = () => { setState('idle'); setError(null); setResult(null); setSelected(null); setNote(''); void load(); };
+  const reset = () => { setState('idle'); setError(null); setResult(null); setSelected(null); setNote(''); void load(true); };
 
   const myAgentsHref = result
     ? `/studio/my-agents?highlight=${result.agentId || selected?.tokenId || ''}`

@@ -39,13 +39,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
   }
 
+  // `fresh=1` skips the read so a holder who just awakened sees it immediately instead
+  // of waiting out the 120s window. The scan still repopulates the cache, and the
+  // per-IP rate limit above still applies, so this cannot be used to hammer the RPC.
+  const fresh = req.nextUrl.searchParams.get('fresh') === '1';
+
   const redis = getRedis();
-  try {
-    const cached = await redis.get<unknown>(CACHE_KEY(chainId));
-    if (cached) {
-      return NextResponse.json(cached, { headers: { 'Cache-Control': 'public, s-maxage=120', ...rateLimitHeaders(rl) } });
-    }
-  } catch { /* cache miss */ }
+  if (!fresh) {
+    try {
+      const cached = await redis.get<unknown>(CACHE_KEY(chainId));
+      if (cached) {
+        return NextResponse.json(cached, { headers: { 'Cache-Control': 'public, s-maxage=120', ...rateLimitHeaders(rl) } });
+      }
+    } catch { /* cache miss */ }
+  }
 
   try {
     const events = await scanAwakenings(chainId);
@@ -93,7 +100,12 @@ export async function GET(req: NextRequest) {
     const payload = { chainId, count: enriched.length, agents: enriched };
     try { await redis.set(CACHE_KEY(chainId), payload, { ex: CACHE_TTL }); } catch { /* non-fatal */ }
 
-    return NextResponse.json(payload, { headers: { 'Cache-Control': 'public, s-maxage=120', ...rateLimitHeaders(rl) } });
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': fresh ? 'no-store' : 'public, s-maxage=120',
+        ...rateLimitHeaders(rl),
+      },
+    });
   } catch {
     return NextResponse.json({ error: 'Failed to scan awakenings' }, { status: 502 });
   }

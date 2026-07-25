@@ -208,14 +208,16 @@ function MyAgentsInner() {
   const [error, setError] = useState<string | null>(null);
   const [linkTarget, setLinkTarget] = useState<AgentTile | null>(null);
 
-  const load = useCallback(async () => {
+  // `fresh` bypasses the awakened cache: used right after an awaken (highlight present)
+  // and on explicit Refresh, so the holder never sees a stale "not awakened" state.
+  const load = useCallback(async (fresh = false) => {
     if (!address || !booaEth) { setTiles([]); return; }
     setLoading(true);
     setError(null);
     try {
       const [nftsRes, awkRes, shapeRes] = await Promise.all([
         fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`),
-        fetch(`/api/awakened?chainId=${mainnet.id}`),
+        fetch(`/api/awakened?chainId=${mainnet.id}${fresh ? '&fresh=1' : ''}`),
         // Un-migrated holders land here with an empty list; knowing the Shape count lets
         // the empty state send them to /migrate instead of a dead end.
         fetch(`/api/migration/holdings/${address}`).catch(() => null),
@@ -273,7 +275,8 @@ function MyAgentsInner() {
     }
   }, [address, booaEth]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Arriving from a successful awaken (?highlight=) must not read a stale cache.
+  useEffect(() => { void load(highlightId !== null); }, [load, highlightId]);
 
   // Lazily resolve verified / agent wallet / metadata for awakened tiles (non-blocking).
   useEffect(() => {
@@ -319,7 +322,7 @@ function MyAgentsInner() {
           {tiles.length > 0 ? `${tiles.length} BOOA · ${awakenedCount} awakened` : 'My Agents'}
         </span>
         <button
-          onClick={() => void load()}
+          onClick={() => void load(true)}
           disabled={loading}
           className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30"
           title="Refresh"
