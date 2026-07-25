@@ -297,58 +297,47 @@ function MyAgentsInner() {
   const awakenedCount = tiles.filter((t) => t.agentId !== null).length;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
-      <Link href="/studio" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" style={font}>
-        <ArrowLeft className="w-4 h-4" /> Back to Studio
-      </Link>
+    <div className="w-full rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-sm overflow-hidden">
 
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div className="space-y-2">
-          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>BOOA Studio</p>
-          <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>My Agents</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-xl" style={font}>
-            Your BOOAs and their onchain agents. Awakened ones are live ERC-8004 agents you control; the rest are one step away.
-          </p>
-        </div>
+      {/* Panel header */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800">
+        <span className="text-xs text-foreground" style={font}>
+          {tiles.length > 0 ? `${tiles.length} BOOA · ${awakenedCount} awakened` : 'My Agents'}
+        </span>
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          style={font}
+          className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30"
+          title="Refresh"
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {tiles.length > 0 && (
-        <p className="text-[11px] text-muted-foreground" style={font}>
-          {tiles.length} BOOA · {awakenedCount} awakened
-        </p>
-      )}
-
+      {/* Body */}
       {loading && tiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <div className="px-4 py-16 flex flex-col items-center justify-center gap-3">
           <div className="w-5 h-5 border-2 border-neutral-300 dark:border-neutral-700 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-muted-foreground" style={font}>Loading your agents</p>
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <div className="px-4 py-16 flex flex-col items-center justify-center gap-3 text-center">
           <p className="text-xs text-red-500" style={font}>{error}</p>
           <button onClick={() => void load()} className="text-[11px] underline text-muted-foreground hover:text-foreground" style={font}>Retry</button>
         </div>
       ) : tiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center px-6">
-          <p className="text-sm text-foreground" style={font}>No BOOA on Ethereum in this wallet.</p>
-          <p className="text-[11px] text-muted-foreground max-w-sm leading-relaxed" style={font}>
+        <div className="px-4 py-16 flex flex-col items-center justify-center gap-3 text-center">
+          <p className="text-xs text-foreground" style={font}>No BOOA on Ethereum in this wallet.</p>
+          <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
             Agents live on Ethereum. If your BOOA is still on Shape, migrate it first — then Awaken it into a live agent.
           </p>
           <div className="flex items-center gap-3 pt-1">
-            <Link href="/migrate" className="text-[11px] px-4 py-2 border border-neutral-700 dark:border-neutral-200 rounded-md uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors" style={font}>Migrate</Link>
-            <Link href="/studio/awaken" className="text-[11px] px-4 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-md uppercase tracking-wider hover:opacity-90 transition-opacity" style={font}>Awaken</Link>
+            <Link href="/migrate" className="text-[11px] text-muted-foreground underline hover:text-foreground transition-colors" style={font}>Migrate</Link>
+            <Link href="/studio/awaken" className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>Awaken</Link>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-8">
+        <div className="px-4 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-6">
           {tiles.map((t) => (
             <Tile
               key={t.tokenId}
@@ -384,11 +373,31 @@ export default function MyAgentsPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-1">
-        <HolderGate toolName="My Agents">
-          <Suspense fallback={null}>
-            <MyAgentsInner />
-          </Suspense>
-        </HolderGate>
+        <div className="p-4 md:p-8 lg:p-12">
+          <div className="w-full lg:grid lg:grid-cols-12">
+            <div className="hidden lg:block lg:col-span-1" />
+            <div className="lg:col-span-10">
+
+              <div className="space-y-3 mb-6">
+                <Link href="/studio" className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors" style={font}>
+                  <ArrowLeft className="w-3 h-3" /> Studio
+                </Link>
+                <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>My Agents</h1>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
+                  Your BOOAs and the onchain agents they carry. Awakened ones are live ERC-8004 agents you control; the rest are one step away.
+                </p>
+              </div>
+
+              <HolderGate toolName="My Agents">
+                <Suspense fallback={null}>
+                  <MyAgentsInner />
+                </Suspense>
+              </HolderGate>
+
+            </div>
+            <div className="hidden lg:block lg:col-span-1" />
+          </div>
+        </div>
       </main>
       <Footer />
     </div>
