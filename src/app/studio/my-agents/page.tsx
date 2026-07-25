@@ -10,6 +10,7 @@ import { Footer } from '@/components/layouts/Footer';
 import { HolderGate } from '@/components/features/studio/HolderGate';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
+import { LinkAgentWalletModal } from '@/components/features/my-agents/LinkAgentWalletModal';
 import { mainnet } from 'wagmi/chains';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -33,7 +34,12 @@ interface AgentTile {
   image: string;
   agentId: number | null;      // null = not awakened yet
   walletLinked: boolean;
-  verified: boolean | null;    // lazily resolved
+  // Lazily resolved from /api/agent-registry:
+  verified: boolean | null;
+  agentWallet: string | null;
+  services: number | null;
+  skills: number | null;
+  detailLoaded: boolean;
 }
 
 function Badge({ tone, children }: { tone: 'live' | 'ok' | 'muted'; children: React.ReactNode }) {
@@ -66,11 +72,12 @@ function LinkChip({ href, children }: { href: string; children: React.ReactNode 
   );
 }
 
-function Tile({ tile, booaEth, adapter, highlight }: {
+function Tile({ tile, booaEth, adapter, highlight, onLink }: {
   tile: AgentTile;
   booaEth: string;
   adapter: string | null;
   highlight: boolean;
+  onLink: (tile: AgentTile) => void;
 }) {
   const awakened = tile.agentId !== null;
   const openseaUrl = `https://opensea.io/assets/ethereum/${booaEth}/${tile.tokenId}`;
@@ -125,6 +132,30 @@ function Tile({ tile, booaEth, adapter, highlight }: {
           )}
         </div>
 
+        {/* Agent wallet + metadata (awakened only) */}
+        {awakened && (
+          <div className="flex flex-col gap-1 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground" style={font}>Agent wallet</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onLink(tile); }}
+                className="text-[10px] px-2 py-0.5 border border-neutral-700 dark:border-neutral-200 rounded-sm uppercase tracking-wider hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                style={font}
+              >
+                {tile.agentWallet ? 'Change' : 'Link'}
+              </button>
+            </div>
+            <p className="text-[10px] text-foreground break-all" style={font}>
+              {tile.agentWallet ? `${tile.agentWallet.slice(0, 10)}…${tile.agentWallet.slice(-6)}` : 'Not linked yet'}
+            </p>
+            {tile.detailLoaded && (tile.services !== null || tile.skills !== null) && (
+              <p className="text-[9px] text-muted-foreground" style={font}>
+                {tile.services ?? 0} services · {tile.skills ?? 0} skills
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Detail links */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
           <LinkChip href={openseaUrl}>OpenSea</LinkChip>
@@ -168,6 +199,7 @@ function MyAgentsInner() {
   const [tiles, setTiles] = useState<AgentTile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkTarget, setLinkTarget] = useState<AgentTile | null>(null);
 
   const load = useCallback(async () => {
     if (!address || !booaEth) { setTiles([]); return; }
@@ -205,6 +237,10 @@ function MyAgentsInner() {
             agentId: a ? a.agentId : null,
             walletLinked: a ? a.walletLinked : false,
             verified: null,
+            agentWallet: null,
+            services: null,
+            skills: null,
+            detailLoaded: false,
           };
         })
         // Awakened first, then by tokenId.
@@ -220,20 +256,34 @@ function MyAgentsInner() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Lazily resolve `verified` for awakened tiles (non-blocking).
+  // Lazily resolve verified / agent wallet / metadata for awakened tiles (non-blocking).
   useEffect(() => {
     let cancelled = false;
-    const targets = tiles.filter((t) => t.agentId !== null && t.verified === null);
+    const targets = tiles.filter((t) => t.agentId !== null && !t.detailLoaded);
     if (targets.length === 0) return;
     (async () => {
       for (const t of targets) {
         try {
           const r = await fetch(`/api/agent-registry/${mainnet.id}/${t.tokenId}`);
-          if (!r.ok) continue;
+          if (cancelled) return;
+          if (!r.ok) {
+            setTiles((prev) => prev.map((p) => (p.tokenId === t.tokenId ? { ...p, detailLoaded: true } : p)));
+            continue;
+          }
           const d = await r.json();
           if (cancelled) return;
-          setTiles((prev) => prev.map((p) => (p.tokenId === t.tokenId ? { ...p, verified: !!d.verified } : p)));
-        } catch { /* leave verified null */ }
+          setTiles((prev) => prev.map((p) => (p.tokenId === t.tokenId ? {
+            ...p,
+            verified: !!d.verified,
+            agentWallet: typeof d.agentWallet === 'string' ? d.agentWallet : null,
+            walletLinked: !!d.agentWallet || p.walletLinked,
+            services: Array.isArray(d.services) ? d.services.length : 0,
+            skills: Array.isArray(d.skills) ? d.skills.length : 0,
+            detailLoaded: true,
+          } : p)));
+        } catch {
+          setTiles((prev) => prev.map((p) => (p.tokenId === t.tokenId ? { ...p, detailLoaded: true } : p)));
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -295,9 +345,30 @@ function MyAgentsInner() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {tiles.map((t) => (
-            <Tile key={t.tokenId} tile={t} booaEth={booaEth!} adapter={adapter} highlight={t.tokenId === highlightId || t.agentId === highlightId} />
+            <Tile
+              key={t.tokenId}
+              tile={t}
+              booaEth={booaEth!}
+              adapter={adapter}
+              highlight={t.tokenId === highlightId || t.agentId === highlightId}
+              onLink={setLinkTarget}
+            />
           ))}
         </div>
+      )}
+
+      {linkTarget && linkTarget.agentId !== null && adapter && (
+        <LinkAgentWalletModal
+          open
+          onClose={() => setLinkTarget(null)}
+          agentId={linkTarget.agentId}
+          chainId={mainnet.id}
+          adapterAddress={adapter as `0x${string}`}
+          currentWallet={linkTarget.agentWallet}
+          onLinked={(wallet) => {
+            setTiles((prev) => prev.map((p) => (p.tokenId === linkTarget.tokenId ? { ...p, agentWallet: wallet, walletLinked: true } : p)));
+          }}
+        />
       )}
     </div>
   );
