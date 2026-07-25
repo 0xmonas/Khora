@@ -109,6 +109,7 @@ function WalletButton() {
 const NAV_LINKS: { href: string; label: string; highlight?: boolean; shimmer?: boolean }[] = [
   { href: '/booa', label: 'BOOA' },
   { href: '/migrate', label: 'Migrate', shimmer: true },
+  { href: '/studio/my-agents', label: 'My Agents' },
   { href: '/bridge', label: 'Bridge' },
   { href: '/studio', label: 'Studio' },
   { href: '/blog', label: 'Blog' },

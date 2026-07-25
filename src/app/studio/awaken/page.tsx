@@ -57,6 +57,7 @@ export default function AwakenPage() {
 
   const [boois, setBoois] = useState<BOOA[]>([]);
   const [shapeCount, setShapeCount] = useState(0);
+  const [awakenedCount, setAwakenedCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<BOOA | null>(null);
   const [state, setState] = useState<AwakenState>('idle');
@@ -72,13 +73,32 @@ export default function AwakenPage() {
     setLoading(true);
     setSelected(null);
     try {
-      const [ethRes, shapeRes] = await Promise.all([
+      const [ethRes, shapeRes, awkRes] = await Promise.all([
         fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`),
         // Count Shape BOOAs so the empty state can point un-migrated holders to /migrate.
         fetch(`/api/migration/holdings/${address}`).catch(() => null),
+        // Already-awakened tokens must not be offered again — binding is one-way and a
+        // second register would mint a duplicate agent for the same BOOA.
+        fetch(`/api/awakened?chainId=${mainnet.id}`).catch(() => null),
       ]);
       const ethData = await ethRes.json();
-      setBoois(Array.isArray(ethData.nfts) ? ethData.nfts : []);
+      const owned: BOOA[] = Array.isArray(ethData.nfts) ? ethData.nfts : [];
+
+      let awakenedIds = new Set<number>();
+      if (awkRes && awkRes.ok) {
+        try {
+          const awkData = await awkRes.json();
+          awakenedIds = new Set<number>(
+            (awkData.agents || [])
+              .filter((a: { holder?: string }) => a.holder?.toLowerCase() === address.toLowerCase())
+              .map((a: { tokenId: number }) => Number(a.tokenId)),
+          );
+        } catch { /* leave empty — falls back to showing everything */ }
+      }
+
+      setAwakenedCount(owned.filter((n) => awakenedIds.has(Number(n.tokenId))).length);
+      setBoois(owned.filter((n) => !awakenedIds.has(Number(n.tokenId))));
+
       if (shapeRes && shapeRes.ok) {
         const shapeData = await shapeRes.json();
         setShapeCount(Array.isArray(shapeData.tokenIds) ? shapeData.tokenIds.length : 0);
@@ -88,6 +108,7 @@ export default function AwakenPage() {
     } catch {
       setBoois([]);
       setShapeCount(0);
+      setAwakenedCount(0);
     } finally {
       setLoading(false);
     }
@@ -239,7 +260,19 @@ export default function AwakenPage() {
                           </div>
                         ) : boois.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-                            {shapeCount > 0 ? (
+                            {awakenedCount > 0 ? (
+                              <>
+                                <p className="text-xs text-foreground" style={font}>
+                                  All {awakenedCount} of your BOOA{awakenedCount === 1 ? ' is' : 's are'} already awakened.
+                                </p>
+                                <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed" style={font}>
+                                  Each BOOA binds to one onchain agent, so there is nothing left to awaken in this wallet.
+                                </p>
+                                <Link href="/studio/my-agents" className="mt-1 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                                  View My Agents
+                                </Link>
+                              </>
+                            ) : shapeCount > 0 ? (
                               <>
                                 <p className="text-xs text-foreground" style={font}>
                                   You hold {shapeCount} BOOA on Shape, but none on Ethereum yet.
@@ -282,6 +315,15 @@ export default function AwakenPage() {
                               );
                             })}
                           </div>
+                        )}
+
+                        {!loading && awakenedCount > 0 && boois.length > 0 && (
+                          <p className="mt-3 text-[10px] text-muted-foreground/70 text-center" style={font}>
+                            {awakenedCount} already awakened and hidden ·{' '}
+                            <Link href="/studio/my-agents" className="underline hover:text-foreground transition-colors">
+                              My Agents
+                            </Link>
+                          </p>
                         )}
                       </div>
 
