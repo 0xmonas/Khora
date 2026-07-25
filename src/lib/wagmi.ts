@@ -9,9 +9,12 @@ import {
 import { http } from 'wagmi';
 import { HIDE_TESTNETS } from '@/utils/constants/chains';
 
-// All mainnet chains for Bridge cross-chain registration
+// All mainnet chains for Bridge cross-chain registration.
+// Ethereum is first: it is the collection's canonical home post-migration, and the
+// first entry is what the wallet UI offers by default. Shape stays second for the
+// tokens that have not migrated yet.
 const mainnetChains = [
-  shape, mainnet, base, arbitrum, optimism, polygon,
+  mainnet, shape, base, arbitrum, optimism, polygon,
   avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstractChain, monad,
 ] as const;
 

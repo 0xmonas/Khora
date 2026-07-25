@@ -7,7 +7,7 @@ import { RainbowKitProvider, darkTheme, lightTheme, useConnectModal, type Theme 
 import { wagmiConfig } from '@/lib/wagmi';
 import { useTheme } from '@/components/providers/theme-provider';
 import { SiweProvider, useSiweStatus } from './siwe-provider';
-import { shape } from 'wagmi/chains';
+import { mainnet } from 'wagmi/chains';
 
 import '@rainbow-me/rainbowkit/styles.css';
 
@@ -148,7 +148,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <SiweProvider>
-          <RainbowKitProvider theme={theme === 'dark' ? booaDark : booaLight} initialChain={shape}>
+          <RainbowKitProvider theme={theme === 'dark' ? booaDark : booaLight} initialChain={mainnet}>
             <SiweAutoPrompt />
             {children}
           </RainbowKitProvider>

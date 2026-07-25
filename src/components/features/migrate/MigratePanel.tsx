@@ -1,8 +1,9 @@
 'use client';
 
-import { useAccount } from 'wagmi';
-import { Loader2, Flame, ArrowRight, CheckCircle2, ExternalLink } from 'lucide-react';
+import { useAccount, useSwitchChain } from 'wagmi';
+import { Loader2, Flame, ArrowRight, CheckCircle2, ExternalLink, Network } from 'lucide-react';
 import { useMigrate, type MigrateStep } from './MigrateContext';
+import { SHAPE_MAINNET_CHAIN_ID } from '@/lib/contracts/booa-eth';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -18,7 +19,8 @@ const STEP_LABEL: Record<MigrateStep, string> = {
 };
 
 export function MigratePanel() {
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const {
     status, loadingStatus, holdings, selected, step, error, progressNote,
     burnTxHash, claimTxHash, claimedTokenIds, pending,
@@ -75,9 +77,34 @@ export function MigratePanel() {
   }
 
   const showRecovery = pending.length > 0;
+  // Ethereum is the app's primary network, so holders land here on Ethereum and may not
+  // see their Shape tokens in the wallet. Burning happens on Shape, so offer the switch
+  // up front instead of only mid-flow.
+  const onShape = chainId === SHAPE_MAINNET_CHAIN_ID;
 
   return (
     <div className="space-y-3">
+    {isConnected && !onShape && (
+      <div className="border-2 border-neutral-700 dark:border-neutral-200 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Network className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs text-foreground uppercase tracking-wider" style={font}>Wallet is not on Shape</p>
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed" style={font}>
+          Your BOOAs still on Shape are listed below regardless, but burning happens on Shape.
+          Switch now to see them in your wallet too — the migrate button switches for you either way.
+        </p>
+        <button
+          onClick={() => { void switchChainAsync({ chainId: SHAPE_MAINNET_CHAIN_ID }).catch(() => {}); }}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 border-2 border-neutral-700 dark:border-neutral-200 p-2.5 text-[11px] uppercase text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-30"
+          style={font}
+        >
+          <Network className="w-3.5 h-3.5" /> Switch to Shape
+        </button>
+      </div>
+    )}
+
     {showRecovery && (
       <div className="border-2 border-amber-500/70 dark:border-amber-400/70 bg-amber-500/5 p-4 space-y-3">
         <p className="text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wider" style={font}>

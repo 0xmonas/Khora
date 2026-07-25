@@ -16,6 +16,15 @@ import { mainnet } from 'wagmi/chains';
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const ETH_SCAN = 'https://etherscan.io';
 
+// Card actions share the panel's hairline border language (not the heavy border-2).
+const ACTION_BTN =
+  'flex-1 text-center text-[9px] uppercase tracking-[0.1em] px-1.5 py-1 rounded-md border ' +
+  'border-neutral-200 dark:border-neutral-800 text-muted-foreground ' +
+  'hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-foreground transition-colors';
+const ACTION_BTN_PRIMARY =
+  'flex-1 text-center text-[9px] uppercase tracking-[0.1em] px-1.5 py-1 rounded-md ' +
+  'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity';
+
 interface OwnedBooa {
   tokenId: number;
   name: string;
@@ -169,23 +178,15 @@ function Tile({ tile, booaEth, adapter, highlight, onLink }: {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-1.5">
+        <div className="flex items-center gap-1.5 pt-2">
           {awakened ? (
             <>
-              <Link href={identUrl} className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Ident</Link>
-              <span className="text-muted-foreground/30">·</span>
-              <Link href="/studio/agent-chat" className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Chat</Link>
-              <span className="text-muted-foreground/30">·</span>
-              <Link href="/bridge" className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors" style={font}>Configure</Link>
+              <Link href={identUrl} className={ACTION_BTN} style={font}>Ident</Link>
+              <Link href="/studio/agent-chat" className={ACTION_BTN} style={font}>Chat</Link>
+              <Link href="/bridge" className={ACTION_BTN} style={font}>Config</Link>
             </>
           ) : (
-            <Link
-              href="/studio/awaken"
-              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-foreground hover:opacity-70 transition-opacity"
-              style={font}
-            >
-              Awaken <ArrowUpRight className="w-2.5 h-2.5" />
-            </Link>
+            <Link href="/studio/awaken" className={ACTION_BTN_PRIMARY} style={font}>Awaken</Link>
           )}
         </div>
       </div>
