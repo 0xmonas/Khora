@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAccount, useChainId, useSwitchChain, useWriteContract, usePublicClient } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { ArrowLeft, Loader2, Check, ArrowUpRight, RefreshCw } from 'lucide-react';
@@ -47,6 +48,7 @@ async function buildAgentURI(nft: BOOA, owner: string): Promise<string> {
 type AwakenState = 'idle' | 'switching' | 'awakening' | 'done' | 'error';
 
 export default function AwakenPage() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -142,6 +144,18 @@ export default function AwakenPage() {
   }, [address, selected, chainId, publicClient, switchChainAsync, writeContractAsync]);
 
   const reset = () => { setState('idle'); setError(null); setResult(null); setSelected(null); setNote(''); void load(); };
+
+  const myAgentsHref = result
+    ? `/studio/my-agents?highlight=${result.agentId || selected?.tokenId || ''}`
+    : '/studio/my-agents';
+
+  // Onboard the holder straight into My Agents after a successful awaken.
+  useEffect(() => {
+    if (state !== 'done') return;
+    const t = setTimeout(() => router.push(myAgentsHref), 3500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
   const busy = state === 'awakening' || state === 'switching';
 
   return (
@@ -197,6 +211,10 @@ export default function AwakenPage() {
                       <p className="text-xs text-muted-foreground max-w-xs leading-relaxed" style={font}>
                         Bound onchain to your BOOA. Whoever holds it controls the agent.
                       </p>
+                      <Link href={myAgentsHref} className="mt-1 inline-flex items-center gap-1.5 text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                        View in My Agents <ArrowUpRight className="w-3 h-3" />
+                      </Link>
+                      <p className="text-[10px] text-muted-foreground/60" style={font}>Taking you there…</p>
                       <div className="flex items-center gap-3 pt-1">
                         <a href={`${ETH_SCAN}/tx/${result.txHash}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors" style={font}>
                           Transaction <ArrowUpRight className="w-3 h-3" />
@@ -206,7 +224,7 @@ export default function AwakenPage() {
                             8004scan <ArrowUpRight className="w-3 h-3" />
                           </a>
                         )}
-                        <button onClick={reset} className="text-[11px] px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity uppercase tracking-wider" style={font}>
+                        <button onClick={reset} className="text-[11px] text-muted-foreground underline hover:text-foreground transition-colors uppercase tracking-wider" style={font}>
                           Awaken another
                         </button>
                       </div>

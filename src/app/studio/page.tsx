@@ -37,6 +37,14 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'my-agents',
+    title: 'My Agents',
+    description: 'Your BOOAs and their onchain agents in one place. Awaken status, agent wallet, verified badge, and quick links to the ident card, chat, and 8004scan.',
+    href: '/studio/my-agents',
+    media: 'awaken.svg',
+    tag: 'NEW',
+  },
+  {
     id: 'booask',
     title: 'BOOASK',
     description: 'Ask anything about a BOOA, an agent, or how any of this works. Read-only oracle, no wallet required.',
