@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const events = await scanAwakenings(chainId);
+    const events = await scanAwakenings(chainId, fresh);
     const adapter = getAdapterAddress(chainId);
     const booa = getV2Address(chainId);
 

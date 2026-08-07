@@ -8,6 +8,7 @@
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { getV2Address } from '@/lib/contracts/booa-v2';
 import { CHAIN_CONFIG } from '@/types/agent';
+import { getRedis } from '@/lib/server/redis';
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
 const ALCHEMY_NETWORKS: Partial<Record<number, string>> = {
@@ -50,7 +51,31 @@ async function makeClient(chainId: number) {
 }
 
 /** All AgentBound events for the BOOA contract on `chainId`, newest first. */
-export async function scanAwakenings(chainId: number): Promise<Awakening[]> {
+/**
+ * Cached wrapper around the log scan. Every surface that needs binding facts goes
+ * through here, so they cannot disagree and the shared adapter is not rescanned
+ * once per caller. `fresh` skips the read (used right after an awaken).
+ */
+const SCAN_CACHE_KEY = (chainId: number) => `awakened:scan:v1:${chainId}`;
+const SCAN_CACHE_TTL = 120;
+
+export async function scanAwakenings(chainId: number, fresh = false): Promise<Awakening[]> {
+  if (!fresh) {
+    try {
+      const cached = await getRedis().get<Awakening[]>(SCAN_CACHE_KEY(chainId));
+      if (Array.isArray(cached)) return cached;
+    } catch { /* cache unavailable — scan */ }
+  }
+  const result = await scanAwakeningsUncached(chainId);
+  if (result.length > 0) {
+    try {
+      await getRedis().set(SCAN_CACHE_KEY(chainId), result, { ex: SCAN_CACHE_TTL });
+    } catch { /* best effort */ }
+  }
+  return result;
+}
+
+async function scanAwakeningsUncached(chainId: number): Promise<Awakening[]> {
   const adapter = getAdapterAddress(chainId);
   const booa = getV2Address(chainId);
   if (!adapter || !booa || booa.length <= 2) return [];

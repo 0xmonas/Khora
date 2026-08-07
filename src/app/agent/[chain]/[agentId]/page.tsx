@@ -153,6 +153,17 @@ async function fetchBOOAAgent(chain: SupportedChain, tokenId: number): Promise<A
       }
     } catch { /* empty */ }
 
+    // Awaken binds through the adapter and never writes the Redis registry key, so a
+    // freshly awakened BOOA would render the "not registered yet" placeholder. Fall
+    // back to the onchain AgentBound scan, which is the same source My Agents uses.
+    if (registryAgentId === null) {
+      try {
+        const { findAwakening } = await import('@/lib/server/awakened');
+        const awakening = await findAwakening(chainId, tokenId);
+        if (awakening) registryAgentId = awakening.agentId;
+      } catch { /* leave null — placeholder is correct if nothing is bound */ }
+    }
+
     return {
       tokenId,
       chain,

@@ -3,6 +3,7 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain, DiscoveredAgent } from '@/types/agent';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
+import { getV2Address } from '@/lib/contracts/booa-v2';
 import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
 import { getAgentsByOwner } from '@/lib/server/eight004scan';
 
@@ -364,58 +365,29 @@ async function discoverAdapterControlled(
   if (!adapterAddress) return [];
 
   try {
-    const { createPublicClient, http, fallback, parseAbiItem } = await import('viem');
+    const { createPublicClient, http, fallback } = await import('viem');
     const client = createPublicClient({
       transport: fallback(rpcUrlsFor(config.chainId, config.rpcUrls).map((url: string) => http(url))),
     });
 
-    const agentBoundEvent = parseAbiItem(
-      'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)'
-    );
+    // Use the shared, BOOA-filtered, cached scanner instead of a second local scan.
+    // The old local loop pulled EVERY project's AgentBound events off the shared
+    // adapter and capped at 6 pages, so it silently missed older awakenings (a
+    // holder with 27 awakened BOOAs saw only 11 here).
+    const { scanAwakenings } = await import('@/lib/server/awakened');
+    const awakenings = await scanAwakenings(config.chainId);
+    if (awakenings.length === 0) return [];
 
-    // Paginate over blocks — RPCs cap eth_getLogs range at 10k. Premm's Eth/Base
-    // adapters are SHARED canonical contracts (many projects), so an unbounded
-    // scan could return thousands of events and blow up Alchemy usage. Hard-cap
-    // the scan: at most MAX_PAGES getLogs calls and MAX_LOGS events processed.
-    const PAGE_SIZE = BigInt(9_999);
-    const MAX_PAGES = 6;                 // ~60k blocks — bounded RPC cost on any chain
-    const MAX_LOGS = 1500;               // bound the downstream multicall too
-    const latest = await client.getBlockNumber();
-
-    type AgentBoundLog = Awaited<ReturnType<typeof client.getLogs<typeof agentBoundEvent>>>[number];
-    const logs: AgentBoundLog[] = [];
-    let cursor = latest;
-    let pages = 0;
-    let truncated = false;
-    while (pages < MAX_PAGES) {
-      const from = cursor > PAGE_SIZE ? cursor - PAGE_SIZE : BigInt(0);
-      const page = await client.getLogs({
-        address: adapterAddress,
-        event: agentBoundEvent,
-        fromBlock: from,
-        toBlock: cursor,
-      });
-      logs.push(...page);
-      pages++;
-      if (logs.length >= MAX_LOGS) { truncated = true; break; }
-      if (from === BigInt(0)) break;
-      cursor = from - BigInt(1);
-    }
-    if (pages >= MAX_PAGES || truncated) {
-      console.warn(`discoverAdapterControlled [${chain}]: scan capped (pages=${pages}, logs=${logs.length}) — recent bindings only.`);
-    }
-
-    if (logs.length === 0) return [];
-
-    const ownerChecks = logs.map((log) => ({
-      address: log.args.tokenContract as `0x${string}`,
-      abi: REGISTRY_ABI,
-      functionName: 'ownerOf' as const,
-      args: [log.args.tokenId as bigint],
-    }));
+    const booaAddress = getV2Address(config.chainId);
+    if (!booaAddress || booaAddress.length <= 2) return [];
 
     const owners = await client.multicall({
-      contracts: ownerChecks,
+      contracts: awakenings.map((a) => ({
+        address: booaAddress,
+        abi: REGISTRY_ABI,
+        functionName: 'ownerOf' as const,
+        args: [BigInt(a.tokenId)],
+      })),
       multicallAddress: MULTICALL3,
       allowFailure: true,
     });
@@ -425,9 +397,9 @@ async function discoverAdapterControlled(
       const r = owners[i] as { status: string; result?: string };
       if (r.status === 'success' && (r.result as string).toLowerCase() === address.toLowerCase()) {
         controlled.push({
-          agentId: Number(logs[i].args.agentId),
-          boundContract: (logs[i].args.tokenContract as string).toLowerCase(),
-          boundTokenId: Number(logs[i].args.tokenId),
+          agentId: awakenings[i].agentId,
+          boundContract: booaAddress.toLowerCase(),
+          boundTokenId: awakenings[i].tokenId,
         });
       }
     }
