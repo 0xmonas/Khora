@@ -68,6 +68,19 @@ export function NFTGrid() {
       .finally(() => setAgentsLoading(false));
   }, [isConnected, address, selectedChain]);
 
+  // Adapter-bound agents carry the BOOA they are bound to, so an NFT in the NFTs tab
+  // can show where it already lives as an agent instead of looking unregistered.
+  // Keyed by contract too, since tokenIds collide across collections.
+  const boundAgentByToken = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of agents) {
+      if (a.boundContract && typeof a.boundTokenId === 'number') {
+        m.set(`${a.boundContract.toLowerCase()}:${a.boundTokenId}`, a.tokenId);
+      }
+    }
+    return m;
+  }, [agents]);
+
   // Sort agents by tokenId (proxy for registration order)
   const sortedAgents = useMemo(() => {
     const sorted = [...agents];
@@ -184,6 +197,12 @@ export function NFTGrid() {
       </div>
 
       {/* Item count */}
+      {!isLoading && items.length > 0 && tab === 'nfts' && boundAgentByToken.size > 0 && (
+        <p className="font-mono text-[10px] text-neutral-400">
+          {boundAgentByToken.size} already bound as agent{boundAgentByToken.size !== 1 ? 's' : ''} on {chainLabel} (tagged with their agent ID)
+        </p>
+      )}
+
       {!isLoading && items.length > 0 && tab === 'agents' && (
         <p className="font-mono text-[10px] text-neutral-400">
           {agentVisibleCount >= sortedAgents.length
@@ -205,7 +224,13 @@ export function NFTGrid() {
                 selectedNFT?.tokenId === nft.tokenId
               }
               onClick={() => selectNFT(nft)}
-              badge={tab === 'agents' ? '8004' : undefined}
+              badge={
+                tab === 'agents'
+                  ? '8004'
+                  : boundAgentByToken.has(`${nft.contractAddress.toLowerCase()}:${nft.tokenId}`)
+                    ? `#${boundAgentByToken.get(`${nft.contractAddress.toLowerCase()}:${nft.tokenId}`)}`
+                    : undefined
+              }
             />
           ))}
         </div>
