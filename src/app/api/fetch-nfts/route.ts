@@ -72,7 +72,7 @@ export interface NFTItem {
 
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address');
-  const chain = request.nextUrl.searchParams.get('chain') || 'shape';
+  const chain = request.nextUrl.searchParams.get('chain') || 'ethereum';
   const pageKey = request.nextUrl.searchParams.get('pageKey') || undefined;
   const contractFilter = request.nextUrl.searchParams.get('contract') || undefined;
 

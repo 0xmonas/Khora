@@ -13,7 +13,7 @@ const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
  */
 export async function GET(request: NextRequest) {
   const contract = request.nextUrl.searchParams.get('contract');
-  const chain = request.nextUrl.searchParams.get('chain') || 'shape-sepolia';
+  const chain = request.nextUrl.searchParams.get('chain') || 'ethereum';
   const startToken = request.nextUrl.searchParams.get('startToken') || undefined;
 
   if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract)) {

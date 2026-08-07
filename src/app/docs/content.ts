@@ -542,7 +542,7 @@ GET /api/agent-files/{chainId}/{tokenId}/erc8004.json — ERC-8004 registration
 
 Discovery:
 GET /api/discover-agents?address={addr}&chain={slug} — All agents owned by wallet
-POST /api/fetch-agent {"chain":"shape","agentId":42} — Raw 8004 registration data
+POST /api/fetch-agent {"chain":"ethereum","agentId":42} — Raw 8004 registration data
 
 Collection:
 GET /api/gallery?contract={addr}&chain=ethereum&limit=50 — Browse collection

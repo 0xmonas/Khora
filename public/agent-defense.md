@@ -247,10 +247,10 @@ Example (OWS-style, illustrative — consult current OWS docs for the authoritat
 ```json
 {
   "id": "agent-policy",
-  "name": "Agent: Shape + Base",
+  "name": "Agent: Ethereum + Base",
   "version": 1,
   "rules": [
-    { "type": "allowed_chains", "chain_ids": ["eip155:360", "eip155:8453"] },
+    { "type": "allowed_chains", "chain_ids": ["eip155:1", "eip155:8453"] },
     { "type": "expires_at", "timestamp": "2027-01-01T00:00:00Z" }
   ],
   "action": "deny"

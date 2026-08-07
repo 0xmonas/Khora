@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
               <div>
                 <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Blockchain Networks</h3>
                 <p>
-                  Transactions on Shape Network, Ethereum, Base, and other supported EVM chains are permanent and publicly visible. We do not control blockchain data.
+                  Transactions on Ethereum, Base, Shape Network, and other supported EVM chains are permanent and publicly visible. We do not control blockchain data.
                 </p>
               </div>
             </Section>

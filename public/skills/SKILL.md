@@ -3,7 +3,7 @@ name: khora
 version: 1.0.0
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
 homepage: https://booa.app
-metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"shape","nft_contract":"0x7aecA981734d133d3f695937508C48483BA6b654","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
+metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"ethereum","nft_contract":"0xbc48fD45aAaf6549293056606397D351a100b222","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
 ---
 
 # BOOA — Agent Setup
@@ -58,7 +58,7 @@ Fetch your agent's on-chain identity. All endpoints are public — no authentica
 ### 1a. Get Agent Identity & Scores
 
 ```bash
-curl "https://booa.app/api/agent-card?chain=shape&agentId={AGENT_ID}"
+curl "https://booa.app/api/agent-card?chain=ethereum&agentId={AGENT_ID}"
 ```
 
 **Response:**
@@ -66,8 +66,8 @@ curl "https://booa.app/api/agent-card?chain=shape&agentId={AGENT_ID}"
 {
   "agent": {
     "id": 42,
-    "chain": "shape",
-    "chainId": 360,
+    "chain": "ethereum",
+    "chainId": 1,
     "owner": "0x...",
     "name": "Ink-Sync",
     "description": "A cybernetically-enhanced Cephalopod-Human hybrid...",
@@ -330,11 +330,11 @@ ows wallet export --wallet "my-agent"
 cat > policy.json << 'EOF'
 {
   "id": "agent-policy",
-  "name": "Agent: Shape + Base",
+  "name": "Agent: Ethereum + Base",
   "version": 1,
   "created_at": "2026-04-12T00:00:00Z",
   "rules": [
-    { "type": "allowed_chains", "chain_ids": ["eip155:360", "eip155:8453"] },
+    { "type": "allowed_chains", "chain_ids": ["eip155:1", "eip155:8453"] },
     { "type": "expires_at", "timestamp": "2026-12-31T23:59:59Z" }
   ],
   "action": "deny"
@@ -408,7 +408,15 @@ Your agent now has:
 
 ## On-Chain Contracts
 
-### Shape Mainnet (Chain ID: 360)
+### Ethereum Mainnet (Chain ID: 1) — canonical home
+
+| Contract | Address |
+|----------|---------|
+| BOOA (ERC-721) | `0xbc48fD45aAaf6549293056606397D351a100b222` |
+| BOOAStorage | `0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96` |
+| BOOARenderer | `0x7Cf376EE7263a78Db2d163775BE322fA7B842C76` |
+
+### Shape Mainnet (Chain ID: 360) — origin collection, still live for un-migrated holders
 
 | Contract | Address |
 |----------|---------|
@@ -443,9 +451,9 @@ GET  /api/agent-card?chain={slug}&agentId={id}           # Agent identity + scor
 GET  /api/booa-token?network=mainnet&tokenId={id}         # On-chain traits + pixel art
 GET  /api/agent-registry/{chainId}/{tokenId}              # Registration status + verification
 GET  /api/discover-agents?address={addr}&chain={slug}     # All agents owned by wallet
-POST /api/fetch-agent  {"chain":"shape","agentId":42}     # Raw 8004 registration data
-GET  /api/gallery?contract={addr}&chain=shape&limit=50    # Browse collection
-GET  /api/fetch-nfts?address={addr}&chain=shape           # All NFTs in wallet
+POST /api/fetch-agent  {"chain":"ethereum","agentId":42}  # Raw 8004 registration data
+GET  /api/gallery?contract={addr}&chain=ethereum&limit=50 # Browse collection
+GET  /api/fetch-nfts?address={addr}&chain=ethereum        # All NFTs in wallet
 GET  /api/stats                                           # Collection statistics
 GET  /api/agent-files/{chainId}/{tokenId}                  # ZIP (all files)
 GET  /api/agent-files/{chainId}/{tokenId}/identity.md     # IDENTITY.md

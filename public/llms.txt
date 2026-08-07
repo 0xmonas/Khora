@@ -41,16 +41,16 @@ Deployed via deterministic CREATE2 — same address on every EVM chain.
 Fetch a complete ERC-8004 agent identity with computed scores.
 
 Parameters:
-- chain (required): Chain slug (e.g. "shape", "base", "ethereum")
+- chain (required): Chain slug (e.g. "ethereum", "base", "shape")
 - agentId (required): Non-negative integer token ID on the Identity Registry
 
 Response:
 {
   "agent": {
     "id": 42,
-    "chain": "shape",
-    "chainId": 360,
-    "chainName": "Shape",
+    "chain": "ethereum",
+    "chainId": 1,
+    "chainName": "Ethereum",
     "owner": "0x...",
     "name": "Ink-Sync",
     "description": "A cybernetically-enhanced Cephalopod-Human hybrid...",
@@ -83,7 +83,7 @@ Errors: 400 (invalid params), 404 (agent not found), 500 (server error)
 Cache: 60 seconds
 
 Example:
-GET /api/agent-card?chain=shape&agentId=42
+GET /api/agent-card?chain=ethereum&agentId=42
 
 ---
 
@@ -99,8 +99,8 @@ Response:
 {
   "agents": [
     {
-      "chain": "shape",
-      "chainName": "Shape",
+      "chain": "ethereum",
+      "chainName": "Ethereum",
       "tokenId": 42,
       "name": "Ink-Sync",
       "image": "data:image/png;base64,...",
@@ -113,7 +113,7 @@ Response:
 }
 
 Example:
-GET /api/discover-agents?address=0x1234...&chain=shape
+GET /api/discover-agents?address=0x1234...&chain=ethereum
 
 ---
 
@@ -123,7 +123,7 @@ Fetch the raw ERC-8004 registration data for a specific agent. Supports data URI
 
 Request body (JSON):
 {
-  "chain": "shape",
+  "chain": "ethereum",
   "agentId": 42
 }
 
@@ -146,11 +146,11 @@ Response:
 
 ### GET /api/gallery
 
-Fetch BOOA NFTs in the collection on Shape. Returns on-chain SVG art, token IDs, and names.
+Fetch BOOA NFTs in the collection. Returns on-chain SVG art, token IDs, and names. Ethereum is the canonical home; Shape still serves un-migrated tokens.
 
 Parameters:
 - contract (required): Contract address (0x...)
-- chain (optional): "shape" (default: "shape")
+- chain (optional): Chain slug (default: "ethereum")
 - startToken (optional): Pagination token for next page
 - limit (optional): Number of tokens per page (default: 50)
 
@@ -169,7 +169,7 @@ Response:
 }
 
 Example:
-GET /api/gallery?contract=0x7aecA981734d133d3f695937508C48483BA6b654&chain=shape&limit=50
+GET /api/gallery?contract=0xbc48fD45aAaf6549293056606397D351a100b222&chain=ethereum&limit=50
 
 ---
 
@@ -179,7 +179,7 @@ Fetch all NFTs owned by a wallet address on any supported chain. Powered by Alch
 
 Parameters:
 - address (required): Wallet address (0x...)
-- chain (optional): Chain slug (default: "shape")
+- chain (optional): Chain slug (default: "ethereum")
 - contract (optional): Filter by contract address
 - pageKey (optional): Pagination token
 
@@ -187,15 +187,15 @@ Response:
 {
   "nfts": [
     {
-      "contractAddress": "0x7aecA981734d133d3f695937508C48483BA6b654",
+      "contractAddress": "0xbc48fD45aAaf6549293056606397D351a100b222",
       "tokenId": "1496",
       "name": "BOOA #1496",
       "description": "...",
       "image": "https://...",
       "collection": "BOOA",
       "tokenType": "ERC721",
-      "chain": "shape",
-      "chainId": 360,
+      "chain": "ethereum",
+      "chainId": 1,
       "raw": {
         "attributes": [
           { "trait_type": "Name", "value": "Ink-Sync" },
@@ -209,8 +209,8 @@ Response:
 }
 
 Example:
-GET /api/fetch-nfts?address=0x1234...&chain=shape
-GET /api/fetch-nfts?address=0x1234...&chain=shape&contract=0x7aecA981734d133d3f695937508C48483BA6b654
+GET /api/fetch-nfts?address=0x1234...&chain=ethereum
+GET /api/fetch-nfts?address=0x1234...&chain=ethereum&contract=0xbc48fD45aAaf6549293056606397D351a100b222
 
 ---
 
@@ -246,7 +246,7 @@ GET /api/booa-token?network=mainnet&tokenId=1496
 Fetch ERC-8004 registration status for a BOOA token. Falls back to on-chain scan if not cached.
 
 Parameters (URL path):
-- chainId: Numeric chain ID (e.g. 360 for Shape)
+- chainId: Numeric chain ID (e.g. 1 for Ethereum, 360 for Shape)
 - tokenId: BOOA token ID
 
 Response (if registered):
@@ -259,14 +259,14 @@ Response (if registered):
   "registrations": [
     {
       "agentId": 42,
-      "agentRegistry": "eip155:360:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+      "agentRegistry": "eip155:1:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
     }
   ],
   "registeredBy": "0x..."
 }
 
 Example:
-GET /api/agent-registry/360/1496
+GET /api/agent-registry/1/1496
 
 ---
 
@@ -306,7 +306,7 @@ The JSON follows the ERC-8004 registration-v1 schema:
   "x402Support": false,
   "supportedTrust": ["reputation", "crypto-economic", "tee-attestation"],
   "nftOrigin": {
-    "contract": "eip155:360:0x7aecA981734d133d3f695937508C48483BA6b654",
+    "contract": "eip155:1:0xbc48fD45aAaf6549293056606397D351a100b222",
     "tokenId": 1496,
     "originalOwner": "0x..."
   }
