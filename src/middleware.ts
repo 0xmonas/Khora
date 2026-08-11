@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/session';
-import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit-edge';
+import { generalLimiter, writeLimiter, imageLimiter, memoryLimit, getIP, rateLimitHeaders } from '@/lib/ratelimit-edge';
 
 // Routes that skip SIWE session but ARE rate-limited.
 // Auth routes handle their own security (nonce matching, signature verification, Bearer token).
@@ -71,8 +71,28 @@ export async function middleware(request: NextRequest) {
   const sanitizedNext = () =>
     NextResponse.next({ request: { headers: sanitizedHeaders } });
 
-  // ── Rate limiting (applied to ALL API routes, no exceptions) ──
   const ip = getIP(request);
+
+  // ── Image optimization ──
+  // /_next/image is billed per transformation and is NOT an API route, so it
+  // used to sit outside every throttle here. Each distinct (url, w, q) triple
+  // is a separate billed transform and a separate cache entry, so appending
+  // junk query params to a valid source URL is an unbounded cost lever.
+  // Throttle it and return immediately — no session logic applies to images.
+  if (pathname.startsWith('/_next/image')) {
+    let imgOk = true;
+    try {
+      imgOk = (await imageLimiter.limit(ip)).success;
+    } catch {
+      imgOk = memoryLimit(`img:${ip}`, 240).success;
+    }
+    if (!imgOk) {
+      return new NextResponse('Too many requests.', { status: 429 });
+    }
+    return NextResponse.next();
+  }
+
+  // ── Rate limiting (applied to ALL API routes, no exceptions) ──
   const isWrite = request.method !== 'GET';
   let rl: Awaited<ReturnType<typeof generalLimiter.limit>> | null = null;
   try {
@@ -82,6 +102,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json(
         { error: 'Service temporarily unavailable. Please try again later.' },
         { status: 503 },
+      );
+    }
+    // Reads used to fall through unthrottled here. That turned a Redis outage
+    // (including one caused by hitting its own spend cap) into unlimited free
+    // access to every metered upstream. Degrade to the in-memory limiter
+    // instead of removing the limit.
+    if (!memoryLimit(`read:${ip}`, 60).success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 },
       );
     }
   }
@@ -163,5 +193,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/api/:path*', '/_next/image'],
 };

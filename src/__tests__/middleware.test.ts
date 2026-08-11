@@ -17,6 +17,8 @@ const mockRateLimitResult = { success: true, limit: 60, remaining: 59, reset: Da
 vi.mock('@/lib/ratelimit-edge', () => ({
   generalLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
   writeLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
+  imageLimiter: { limit: vi.fn(async () => mockRateLimitResult) },
+  memoryLimit: vi.fn(() => ({ success: true })),
   getIP: vi.fn(() => '127.0.0.1'),
   rateLimitHeaders: vi.fn((r: { limit: number; remaining: number; reset: number }) => ({
     'X-RateLimit-Limit': r.limit.toString(),
@@ -143,7 +145,19 @@ describe('Middleware', () => {
 
   it('should export correct matcher config', async () => {
     const { config } = await import('@/middleware');
-    expect(config.matcher).toBe('/api/:path*');
+    expect(config.matcher).toEqual(['/api/:path*', '/_next/image']);
+  });
+
+  it('should cover /_next/image so image optimization is rate limited', async () => {
+    const { config } = await import('@/middleware');
+    expect(config.matcher).toContain('/_next/image');
+  });
+
+  it('should let an image request through without requiring a session', async () => {
+    const { middleware } = await import('@/middleware');
+
+    const response = await middleware(makeRequest('/_next/image'));
+    expect(response.status).toBe(200);
   });
 
   // ── Public read paths (no auth required) ──

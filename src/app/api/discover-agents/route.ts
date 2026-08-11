@@ -6,6 +6,7 @@ import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { getV2Address } from '@/lib/contracts/booa-v2';
 import { isSafeURL, safeFetch } from '@/lib/api/safe-fetch';
 import { getAgentsByOwner } from '@/lib/server/eight004scan';
+import { rejectUnknownParams } from '@/lib/server/query-params';
 
 function getRegistryForChain(chain: SupportedChain): `0x${string}` {
   const chainId = CHAIN_CONFIG[chain].chainId;
@@ -446,6 +447,9 @@ async function discoverAdapterControlled(
 }
 
 export async function GET(request: NextRequest) {
+  const badParam = rejectUnknownParams(request.nextUrl.searchParams, ['address', 'chain']);
+  if (badParam) return badParam;
+
   const address = request.nextUrl.searchParams.get('address');
 
   if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
+import { rejectUnknownParams } from '@/lib/server/query-params';
 
 export const maxDuration = 30;
 
@@ -71,6 +72,9 @@ export interface NFTItem {
 }
 
 export async function GET(request: NextRequest) {
+  const badParam = rejectUnknownParams(request.nextUrl.searchParams, ['address', 'chain', 'pageKey', 'contract']);
+  if (badParam) return badParam;
+
   const address = request.nextUrl.searchParams.get('address');
   const chain = request.nextUrl.searchParams.get('chain') || 'ethereum';
   const pageKey = request.nextUrl.searchParams.get('pageKey') || undefined;

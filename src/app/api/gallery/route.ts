@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rejectUnknownParams } from '@/lib/server/query-params';
 
 export const maxDuration = 30;
 
@@ -12,6 +13,9 @@ const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
  * This avoids the heavy on-chain Multicall3 tokenURI batch that overwhelms RPCs.
  */
 export async function GET(request: NextRequest) {
+  const badParam = rejectUnknownParams(request.nextUrl.searchParams, ['contract', 'chain', 'startToken', 'limit']);
+  if (badParam) return badParam;
+
   const contract = request.nextUrl.searchParams.get('contract');
   const chain = request.nextUrl.searchParams.get('chain') || 'ethereum';
   const startToken = request.nextUrl.searchParams.get('startToken') || undefined;

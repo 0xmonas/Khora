@@ -28,6 +28,48 @@ export const writeLimiter = new Ratelimit({
 });
 
 /**
+ * Image optimization limiter: 240 per 60s per IP.
+ * Deliberately far looser than the API limiters — a single gallery page load
+ * legitimately requests dozens of images — but still bounded, because every
+ * distinct (url, w, q) triple is a separately billed transformation.
+ */
+export const imageLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(240, '60 s'),
+  prefix: 'rl:image',
+  timeout: 1000,
+});
+
+const MEMORY_WINDOW_MS = 60_000;
+const memoryHits = new Map<string, number[]>();
+
+/**
+ * Degraded-mode limiter used only when Redis is unreachable.
+ *
+ * Per-isolate and therefore approximate: N isolates allow up to N*max. That is
+ * accepted on purpose. The alternative is what this replaces — a failed Redis
+ * call silently removing rate limiting altogether, which turns an outage of the
+ * limiter into unbounded spend on every metered upstream behind it.
+ */
+export function memoryLimit(key: string, max: number): { success: boolean } {
+  const now = Date.now();
+  const cutoff = now - MEMORY_WINDOW_MS;
+
+  const hits = (memoryHits.get(key) || []).filter((t) => t > cutoff);
+  hits.push(now);
+  memoryHits.set(key, hits);
+
+  // Bound memory: drop keys that fell out of the window entirely.
+  if (memoryHits.size > 10_000) {
+    for (const [k, times] of memoryHits) {
+      if (!times.some((t) => t > cutoff)) memoryHits.delete(k);
+    }
+  }
+
+  return { success: hits.length <= max };
+}
+
+/**
  * Helper to extract IP from Next.js request.
  * On Vercel, x-forwarded-for is rewritten to contain ONLY the real client IP
  * (external IPs are not forwarded), so spoofing is not possible.
