@@ -128,6 +128,72 @@ class SoundEffects {
     osc.start(now); osc.stop(now + 0.02);
   }
 
+  /** Machine room drone for streaming text. Returns a stop function. */
+  startMachine(): () => void {
+    const ctx = this.getCtx();
+    if (!ctx) return () => {};
+    const now = ctx.currentTime;
+
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.0001, now);
+    bus.gain.exponentialRampToValueAtTime(0.06, now + 0.4);
+    bus.connect(ctx.destination);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(520, now);
+    filter.Q.setValueAtTime(6, now);
+    filter.connect(bus);
+
+    const hum = ctx.createOscillator();
+    hum.type = 'sawtooth';
+    hum.frequency.setValueAtTime(54, now);
+    hum.connect(filter);
+
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(27, now);
+    sub.connect(filter);
+
+    const wobble = ctx.createOscillator();
+    const wobbleDepth = ctx.createGain();
+    wobble.type = 'sine';
+    wobble.frequency.setValueAtTime(0.7, now);
+    wobbleDepth.gain.setValueAtTime(140, now);
+    wobble.connect(wobbleDepth);
+    wobbleDepth.connect(filter.frequency);
+
+    hum.start(now);
+    sub.start(now);
+    wobble.start(now);
+
+    const tick = window.setInterval(() => {
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1400 + Math.random() * 900, t);
+      gain.gain.setValueAtTime(0.015, t);
+      gain.gain.exponentialRampToValueAtTime(0.0005, t + 0.02);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.02);
+    }, 90);
+
+    let stopped = false;
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      window.clearInterval(tick);
+      const t = ctx.currentTime;
+      bus.gain.cancelScheduledValues(t);
+      bus.gain.setValueAtTime(bus.gain.value, t);
+      bus.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      hum.stop(t + 0.3);
+      sub.stop(t + 0.3);
+      wobble.stop(t + 0.3);
+    };
+  }
+
   setEnabled(v: boolean) { this.enabled = v; }
   isEnabled() { return this.enabled; }
 }

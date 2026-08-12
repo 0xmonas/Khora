@@ -573,3 +573,27 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
   await redis.set(key, next);
   return build(identity, next);
 }
+
+export interface WikiContext {
+  entries: string[];
+  owner: string | null;
+  transfers: number;
+  registrations: number;
+  bound: boolean;
+}
+
+export async function readWikiContext(tokenId: number): Promise<WikiContext | null> {
+  try {
+    const doc = await getRedis().get<WikiDoc>(`wiki:v1:${tokenId}`);
+    if (!doc) return null;
+    return {
+      entries: doc.entries.slice(-3).map((e) => e.text),
+      owner: doc.facts?.owner ?? null,
+      transfers: doc.facts?.transfers?.length ?? 0,
+      registrations: doc.facts?.registrations?.length ?? 0,
+      bound: !!doc.facts?.binding,
+    };
+  } catch {
+    return null;
+  }
+}

@@ -164,16 +164,15 @@ export async function checkChatQuota(address: string): Promise<{ allowed: boolea
   return { allowed: true, remaining: Math.max(0, CHAT_QUOTA_MAX - newCount) };
 }
 
-/**
- * Per-wallet daily agent-lore generation quota (separate budget from chat).
- * Lore is heavier (one-shot creative paragraph per BOOA) so the per-day cap is tighter.
- */
 const LORE_QUOTA_PREFIX = 'lore:daily:';
-export const LORE_QUOTA_MAX = 10;
+export const LORE_QUOTA_MAX = 1;
 const LORE_QUOTA_TTL = 24 * 60 * 60;
 
-export async function checkLoreQuota(address: string): Promise<{ allowed: boolean; remaining: number }> {
-  const key = `${LORE_QUOTA_PREFIX}${address.toLowerCase()}`;
+export async function checkLoreQuota(
+  chainId: number,
+  tokenId: number,
+): Promise<{ allowed: boolean; remaining: number }> {
+  const key = `${LORE_QUOTA_PREFIX}${chainId}:${tokenId}`;
   const newCount = await redis.incr(key);
   if (newCount === 1) {
     await redis.expire(key, LORE_QUOTA_TTL);

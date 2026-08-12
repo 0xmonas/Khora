@@ -6,12 +6,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.g.alchemy.com' },
       { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
-    // Each distinct (url, w, q) triple is a separately billed transformation.
-    // Leaving q unrestricted lets one source image be re-optimized 100 times,
-    // so pin it to the single quality the app actually renders at.
     qualities: [75],
-    // Default is 60s, which lets an attacker re-trigger optimization every
-    // minute for the same URL. 31 days keeps optimized output cached instead.
     minimumCacheTTL: 2678400,
   },
   webpack: (config) => {

@@ -31,7 +31,7 @@ export default function AgentLorePage() {
                   Agent Lore
                 </h1>
                 <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
-                  Pick any BOOA by token ID. Agent Lore reads its on-chain traits and writes a short evocative paragraph capturing its mood, theme, and aesthetic.
+                  Let your BOOAs talk. Pick one, get a line in its own voice, download the card. Each BOOA speaks once a day.
                 </p>
               </div>
 

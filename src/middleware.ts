@@ -73,12 +73,6 @@ export async function middleware(request: NextRequest) {
 
   const ip = getIP(request);
 
-  // ── Image optimization ──
-  // /_next/image is billed per transformation and is NOT an API route, so it
-  // used to sit outside every throttle here. Each distinct (url, w, q) triple
-  // is a separate billed transform and a separate cache entry, so appending
-  // junk query params to a valid source URL is an unbounded cost lever.
-  // Throttle it and return immediately — no session logic applies to images.
   if (pathname.startsWith('/_next/image')) {
     let imgOk = true;
     try {
@@ -104,10 +98,6 @@ export async function middleware(request: NextRequest) {
         { status: 503 },
       );
     }
-    // Reads used to fall through unthrottled here. That turned a Redis outage
-    // (including one caused by hitting its own spend cap) into unlimited free
-    // access to every metered upstream. Degrade to the in-memory limiter
-    // instead of removing the limit.
     if (!memoryLimit(`read:${ip}`, 60).success) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
