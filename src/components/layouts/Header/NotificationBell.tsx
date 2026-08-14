@@ -34,7 +34,7 @@ export function NotificationBell() {
   const unread = items.filter((i) => !i.read).length;
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative inline-flex items-center" ref={ref}>
       <button
         onClick={() => {
           const next = !open;
@@ -46,7 +46,7 @@ export function NotificationBell() {
       >
         <Bell size={18} />
         {unread > 0 && (
-          <span className="absolute top-1.5 right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-emerald-500 text-white text-[9px] leading-[14px] text-center" style={font}>
+          <span className="absolute top-1.5 right-0 min-w-[14px] h-[14px] px-1 rounded-full bg-emerald-500 text-white text-[9px] leading-[14px] text-center" style={font}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
