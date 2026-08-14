@@ -33,10 +33,6 @@ export function NotificationBell() {
 
   const unread = items.filter((i) => !i.read).length;
 
-  // No bell until there is something to show — keeps the header clean for
-  // everyone not using the console.
-  if (items.length === 0) return null;
-
   return (
     <div className="relative" ref={ref}>
       <button
@@ -59,14 +55,21 @@ export function NotificationBell() {
         <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg">
           <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-800">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground" style={font}>Notifications</span>
-            <button
-              onClick={() => notifications.clear()}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-              style={font}
-            >
-              Clear
-            </button>
+            {items.length > 0 && (
+              <button
+                onClick={() => notifications.clear()}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                style={font}
+              >
+                Clear
+              </button>
+            )}
           </div>
+          {items.length === 0 && (
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center" style={font}>
+              No notifications yet. Agent replies, jobs and restarts show up here.
+            </p>
+          )}
           {items.map((n) => {
             const body = (
               <div className="px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
