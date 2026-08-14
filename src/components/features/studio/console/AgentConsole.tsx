@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { ChevronDown, Unplug } from 'lucide-react';
 import { mainnet } from 'wagmi/chains';
 import { useAuth } from '@/hooks/useAuth';
+import { notifications } from '@/lib/notifications';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
 import { ConsoleConnection, ProbeError, loadConnection, clearConnection, probeInstance } from './connection';
 import { ConsoleMeta, ConsoleAgent } from './types';
@@ -36,8 +37,11 @@ export function AgentConsole() {
   const [chatUnread, setChatUnread] = useState(false);
   const tabRef = useRef<Tab>('chat');
   tabRef.current = tab;
-  const markUnread = useCallback(() => {
-    if (tabRef.current !== 'chat') setChatUnread(true);
+  const markUnread = useCallback((detail?: string) => {
+    if (tabRef.current !== 'chat') {
+      setChatUnread(true);
+      notifications.push({ kind: 'chat', title: 'Your agent replied', detail, href: '/studio/agent-console' });
+    }
   }, []);
 
   const selected = agents.find((a) => a.tokenId === selectedTokenId) || null;

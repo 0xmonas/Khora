@@ -8,6 +8,7 @@ import { Moon, Sun, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme-provider';
 import { sfx } from '@/lib/sounds';
 import { getChainMeta } from '@/utils/constants/chains';
+import { NotificationBell } from './NotificationBell';
 
 const walletFont = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -188,6 +189,7 @@ export function Header() {
                 ))}
               </nav>
               <div className="flex items-center gap-4">
+                <NotificationBell />
                 <button
                   onClick={() => {
                     const next = !soundOn;

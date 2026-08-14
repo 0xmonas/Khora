@@ -6,6 +6,7 @@ import { useBalance } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
 import { ConsoleMeta, ConsoleJob, OnchainSettings, formatWhen, isOn } from './types';
+import { notifications } from '@/lib/notifications';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const LATEST_CHECK_KEY = 'booa-console:latest-check';
@@ -81,9 +82,11 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   const [jobBusy, setJobBusy] = useState<string | null>(null);
 
   const [onchain, setOnchain] = useState<OnchainSettings | null>(null);
+  const [draft, setDraft] = useState<OnchainSettings>({});
   const [onchainBusy, setOnchainBusy] = useState(false);
   const [onchainError, setOnchainError] = useState<string | null>(null);
   const [onchainNote, setOnchainNote] = useState<string | null>(null);
+  const [showTrading, setShowTrading] = useState(false);
 
   const loadOnchain = useCallback(async () => {
     try {
@@ -91,6 +94,7 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
       if (!res.ok) return;
       const d = await res.json();
       setOnchain(d.settings || null);
+      setDraft(d.settings || {});
     } catch { /* surfaced on the next action */ }
   }, [conn]);
 
@@ -121,12 +125,36 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
         return;
       }
       setOnchain(d.settings || null);
+      setDraft(d.settings || {});
       setOnchainNote(typeof d.note === 'string' ? d.note : 'Saved.');
     } catch {
       setOnchainError('Instance unreachable.');
     } finally {
       setOnchainBusy(false);
     }
+  };
+
+  const ONCHAIN_FIELDS: { key: keyof OnchainSettings; label: string; placeholder?: string; bool?: boolean }[] = [
+    { key: 'BOOA_ONCHAIN_MCP', label: 'Read tools (balances, prices, portfolio)', bool: true },
+    { key: 'BOOA_ONCHAIN_WRITES', label: 'Trading & wallet actions — moves real funds', bool: true },
+    { key: 'BOOA_MAX_TX_ETH', label: 'Per-transaction ETH cap', placeholder: 'e.g. 0.05' },
+    { key: 'BOOA_DAILY_CAP_ETH', label: 'Daily ETH cap', placeholder: 'e.g. 0.2' },
+    { key: 'BOOA_MAX_SLIPPAGE_BPS', label: 'Max slippage (bps)', placeholder: '300' },
+    { key: 'BOOA_SEND_ALLOWLIST', label: 'Send allowlist (comma-separated 0x…)', placeholder: '0x…, 0x…' },
+    { key: 'BOOA_SWAP_TOKEN_ALLOWLIST', label: 'Swap token allowlist', placeholder: '0x…  (USDC, WETH always allowed)' },
+    { key: 'BOOA_OPENSEA_MCP', label: 'OpenSea (search + trading)', bool: true },
+    { key: 'BOOA_OPENSEA_REQUIRE_VERIFIED', label: 'Only buy OpenSea-verified collections', bool: true },
+  ];
+
+  const dirtyKeys = ONCHAIN_FIELDS
+    .map((f) => f.key)
+    .filter((k) => String(draft[k] ?? '').trim() !== String(onchain?.[k] ?? '').trim());
+
+  const saveTrading = async () => {
+    if (dirtyKeys.length === 0) return;
+    const change: Record<string, string> = {};
+    for (const k of dirtyKeys) change[k] = String(draft[k] ?? '').trim();
+    await saveOnchain(change, 'This change');
   };
 
   const loadJobs = useCallback(async () => {
@@ -151,6 +179,9 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
     try {
       const path = `/api/jobs/${encodeURIComponent(job.id)}${action === 'delete' ? '' : `/${action}`}`;
       await consoleFetch(conn, path, { method: action === 'delete' ? 'DELETE' : 'POST' });
+      if (action === 'run') {
+        notifications.push({ kind: 'cron', title: 'Job started', detail: job.name || job.id, href: '/studio/agent-console' });
+      }
       await loadJobs();
     } catch {
       setJobsState('error');
@@ -243,7 +274,10 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
         if (res.ok) {
           const m = await res.json();
           onMetaRefresh(m);
-          if (m.gateway?.running) break;
+          if (m.gateway?.running) {
+            notifications.push({ kind: 'info', title: 'Gateway restarted', detail: agentName });
+            break;
+          }
         }
       }
     } finally {
@@ -281,11 +315,19 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Version</h3>
+        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Runtime</h3>
         <div className="text-xs space-y-1">
+          <p className={meta.gateway.running ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+            Gateway {meta.gateway.running ? `running · up ${Math.floor(meta.gateway.uptime / 60)}m` : 'stopped'}
+          </p>
+          {(meta.provider || meta.model) && (
+            <p className="text-muted-foreground">Model {meta.model || '?'}{meta.provider ? ` · ${meta.provider}` : ''}</p>
+          )}
+          {meta.skills && meta.skills.length > 0 && (
+            <p className="text-muted-foreground">Skills {meta.skills.filter((s) => !s.startsWith('.')).join(', ')}</p>
+          )}
           <p>Template v{meta.template_version}{latest ? ` — latest is v${latest}` : ''}</p>
           <p className="text-muted-foreground">Hermes {meta.hermes_version || 'unknown'}{meta.hermes_pin ? ` (pinned ${meta.hermes_pin})` : ''}</p>
-          <p className="text-muted-foreground">Gateway {meta.gateway.running ? `running · up ${Math.floor(meta.gateway.uptime / 60)}m` : 'stopped'}</p>
         </div>
         {updateAvailable && (
           <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-400">
@@ -362,12 +404,62 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
               </button>
             </div>
           )}
-          <span
-            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-help"
-            title="Tightening a limit works from here. Raising one, or allowing a new destination, asks for your instance admin password — so this key alone can never widen what your agent may spend."
-          >
-            <Info className="w-3 h-3" /> why this needs a password sometimes
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowTrading((v) => !v)}
+              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showTrading ? 'Hide all settings' : 'Edit all settings'}
+            </button>
+            <span
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-help"
+              title="Tightening a limit works from here. Raising one, or allowing a new destination, asks for your instance admin password — so this key alone can never widen what your agent may spend."
+            >
+              <Info className="w-3 h-3" /> why some changes ask for a password
+            </span>
+          </div>
+
+          {showTrading && (
+            <div className="space-y-2.5 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+              {ONCHAIN_FIELDS.map((f) => (
+                <div key={f.key} className="space-y-1">
+                  {f.bool ? (
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={isOn(draft[f.key])}
+                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.checked ? '1' : '0' }))}
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ) : (
+                    <label className="block text-xs space-y-1">
+                      <span className="text-muted-foreground">{f.label}</span>
+                      <input
+                        type="text"
+                        value={draft[f.key] ?? ''}
+                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                        placeholder={f.placeholder}
+                        className="w-full px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                        style={{ fontFamily: 'var(--font-departure-mono)' }}
+                        spellCheck={false}
+                      />
+                    </label>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => void saveTrading()}
+                disabled={onchainBusy || dirtyKeys.length === 0}
+                className="px-3 py-2 text-[10px] uppercase tracking-wider rounded-md bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 disabled:opacity-40 transition-opacity"
+              >
+                {onchainBusy ? 'Saving…' : dirtyKeys.length ? `Save ${dirtyKeys.length} change(s)` : 'No changes'}
+              </button>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Toggles need a gateway restart to take effect; limits and allowlists apply immediately.
+              </p>
+            </div>
+          )}
           {onchainNote && <p className="text-xs text-emerald-600 dark:text-emerald-400">{onchainNote}</p>}
           {onchainError && <p className="text-xs text-red-500">{onchainError}</p>}
         </section>

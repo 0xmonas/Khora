@@ -19,7 +19,7 @@ const SLASH_HINTS = '/help /model /reset /usage /compress /skills';
 interface ChatPanelProps {
   conn: ConsoleConnection;
   active?: boolean;
-  onActivity?: () => void;
+  onActivity?: (summary?: string) => void;
 }
 
 export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
@@ -237,7 +237,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
         } else if (event === 'assistant.completed' && typeof payload.content === 'string') {
           setPhase(null);
           setAssistantFinal(payload.content);
-          onActivity?.();
+          onActivity?.(payload.content.split('\n')[0].slice(0, 90));
         } else if (event === 'error') {
           setPhase(null);
           setAssistantFinal('', true);

@@ -5,6 +5,9 @@ export interface ConsoleMeta {
   token_id: number | null;
   chain_id: number;
   agent_name: string;
+  provider?: string;
+  model?: string;
+  skills?: string[];
   gateway: { running: boolean; uptime: number };
   console: { enabled: boolean };
 }
