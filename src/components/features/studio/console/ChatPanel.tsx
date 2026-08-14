@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Square, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Send, Square, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
 import { ConsoleConnection, consoleFetch } from './connection';
-import { ConsoleSession, ConsoleMessage, extractText } from './types';
+import { ConsoleSession, ConsoleMessage, extractText, sessionLabel } from './types';
 import { readSSE } from './sse';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -26,6 +26,8 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
 
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -112,6 +114,22 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
       }
     } catch {
       setError('Could not create a session — is the gateway running?');
+    }
+  };
+
+  const renameSession = async (id: string, title: string) => {
+    const next = title.trim();
+    setRenamingId(null);
+    if (!next) return;
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: next } : s)));
+    try {
+      await consoleFetch(conn, `/api/sessions/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: next }),
+      });
+    } catch {
+      setError('Could not rename this chat.');
     }
   };
 
@@ -235,7 +253,7 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
   const activeSession = sessions.find((s) => s.id === sessionId) || null;
 
   return (
-    <div className="flex flex-col h-[min(520px,calc(100vh-320px))] min-h-[380px]">
+    <div className="flex flex-col h-[min(720px,calc(100vh-260px))] min-h-[540px]">
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
         <div className="relative flex items-center gap-1.5">
           <button
@@ -243,8 +261,8 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
             className="flex items-center gap-1.5 text-[11px] hover:opacity-70 transition-opacity"
             style={font}
           >
-            <span className="truncate max-w-[160px]">
-              {activeSession ? (activeSession.title || `chat ${activeSession.id.slice(0, 8)}`) : 'no chat'}
+            <span className="truncate max-w-[220px]">
+              {activeSession ? sessionLabel(activeSession) : 'no chat'}
             </span>
             <ChevronDown className="w-3 h-3" />
           </button>
@@ -262,19 +280,46 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
               )}
               {sessions.map((s) => (
                 <div key={s.id} className="flex items-center hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors">
-                  <button
-                    onClick={() => { setSessionId(s.id); setSessionsOpen(false); }}
-                    className="flex-1 px-3 py-2 text-xs text-left truncate"
-                    style={font}
-                  >
-                    {s.title || `chat ${s.id.slice(0, 8)}`}
-                  </button>
-                  <button
-                    onClick={() => void deleteSession(s.id)}
-                    className="px-2 text-muted-foreground hover:text-red-500"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+                  {renamingId === s.id ? (
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => void renameSession(s.id, renameDraft)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void renameSession(s.id, renameDraft);
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      maxLength={60}
+                      placeholder="Name this chat"
+                      className="flex-1 mx-2 my-1 px-2 py-1 text-xs rounded border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                      style={font}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setSessionId(s.id); setSessionsOpen(false); }}
+                        className="flex-1 px-3 py-2 text-xs text-left truncate"
+                        style={font}
+                      >
+                        {sessionLabel(s)}
+                      </button>
+                      <button
+                        onClick={() => { setRenamingId(s.id); setRenameDraft(s.title || ''); }}
+                        className="px-1.5 text-muted-foreground hover:text-foreground"
+                        title="Rename chat"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => void deleteSession(s.id)}
+                        className="px-2 text-muted-foreground hover:text-red-500"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -322,7 +367,7 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
           ) : (
             <div key={i} className={`flex ${e.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-lg whitespace-pre-wrap ${
+                className={`max-w-[min(80%,72ch)] px-3 py-2 text-xs leading-relaxed rounded-lg whitespace-pre-wrap break-words ${
                   e.role === 'user'
                     ? 'bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
                     : 'bg-neutral-100 dark:bg-neutral-900'

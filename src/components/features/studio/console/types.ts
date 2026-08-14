@@ -12,8 +12,34 @@ export interface ConsoleMeta {
 export interface ConsoleSession {
   id: string;
   title?: string | null;
-  created_at?: string | number | null;
-  updated_at?: string | number | null;
+  started_at?: string | number | null;
+  last_active?: string | number | null;
+  message_count?: number | null;
+}
+
+function toDate(value: string | number | null | undefined): Date | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric) && value.trim() !== '') return toDate(numeric);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Session titles default to the start time — a truncated session id tells you nothing. */
+export function sessionLabel(s: ConsoleSession): string {
+  if (s.title && s.title.trim()) return s.title.trim();
+  const d = toDate(s.started_at) || toDate(s.last_active);
+  if (d) {
+    return d.toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  }
+  return `chat ${s.id.slice(0, 8)}`;
 }
 
 export interface ConsoleMessage {

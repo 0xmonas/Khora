@@ -264,7 +264,7 @@ export function AgentChat() {
   const selectedToken = ownedTokens.find((t) => t.tokenId === selectedTokenId);
 
   return (
-    <div className="flex flex-col w-full h-[min(520px,calc(100vh-280px))] min-h-[380px] rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background overflow-hidden shadow-sm">
+    <div className="flex flex-col w-full h-[min(680px,calc(100vh-260px))] min-h-[500px] rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background overflow-hidden shadow-sm">
       {/* Top bar */}
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800">
         <div className="relative">
@@ -353,7 +353,7 @@ export function AgentChat() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-lg ${
+              className={`max-w-[min(80%,72ch)] px-3 py-2 text-xs leading-relaxed rounded-lg break-words ${
                 msg.role === 'user'
                   ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                   : 'bg-neutral-50 dark:bg-neutral-800/60 text-foreground'

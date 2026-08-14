@@ -259,7 +259,7 @@ export default function BooaskPage() {
                       className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] px-3 py-2 text-xs leading-relaxed rounded-lg ${
+                        className={`max-w-[min(85%,72ch)] px-3 py-2 text-xs leading-relaxed rounded-lg break-words ${
                           m.role === 'user'
                             ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black'
                             : 'bg-neutral-50 dark:bg-neutral-800/60 text-foreground'

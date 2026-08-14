@@ -58,7 +58,7 @@ export function LogsPanel({ conn }: { conn: ConsoleConnection }) {
   };
 
   return (
-    <div className="flex flex-col h-[min(520px,calc(100vh-320px))] min-h-[380px]">
+    <div className="flex flex-col h-[min(720px,calc(100vh-260px))] min-h-[540px]">
       <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
         <span className="text-[10px] text-muted-foreground" style={font}>
           In-memory buffer — last 1,000 lines, cleared on restart. Full logs live in Railway.
