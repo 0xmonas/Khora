@@ -312,6 +312,11 @@ Logs:
 - Live stream of your runtime output, secrets redacted before they leave the instance
 - The buffer holds the last 1,000 lines and clears on restart; full logs live in Railway
 
+Scheduled jobs:
+- The Data tab lists every cron job on your instance with its schedule, next run and last run
+- Pause, resume, run now, or delete a job so you always know what is running unattended
+- New jobs are created by asking your agent in chat, never from the console — the console manages what already exists but does not schedule new autonomous work
+
 Updating:
 - The Data tab shows your template version and the latest release
 - Updates ship as image rebuilds on Railway; your data volume is untouched

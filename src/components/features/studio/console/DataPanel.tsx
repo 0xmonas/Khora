@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Upload, RotateCw, ExternalLink } from 'lucide-react';
+import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle } from 'lucide-react';
 import { useBalance } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
-import { ConsoleMeta } from './types';
+import { ConsoleMeta, ConsoleJob, formatWhen } from './types';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const LATEST_CHECK_KEY = 'booa-console:latest-check';
@@ -75,6 +75,40 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
 
   const [latest, setLatest] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
+
+  const [jobs, setJobs] = useState<ConsoleJob[]>([]);
+  const [jobsState, setJobsState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
+  const [jobBusy, setJobBusy] = useState<string | null>(null);
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const res = await consoleFetch(conn, '/api/jobs?include_disabled=true');
+      if (res.status === 501) { setJobsState('unavailable'); return; }
+      if (!res.ok) { setJobsState('error'); return; }
+      const d = await res.json();
+      setJobs(Array.isArray(d.jobs) ? d.jobs : []);
+      setJobsState('ready');
+    } catch {
+      setJobsState('error');
+    }
+  }, [conn]);
+
+  useEffect(() => { void loadJobs(); }, [loadJobs]);
+
+  const jobAction = async (job: ConsoleJob, action: 'pause' | 'resume' | 'run' | 'delete') => {
+    if (action === 'run' && !confirm(`Run "${job.name || job.id}" now? It uses your own model credits.`)) return;
+    if (action === 'delete' && !confirm(`Delete "${job.name || job.id}"? This removes the scheduled job for good.`)) return;
+    setJobBusy(job.id);
+    try {
+      const path = `/api/jobs/${encodeURIComponent(job.id)}${action === 'delete' ? '' : `/${action}`}`;
+      await consoleFetch(conn, path, { method: action === 'delete' ? 'DELETE' : 'POST' });
+      await loadJobs();
+    } catch {
+      setJobsState('error');
+    } finally {
+      setJobBusy(null);
+    }
+  };
 
   useEffect(() => {
     void fetchLatestVersion().then(setLatest);
@@ -219,6 +253,82 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
           <RotateCw className={`w-3 h-3 ${restarting ? 'animate-spin' : ''}`} />
           {restarting ? 'Restarting…' : 'Restart gateway'}
         </button>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Scheduled jobs</h3>
+        {jobsState === 'loading' && (
+          <p className="text-xs text-muted-foreground">Checking what&apos;s scheduled…</p>
+        )}
+        {jobsState === 'unavailable' && (
+          <p className="text-xs text-muted-foreground">This instance has no cron module, so nothing can be scheduled.</p>
+        )}
+        {jobsState === 'error' && (
+          <p className="text-xs text-red-500">Could not read scheduled jobs.</p>
+        )}
+        {jobsState === 'ready' && jobs.length === 0 && (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Nothing scheduled. Ask your agent in chat to set up a recurring task and it shows up here.
+          </p>
+        )}
+        {jobsState === 'ready' && jobs.length > 0 && (
+          <div className="space-y-2">
+            {jobs.map((job) => {
+              const paused = job.enabled === false || job.state === 'paused';
+              const busy = jobBusy === job.id;
+              return (
+                <div
+                  key={job.id}
+                  className="flex items-start justify-between gap-3 p-2.5 rounded-md border border-neutral-200 dark:border-neutral-800"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-xs truncate">
+                      {job.name || job.id}
+                      <span className={`ml-2 text-[10px] uppercase tracking-wider ${paused ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {paused ? 'paused' : 'scheduled'}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {job.schedule_display || job.schedule || 'custom schedule'}
+                      {' · next '}{paused ? '—' : formatWhen(job.next_run_at)}
+                      {' · last '}{formatWhen(job.last_run_at)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => void jobAction(job, paused ? 'resume' : 'pause')}
+                      disabled={busy}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition-colors"
+                      title={paused ? 'Resume' : 'Pause'}
+                    >
+                      {paused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                    </button>
+                    <button
+                      onClick={() => void jobAction(job, 'run')}
+                      disabled={busy}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition-colors"
+                      title="Run now"
+                    >
+                      <PlayCircle className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => void jobAction(job, 'delete')}
+                      disabled={busy}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              New jobs are created by asking your agent in chat, not here — the console can manage
+              what already runs, but never schedules new autonomous work on its own.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="space-y-2">

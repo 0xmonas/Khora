@@ -30,6 +30,14 @@ function toDate(value: string | number | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+export function formatWhen(value: string | number | null | undefined): string {
+  const d = toDate(value);
+  if (!d) return '—';
+  return d.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 /** Session titles default to the start time — a truncated session id tells you nothing. */
 export function sessionLabel(s: ConsoleSession): string {
   if (s.title && s.title.trim()) return s.title.trim();
@@ -40,6 +48,18 @@ export function sessionLabel(s: ConsoleSession): string {
     });
   }
   return `chat ${s.id.slice(0, 8)}`;
+}
+
+export interface ConsoleJob {
+  id: string;
+  name?: string | null;
+  schedule_display?: string | null;
+  schedule?: string | null;
+  state?: string | null;
+  enabled?: boolean | null;
+  next_run_at?: string | number | null;
+  last_run_at?: string | number | null;
+  prompt?: string | null;
 }
 
 export interface ConsoleMessage {
