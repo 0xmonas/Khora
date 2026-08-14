@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { ChevronDown, Unplug } from 'lucide-react';
 import { mainnet } from 'wagmi/chains';
@@ -33,6 +33,12 @@ export function AgentConsole() {
   const [probeError, setProbeError] = useState<ProbeError | null>(null);
   const [ownershipLost, setOwnershipLost] = useState(false);
   const [tab, setTab] = useState<Tab>('chat');
+  const [chatUnread, setChatUnread] = useState(false);
+  const tabRef = useRef<Tab>('chat');
+  tabRef.current = tab;
+  const markUnread = useCallback(() => {
+    if (tabRef.current !== 'chat') setChatUnread(true);
+  }, []);
 
   const selected = agents.find((a) => a.tokenId === selectedTokenId) || null;
 
@@ -222,8 +228,8 @@ export function AgentConsole() {
             {(['chat', 'logs', 'data'] as Tab[]).map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+                onClick={() => { setTab(t); if (t === 'chat') setChatUnread(false); }}
+                className={`relative px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md transition-colors ${
                   tab === t
                     ? 'bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
                     : 'text-muted-foreground hover:text-foreground'
@@ -231,6 +237,9 @@ export function AgentConsole() {
                 style={font}
               >
                 {t}
+                {t === 'chat' && chatUnread && tab !== 'chat' && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500" />
+                )}
               </button>
             ))}
           </div>
@@ -279,7 +288,11 @@ export function AgentConsole() {
 
           {conn && meta && selectedTokenId !== null && (
             <>
-              {tab === 'chat' && <ChatPanel conn={conn} />}
+              {/* Chat stays mounted so a reply keeps streaming while you're on
+                  another tab — unmounting it aborted the stream mid-answer. */}
+              <div className={tab === 'chat' ? '' : 'hidden'}>
+                <ChatPanel conn={conn} active={tab === 'chat'} onActivity={markUnread} />
+              </div>
               {tab === 'logs' && <LogsPanel conn={conn} />}
               {tab === 'data' && (
                 <DataPanel

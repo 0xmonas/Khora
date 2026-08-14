@@ -16,13 +16,20 @@ interface ChatEntry {
 
 const SLASH_HINTS = '/help /model /reset /usage /compress /skills';
 
-export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
+interface ChatPanelProps {
+  conn: ConsoleConnection;
+  active?: boolean;
+  onActivity?: () => void;
+}
+
+export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const [sessions, setSessions] = useState<ConsoleSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -34,8 +41,8 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [entries]);
+    if (active) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [entries, active]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -172,6 +179,7 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
     setError(null);
     setEntries((prev) => [...prev, { role: 'user', text }, { role: 'assistant', text: '' }]);
     setStreaming(true);
+    setPhase('thinking');
 
     const abort = new AbortController();
     abortRef.current = abort;
@@ -219,12 +227,19 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
         let payload: Record<string, unknown> = {};
         try { payload = JSON.parse(data); } catch { return; }
         if (event === 'assistant.delta' && typeof payload.delta === 'string') {
+          setPhase(null);
           appendAssistant(payload.delta);
         } else if (event === 'tool.started' && typeof payload.tool_name === 'string') {
+          setPhase(`running ${payload.tool_name}`);
           setEntries((prev) => [...prev.slice(0, -1), { role: 'tool', text: payload.tool_name as string }, prev[prev.length - 1]]);
+        } else if (event === 'tool.completed' || event === 'tool.failed') {
+          setPhase('thinking');
         } else if (event === 'assistant.completed' && typeof payload.content === 'string') {
+          setPhase(null);
           setAssistantFinal(payload.content);
+          onActivity?.();
         } else if (event === 'error') {
+          setPhase(null);
           setAssistantFinal('', true);
           setError(typeof payload.message === 'string' ? payload.message : 'Stream error.');
         }
@@ -238,6 +253,7 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
       }
     } finally {
       setStreaming(false);
+      setPhase(null);
       abortRef.current = null;
     }
   };
@@ -380,6 +396,16 @@ export function ChatPanel({ conn }: { conn: ConsoleConnection }) {
             </div>
           )
         ))}
+        {streaming && phase && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-wider" style={font}>
+            <span className="inline-flex gap-0.5">
+              <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+            </span>
+            {phase}
+          </div>
+        )}
         {error && <p className="text-xs text-red-500" style={font}>{error}</p>}
         <div ref={endRef} />
       </div>

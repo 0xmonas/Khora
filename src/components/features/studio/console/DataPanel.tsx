@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield } from 'lucide-react';
+import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield, Info } from 'lucide-react';
 import { useBalance } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
@@ -362,11 +362,12 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
               </button>
             </div>
           )}
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Tightening a limit works from here. Raising one, or allowing a new destination,
-            asks for your instance admin password — so this key alone can never widen what
-            your agent may spend.
-          </p>
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-help"
+            title="Tightening a limit works from here. Raising one, or allowing a new destination, asks for your instance admin password — so this key alone can never widen what your agent may spend."
+          >
+            <Info className="w-3 h-3" /> why this needs a password sometimes
+          </span>
           {onchainNote && <p className="text-xs text-emerald-600 dark:text-emerald-400">{onchainNote}</p>}
           {onchainError && <p className="text-xs text-red-500">{onchainError}</p>}
         </section>
