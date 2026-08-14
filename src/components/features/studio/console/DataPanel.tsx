@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield, Info } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield, Info, X } from 'lucide-react';
 import { useBalance } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
@@ -18,6 +19,52 @@ interface Props {
   agentName: string;
   agentWallet: string | null;
   onMetaRefresh: (meta: ConsoleMeta) => void;
+}
+
+function InfoModal({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-muted-foreground/60 hover:text-foreground transition-colors"
+        title={title}
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="max-w-sm w-full rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            style={font}
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
+              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="text-xs text-muted-foreground leading-relaxed space-y-2">{children}</div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+function SectionHead({ title, children }: { title: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</h3>
+      {children}
+    </div>
+  );
 }
 
 function WalletBalances({ wallet }: { wallet: `0x${string}` }) {
@@ -86,7 +133,6 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   const [onchainBusy, setOnchainBusy] = useState(false);
   const [onchainError, setOnchainError] = useState<string | null>(null);
   const [onchainNote, setOnchainNote] = useState<string | null>(null);
-  const [showTrading, setShowTrading] = useState(false);
 
   const loadOnchain = useCallback(async () => {
     try {
@@ -290,7 +336,7 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   return (
     <div className="px-4 py-4 space-y-5 max-w-lg" style={font}>
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Agent wallet</h3>
+        <SectionHead title="Agent wallet" />
         {agentWallet ? (
           <div className="space-y-1">
             <p className="text-xs flex items-center gap-1.5">
@@ -315,7 +361,14 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Runtime</h3>
+        <SectionHead title="Runtime">
+          {updateAvailable && (
+            <InfoModal title={`Update available — v${latest}`}>
+              <p>Updates ship as image rebuilds; your data volume (memories, sessions, wallet) is untouched.</p>
+              <p>Open your service in Railway, pull the latest template changes, and it rebuilds automatically. Reconnect here afterwards.</p>
+            </InfoModal>
+          )}
+        </SectionHead>
         <div className="text-xs space-y-1">
           <p className={meta.gateway.running ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
             Gateway {meta.gateway.running ? `running · up ${Math.floor(meta.gateway.uptime / 60)}m` : 'stopped'}
@@ -326,16 +379,12 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
           {meta.skills && meta.skills.length > 0 && (
             <p className="text-muted-foreground">Skills {meta.skills.filter((s) => !s.startsWith('.')).join(', ')}</p>
           )}
-          <p>Template v{meta.template_version}{latest ? ` — latest is v${latest}` : ''}</p>
+          <p>
+            Template v{meta.template_version}
+            {updateAvailable && <span className="text-amber-600 dark:text-amber-400"> · v{latest} available</span>}
+          </p>
           <p className="text-muted-foreground">Hermes {meta.hermes_version || 'unknown'}{meta.hermes_pin ? ` (pinned ${meta.hermes_pin})` : ''}</p>
         </div>
-        {updateAvailable && (
-          <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-400">
-            Update available. Updates ship as image rebuilds — your data volume (memories, sessions, wallet)
-            is untouched. Open your service in Railway, pull the latest template changes, and it rebuilds
-            automatically. Reconnect here afterwards.
-          </p>
-        )}
         <button
           onClick={() => void handleRestart()}
           disabled={restarting}
@@ -347,126 +396,92 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
       </section>
 
       {onchain && (
-        <section className="space-y-2">
-          <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Spending guardrails</h3>
-          {isOn(onchain.BOOA_ONCHAIN_WRITES) ? (
-            <div className="space-y-2">
-              <p className="text-xs flex items-center gap-1.5">
-                <span className="text-amber-600 dark:text-amber-400">writes enabled</span>
-                <span className="text-muted-foreground">— your agent can move funds</span>
-              </p>
-              <div className="text-xs text-muted-foreground space-y-0.5">
-                <p>Per transaction: {onchain.BOOA_MAX_TX_ETH?.trim() || 'no limit'}{onchain.BOOA_MAX_TX_ETH?.trim() ? ' ETH' : ''}</p>
-                <p>Daily: {onchain.BOOA_DAILY_CAP_ETH?.trim() || 'no limit'}{onchain.BOOA_DAILY_CAP_ETH?.trim() ? ' ETH' : ''}</p>
-                <p>
-                  Allowed destinations:{' '}
-                  {onchain.BOOA_SEND_ALLOWLIST?.trim()
-                    ? `${onchain.BOOA_SEND_ALLOWLIST.split(',').filter((a) => a.trim()).length} address(es)`
-                    : 'anywhere'}
-                </p>
-              </div>
-              {(!onchain.BOOA_MAX_TX_ETH?.trim() || !onchain.BOOA_SEND_ALLOWLIST?.trim()) && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
-                  Funds can move with no ceiling or to any address. Set both on your instance
-                  dashboard, and put a spend rule in your OWS policy too.
-                </p>
-              )}
-              <button
-                onClick={() => {
-                  if (confirm('Turn off onchain writes? Your agent stops being able to move funds. Takes effect after the gateway restarts.')) {
-                    void saveOnchain({ BOOA_ONCHAIN_WRITES: '0' }, 'Enabling writes');
-                  }
-                }}
-                disabled={onchainBusy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md bg-red-600 text-white disabled:opacity-40 transition-opacity"
-              >
-                <ShieldOff className="w-3 h-3" />
-                Stop onchain writes
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs flex items-center gap-1.5">
-                <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-emerald-600 dark:text-emerald-400">writes off</span>
-                <span className="text-muted-foreground">— your agent cannot move funds</span>
-              </p>
-              <button
-                onClick={() => {
-                  if (confirm('Let your agent move funds? Set a per-transaction cap and a destination allowlist on your instance dashboard first.')) {
-                    void saveOnchain({ BOOA_ONCHAIN_WRITES: '1' }, 'Enabling writes');
-                  }
-                }}
-                disabled={onchainBusy}
-                className="px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition-colors"
-              >
-                Allow onchain writes
-              </button>
-            </div>
-          )}
-          <div className="flex items-center gap-3">
+        <section className="space-y-3">
+          <SectionHead title="Onchain & Trading">
+            <InfoModal title="Onchain & Trading">
+              <p>These mirror your instance dashboard, live in both directions.</p>
+              <p><strong>Tightening</strong> a limit — lowering a cap, removing a destination, turning writes off — works with just this console key, so the brake is always one tap away.</p>
+              <p><strong>Loosening</strong> — raising a cap, adding a destination, enabling writes — asks for your instance admin password, so a leaked console key can never widen what your agent may spend.</p>
+              <p>Toggles take effect after a gateway restart; limits and allowlists apply immediately. The agent has a shell, so a spend rule in your OWS policy is the limit it truly cannot get around.</p>
+            </InfoModal>
+          </SectionHead>
+
+          {isOn(draft.BOOA_ONCHAIN_WRITES) ? (
             <button
-              onClick={() => setShowTrading((v) => !v)}
-              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => {
+                if (confirm('Turn off onchain writes? Your agent stops being able to move funds after the gateway restarts.')) {
+                  setDraft((d) => ({ ...d, BOOA_ONCHAIN_WRITES: '0' }));
+                  void saveOnchain({ BOOA_ONCHAIN_WRITES: '0' }, 'Turning writes off');
+                }
+              }}
+              disabled={onchainBusy}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md bg-red-600 text-white disabled:opacity-40 transition-opacity"
             >
-              {showTrading ? 'Hide all settings' : 'Edit all settings'}
+              <ShieldOff className="w-3 h-3" /> Stop onchain writes
             </button>
-            <span
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-help"
-              title="Tightening a limit works from here. Raising one, or allowing a new destination, asks for your instance admin password — so this key alone can never widen what your agent may spend."
-            >
-              <Info className="w-3 h-3" /> why some changes ask for a password
-            </span>
+          ) : (
+            <p className="inline-flex items-center gap-1.5 text-xs">
+              <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-emerald-600 dark:text-emerald-400">writes off</span>
+              <span className="text-muted-foreground">— your agent cannot move funds</span>
+            </p>
+          )}
+
+          {isOn(draft.BOOA_ONCHAIN_WRITES) && (!draft.BOOA_MAX_TX_ETH?.trim() || !draft.BOOA_SEND_ALLOWLIST?.trim()) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              No ceiling or no allowlist set — funds can move freely. Add both below.
+            </p>
+          )}
+
+          <div className="space-y-2.5">
+            {ONCHAIN_FIELDS.map((f) => (
+              f.bool ? (
+                <label key={f.key} className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={isOn(draft[f.key])}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.checked ? '1' : '0' }))}
+                  />
+                  <span>{f.label}</span>
+                </label>
+              ) : (
+                <label key={f.key} className="block text-xs space-y-1">
+                  <span className="text-muted-foreground">{f.label}</span>
+                  <input
+                    type="text"
+                    value={draft[f.key] ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    placeholder={f.placeholder}
+                    className="w-full px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                    style={font}
+                    spellCheck={false}
+                  />
+                </label>
+              )
+            ))}
           </div>
 
-          {showTrading && (
-            <div className="space-y-2.5 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-              {ONCHAIN_FIELDS.map((f) => (
-                <div key={f.key} className="space-y-1">
-                  {f.bool ? (
-                    <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={isOn(draft[f.key])}
-                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.checked ? '1' : '0' }))}
-                      />
-                      <span>{f.label}</span>
-                    </label>
-                  ) : (
-                    <label className="block text-xs space-y-1">
-                      <span className="text-muted-foreground">{f.label}</span>
-                      <input
-                        type="text"
-                        value={draft[f.key] ?? ''}
-                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                        placeholder={f.placeholder}
-                        className="w-full px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                        style={{ fontFamily: 'var(--font-departure-mono)' }}
-                        spellCheck={false}
-                      />
-                    </label>
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={() => void saveTrading()}
-                disabled={onchainBusy || dirtyKeys.length === 0}
-                className="px-3 py-2 text-[10px] uppercase tracking-wider rounded-md bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 disabled:opacity-40 transition-opacity"
-              >
-                {onchainBusy ? 'Saving…' : dirtyKeys.length ? `Save ${dirtyKeys.length} change(s)` : 'No changes'}
-              </button>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Toggles need a gateway restart to take effect; limits and allowlists apply immediately.
-              </p>
-            </div>
-          )}
-          {onchainNote && <p className="text-xs text-emerald-600 dark:text-emerald-400">{onchainNote}</p>}
-          {onchainError && <p className="text-xs text-red-500">{onchainError}</p>}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void saveTrading()}
+              disabled={onchainBusy || dirtyKeys.length === 0}
+              className="px-3 py-2 text-[10px] uppercase tracking-wider rounded-md bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 disabled:opacity-40 transition-opacity"
+            >
+              {onchainBusy ? 'Saving…' : dirtyKeys.length ? `Save ${dirtyKeys.length} change(s)` : 'Saved'}
+            </button>
+            {onchainNote && <span className="text-xs text-emerald-600 dark:text-emerald-400">{onchainNote}</span>}
+            {onchainError && <span className="text-xs text-red-500">{onchainError}</span>}
+          </div>
         </section>
       )}
 
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Scheduled jobs</h3>
+        <SectionHead title="Scheduled jobs">
+          <InfoModal title="Scheduled jobs">
+            <p>Every cron job on your instance, with its schedule and next/last run.</p>
+            <p>Pause, resume, run now, or delete a job from here. New jobs are created by asking your agent in chat — the console manages what already runs but never schedules new autonomous work on its own.</p>
+          </InfoModal>
+        </SectionHead>
         {jobsState === 'loading' && (
           <p className="text-xs text-muted-foreground">Checking what&apos;s scheduled…</p>
         )}
@@ -533,20 +548,17 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
                 </div>
               );
             })}
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              New jobs are created by asking your agent in chat, not here — the console can manage
-              what already runs, but never schedules new autonomous work on its own.
-            </p>
           </div>
         )}
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Export backup</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Downloads an AES-256 encrypted zip of memories, skills, context, sessions, SOUL.md and the
-          wallet vault. Your instance admin password both authorizes and encrypts it.
-        </p>
+        <SectionHead title="Export backup">
+          <InfoModal title="Export backup">
+            <p>Downloads an AES-256 encrypted zip of memories, skills, context, sessions, SOUL.md and the encrypted wallet vault.</p>
+            <p>Your instance admin password both authorizes the export and encrypts the archive. It never leaves your machine.</p>
+          </InfoModal>
+        </SectionHead>
         <div className="flex gap-2">
           <input
             type="password"
@@ -569,12 +581,12 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Import backup</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Overwrites memories, skills, context, sessions and SOUL.md on the instance, then restarts the
-          gateway. config.yaml and a live wallet vault are never touched. The format is documented in
-          Docs → Console Backup Format.
-        </p>
+        <SectionHead title="Import backup">
+          <InfoModal title="Import backup">
+            <p>Overwrites memories, skills, context, sessions and SOUL.md on the instance, then restarts the gateway.</p>
+            <p>config.yaml and a live wallet vault are never touched. The format is documented in Docs → Console Backup Format.</p>
+          </InfoModal>
+        </SectionHead>
         <input
           type="file"
           accept=".zip"
