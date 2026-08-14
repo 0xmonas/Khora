@@ -14,7 +14,18 @@ interface ChatEntry {
   interrupted?: boolean;
 }
 
-const SLASH_HINTS = '/help /model /reset /usage /compress /skills';
+// Real Hermes gateway slash commands, run over the console like any message.
+// Telegram renders these as inline-keyboard cards inside its own adapter; the
+// api_server has no button concept, so we drive the useful ones as buttons here.
+const COMMANDS: { cmd: string; label: string; confirm?: string }[] = [
+  { cmd: '/help', label: 'Help — list commands' },
+  { cmd: '/usage', label: 'Usage & cost' },
+  { cmd: '/skills', label: 'Skills' },
+  { cmd: '/whoami', label: 'Who am I' },
+  { cmd: '/compress', label: 'Compress history', confirm: 'Compress this conversation? The agent summarizes older turns to free up context.' },
+  { cmd: '/reset', label: 'Reset conversation', confirm: 'Reset this conversation on the instance? The agent forgets the current thread.' },
+];
+const SLASH_HINTS = COMMANDS.map((c) => c.cmd).join(' ') + ' /model';
 
 interface ChatPanelProps {
   conn: ConsoleConnection;
@@ -33,6 +44,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const [cmdsOpen, setCmdsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [creating, setCreating] = useState(false);
@@ -167,8 +179,8 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
     } catch { /* ignore */ }
   };
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || streaming) return;
 
     let sid = sessionId;
@@ -183,7 +195,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
       }
     }
 
-    setInput('');
+    if (override === undefined) setInput('');
     setError(null);
     setEntries((prev) => [...prev, { role: 'user', text }, { role: 'assistant', text: '' }]);
     setStreaming(true);
@@ -351,31 +363,65 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
           )}
         </div>
 
-        {models.length > 0 && (
+        <div className="flex items-center gap-3">
           <div className="relative">
             <button
-              onClick={() => setModelsOpen(!modelsOpen)}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
+              onClick={() => { setCmdsOpen(!cmdsOpen); setModelsOpen(false); }}
+              disabled={streaming}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider disabled:opacity-40"
               style={font}
             >
-              model
+              commands
             </button>
-            {modelsOpen && (
-              <div className="absolute top-full right-0 mt-1 z-50 w-64 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg chat-scrollbar">
-                {models.map((m) => (
+            {cmdsOpen && (
+              <div className="absolute top-full right-0 mt-1 z-50 w-56 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg">
+                {COMMANDS.map((c) => (
                   <button
-                    key={m}
-                    onClick={() => applyModel(m)}
-                    className="block w-full px-3 py-2 text-xs text-left truncate hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                    key={c.cmd}
+                    onClick={() => {
+                      setCmdsOpen(false);
+                      if (c.confirm && !confirm(c.confirm)) return;
+                      void send(c.cmd);
+                    }}
+                    className="block w-full px-3 py-2 text-xs text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
                     style={font}
                   >
-                    {m}
+                    <span className="text-muted-foreground">{c.cmd}</span> {c.label.replace(/^[^—]*— ?/, '') || c.label}
                   </button>
                 ))}
+                <p className="px-3 py-1.5 text-[9px] text-muted-foreground/60 border-t border-neutral-100 dark:border-neutral-800" style={font}>
+                  Same commands as Telegram — you can also type any of them.
+                </p>
               </div>
             )}
           </div>
-        )}
+
+          {models.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => { setModelsOpen(!modelsOpen); setCmdsOpen(false); }}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
+                style={font}
+              >
+                model
+              </button>
+              {modelsOpen && (
+                <div className="absolute top-full right-0 mt-1 z-50 w-64 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg chat-scrollbar">
+                  {models.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => applyModel(m)}
+                      className="block w-full px-3 py-2 text-xs text-left truncate hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                      style={font}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 chat-scrollbar">
@@ -420,8 +466,19 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
       </div>
 
       {input.startsWith('/') && (
-        <div className="px-4 py-1 text-[10px] text-muted-foreground border-t border-neutral-100 dark:border-neutral-800" style={font}>
-          {SLASH_HINTS}
+        <div className="flex flex-wrap gap-1.5 px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800">
+          {[...COMMANDS.map((c) => c.cmd), '/model']
+            .filter((c) => c.startsWith(input.split(' ')[0]))
+            .map((c) => (
+              <button
+                key={c}
+                onClick={() => { setInput(c + ' '); inputRef.current?.focus(); }}
+                className="px-2 py-0.5 text-[10px] rounded border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:text-foreground hover:border-neutral-400 transition-colors"
+                style={font}
+              >
+                {c}
+              </button>
+            ))}
         </div>
       )}
 
