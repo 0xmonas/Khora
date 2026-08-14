@@ -63,6 +63,7 @@ export function AgentConsole() {
             agentId: mine.get(Number(n.tokenId)) ?? null,
             bound: null,
             controller: null,
+            agentWallet: null,
           }))
           .sort((x: ConsoleAgent, y: ConsoleAgent) =>
             (Number(y.agentId !== null) - Number(x.agentId !== null)) || (x.tokenId - y.tokenId));
@@ -79,7 +80,8 @@ export function AgentConsole() {
       const d = await res.json();
       const bound = !!d.bound;
       const controller = typeof d.controller === 'string' ? d.controller.toLowerCase() : null;
-      setAgents((prev) => prev.map((a) => (a.tokenId === tokenId ? { ...a, bound, controller } : a)));
+      const agentWallet = typeof d.agentWallet === 'string' ? d.agentWallet : null;
+      setAgents((prev) => prev.map((a) => (a.tokenId === tokenId ? { ...a, bound, controller, agentWallet } : a)));
       return bound && !!address && controller === address.toLowerCase();
     } catch {
       return false;
@@ -284,6 +286,7 @@ export function AgentConsole() {
                   conn={conn}
                   meta={meta}
                   agentName={selected?.name || `BOOA #${selectedTokenId}`}
+                  agentWallet={selected?.agentWallet || null}
                   onMetaRefresh={(m) => setMeta(m)}
                 />
               )}

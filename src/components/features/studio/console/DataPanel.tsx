@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Upload, RotateCw } from 'lucide-react';
+import { Download, Upload, RotateCw, ExternalLink } from 'lucide-react';
+import { useBalance } from 'wagmi';
+import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
 import { ConsoleMeta } from './types';
 
@@ -13,7 +15,21 @@ interface Props {
   conn: ConsoleConnection;
   meta: ConsoleMeta;
   agentName: string;
+  agentWallet: string | null;
   onMetaRefresh: (meta: ConsoleMeta) => void;
+}
+
+function WalletBalances({ wallet }: { wallet: `0x${string}` }) {
+  const eth = useBalance({ address: wallet, chainId: mainnet.id, query: { refetchInterval: 60_000 } });
+  const bas = useBalance({ address: wallet, chainId: base.id, query: { refetchInterval: 60_000 } });
+  const fmt = (v?: { formatted: string; symbol: string }) =>
+    v ? `${Number(v.formatted).toFixed(4)} ${v.symbol}` : '…';
+  return (
+    <div className="text-xs text-muted-foreground space-y-0.5">
+      <p>Ethereum {fmt(eth.data)}</p>
+      <p>Base {fmt(bas.data)}</p>
+    </div>
+  );
 }
 
 interface MismatchInfo {
@@ -43,7 +59,7 @@ async function fetchLatestVersion(): Promise<string | null> {
   }
 }
 
-export function DataPanel({ conn, meta, agentName, onMetaRefresh }: Props) {
+export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }: Props) {
   const [exportPw, setExportPw] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -156,6 +172,31 @@ export function DataPanel({ conn, meta, agentName, onMetaRefresh }: Props) {
 
   return (
     <div className="px-4 py-4 space-y-5 max-w-lg" style={font}>
+      <section className="space-y-2">
+        <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Agent wallet</h3>
+        {agentWallet ? (
+          <div className="space-y-1">
+            <p className="text-xs flex items-center gap-1.5">
+              <span className="text-emerald-600 dark:text-emerald-400">linked</span>
+              <span className="text-muted-foreground">{agentWallet.slice(0, 10)}…{agentWallet.slice(-6)}</span>
+              <a
+                href={`https://etherscan.io/address/${agentWallet}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
+            <WalletBalances wallet={agentWallet as `0x${string}`} />
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No wallet linked yet — link one from My Agents or the Bridge.
+          </p>
+        )}
+      </section>
+
       <section className="space-y-2">
         <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Version</h3>
         <div className="text-xs space-y-1">

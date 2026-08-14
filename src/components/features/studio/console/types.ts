@@ -31,6 +31,7 @@ export interface ConsoleAgent {
   agentId: number | null;
   bound: boolean | null;
   controller: string | null;
+  agentWallet: string | null;
 }
 
 export function extractText(content: unknown): string {
