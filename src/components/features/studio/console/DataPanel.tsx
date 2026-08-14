@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle } from 'lucide-react';
+import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield } from 'lucide-react';
 import { useBalance } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
-import { ConsoleMeta, ConsoleJob, formatWhen } from './types';
+import { ConsoleMeta, ConsoleJob, OnchainSettings, formatWhen, isOn } from './types';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 const LATEST_CHECK_KEY = 'booa-console:latest-check';
@@ -79,6 +79,55 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   const [jobs, setJobs] = useState<ConsoleJob[]>([]);
   const [jobsState, setJobsState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
   const [jobBusy, setJobBusy] = useState<string | null>(null);
+
+  const [onchain, setOnchain] = useState<OnchainSettings | null>(null);
+  const [onchainBusy, setOnchainBusy] = useState(false);
+  const [onchainError, setOnchainError] = useState<string | null>(null);
+  const [onchainNote, setOnchainNote] = useState<string | null>(null);
+
+  const loadOnchain = useCallback(async () => {
+    try {
+      const res = await consoleFetch(conn, '/onchain-settings');
+      if (!res.ok) return;
+      const d = await res.json();
+      setOnchain(d.settings || null);
+    } catch { /* surfaced on the next action */ }
+  }, [conn]);
+
+  useEffect(() => { void loadOnchain(); }, [loadOnchain]);
+
+  const saveOnchain = async (change: Record<string, string>, label: string) => {
+    setOnchainBusy(true);
+    setOnchainError(null);
+    setOnchainNote(null);
+    try {
+      let res = await consoleFetch(conn, '/onchain-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(change),
+      });
+      if (res.status === 403) {
+        const pw = prompt(`${label} widens what your agent may spend, so it needs your instance admin password.`);
+        if (!pw) return;
+        res = await consoleFetch(conn, '/onchain-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...change, admin_password: pw }),
+        });
+      }
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOnchainError(typeof d.error === 'string' ? d.detail || d.error : 'Could not save.');
+        return;
+      }
+      setOnchain(d.settings || null);
+      setOnchainNote(typeof d.note === 'string' ? d.note : 'Saved.');
+    } catch {
+      setOnchainError('Instance unreachable.');
+    } finally {
+      setOnchainBusy(false);
+    }
+  };
 
   const loadJobs = useCallback(async () => {
     try {
@@ -254,6 +303,74 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
           {restarting ? 'Restarting…' : 'Restart gateway'}
         </button>
       </section>
+
+      {onchain && (
+        <section className="space-y-2">
+          <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Spending guardrails</h3>
+          {isOn(onchain.BOOA_ONCHAIN_WRITES) ? (
+            <div className="space-y-2">
+              <p className="text-xs flex items-center gap-1.5">
+                <span className="text-amber-600 dark:text-amber-400">writes enabled</span>
+                <span className="text-muted-foreground">— your agent can move funds</span>
+              </p>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p>Per transaction: {onchain.BOOA_MAX_TX_ETH?.trim() || 'no limit'}{onchain.BOOA_MAX_TX_ETH?.trim() ? ' ETH' : ''}</p>
+                <p>Daily: {onchain.BOOA_DAILY_CAP_ETH?.trim() || 'no limit'}{onchain.BOOA_DAILY_CAP_ETH?.trim() ? ' ETH' : ''}</p>
+                <p>
+                  Allowed destinations:{' '}
+                  {onchain.BOOA_SEND_ALLOWLIST?.trim()
+                    ? `${onchain.BOOA_SEND_ALLOWLIST.split(',').filter((a) => a.trim()).length} address(es)`
+                    : 'anywhere'}
+                </p>
+              </div>
+              {(!onchain.BOOA_MAX_TX_ETH?.trim() || !onchain.BOOA_SEND_ALLOWLIST?.trim()) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
+                  Funds can move with no ceiling or to any address. Set both on your instance
+                  dashboard, and put a spend rule in your OWS policy too.
+                </p>
+              )}
+              <button
+                onClick={() => {
+                  if (confirm('Turn off onchain writes? Your agent stops being able to move funds. Takes effect after the gateway restarts.')) {
+                    void saveOnchain({ BOOA_ONCHAIN_WRITES: '0' }, 'Enabling writes');
+                  }
+                }}
+                disabled={onchainBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md bg-red-600 text-white disabled:opacity-40 transition-opacity"
+              >
+                <ShieldOff className="w-3 h-3" />
+                Stop onchain writes
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs flex items-center gap-1.5">
+                <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-emerald-600 dark:text-emerald-400">writes off</span>
+                <span className="text-muted-foreground">— your agent cannot move funds</span>
+              </p>
+              <button
+                onClick={() => {
+                  if (confirm('Let your agent move funds? Set a per-transaction cap and a destination allowlist on your instance dashboard first.')) {
+                    void saveOnchain({ BOOA_ONCHAIN_WRITES: '1' }, 'Enabling writes');
+                  }
+                }}
+                disabled={onchainBusy}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 disabled:opacity-40 transition-colors"
+              >
+                Allow onchain writes
+              </button>
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Tightening a limit works from here. Raising one, or allowing a new destination,
+            asks for your instance admin password — so this key alone can never widen what
+            your agent may spend.
+          </p>
+          {onchainNote && <p className="text-xs text-emerald-600 dark:text-emerald-400">{onchainNote}</p>}
+          {onchainError && <p className="text-xs text-red-500">{onchainError}</p>}
+        </section>
+      )}
 
       <section className="space-y-2">
         <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground">Scheduled jobs</h3>

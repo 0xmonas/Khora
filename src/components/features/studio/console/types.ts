@@ -50,6 +50,22 @@ export function sessionLabel(s: ConsoleSession): string {
   return `chat ${s.id.slice(0, 8)}`;
 }
 
+export interface OnchainSettings {
+  BOOA_ONCHAIN_MCP?: string;
+  BOOA_ONCHAIN_WRITES?: string;
+  BOOA_MAX_TX_ETH?: string;
+  BOOA_DAILY_CAP_ETH?: string;
+  BOOA_SEND_ALLOWLIST?: string;
+  BOOA_SWAP_TOKEN_ALLOWLIST?: string;
+  BOOA_MAX_SLIPPAGE_BPS?: string;
+  BOOA_OPENSEA_MCP?: string;
+  BOOA_OPENSEA_REQUIRE_VERIFIED?: string;
+}
+
+export function isOn(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
+}
+
 export interface ConsoleJob {
   id: string;
   name?: string | null;
