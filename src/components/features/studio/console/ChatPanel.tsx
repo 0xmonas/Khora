@@ -35,6 +35,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const [modelsOpen, setModelsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -104,23 +105,37 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
 
   useEffect(() => { void loadModels(); }, [loadModels]);
 
+  // The create endpoint returns { session: { id } }; reading d.id gave undefined,
+  // so the UI never switched and each click silently spawned another session.
+  const createSession = async (): Promise<string | null> => {
+    const res = await consoleFetch(conn, '/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error(`create failed: ${res.status}`);
+    const d = await res.json();
+    const s = d.session || d;
+    const id = s.id || s.session_id;
+    if (!id) throw new Error('no session id in response');
+    setSessions((prev) => [{ id, title: s.title ?? null, started_at: s.started_at }, ...prev]);
+    return id;
+  };
+
   const newSession = async () => {
+    if (creating) return; // one create per click, not one per re-render
+    setCreating(true);
+    setError(null);
     try {
-      const res = await consoleFetch(conn, '/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) return;
-      const d = await res.json();
-      const id = d.id || d.session_id;
+      const id = await createSession();
       if (id) {
-        setSessions((prev) => [{ id, title: null }, ...prev]);
         setSessionId(id);
         setEntries([]);
       }
     } catch {
-      setError('Could not create a session — is the gateway running?');
+      setError('Could not create a chat — is the gateway running?');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -159,18 +174,11 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
     let sid = sessionId;
     if (!sid) {
       try {
-        const res = await consoleFetch(conn, '/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const d = await res.json();
-        sid = d.id || d.session_id;
+        sid = await createSession();
         if (!sid) throw new Error();
-        setSessions((prev) => [{ id: sid as string, title: null }, ...prev]);
         setSessionId(sid);
       } catch {
-        setError('Could not create a session — is the gateway running?');
+        setError('Could not create a chat — is the gateway running?');
         return;
       }
     }
@@ -284,10 +292,11 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
           </button>
           <button
             onClick={newSession}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            disabled={creating}
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
             title="New chat"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className={`w-3.5 h-3.5 ${creating ? 'animate-pulse' : ''}`} />
           </button>
           {sessionsOpen && (
             <div className="absolute top-full left-0 mt-1 z-50 w-64 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg chat-scrollbar">
