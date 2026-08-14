@@ -6,7 +6,7 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import { getRedis } from '@/lib/server/redis';
 import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const ETH_MAINNET = 1;
 const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as `0x${string}`;

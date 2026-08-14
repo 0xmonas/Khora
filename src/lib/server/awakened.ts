@@ -30,9 +30,22 @@ function rpcUrlsFor(chainId: number): string[] {
 const AGENT_BOUND_EVENT =
   'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)';
 
-// eth_getLogs page size + a hard page cap so a shared adapter can't blow up cost.
+// eth_getLogs page size + a per-call page cap. The index is cumulative and persisted,
+// so a long-idle instance catches up over successive calls instead of one huge scan.
 const LOG_PAGE = BigInt(9_999);
-const MAX_PAGES = 12;
+const CATCHUP_PAGES = 30;
+
+// First block that could contain an awakening per chain (the BOOA token contract's
+// deploy block). Scanning forward from here — rather than a fixed window back from
+// head — is what stops early awakenings from silently dropping off the list.
+const DEPLOY_BLOCK: Partial<Record<number, bigint>> = {
+  1: BigInt(25_555_954), // BOOA ETH contract deploy
+};
+// Chains without a known deploy block seed from a window back and accumulate forward.
+const SEED_SPAN = BigInt(120_000);
+// Skip re-scanning when the index is caught up and was refreshed this recently.
+const FRESH_WINDOW_MS = 60_000;
+const HEAD_SLACK = BigInt(5);
 
 export interface Awakening {
   agentId: number;
@@ -43,6 +56,12 @@ export interface Awakening {
   txHash: string;
 }
 
+interface AwakenedIndex {
+  agents: Awakening[];
+  cursor: number;   // last block scanned (inclusive)
+  updatedAt: number; // ms
+}
+
 async function makeClient(chainId: number) {
   const { createPublicClient, http, fallback } = await import('viem');
   const urls = rpcUrlsFor(chainId);
@@ -50,57 +69,61 @@ async function makeClient(chainId: number) {
   return createPublicClient({ transport: fallback(urls.map((u) => http(u))) });
 }
 
-/** All AgentBound events for the BOOA contract on `chainId`, newest first. */
 /**
- * Cached wrapper around the log scan. Every surface that needs binding facts goes
- * through here, so they cannot disagree and the shared adapter is not rescanned
- * once per caller. `fresh` skips the read (used right after an awaken).
+ * Cumulative, persisted index of every AgentBound event for the BOOA contract on
+ * `chainId`, newest first. Every surface that needs binding facts goes through here,
+ * so they cannot disagree. The index scans FORWARD from the token contract's deploy
+ * block and never forgets an old binding — an early awakening can't drop off a
+ * fixed head-window the way it did before. Each call only scans blocks past the
+ * stored cursor (bounded per call), so cost stays low once caught up. `fresh` forces
+ * a delta scan even when the index was refreshed within FRESH_WINDOW_MS.
  */
-const SCAN_CACHE_KEY = (chainId: number) => `awakened:scan:v1:${chainId}`;
-const SCAN_CACHE_TTL = 120;
+const INDEX_KEY = (chainId: number) => `awakened:index:v1:${chainId}`;
 
 export async function scanAwakenings(chainId: number, fresh = false): Promise<Awakening[]> {
-  if (!fresh) {
-    try {
-      const cached = await getRedis().get<Awakening[]>(SCAN_CACHE_KEY(chainId));
-      if (Array.isArray(cached)) return cached;
-    } catch { /* cache unavailable — scan */ }
-  }
-  const result = await scanAwakeningsUncached(chainId);
-  if (result.length > 0) {
-    try {
-      await getRedis().set(SCAN_CACHE_KEY(chainId), result, { ex: SCAN_CACHE_TTL });
-    } catch { /* best effort */ }
-  }
-  return result;
-}
-
-async function scanAwakeningsUncached(chainId: number): Promise<Awakening[]> {
   const adapter = getAdapterAddress(chainId);
   const booa = getV2Address(chainId);
   if (!adapter || !booa || booa.length <= 2) return [];
 
   const client = await makeClient(chainId);
   if (!client) return [];
+
+  let index: AwakenedIndex | null = null;
+  try {
+    index = await getRedis().get<AwakenedIndex>(INDEX_KEY(chainId));
+  } catch { /* index unavailable — rebuild from deploy block */ }
+
+  const latest = await client.getBlockNumber();
+  const caughtUp = index !== null && BigInt(index.cursor) >= latest - HEAD_SLACK;
+  if (index && !fresh && caughtUp && Date.now() - index.updatedAt < FRESH_WINDOW_MS) {
+    return index.agents;
+  }
+
+  const floor = DEPLOY_BLOCK[chainId] ?? (latest > SEED_SPAN ? latest - SEED_SPAN : BigInt(0));
+  const fromBlock = index ? BigInt(index.cursor) + BigInt(1) : floor;
+  if (fromBlock > latest) {
+    return index?.agents ?? [];
+  }
+
   const { parseAbiItem } = await import('viem');
   const event = parseAbiItem(AGENT_BOUND_EVENT);
 
-  const latest = await client.getBlockNumber();
   // AgentBound has a non-indexed tokenId; filter by the indexed tokenContract.
-  const raw: { agentId: number; tokenId: number; awakenedBy: string; block: bigint; txHash: string }[] = [];
-  let cursor = latest;
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const from = cursor > LOG_PAGE ? cursor - LOG_PAGE : BigInt(0);
+  const fresh_raw: { agentId: number; tokenId: number; awakenedBy: string; block: bigint; txHash: string }[] = [];
+  let cursor = fromBlock;
+  let scannedTo = index ? BigInt(index.cursor) : floor - BigInt(1);
+  for (let i = 0; i < CATCHUP_PAGES && cursor <= latest; i++) {
+    const to = cursor + LOG_PAGE > latest ? latest : cursor + LOG_PAGE;
     try {
       const logs = await client.getLogs({
         address: adapter,
         event,
         args: { tokenContract: booa as `0x${string}` },
-        fromBlock: from,
-        toBlock: cursor,
+        fromBlock: cursor,
+        toBlock: to,
       });
       for (const l of logs) {
-        raw.push({
+        fresh_raw.push({
           agentId: Number(l.args.agentId),
           tokenId: Number(l.args.tokenId),
           awakenedBy: (l.args.registeredBy as string) || '',
@@ -108,25 +131,20 @@ async function scanAwakeningsUncached(chainId: number): Promise<Awakening[]> {
           txHash: l.transactionHash ?? '',
         });
       }
-    } catch { /* page failed — keep scanning */ }
-    if (from === BigInt(0)) break;
-    cursor = from - BigInt(1);
+      scannedTo = to;
+    } catch {
+      // Page failed — stop advancing here so the next call retries this range
+      // rather than skipping past unscanned blocks and losing their events.
+      break;
+    }
+    cursor = to + BigInt(1);
   }
-  if (raw.length === 0) return [];
 
-  // Dedupe by tokenId keeping the newest binding (handles rebind).
-  const newestByToken = new Map<number, (typeof raw)[number]>();
-  for (const r of raw) {
-    const prev = newestByToken.get(r.tokenId);
-    if (!prev || r.block > prev.block) newestByToken.set(r.tokenId, r);
-  }
-  const unique = Array.from(newestByToken.values()).sort((a, b) => Number(b.block - a.block));
-
-  // Resolve timestamps (bounded set → one getBlock each, tolerated).
+  // Resolve timestamps for the newly-seen blocks only.
   const blocks = await Promise.all(
-    unique.map((r) => client.getBlock({ blockNumber: r.block }).catch(() => null)),
+    fresh_raw.map((r) => client.getBlock({ blockNumber: r.block }).catch(() => null)),
   );
-  return unique.map((r, i) => ({
+  const newEvents: Awakening[] = fresh_raw.map((r, i) => ({
     agentId: r.agentId,
     tokenId: r.tokenId,
     awakenedBy: r.awakenedBy,
@@ -134,6 +152,22 @@ async function scanAwakeningsUncached(chainId: number): Promise<Awakening[]> {
     awakenedAt: blocks[i] ? Number(blocks[i]!.timestamp) * 1000 : null,
     txHash: r.txHash,
   }));
+
+  // Merge into the cumulative set, deduped by tokenId keeping the newest binding.
+  const newestByToken = new Map<number, Awakening>();
+  for (const a of index?.agents ?? []) newestByToken.set(a.tokenId, a);
+  for (const a of newEvents) {
+    const prev = newestByToken.get(a.tokenId);
+    if (!prev || a.block > prev.block) newestByToken.set(a.tokenId, a);
+  }
+  const merged = Array.from(newestByToken.values()).sort((a, b) => b.block - a.block);
+
+  const next: AwakenedIndex = { agents: merged, cursor: Number(scannedTo), updatedAt: Date.now() };
+  try {
+    await getRedis().set(INDEX_KEY(chainId), next);
+  } catch { /* best effort — next call re-scans the same delta */ }
+
+  return merged;
 }
 
 /** The current awakening for one BOOA token (newest binding), or null. */
