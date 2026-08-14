@@ -45,6 +45,14 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'agent-console',
+    title: 'Agent Console',
+    description: 'Chat with and manage your self-hosted Hermes agent from the browser. Your instance, your key — booa.app stores nothing.',
+    href: '/studio/agent-console',
+    media: 'awaken.svg',
+    tag: 'NEW',
+  },
+  {
     id: 'booask',
     title: 'BOOASK',
     description: 'Ask anything about a BOOA, an agent, or how any of this works. Read-only oracle, no wallet required.',

@@ -271,7 +271,7 @@ Setup (4 steps):
 1. Enter your BOOA token ID — identity fetched from blockchain
 2. Fill in USER.md — tell your agent about yourself
 3. Pick an AI provider — OpenRouter has a free tier
-4. Connect Telegram — create a bot via @BotFather, paste the token
+4. Connect a channel — Telegram (bot via @BotFather) or skip it and use Agent Console from the browser
 
 Your agent starts automatically with SOUL.md, IDENTITY.md, and BOOA + Cobbee skills pre-loaded.
 
@@ -280,10 +280,79 @@ GitHub: github.com/0xmonas/booa-hermes-template
 Cost: ~$5/month (Railway Hobby plan)
 
 After setup:
-- Message your agent on Telegram
+- Message your agent on Telegram, or from booa.app via Studio, Agent Console (see the Agent Console page)
 - Tell it "set up my wallet" for OWS wallet creation
 - Tell it "/cobbee" to join the creator platform
 - It learns and improves over time`,
+      },
+      {
+        slug: 'agent-console',
+        title: 'Agent Console',
+        description: 'Chat with and manage your instance from booa.app.',
+        content: `Agent Console turns booa.app into a web frontend for your own Hermes instance. Chat, logs, backups and version checks — from any browser, including iOS. Your agent keeps running on your Railway instance; booa.app stores nothing. Chat history lives in your instance's session database, and your console key stays in your browser's local storage.
+
+Requirements:
+- Template v1.1.0 or newer (older instances: update on Railway first)
+- Your BOOA must be awakened and wallet-linked
+- The wallet you sign in with must currently own the BOOA
+
+Connect (3 steps):
+1. Open your instance dashboard and enable the Web Console toggle
+2. Copy the instance URL and console key from the same card
+3. Paste both into Studio, Agent Console after picking your BOOA
+
+The console key only unlocks chat, logs and backups. It can never reach your instance dashboard, your API keys or your wallet. You can rotate it any time from the instance dashboard; the old key stops working immediately.
+
+Chat:
+- Multiple chats with full history, stored on your instance
+- Slash commands work exactly like Telegram: /help /model /reset /usage /compress /skills
+- Telegram keeps working alongside the console, same agent, same memory
+
+Logs:
+- Live stream of your runtime output, secrets redacted before they leave the instance
+- The buffer holds the last 1,000 lines and clears on restart; full logs live in Railway
+
+Updating:
+- The Data tab shows your template version and the latest release
+- Updates ship as image rebuilds on Railway; your data volume is untouched
+
+If you sell your BOOA:
+- The console disconnects for the old owner automatically; control follows the NFT
+- The instance itself stays on your Railway account — export a backup and hand it to the new owner if you want the agent's memory to travel with it`,
+      },
+      {
+        slug: 'console-backup-format',
+        title: 'Console Backup Format',
+        description: 'What an exported backup contains and how import works.',
+        content: `Exports from the instance dashboard and Agent Console produce an AES-256 encrypted zip. Your instance admin password both authorizes the export and encrypts the archive. The password is never stored anywhere. 7-Zip and similar tools can open the archive; macOS Archive Utility cannot read AES zips — use the importer or 7z.
+
+Included:
+- memories/ — USER.md, MEMORY.md and everything the agent wrote
+- skills/ — installed skills
+- context/ — agent.json, IDENTITY.md, avatar, SECURITY.md
+- sessions/ — chat history
+- SOUL.md
+- config.yaml — with the Telegram bot token redacted
+- onchain-settings.json — trading limits and allowlists, no API keys
+- wallet-info.txt — addresses only, mnemonic lines stripped
+- ows/ — the encrypted OWS wallet vault (AES-256-GCM, protected by its own passphrase)
+- manifest.json — describes the archive
+
+manifest.json fields:
+- format: always "booa-hermes-backup"
+- format_version: 1 (importers accept equal or older versions)
+- created_at, template_version, hermes_pin
+- token_id, chain_id, agent_name
+- contents, redactions, counts
+
+Import rules:
+- Import needs the admin password of the target instance, plus the archive password if it differs
+- Restored: memories/, skills/, context/, sessions/, SOUL.md, onchain-settings.json
+- Never restored: config.yaml and wallet-info.txt (live instance state wins)
+- ows/ is only restored when the target has no live wallet vault, or when you explicitly allow overwriting — overwriting a live vault is how funds get lost
+- A backup from a different BOOA triggers a token mismatch warning you must explicitly confirm
+- Limits: 200 MB archive, 50 MB per file, 500 MB uncompressed total
+- A failed import rolls back automatically; the previous data is also kept on the volume in .pre-import-backup for manual recovery`,
       },
       {
         slug: 'openclaw',
