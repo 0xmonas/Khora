@@ -41,7 +41,7 @@ const TOOLS: ToolCard[] = [
     title: 'My Agents',
     description: 'Your BOOAs and their onchain agents in one place. Awaken status, agent wallet, verified badge, and quick links to the ident card, chat, and 8004scan.',
     href: '/studio/my-agents',
-    media: 'awaken.svg',
+    media: 'my-agents.svg',
     tag: 'NEW',
   },
   {
@@ -49,7 +49,7 @@ const TOOLS: ToolCard[] = [
     title: 'Agent Console',
     description: 'Chat with and manage your self-hosted Hermes agent from the browser. Your instance, your key — booa.app stores nothing.',
     href: '/studio/agent-console',
-    media: 'awaken.svg',
+    media: 'agent-console.svg',
     tag: 'NEW',
   },
   {

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#08211f"/>
+  <g fill="#2d6b66" opacity="0.35">
+    <rect x="32" y="32" width="8" height="8"/><rect x="48" y="32" width="8" height="8"/>
+    <rect x="360" y="360" width="8" height="8"/><rect x="344" y="360" width="8" height="8"/>
+    <rect x="32" y="360" width="8" height="8"/><rect x="360" y="32" width="8" height="8"/>
+  </g>
+  <!-- terminal/console screen -->
+  <rect x="80" y="96" width="240" height="192" fill="#6ABFC6"/>
+  <rect x="88" y="120" width="224" height="160" fill="#08211f"/>
+  <!-- title bar dots -->
+  <g fill="#08211f">
+    <rect x="96" y="104" width="8" height="8"/><rect x="112" y="104" width="8" height="8"/><rect x="128" y="104" width="8" height="8"/>
+  </g>
+  <!-- prompt chevron + cursor line -->
+  <g fill="#9AE29B">
+    <rect x="104" y="144" width="8" height="8"/><rect x="112" y="152" width="8" height="8"/><rect x="104" y="160" width="8" height="8"/>
+    <rect x="128" y="152" width="72" height="8"/>
+  </g>
+  <!-- output lines -->
+  <g fill="#6ABFC6" opacity="0.8">
+    <rect x="104" y="184" width="120" height="8"/>
+    <rect x="104" y="200" width="168" height="8"/>
+    <rect x="104" y="216" width="88" height="8"/>
+    <rect x="104" y="240" width="136" height="8"/>
+  </g>
+  <!-- blinking cursor block -->
+  <rect x="256" y="240" width="16" height="8" fill="#c9ffe4"/>
+</svg>

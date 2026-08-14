@@ -158,7 +158,7 @@ export function AgentConsole() {
     && !!address && selected.controller === address.toLowerCase();
 
   return (
-    <div className="max-w-4xl mx-auto space-y-3">
+    <div className="w-full space-y-3">
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background overflow-hidden shadow-sm">
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800">
           <div className="relative">

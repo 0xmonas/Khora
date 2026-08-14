@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Trash2, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { Send, Trash2, ExternalLink, ArrowLeft } from 'lucide-react';
 import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import type { BooaskMessage } from '@/lib/booask/types';
@@ -176,16 +177,21 @@ export default function BooaskPage() {
       <main className="flex-1">
         <div className="p-4 md:p-8 lg:p-12">
           <div className="w-full lg:grid lg:grid-cols-12">
-            <div className="hidden lg:block lg:col-span-2" />
-            <div className="lg:col-span-8 space-y-4">
-              <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest" style={font}>
-                  BOOA
-                </p>
+            <div className="hidden lg:block lg:col-span-1" />
+            <div className="lg:col-span-10">
+              <div className="space-y-3 mb-6">
+                <Link
+                  href="/studio"
+                  className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                  style={font}
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  Studio
+                </Link>
                 <h1 className="text-2xl sm:text-3xl text-foreground" style={font}>
                   BOOASK
                 </h1>
-                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl" style={font}>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-lg" style={font}>
                   hi. ask me anything about a BOOA, an agent, or how any of this works. I read every doc and every blog so you don&apos;t have to.
                 </p>
               </div>
@@ -361,11 +367,11 @@ export default function BooaskPage() {
                 </div>
               </div>
 
-              <p className="text-[10px] text-muted-foreground/40" style={font}>
+              <p className="mt-4 text-[10px] text-muted-foreground/40" style={font}>
                 Read-only. BOOASK never signs transactions or moves funds. For wallet actions, use BOOA Studio or Hermes.
               </p>
             </div>
-            <div className="hidden lg:block lg:col-span-2" />
+            <div className="hidden lg:block lg:col-span-1" />
           </div>
         </div>
       </main>

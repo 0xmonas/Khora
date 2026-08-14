@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#171030"/>
+  <g fill="#50459B" opacity="0.3">
+    <rect x="32" y="32" width="8" height="8"/><rect x="48" y="32" width="8" height="8"/>
+    <rect x="360" y="360" width="8" height="8"/><rect x="344" y="360" width="8" height="8"/>
+    <rect x="32" y="360" width="8" height="8"/><rect x="360" y="32" width="8" height="8"/>
+  </g>
+  <!-- roster of four little agents: your collection in one place -->
+  <g fill="#887ECB">
+    <!-- top-left -->
+    <rect x="120" y="104" width="8" height="8"/>
+    <rect x="104" y="112" width="40" height="40"/>
+    <rect x="112" y="152" width="24" height="8"/>
+    <!-- top-right -->
+    <rect x="272" y="104" width="8" height="8"/>
+    <rect x="256" y="112" width="40" height="40"/>
+    <rect x="264" y="152" width="24" height="8"/>
+    <!-- bottom-left -->
+    <rect x="120" y="240" width="8" height="8"/>
+    <rect x="104" y="248" width="40" height="40"/>
+    <rect x="112" y="288" width="24" height="8"/>
+    <!-- bottom-right -->
+    <rect x="272" y="240" width="8" height="8"/>
+    <rect x="256" y="248" width="40" height="40"/>
+    <rect x="264" y="288" width="24" height="8"/>
+  </g>
+  <g fill="#d9d4f2">
+    <rect x="112" y="124" width="8" height="8"/><rect x="128" y="124" width="8" height="8"/>
+    <rect x="264" y="124" width="8" height="8"/><rect x="280" y="124" width="8" height="8"/>
+    <rect x="112" y="260" width="8" height="8"/><rect x="128" y="260" width="8" height="8"/>
+    <rect x="264" y="260" width="8" height="8"/><rect x="280" y="260" width="8" height="8"/>
+  </g>
+  <g fill="#887ECB" opacity="0.45">
+    <rect x="196" y="192" width="8" height="8"/><rect x="204" y="192" width="8" height="8"/>
+    <rect x="196" y="200" width="8" height="8"/><rect x="204" y="200" width="8" height="8"/>
+  </g>
+</svg>

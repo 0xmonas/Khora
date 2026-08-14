@@ -264,7 +264,7 @@ export function AgentChat() {
   const selectedToken = ownedTokens.find((t) => t.tokenId === selectedTokenId);
 
   return (
-    <div className="flex flex-col max-w-2xl mx-auto h-[min(520px,calc(100vh-280px))] min-h-[380px] rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background overflow-hidden shadow-sm">
+    <div className="flex flex-col w-full h-[min(520px,calc(100vh-280px))] min-h-[380px] rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background overflow-hidden shadow-sm">
       {/* Top bar */}
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800">
         <div className="relative">
