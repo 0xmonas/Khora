@@ -29,6 +29,7 @@ const CHAIN_TO_NETWORK: Record<string, string> = {
   metis: 'metis-mainnet',
   abstract: 'abstract-mainnet',
   monad: 'monad-mainnet',
+  robinhood: 'robinhood-mainnet',
   // Testnets
   'base-sepolia': 'base-sepolia',
   'shape-sepolia': 'shape-sepolia',
@@ -51,6 +52,7 @@ const CHAIN_IDS: Record<string, number> = {
   metis: 1088,
   abstract: 2741,
   monad: 143,
+  robinhood: 4663,
   'base-sepolia': 84532,
   'shape-sepolia': 11011,
 };

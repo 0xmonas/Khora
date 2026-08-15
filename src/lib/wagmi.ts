@@ -7,6 +7,7 @@ import {
   avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract as abstractChain, monad,
 } from 'wagmi/chains';
 import { http } from 'wagmi';
+import { robinhood } from '@/lib/chains/robinhood';
 import { HIDE_TESTNETS } from '@/utils/constants/chains';
 
 // All mainnet chains for Bridge cross-chain registration.
@@ -15,7 +16,7 @@ import { HIDE_TESTNETS } from '@/utils/constants/chains';
 // tokens that have not migrated yet.
 const mainnetChains = [
   mainnet, shape, base, arbitrum, optimism, polygon,
-  avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstractChain, monad,
+  avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstractChain, monad, robinhood,
 ] as const;
 
 const testnetChains = [shapeSepolia] as const;
@@ -43,6 +44,7 @@ const transports: Record<number, any> = {
   [metis.id]: http('https://andromeda.metis.io/?owner=1088'),
   [abstractChain.id]: http('https://api.mainnet.abs.xyz'),
   [monad.id]: http('https://rpc.monad.xyz'),
+  [robinhood.id]: http('https://rpc.mainnet.chain.robinhood.com'),
 };
 
 // Add testnet transports only when not hidden

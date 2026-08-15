@@ -3,6 +3,7 @@ import {
   shape, mainnet, base, arbitrum, optimism, polygon,
   avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract as abstractChain, monad,
 } from 'wagmi/chains';
+import { robinhood } from '@/lib/chains/robinhood';
 
 export const IDENTITY_REGISTRY_MAINNET = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const;
 export const IDENTITY_REGISTRY_TESTNET = '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const;
@@ -21,7 +22,7 @@ export function getRegistryAddress(chainId: number): `0x${string}` {
 export const SUPPORTED_REGISTRY_CHAIN_IDS = new Set<number>([
   shape.id, mainnet.id, base.id, arbitrum.id, optimism.id, polygon.id,
   avalanche.id, bsc.id, celo.id, gnosis.id, scroll.id, linea.id,
-  mantle.id, metis.id, abstractChain.id, monad.id,
+  mantle.id, metis.id, abstractChain.id, monad.id, robinhood.id,
   ...Array.from(TESTNET_IDS),
 ]);
 

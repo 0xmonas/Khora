@@ -8,7 +8,7 @@ const redis = getRedis();
 
 // Allowed chainIds to prevent Redis key poisoning
 const VALID_CHAIN_IDS = new Set([
-  1, 8453, 360, 137, 42161, 10, 43114, 56, 42220, 100, 534352, 59144, 5000, 1088, 2741, 10143, // mainnets
+  1, 8453, 360, 137, 42161, 10, 43114, 56, 42220, 100, 534352, 59144, 5000, 1088, 2741, 143, 4663, // mainnets
   84532, 11011, // testnets
 ]);
 

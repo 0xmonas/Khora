@@ -22,6 +22,7 @@ const EXPLORERS: Record<number, string> = {
   1088: 'https://andromeda-explorer.metis.io',
   2741: 'https://abscan.org',
   143: 'https://monad.explorer.caldera.xyz',
+  4663: 'https://robinhoodchain.blockscout.com',
 };
 
 function getExplorerUrl(chainId: number, hash: string): string {

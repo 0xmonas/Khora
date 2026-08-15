@@ -40,6 +40,7 @@ export const CHAIN_META: ChainMeta[] = [
   { name: 'Metis', chainId: 1088, logo: '/chains/metis.png' },
   { name: 'Abstract', chainId: 2741, logo: '/chains/abstract.png' },
   { name: 'Monad', chainId: 143, logo: '/chains/monad.png' },
+  { name: 'Robinhood Chain', chainId: 4663, logo: '/chains/robinhood.png' },
   { name: 'Shape Sepolia', chainId: 11011, logo: '/chains/shape.png' },
 ];
 
