@@ -5,8 +5,13 @@ import { Send, Square, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
 import { ConsoleConnection, consoleFetch } from './connection';
 import { ConsoleSession, ConsoleMessage, extractText, sessionLabel } from './types';
 import { readSSE } from './sse';
+import { renderRich } from './richText';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
+
+// Telegram caps messages at 4096, so the agent already lives with this order of
+// size — and the proxy rejects oversized bodies server-side regardless.
+const MAX_MESSAGE_CHARS = 4000;
 
 interface ChatEntry {
   role: 'user' | 'assistant' | 'tool';
@@ -182,6 +187,10 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
     if (!text || streaming) return;
+    if (Array.from(text).length > MAX_MESSAGE_CHARS) {
+      setError(`Messages must be ${MAX_MESSAGE_CHARS.toLocaleString()} characters or fewer.`);
+      return;
+    }
 
     let sid = sessionId;
     if (!sid) {
@@ -195,7 +204,10 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
       }
     }
 
-    if (override === undefined) setInput('');
+    if (override === undefined) {
+      setInput('');
+      if (inputRef.current) inputRef.current.style.height = 'auto';
+    }
     setError(null);
     setEntries((prev) => [...prev, { role: 'user', text }, { role: 'assistant', text: '' }]);
     setStreaming(true);
@@ -445,7 +457,9 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
                 }`}
                 style={font}
               >
-                {e.text || (streaming && i === entries.length - 1 ? '…' : '')}
+                {e.role === 'assistant' && e.text
+                  ? renderRich(e.text)
+                  : e.text || (streaming && i === entries.length - 1 ? '…' : '')}
                 {e.interrupted && <span className="text-[9px] uppercase opacity-60"> [interrupted]</span>}
               </div>
             </div>
@@ -488,7 +502,12 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
             ref={inputRef}
             rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            maxLength={MAX_MESSAGE_CHARS}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -496,7 +515,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
               }
             }}
             placeholder="Message your agent…"
-            className="flex-1 resize-none px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
+            className="flex-1 resize-none max-h-32 overflow-y-auto px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400 chat-scrollbar"
             style={font}
           />
           {streaming ? (
@@ -519,7 +538,13 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
           )}
         </div>
         <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground" style={font}>
-          <span>Enter to send · Shift+Enter for a new line</span>
+          {input.length > MAX_MESSAGE_CHARS - 800 ? (
+            <span className={input.length >= MAX_MESSAGE_CHARS ? 'text-amber-500' : ''}>
+              {input.length.toLocaleString()}/{MAX_MESSAGE_CHARS.toLocaleString()}
+            </span>
+          ) : (
+            <span>Enter to send · Shift+Enter for a new line</span>
+          )}
           <span>history lives on your instance</span>
         </div>
       </div>

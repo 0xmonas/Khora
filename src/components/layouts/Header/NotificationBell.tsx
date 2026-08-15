@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { notifications, AppNotification } from '@/lib/notifications';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -16,6 +17,7 @@ function ago(ts: number): string {
 }
 
 export function NotificationBell() {
+  const { isConnected } = useAuth();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -32,6 +34,8 @@ export function NotificationBell() {
   }, [open]);
 
   const unread = items.filter((i) => !i.read).length;
+
+  if (!isConnected) return null;
 
   return (
     <div className="relative inline-flex items-center" ref={ref}>
