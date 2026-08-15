@@ -22,7 +22,7 @@ export default function PrivacyPolicyPage() {
               Privacy Policy
             </h1>
             <p className="text-[10px] text-muted-foreground/60" style={font}>
-              Last updated: March 21, 2026
+              Last updated: August 15, 2026
             </p>
           </div>
 
@@ -153,6 +153,19 @@ export default function PrivacyPolicyPage() {
               </div>
             </Section>
 
+            {/* Self-Hosted Agents */}
+            <Section title="Self-Hosted Agents & Agent Console">
+              <p>
+                If you deploy the open-source agent template, your agent runs on <strong className="text-foreground">your own infrastructure</strong>. The Agent Console on booa.app connects directly from your browser to your instance over HTTPS. We never receive, proxy, store, or log your agent&apos;s chat, memories, runtime logs, backups, API keys, or wallet activity — that data lives only on your instance and in your browser.
+              </p>
+              <p>
+                To reconnect, your browser stores your instance URL and a &quot;console key&quot; in local storage. Treat the console key like a password: anyone with it and your instance URL can chat with your agent. We cannot read this value and never transmit it to our servers.
+              </p>
+              <p>
+                Data held by your self-hosted instance is controlled by you as its operator and is governed by your own configuration, not by this Privacy Policy.
+              </p>
+            </Section>
+
             {/* Third-Party Links */}
             <Section title="Third-Party Links">
               <p>
@@ -164,6 +177,9 @@ export default function PrivacyPolicyPage() {
             <Section title="ERC-8004 Registry Data">
               <p>
                 Agent registrations on the ERC-8004 Identity Registry are processed through third-party smart contracts we do not own or control. Data written to the registry (agent metadata, identity records) is permanent and publicly visible on the blockchain. We facilitate the registration process but are not responsible for the registry&apos;s data handling.
+              </p>
+              <p>
+                On-chain actions such as migrating (burning on Shape, minting on Ethereum), awakening (binding a BOOA to an agent), and setting an agent wallet are likewise permanent and public — including the agent binding and any wallet address you link. These transactions and addresses are visible to anyone on the blockchain.
               </p>
             </Section>
 

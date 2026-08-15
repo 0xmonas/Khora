@@ -22,7 +22,7 @@ export default function TermsOfUsePage() {
               Terms of Use
             </h1>
             <p className="text-[10px] text-muted-foreground/60" style={font}>
-              Last updated: March 21, 2026
+              Last updated: August 15, 2026
             </p>
           </div>
 
@@ -56,6 +56,28 @@ export default function TermsOfUsePage() {
               <p>
                 BOOA NFTs are minted on Ethereum. The ERC-8004 Identity Registry is deployed across 16 EVM chains including Ethereum, Base, Arbitrum, Optimism, Polygon, and others. Each chain has its own gas fees and network conditions. You are responsible for understanding the chain you interact with.
               </p>
+            </Section>
+
+            {/* On-Chain Actions */}
+            <Section title="Migrating, Awakening & Linking Your BOOA">
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Migration (Shape → Ethereum)</h3>
+                <p>
+                  Migration permanently burns (destroys) your BOOA on Shape Network and mints the same token ID 1:1 on Ethereum. <strong className="text-foreground">Burning is irreversible — the Shape original is gone for good and cannot be restored by anyone, including us.</strong> Burning and claiming are two separate on-chain steps, each with its own gas. If a claim does not land, the burned BOOA stays claimable on Ethereum with no deadline and without re-burning — but the Shape token is never coming back. We never custody your tokens; the process is fully on-chain and non-refundable, and you are responsible for confirming every transaction.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Awaken (ERC-8004 Binding)</h3>
+                <p>
+                  Awakening binds your BOOA to a live on-chain ERC-8004 agent through our adapter contract. Control of the agent follows BOOA ownership on-chain: the current NFT holder is the agent&apos;s controller. Transferring or selling the BOOA transfers control of the agent to the new owner.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Set Agent Wallet</h3>
+                <p>
+                  As the controller, you may link a wallet to your agent by signing an EIP-712 message that the adapter records on-chain. This links a self-hosted runtime to the agent; it does not grant us or anyone else access to that wallet&apos;s keys. You are solely responsible for the wallet you link and any funds it holds.
+                </p>
+              </div>
             </Section>
 
             {/* CC0 License */}
@@ -98,6 +120,43 @@ export default function TermsOfUsePage() {
               </p>
               <p>
                 By using the chat feature, you also agree to Google&apos;s <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer" className="text-foreground underline hover:text-muted-foreground">Gemini API Terms of Service</a>.
+              </p>
+            </Section>
+
+            {/* Self-Hosted Agents */}
+            <Section title="Self-Hosted Agents & Agent Console">
+              <p>
+                BOOA publishes an open-source agent template (&quot;Hermes&quot;) that holders may deploy to run an autonomous AI agent linked to their BOOA. <strong className="text-foreground">You deploy, host, and operate this agent on your own infrastructure</strong> (for example, Railway). We do not host, operate, control, or have access to your instance, its data, or its wallet.
+              </p>
+              <p>
+                The Agent Console on booa.app is only a browser-based client. It connects <strong className="text-foreground">directly from your browser to your own instance</strong> over HTTPS. We do not proxy, receive, store, or log your chat, memories, logs, backups, keys, or wallet activity. See our <Link href="/privacy" className="text-foreground underline hover:text-muted-foreground">Privacy Policy</Link> for details.
+              </p>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Onchain &amp; Autonomous Actions</h3>
+                <p>
+                  A self-hosted agent can be configured to hold a crypto wallet and to execute on-chain transactions — including sends, swaps, and marketplace actions, and including autonomously on a schedule. These move real funds and are irreversible. On-chain writes are disabled by default. You are solely responsible for the wallet, its private key, spend caps, allowlists, and for enabling or disabling these capabilities. We provide guardrails (per-transaction and daily caps, allowlists, output filtering, prompt-injection defenses) as a convenience only; they are not guaranteed to prevent loss, misuse, or unexpected agent behavior.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">You Are the Operator</h3>
+                <p>
+                  You are responsible for your instance&apos;s admin password, console key, API keys, wallet seed and private key, RPC endpoints, and all costs incurred (hosting, gas, and AI model or API usage). Anyone who obtains your instance URL and console key can chat with your agent. Keep them secret.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">NFT Sale &amp; Handover</h3>
+                <p>
+                  Agent control is bound to BOOA ownership on-chain. Selling or transferring your BOOA transfers control of the agent to the new owner per the on-chain binding and disconnects your console access. Before a sale, you are responsible for exporting your data and moving any funds out of the agent wallet. We are not responsible for data or funds left on an instance after transfer.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Backups</h3>
+                <p>
+                  Console backups are AES-256 encrypted with your instance admin password. If you lose that password, the archive cannot be recovered — by us or anyone.
+                </p>
+              </div>
+              <p>
+                The agent template bundles third-party software (including Hermes by NousResearch) and relies on third-party infrastructure (such as Railway) and AI model providers, each governed by their own terms. We are not affiliated with these providers. Running a self-hosted agent is experimental and entirely at your own risk.
               </p>
             </Section>
 
