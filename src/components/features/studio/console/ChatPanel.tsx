@@ -30,7 +30,17 @@ const COMMANDS: { cmd: string; label: string; confirm?: string }[] = [
   { cmd: '/compress', label: 'Compress history', confirm: 'Compress this conversation? The agent summarizes older turns to free up context.' },
   { cmd: '/reset', label: 'Reset conversation', confirm: 'Reset this conversation on the instance? The agent forgets the current thread.' },
 ];
-const SLASH_HINTS = COMMANDS.map((c) => c.cmd).join(' ') + ' /model';
+
+interface SlashCommand {
+  command: string;
+  description: string;
+}
+
+// Shown until /console/commands answers (or when the template predates it).
+const FALLBACK_SLASH: SlashCommand[] = [
+  ...COMMANDS.map((c) => ({ command: c.cmd, description: c.label.replace(/^[^—]*— ?/, '') || c.label })),
+  { command: '/model', description: 'Switch model' },
+];
 
 interface ChatPanelProps {
   conn: ConsoleConnection;
@@ -48,6 +58,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
+  const [slashCmds, setSlashCmds] = useState<SlashCommand[]>(FALLBACK_SLASH);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [cmdsOpen, setCmdsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -121,6 +132,21 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   }, [conn]);
 
   useEffect(() => { void loadModels(); }, [loadModels]);
+
+  // Same registry Telegram's "/" menu is built from, served by the instance.
+  const loadCommands = useCallback(async () => {
+    try {
+      const res = await consoleFetch(conn, '/commands');
+      if (!res.ok) return;
+      const d = await res.json();
+      const list: SlashCommand[] = (d.commands || []).filter(
+        (c: SlashCommand) => typeof c?.command === 'string' && c.command.startsWith('/') && typeof c?.description === 'string',
+      );
+      if (list.length > 0) setSlashCmds(list);
+    } catch { /* fallback list stays */ }
+  }, [conn]);
+
+  useEffect(() => { void loadCommands(); }, [loadCommands]);
 
   // The create endpoint returns { session: { id } }; reading d.id gave undefined,
   // so the UI never switched and each click silently spawned another session.
@@ -439,7 +465,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 chat-scrollbar">
         {entries.length === 0 && (
           <p className="text-xs text-muted-foreground text-center pt-8" style={font}>
-            Talk to your agent. Slash commands work like in Telegram: {SLASH_HINTS}
+            Talk to your agent. Type / to browse every command, same as Telegram.
           </p>
         )}
         {entries.map((e, i) => (
@@ -479,22 +505,26 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
         <div ref={endRef} />
       </div>
 
-      {input.startsWith('/') && (
-        <div className="flex flex-wrap gap-1.5 px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800">
-          {[...COMMANDS.map((c) => c.cmd), '/model']
-            .filter((c) => c.startsWith(input.split(' ')[0]))
-            .map((c) => (
+      {input.startsWith('/') && !input.includes(' ') && (() => {
+        const q = input.toLowerCase();
+        const matches = slashCmds.filter((c) => c.command.toLowerCase().startsWith(q));
+        if (matches.length === 0) return null;
+        return (
+          <div className="max-h-56 overflow-y-auto border-t border-neutral-100 dark:border-neutral-800 chat-scrollbar">
+            {matches.map((c) => (
               <button
-                key={c}
-                onClick={() => { setInput(c + ' '); inputRef.current?.focus(); }}
-                className="px-2 py-0.5 text-[10px] rounded border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:text-foreground hover:border-neutral-400 transition-colors"
+                key={c.command}
+                onClick={() => { setInput(c.command + ' '); inputRef.current?.focus(); }}
+                className="flex items-baseline gap-2 w-full px-4 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
                 style={font}
               >
-                {c}
+                <span className="text-xs shrink-0">{c.command}</span>
+                <span className="text-[10px] text-muted-foreground truncate">{c.description}</span>
               </button>
             ))}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-3">
         <div className="flex gap-2">
