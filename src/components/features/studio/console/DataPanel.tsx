@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield, Info, X } from 'lucide-react';
-import { useBalance } from 'wagmi';
+import { Download, Upload, RotateCw, ExternalLink, Play, Pause, Trash2, PlayCircle, ShieldOff, Shield, Info, X, Link2, Check } from 'lucide-react';
+import { useBalance, useSignTypedData } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains';
 import { ConsoleConnection, consoleFetch } from './connection';
 import { ConsoleMeta, ConsoleJob, OnchainSettings, formatWhen, isOn } from './types';
+import { PendingApproval, approvalTypedData, describeAction } from './approvals';
 import { notifications } from '@/lib/notifications';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
@@ -128,6 +129,16 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   const [jobsState, setJobsState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
   const [jobBusy, setJobBusy] = useState<string | null>(null);
 
+  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const { signTypedDataAsync } = useSignTypedData();
+
+  const [linkPw, setLinkPw] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkStarted, setLinkStarted] = useState(false);
+
   const [onchain, setOnchain] = useState<OnchainSettings | null>(null);
   const [draft, setDraft] = useState<OnchainSettings>({});
   const [onchainBusy, setOnchainBusy] = useState(false);
@@ -145,6 +156,74 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
   }, [conn]);
 
   useEffect(() => { void loadOnchain(); }, [loadOnchain]);
+
+  const loadApprovals = useCallback(async () => {
+    try {
+      const res = await consoleFetch(conn, '/approvals');
+      if (!res.ok) return;
+      const d = await res.json();
+      setApprovals((Array.isArray(d.approvals) ? d.approvals : []).filter(
+        (a: PendingApproval) => a && typeof a.id === 'string' && a.action && typeof a.nonce === 'string',
+      ));
+    } catch { /* section simply stays empty */ }
+  }, [conn]);
+
+  useEffect(() => {
+    void loadApprovals();
+    const iv = setInterval(() => void loadApprovals(), 30_000);
+    return () => clearInterval(iv);
+  }, [loadApprovals]);
+
+  const approveAction = async (a: PendingApproval) => {
+    setApprovalBusy(a.id);
+    setApprovalError(null);
+    try {
+      const signature = await signTypedDataAsync(approvalTypedData(a));
+      const res = await consoleFetch(conn, `/approvals/${encodeURIComponent(a.id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signature }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setApprovalError(typeof d.error === 'string' ? d.error : 'Approval failed.');
+        return;
+      }
+      notifications.push({ kind: 'txn', title: 'Action approved', detail: describeAction(a.action) });
+      await loadApprovals();
+    } catch {
+      setApprovalError('Signature rejected or instance unreachable.');
+    } finally {
+      setApprovalBusy(null);
+    }
+  };
+
+  const startWalletLink = async () => {
+    if (!linkPw) return;
+    setLinking(true);
+    setLinkError(null);
+    try {
+      const res = await consoleFetch(conn, '/wallet/link-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_password: linkPw }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.url) {
+        setLinkError(typeof d.error === 'string'
+          ? (d.error === 'admin_password_required' ? 'Wrong admin password.' : d.error)
+          : 'Could not generate a link code.');
+        return;
+      }
+      setLinkPw('');
+      setLinkStarted(true);
+      window.open(d.url, '_blank', 'noopener');
+    } catch {
+      setLinkError('Instance unreachable.');
+    } finally {
+      setLinking(false);
+    }
+  };
 
   const saveOnchain = async (change: Record<string, string>, label: string) => {
     setOnchainBusy(true);
@@ -354,11 +433,69 @@ export function DataPanel({ conn, meta, agentName, agentWallet, onMetaRefresh }:
             <WalletBalances wallet={agentWallet as `0x${string}`} />
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            No wallet linked yet — link one from My Agents or the Bridge.
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              No wallet linked yet. Your instance signs its consent, then your wallet submits it onchain in the Bridge.
+            </p>
+            {linkStarted ? (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Bridge opened in a new tab — finish the onchain step there, then reconnect here to see balances.
+              </p>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={linkPw}
+                  onChange={(e) => setLinkPw(e.target.value)}
+                  placeholder="Admin password"
+                  className="flex-1 px-3 py-2 text-xs rounded-md border border-neutral-200 dark:border-neutral-800 bg-background focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                  autoComplete="off"
+                />
+                <button
+                  onClick={() => void startWalletLink()}
+                  disabled={linking || !linkPw}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider rounded-md bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 disabled:opacity-40"
+                >
+                  <Link2 className="w-3 h-3" />
+                  {linking ? 'Preparing…' : 'Link wallet'}
+                </button>
+              </div>
+            )}
+            {linkError && <p className="text-xs text-red-500">{linkError}</p>}
+          </div>
         )}
       </section>
+
+      {approvals.some((a) => a.status === 'pending') && (
+        <section className="space-y-2">
+          <SectionHead title="Pending approvals">
+            <InfoModal title="Pending approvals">
+              <p>Your agent wants to run a trade-class action (x402 payment, OpenSea buy/list/offer). It stays parked until you approve it here.</p>
+              <p>Approving signs an EIP-712 message with your wallet; the instance verifies the signature against the agent&apos;s current onchain controller. One approval covers exactly one action, once, for 10 minutes.</p>
+              <p>To refuse, simply do nothing — the request expires on its own. Then tell your agent why.</p>
+            </InfoModal>
+          </SectionHead>
+          <div className="space-y-2">
+            {approvals.filter((a) => a.status === 'pending').map((a) => (
+              <div key={a.id} className="flex items-start justify-between gap-3 p-2.5 rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="text-xs break-words">{describeAction(a.action)}</p>
+                  <p className="text-[10px] text-muted-foreground">expires {formatWhen(a.deadline * 1000)}</p>
+                </div>
+                <button
+                  onClick={() => void approveAction(a)}
+                  disabled={approvalBusy !== null}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 disabled:opacity-40 shrink-0"
+                >
+                  <Check className="w-3 h-3" />
+                  {approvalBusy === a.id ? 'Signing…' : 'Approve'}
+                </button>
+              </div>
+            ))}
+          </div>
+          {approvalError && <p className="text-xs text-red-500">{approvalError}</p>}
+        </section>
+      )}
 
       <section className="space-y-2">
         <SectionHead title="Runtime">

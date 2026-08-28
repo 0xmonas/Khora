@@ -7,7 +7,7 @@ import { mainnet } from 'wagmi/chains';
 import { useAuth } from '@/hooks/useAuth';
 import { notifications } from '@/lib/notifications';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
-import { ConsoleConnection, ProbeError, loadConnection, clearConnection, probeInstance } from './connection';
+import { ConsoleConnection, ProbeError, loadConnection, clearConnection, probeInstance, consoleFetch } from './connection';
 import { ConsoleMeta, ConsoleAgent } from './types';
 import { ConnectPanel } from './ConnectPanel';
 import { ChatPanel } from './ChatPanel';
@@ -148,6 +148,34 @@ export function AgentConsole() {
       window.removeEventListener('focus', onFocus);
     };
   }, [conn, selectedTokenId, checkOwnership]);
+
+  // Surface approval requests wherever the holder is — usually the Chat tab —
+  // so a parked trade doesn't sit unnoticed until they happen to open Data.
+  useEffect(() => {
+    if (!conn) return;
+    const seen = new Set<string>();
+    const check = async () => {
+      try {
+        const res = await consoleFetch(conn, '/approvals');
+        if (!res.ok) return;
+        const d = await res.json();
+        for (const a of (Array.isArray(d.approvals) ? d.approvals : [])) {
+          if (a?.status === 'pending' && typeof a.id === 'string' && !seen.has(a.id)) {
+            seen.add(a.id);
+            notifications.push({
+              kind: 'txn',
+              title: 'Your agent asks for approval',
+              detail: typeof a.action?.tool === 'string' ? a.action.tool : undefined,
+              href: '/studio/agent-console',
+            });
+          }
+        }
+      } catch { /* next poll */ }
+    };
+    void check();
+    const iv = setInterval(() => void check(), 45_000);
+    return () => clearInterval(iv);
+  }, [conn]);
 
   const handleConnected = (newConn: ConsoleConnection, newMeta: ConsoleMeta) => {
     setConn(newConn);
