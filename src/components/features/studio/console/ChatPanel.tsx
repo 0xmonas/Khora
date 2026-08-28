@@ -58,6 +58,7 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
   const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
+  const [modelQuery, setModelQuery] = useState('');
   const [slashCmds, setSlashCmds] = useState<SlashCommand[]>(FALLBACK_SLASH);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [cmdsOpen, setCmdsOpen] = useState(false);
@@ -444,17 +445,31 @@ export function ChatPanel({ conn, active = true, onActivity }: ChatPanelProps) {
                 model
               </button>
               {modelsOpen && (
-                <div className="absolute top-full right-0 mt-1 z-50 w-64 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg chat-scrollbar">
-                  {models.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => applyModel(m)}
-                      className="block w-full px-3 py-2 text-xs text-left truncate hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                <div className="absolute top-full right-0 mt-1 z-50 w-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-background shadow-lg">
+                  {models.length > 8 && (
+                    <input
+                      autoFocus
+                      value={modelQuery}
+                      onChange={(e) => setModelQuery(e.target.value)}
+                      placeholder="Filter models…"
+                      className="w-full px-3 py-2 text-xs bg-transparent border-b border-neutral-100 dark:border-neutral-800 focus:outline-none"
                       style={font}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                    />
+                  )}
+                  <div className="max-h-52 overflow-y-auto chat-scrollbar">
+                    {models
+                      .filter((m) => m.toLowerCase().includes(modelQuery.toLowerCase()))
+                      .map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => { applyModel(m); setModelQuery(''); }}
+                          className="block w-full px-3 py-2 text-xs text-left truncate hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+                          style={font}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                  </div>
                 </div>
               )}
             </div>
