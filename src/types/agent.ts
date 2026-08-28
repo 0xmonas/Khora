@@ -52,7 +52,7 @@ export type SupportedChain =
   | 'scroll' | 'linea' | 'mantle' | 'metis'
   | 'abstract' | 'monad' | 'robinhood'
   // Testnets
-  | 'base-sepolia' | 'shape-sepolia';
+  | 'base-sepolia' | 'shape-sepolia' | 'robinhood-testnet';
 
 export interface ChainInfo {
   chainId: number;
@@ -83,6 +83,7 @@ export const CHAIN_CONFIG: Record<SupportedChain, ChainInfo> = {
   // ─── Testnets ───
   'base-sepolia': { chainId: 84532, name: 'Base Sepolia', rpcUrl: 'https://sepolia.base.org', rpcUrls: ['https://sepolia.base.org', 'https://base-sepolia-rpc.publicnode.com'] },
   'shape-sepolia': { chainId: 11011, name: 'Shape Sepolia', rpcUrl: 'https://sepolia.shape.network', rpcUrls: ['https://sepolia.shape.network'] },
+  'robinhood-testnet': { chainId: 46630, name: 'Robinhood Chain Testnet', rpcUrl: 'https://rpc.testnet.chain.robinhood.com/rpc', rpcUrls: ['https://rpc.testnet.chain.robinhood.com/rpc'] },
 };
 
 // Deterministic deployment address (CREATE2) — same on all chains

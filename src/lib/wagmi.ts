@@ -7,7 +7,7 @@ import {
   avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract as abstractChain, monad,
 } from 'wagmi/chains';
 import { http } from 'wagmi';
-import { robinhood } from '@/lib/chains/robinhood';
+import { robinhood, robinhoodTestnet } from '@/lib/chains/robinhood';
 import { HIDE_TESTNETS } from '@/utils/constants/chains';
 
 // All mainnet chains for Bridge cross-chain registration.
@@ -19,7 +19,7 @@ const mainnetChains = [
   avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstractChain, monad, robinhood,
 ] as const;
 
-const testnetChains = [shapeSepolia] as const;
+const testnetChains = [shapeSepolia, robinhoodTestnet] as const;
 
 const allChains = HIDE_TESTNETS
   ? [...mainnetChains]
@@ -50,6 +50,7 @@ const transports: Record<number, any> = {
 // Add testnet transports only when not hidden
 if (!HIDE_TESTNETS) {
   transports[shapeSepolia.id] = http('https://sepolia.shape.network');
+  transports[robinhoodTestnet.id] = http('https://rpc.testnet.chain.robinhood.com/rpc');
 }
 
 export const wagmiConfig = getDefaultConfig({

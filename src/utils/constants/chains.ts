@@ -7,7 +7,7 @@ import { CHAIN_CONFIG, type SupportedChain } from '@/types/agent';
  */
 export const HIDE_TESTNETS = process.env.NEXT_PUBLIC_HIDE_TESTNETS === 'true';
 
-const TESTNET_KEYS = new Set<SupportedChain>(['base-sepolia', 'shape-sepolia']);
+const TESTNET_KEYS = new Set<SupportedChain>(['base-sepolia', 'shape-sepolia', 'robinhood-testnet']);
 
 export function isTestnetChain(chain: SupportedChain): boolean {
   return TESTNET_KEYS.has(chain);
@@ -42,6 +42,7 @@ export const CHAIN_META: ChainMeta[] = [
   { name: 'Monad', chainId: 143, logo: '/chains/monad.png' },
   { name: 'Robinhood Chain', chainId: 4663, logo: '/chains/robinhood.png' },
   { name: 'Shape Sepolia', chainId: 11011, logo: '/chains/shape.png' },
+  { name: 'Robinhood Chain Testnet', chainId: 46630, logo: '/chains/robinhood.png' },
 ];
 
 export function getChainMeta(chainId: number): ChainMeta | null {

@@ -13,3 +13,16 @@ export const robinhood = defineChain({
     default: { name: 'Blockscout', url: 'https://robinhoodchain.blockscout.com' },
   },
 });
+
+export const robinhoodTestnet = defineChain({
+  id: 46630,
+  name: 'Robinhood Chain Testnet',
+  testnet: true,
+  nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://rpc.testnet.chain.robinhood.com/rpc'] },
+  },
+  blockExplorers: {
+    default: { name: 'Blockscout', url: 'https://explorer.testnet.chain.robinhood.com' },
+  },
+});

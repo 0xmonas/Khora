@@ -12,6 +12,7 @@ export const IDENTITY_REGISTRY_TESTNET = '0x8004A818BFB912233c491871b3d84c89A494
 const TESTNET_IDS = new Set<number>([
   84532, // Base Sepolia
   11011, // Shape Sepolia
+  46630, // Robinhood Chain Testnet
 ]);
 
 export function getRegistryAddress(chainId: number): `0x${string}` {

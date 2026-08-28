@@ -33,6 +33,7 @@ const CHAIN_TO_NETWORK: Record<string, string> = {
   // Testnets
   'base-sepolia': 'base-sepolia',
   'shape-sepolia': 'shape-sepolia',
+  'robinhood-testnet': 'robinhood-testnet',
 };
 
 const CHAIN_IDS: Record<string, number> = {
@@ -55,6 +56,7 @@ const CHAIN_IDS: Record<string, number> = {
   robinhood: 4663,
   'base-sepolia': 84532,
   'shape-sepolia': 11011,
+  'robinhood-testnet': 46630,
 };
 
 export interface NFTItem {

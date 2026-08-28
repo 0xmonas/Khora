@@ -20,7 +20,7 @@ export const fetchAgentSchema = z.object({
     'scroll', 'linea', 'mantle', 'metis',
     'abstract', 'monad', 'robinhood',
     // Testnets
-    'base-sepolia', 'shape-sepolia',
+    'base-sepolia', 'shape-sepolia', 'robinhood-testnet',
   ]),
   agentId: z.number().int().positive('Agent ID must be a positive integer').max(100_000_000, 'Agent ID too large'),
 });
