@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { ConsoleConnection, ProbeError, probeInstance, saveConnection, validateInstanceUrl } from './connection';
 import { ConsoleMeta } from './types';
+import { SetupPanel } from './SetupPanel';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
@@ -31,6 +32,9 @@ export function ConnectPanel({ tokenId, probing, initialError, onConnected }: Pr
   const [showKey, setShowKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ProbeError | 'invalid-url' | null>(initialError);
+  // A stored connection that failed to probe means the holder already has an
+  // instance; everyone else most likely arrives here to set one up.
+  const [mode, setMode] = useState<'setup' | 'connect'>(initialError ? 'connect' : 'setup');
 
   const handleConnect = async () => {
     setError(null);
@@ -59,10 +63,39 @@ export function ConnectPanel({ tokenId, probing, initialError, onConnected }: Pr
     );
   }
 
+  const ModeSwitch = () => (
+    <div className="flex items-center gap-1 px-4 pt-5 max-w-md mx-auto" style={font}>
+      {([['setup', 'Set up a new instance'], ['connect', 'Connect an existing one']] as const).map(([m, label]) => (
+        <button
+          key={m}
+          onClick={() => { setMode(m); setError(null); }}
+          className={`px-3 py-1.5 text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+            mode === m
+              ? 'bg-neutral-900 text-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (mode === 'setup') {
+    return (
+      <>
+        <ModeSwitch />
+        <SetupPanel tokenId={tokenId} onConnected={onConnected} />
+      </>
+    );
+  }
+
   return (
+    <>
+    <ModeSwitch />
     <div className="px-4 py-6 max-w-md mx-auto space-y-3" style={font}>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Connect to your own Hermes instance. Find both values on your instance dashboard under
+        Connect to a running Hermes instance. Find both values on your instance dashboard under
         Web Console. They are stored only in this browser — booa.app never sees them.
       </p>
 
@@ -120,9 +153,9 @@ export function ConnectPanel({ tokenId, probing, initialError, onConnected }: Pr
       </button>
 
       <p className="text-[10px] text-muted-foreground leading-relaxed">
-        No instance yet? Deploy one from the Railway template — see Docs → Deploy Your Agent.
         Safari note: saved details may be cleared after 7 days of inactivity; just paste them again.
       </p>
     </div>
+    </>
   );
 }
