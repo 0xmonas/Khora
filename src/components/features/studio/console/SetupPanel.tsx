@@ -181,7 +181,7 @@ export function SetupPanel({ tokenId, onConnected }: Props) {
             Your agent runs on your own Railway service, so you need a Railway account: about $5/month on the Hobby plan, or a 30-day trial with $5 credit and no card. Everything after the deploy happens here — no dashboard, no terminal.
           </p>
           <ol className="text-[10px] text-muted-foreground leading-relaxed space-y-1 list-decimal list-inside">
-            <li>Click Deploy. Railway asks for an admin password — keep it, you need it in the next step.</li>
+            <li>Click Deploy. Railway generates an admin password for you — copy it, you need it in the next step.</li>
             <li>In the new service open Settings, Volumes, add a volume at <span className="text-foreground">/data</span>. Railway wipes template-managed volumes on template updates; one you add yourself survives them, which is why this stays manual.</li>
             <li>Wait for the deploy to finish and copy the service URL.</li>
           </ol>
