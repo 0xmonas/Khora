@@ -138,11 +138,15 @@ export function Header() {
         <div className="w-full lg:grid lg:grid-cols-12">
           <div className="hidden lg:block lg:col-span-1" />
           <div className="lg:col-span-10">
-            <div className="flex items-center justify-between relative">
+            {/* Three columns on md+: the nav sits in the middle column, so the
+                icon group on the right can grow (bell, chain, address) without
+                ever overlapping it — an absolutely centered nav could. */}
+            <div className="flex md:grid md:grid-cols-[1fr_auto_1fr] items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
               {/* Hamburger — mobile only */}
               <button
                 onClick={() => setMenuOpen(true)}
-                className="md:hidden h-10 w-10 flex items-center justify-center text-foreground"
+                className="md:hidden h-10 w-10 flex items-center justify-center text-foreground shrink-0"
                 aria-label="Open menu"
               >
                 <Menu size={24} />
@@ -151,7 +155,7 @@ export function Header() {
               <div
                 style={{ width: '98px', height: '28px', position: 'relative' }}
                 onClick={() => router.replace('/')}
-                className="cursor-pointer"
+                className="cursor-pointer shrink-0"
               >
                 <Image
                   src="/booalogo.svg"
@@ -170,7 +174,8 @@ export function Header() {
                   className="object-contain hidden dark:block"
                 />
               </div>
-              <nav className="hidden md:flex items-center justify-center gap-6 absolute left-1/2 -translate-x-1/2">
+              </div>
+              <nav className="hidden md:flex items-center justify-center gap-4 lg:gap-6 whitespace-nowrap">
                 {NAV_LINKS.map((link) => (
                   <Link
                     key={link.href}
@@ -188,7 +193,7 @@ export function Header() {
                   </Link>
                 ))}
               </nav>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center justify-end gap-1 sm:gap-2 lg:gap-4 shrink-0">
                 <NotificationBell />
                 <button
                   onClick={() => {
