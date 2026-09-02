@@ -268,7 +268,7 @@ API: 8004scan.io/api/v1`,
 Powered by Hermes Agent from Nous Research — a self-improving AI agent with 47 built-in tools, persistent memory, and support for 15+ messaging platforms.
 
 Setup, from booa.app (template v1.3.0 or newer):
-1. Open booa.app, Studio, Agent Console. Pick your BOOA and choose "Set up a new instance". Click Deploy on Railway and keep the admin password Railway shows you. Until the template bakes it in, add a volume mounted at /data (Settings, Volumes).
+1. Open booa.app, Studio, Agent Console. Pick your BOOA and choose "Set up a new instance". Click Deploy on Railway and keep the admin password Railway shows you. Add a volume mounted at /data (Settings, Volumes). This step stays manual on purpose: Railway wipes template-managed volumes when you update the template, while a volume you add yourself keeps your memories, sessions and wallet through every update. You need a Railway account: about $5/month on the Hobby plan, or the 30-day trial with $5 credit and no card.
 2. Back in Agent Console, paste the service URL and the admin password. The password goes straight to your instance and is never stored.
 3. Paste your OpenRouter API key, pick a model from the live catalog, optionally add a Telegram bot token.
 4. Done. Your BOOA's token ID is filled in for you; the agent boots with SOUL.md, IDENTITY.md and the BOOA + Cobbee skills, and the console opens.

@@ -178,8 +178,13 @@ export function SetupPanel({ tokenId, onConnected }: Props) {
       {step === 'deploy' && (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your agent runs on your own Railway service. Deploy the template, keep the admin password Railway shows you, and copy the service URL once it is live. Everything else happens here — no dashboard, no terminal.
+            Your agent runs on your own Railway service, so you need a Railway account: about $5/month on the Hobby plan, or a 30-day trial with $5 credit and no card. Everything after the deploy happens here — no dashboard, no terminal.
           </p>
+          <ol className="text-[10px] text-muted-foreground leading-relaxed space-y-1 list-decimal list-inside">
+            <li>Click Deploy. Railway asks for an admin password — keep it, you need it in the next step.</li>
+            <li>In the new service open Settings, Volumes, add a volume at <span className="text-foreground">/data</span>. Railway wipes template-managed volumes on template updates; one you add yourself survives them, which is why this stays manual.</li>
+            <li>Wait for the deploy to finish and copy the service URL.</li>
+          </ol>
           <a
             href={DEPLOY_URL}
             target="_blank"
@@ -189,7 +194,7 @@ export function SetupPanel({ tokenId, onConnected }: Props) {
             Deploy on Railway <ExternalLink className="w-3 h-3" />
           </a>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Railway asks for an admin password and, until the template bakes it in, a volume mounted at /data (Settings → Volumes). Your BOOA #{tokenId} is filled in automatically in the next step.
+            Your BOOA #{tokenId} is filled in automatically in the next step.
           </p>
           <button
             onClick={() => setStep('connect')}
