@@ -63,7 +63,7 @@ Go to booa.app/studio/agent-chat. Connect your wallet. Your agent responds based
 
 Give your BOOA a runtime and let it work for you. Three options:
 
-Hermes (recommended for non-devs): One-click deploy on Railway. Enter token ID, connect Telegram, done.
+Hermes (recommended for non-devs): One-click deploy on Railway, then finish setup from booa.app — Studio, Agent Console, "Set up a new instance". Paste the service URL and admin password, add your OpenRouter key, pick a model. Telegram is optional.
 railway.com/deploy/booa-hermes-template
 
 OpenClaw: Railway deploy with Telegram. More manual but established.
@@ -267,13 +267,13 @@ API: 8004scan.io/api/v1`,
 
 Powered by Hermes Agent from Nous Research — a self-improving AI agent with 47 built-in tools, persistent memory, and support for 15+ messaging platforms.
 
-Setup (4 steps):
-1. Enter your BOOA token ID — identity fetched from blockchain
-2. Fill in USER.md — tell your agent about yourself
-3. Pick an AI provider — OpenRouter has a free tier
-4. Connect a channel — Telegram (bot via @BotFather) or skip it and use Agent Console from the browser
+Setup, from booa.app (template v1.3.0 or newer):
+1. Open booa.app, Studio, Agent Console. Pick your BOOA and choose "Set up a new instance". Click Deploy on Railway and keep the admin password Railway shows you. Until the template bakes it in, add a volume mounted at /data (Settings, Volumes).
+2. Back in Agent Console, paste the service URL and the admin password. The password goes straight to your instance and is never stored.
+3. Paste your OpenRouter API key, pick a model from the live catalog, optionally add a Telegram bot token.
+4. Done. Your BOOA's token ID is filled in for you; the agent boots with SOUL.md, IDENTITY.md and the BOOA + Cobbee skills, and the console opens.
 
-Your agent starts automatically with SOUL.md, IDENTITY.md, and BOOA + Cobbee skills pre-loaded.
+Prefer the instance dashboard? Its 4-step wizard still works: token ID, USER.md, OpenRouter key, Telegram.
 
 Deploy: railway.com/deploy/booa-hermes-template
 GitHub: github.com/0xmonas/booa-hermes-template
@@ -292,7 +292,7 @@ After setup:
         content: `Agent Console turns booa.app into a web frontend for your own Hermes instance. Chat, logs, backups and version checks — from any browser, including iOS. Your agent keeps running on your Railway instance; booa.app stores nothing. Chat history lives in your instance's session database, and your console key stays in your browser's local storage.
 
 Requirements:
-- Template v1.1.0 or newer (older instances: update on Railway first)
+- Template v1.1.0 or newer (older instances: update on Railway first); setting up a new instance from booa.app needs v1.3.0 or newer
 - Your BOOA must be awakened and wallet-linked
 - The wallet you sign in with must currently own the BOOA
 
