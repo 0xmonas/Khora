@@ -104,7 +104,7 @@ export function HolderGate({
           {' '}You currently hold {holdingCount}.
         </p>
         <Link
-          href="/gallery"
+          href="/booa/gallery"
           className="mt-2 text-xs text-muted-foreground underline hover:text-foreground transition-colors"
           style={font}
         >

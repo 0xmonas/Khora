@@ -21,6 +21,10 @@ const ACTION_BTN =
   'flex-1 text-center text-[9px] uppercase tracking-[0.1em] px-1.5 py-1 rounded-md border ' +
   'border-neutral-200 dark:border-neutral-800 text-muted-foreground ' +
   'hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-foreground transition-colors';
+const QUICK_LINK =
+  'text-[9px] uppercase tracking-[0.1em] px-2 py-1 rounded-md border ' +
+  'border-neutral-200 dark:border-neutral-800 text-muted-foreground ' +
+  'hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-foreground transition-colors whitespace-nowrap';
 const ACTION_BTN_PRIMARY =
   'flex-1 text-center text-[9px] uppercase tracking-[0.1em] px-1.5 py-1 rounded-md ' +
   'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 transition-opacity';
@@ -321,14 +325,19 @@ function MyAgentsInner() {
         <span className="text-xs text-foreground" style={font}>
           {tiles.length > 0 ? `${tiles.length} BOOA · ${awakenedCount} awakened` : 'My Agents'}
         </span>
-        <button
-          onClick={() => void load(true)}
-          disabled={loading}
-          className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30"
-          title="Refresh"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <Link href="/studio/agent-console" className={QUICK_LINK} style={font}>Console</Link>
+          <Link href="/studio/agent-chat" className={QUICK_LINK} style={font}>Chat</Link>
+          <Link href="/booa/gallery?filter=mine" className={QUICK_LINK} style={font}>Collection</Link>
+          <button
+            onClick={() => void load(true)}
+            disabled={loading}
+            className="p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Body */}
