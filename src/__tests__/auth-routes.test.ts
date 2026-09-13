@@ -29,16 +29,26 @@ vi.mock('next/headers', () => ({
 const mockGenerateSiweNonce = vi.fn(() => 'test-nonce-abc123');
 const mockParseSiweMessage = vi.fn();
 const mockVerifySiweMessage = vi.fn();
+// Field validation passes and offline recovery fails by default, so every
+// existing test still reaches the on-chain (mocked) path.
+const mockValidateSiweMessage = vi.fn((..._args: unknown[]) => true);
+const mockVerifyMessage = vi.fn(async (..._args: unknown[]) => false);
 
 vi.mock('viem/siwe', () => ({
   generateSiweNonce: () => mockGenerateSiweNonce(),
   parseSiweMessage: (msg: string) => mockParseSiweMessage(msg),
+  validateSiweMessage: (...args: unknown[]) => mockValidateSiweMessage(...args),
   verifySiweMessage: (...args: unknown[]) => mockVerifySiweMessage(...args),
 }));
 
 vi.mock('viem', () => ({
   createPublicClient: vi.fn(() => ({})),
   http: vi.fn(),
+  verifyMessage: (...args: unknown[]) => mockVerifyMessage(...args),
+}));
+
+vi.mock('@/lib/chains/rpc', () => ({
+  serverRpcUrl: () => 'https://rpc.test',
 }));
 
 vi.mock('viem/chains', () => ({
@@ -352,6 +362,56 @@ describe('Auth Routes', () => {
 
       expect(res.status).toBe(401);
       expect(mockSession.nonce).toBeUndefined();
+    });
+
+    const parsedOk = () => ({
+      nonce: 'test-nonce',
+      address: validAddress,
+      chainId: 11011,
+      domain: 'localhost:3000',
+      uri: 'http://localhost:3000',
+      expirationTime: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    it('should sign an EOA in offline, with the chain path never called', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue(parsedOk());
+      mockVerifyMessage.mockResolvedValueOnce(true);
+      mockVerifySiweMessage.mockRejectedValue(new Error('rpc 429'));
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(200);
+      expect(mockSession.address).toBe(validAddress);
+      expect(mockVerifySiweMessage).not.toHaveBeenCalled();
+    });
+
+    it('should fall through to the chain when recovery cannot explain the signature', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue(parsedOk());
+      mockVerifyMessage.mockResolvedValueOnce(false);
+      mockVerifySiweMessage.mockResolvedValue(true);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(200);
+      expect(mockVerifySiweMessage).toHaveBeenCalledOnce();
+    });
+
+    it('should reject bad fields without checking any signature', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue(parsedOk());
+      mockValidateSiweMessage.mockReturnValueOnce(false);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(401);
+      expect(mockSession.nonce).toBeUndefined();
+      expect(mockVerifyMessage).not.toHaveBeenCalled();
+      expect(mockVerifySiweMessage).not.toHaveBeenCalled();
     });
 
     it('should create session on valid verification', async () => {

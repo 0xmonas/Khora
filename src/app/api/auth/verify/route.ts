@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, verifyMessage } from 'viem';
 import { shape, shapeSepolia, mainnet, base, arbitrum, optimism, polygon, avalanche, bsc, celo, gnosis, scroll, linea, mantle } from 'viem/chains';
-import { parseSiweMessage, verifySiweMessage } from 'viem/siwe';
+import { parseSiweMessage, validateSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { sessionOptions, type SessionData } from '@/lib/session';
+import { serverRpcUrl } from '@/lib/chains/rpc';
 
 export const maxDuration = 15;
 
@@ -90,20 +91,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unsupported chain' }, { status: 400 });
     }
 
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(),
-    });
-
-    // Full SIWE verification (ERC-6492 smart wallet support). domain/nonce/address
-    // are passed explicitly — omitting them makes viem skip those checks entirely.
-    const isValid = await verifySiweMessage(publicClient, {
-      message,
-      signature: signature as `0x${string}`,
+    // domain/nonce/address are passed explicitly — omitting them makes viem skip
+    // those checks entirely.
+    const sig = signature as `0x${string}`;
+    const fieldsValid = validateSiweMessage({
+      message: parsed,
       address: parsed.address,
       domain: serverHost,
       nonce: expectedNonce,
     });
+    let isValid =
+      fieldsValid &&
+      (await verifyMessage({ address: parsed.address, message, signature: sig }).catch(() => false));
+    if (fieldsValid && !isValid) {
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(serverRpcUrl(chain), { timeout: 4_000, retryCount: 1 }),
+      });
+      isValid = await verifySiweMessage(publicClient, {
+        message,
+        signature: sig,
+        address: parsed.address,
+        domain: serverHost,
+        nonce: expectedNonce,
+      });
+    }
 
     if (!isValid) {
       session.nonce = undefined;

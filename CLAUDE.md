@@ -7,7 +7,7 @@ AI agent identity generator + on-chain registry. Mint AI-generated agents as NFT
 - **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, wagmi v2, viem, RainbowKit
 - **Contracts:** Solidity, Foundry (`~/.foundry/bin/forge`, `~/.foundry/bin/cast`)
 - **AI:** Google Gemini (agent gen), Replicate (pixel art)
-- **Auth:** SIWE + iron-session
+- **Auth:** SIWE + iron-session. `verify` recovers EOA signatures offline; only smart-account signatures hit the chain (`RPC_URL_<chainId>` or the chain default, 4 s, no retry)
 - **DB/Cache:** Upstash Redis (rate limiting + metadata cache)
 - **Font:** Departure Mono (`--font-departure-mono`)
 
