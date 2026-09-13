@@ -6,6 +6,10 @@ import { getAI } from '@/lib/server/gemini';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { getAdapterAddress, BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { CHAIN_CONFIG } from '@/types/agent';
+import { BOOA_CONFIG_ABI, getBooaConfigAddress } from '@/lib/contracts/booa-config';
+import { PERSONALITY_LIST, BOUNDARY_LIST } from '@/lib/booa-taxonomy';
+import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
+import { BOOA_PALETTES } from '@/lib/booa-palettes';
 
 const MODEL = process.env.GEMINI_WIKI_MODEL || 'gemini-2.5-flash-lite';
 const DAILY_MAX = Number(process.env.WIKI_DAILY_GLOBAL_MAX || 300);
@@ -54,11 +58,21 @@ interface WikiBinding {
   awakenedAt: number | null;
 }
 
+interface WikiConfig {
+  palette: string;
+  vibe: string | null;
+  personality: string[];
+  boundaries: string[];
+  skills: string[];
+  domains: string[];
+}
+
 interface WikiFacts {
   owner: string | null;
   transfers: WikiTransfer[] | null;
   registrations: WikiRegistration[];
   binding: WikiBinding | null;
+  config?: WikiConfig | null;
 }
 
 interface WikiEntry {
@@ -282,12 +296,64 @@ async function fetchRegistrations(tokenId: number): Promise<WikiRegistration[]> 
   }
 }
 
+const SKILL_LABELS = OASF_SKILLS.flatMap((c) => c.items.map((i) => i.label));
+const DOMAIN_LABELS = OASF_DOMAINS.flatMap((c) => c.items.map((i) => i.label));
+const pick = (list: string[], idx: readonly number[]) => idx.map((i) => list[i]).filter(Boolean);
+
+async function fetchConfig(tokenId: number): Promise<WikiConfig | null> {
+  const address = getBooaConfigAddress();
+  if (!address || !ETH_RPC) return null;
+  try {
+    const { createPublicClient, http } = await import('viem');
+    const client = createPublicClient({ transport: http(ETH_RPC) });
+    const [o, active] = await client.readContract({
+      address, abi: BOOA_CONFIG_ABI, functionName: 'getConfig', args: [BigInt(tokenId)],
+    });
+    if (!active) return null;
+    return {
+      palette: BOOA_PALETTES[o.palette]?.name ?? `#${o.palette}`,
+      vibe: o.vibe || null,
+      personality: pick(PERSONALITY_LIST, o.personality),
+      boundaries: pick(BOUNDARY_LIST, o.boundaries),
+      skills: pick(SKILL_LABELS, o.skills),
+      domains: pick(DOMAIN_LABELS, o.domains),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function withConfig(identity: AgentIdentity, config: WikiConfig | null | undefined): AgentIdentity {
+  if (!config) return identity;
+  return {
+    ...identity,
+    vibe: config.vibe ?? identity.vibe,
+    personality: config.personality.length ? config.personality : identity.personality,
+    boundaries: config.boundaries.length ? config.boundaries : identity.boundaries,
+    skills: config.skills.length ? config.skills : identity.skills,
+    domains: config.domains.length ? config.domains : identity.domains,
+    appearance: config.palette !== 'C64' ? { ...identity.appearance, Palette: config.palette } : identity.appearance,
+  };
+}
+
+function describeConfig(c: WikiConfig): string[] {
+  const out: string[] = [];
+  if (c.palette !== 'C64') out.push(`palette switched to ${c.palette}`);
+  if (c.vibe) out.push(`a new vibe: "${c.vibe}"`);
+  if (c.personality.length) out.push(`personality set to ${c.personality.join(', ')}`);
+  if (c.boundaries.length) out.push(`boundaries set to ${c.boundaries.join(', ')}`);
+  if (c.skills.length) out.push(`skills set to ${c.skills.join(', ')}`);
+  if (c.domains.length) out.push(`domains set to ${c.domains.join(', ')}`);
+  return out;
+}
+
 function hashFacts(facts: WikiFacts): string {
   const stable = {
     owner: facts.owner ? facts.owner.toLowerCase() : null,
     blocks: facts.transfers ? facts.transfers.map((t) => t.block) : null,
     regs: facts.registrations.map((r) => `${r.chainId}:${r.agentId}`).sort(),
     binding: facts.binding ? facts.binding.agentId : null,
+    config: facts.config ? JSON.stringify(facts.config) : null,
   };
   return createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
@@ -314,6 +380,9 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
     if (next.binding) {
       changes.push(`Awakened — bound to onchain agent #${next.binding.agentId} via Adapter8004${next.binding.awakenedBy ? ` by ${shortAddr(next.binding.awakenedBy)}` : ''}${next.binding.awakenedAt ? ` on ${fmtDate(next.binding.awakenedAt)}` : ''}. Whoever holds the NFT controls the agent.`);
     }
+    if (next.config) {
+      changes.push(`Its holder has already rewritten it onchain: ${describeConfig(next.config).join('; ')}.`);
+    }
     return changes;
   }
   if (next.owner && prev.owner && next.owner.toLowerCase() !== prev.owner.toLowerCase()) {
@@ -335,6 +404,21 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
     changes.push(`Awakened onchain — now bound to agent #${next.binding.agentId} via Adapter8004${next.binding.awakenedBy ? ` by ${shortAddr(next.binding.awakenedBy)}` : ''}${next.binding.awakenedAt ? ` on ${fmtDate(next.binding.awakenedAt)}` : ''}; whoever holds the NFT controls the agent.`);
   } else if (!next.binding && prev.binding) {
     changes.push('Binding released — no longer bound to an onchain agent.');
+  }
+  const pc = prev.config ?? null;
+  const nc = next.config ?? null;
+  if (nc && !pc) {
+    changes.push(`Its holder rewrote it onchain: ${describeConfig(nc).join('; ')}. The art and name stayed.`);
+  } else if (!nc && pc) {
+    changes.push('Its holder restored the original — every customization cleared, back to the mint self.');
+  } else if (nc && pc && JSON.stringify(nc) !== JSON.stringify(pc)) {
+    const d: string[] = [];
+    if (nc.palette !== pc.palette) d.push(`palette ${pc.palette} → ${nc.palette}`);
+    if ((nc.vibe ?? '') !== (pc.vibe ?? '')) d.push(nc.vibe ? `a new vibe: "${nc.vibe}"` : 'vibe returned to the original');
+    for (const k of ['personality', 'boundaries', 'skills', 'domains'] as const) {
+      if (nc[k].join('|') !== pc[k].join('|')) d.push(nc[k].length ? `${k} now ${nc[k].join(', ')}` : `${k} returned to the original`);
+    }
+    changes.push(`Its holder revised it onchain: ${d.join('; ')}.`);
   }
   return changes;
 }
@@ -455,6 +539,7 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   if (identity.boundaries.length) lines.push(`- **Boundaries:** ${identity.boundaries.join(', ')}`);
   const looks = Object.entries(identity.appearance).map(([k, v]) => `${k} ${v}`).join(' · ');
   if (looks) lines.push(`- **Appearance:** ${looks}`);
+  if (facts.config) lines.push('- **Customized:** yes — the holder rewrote the behavioural traits onchain; art and name are the mint originals.');
   lines.push('');
   lines.push('## Chronicle');
   lines.push('');
@@ -514,6 +599,7 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
 }
 
 function build(identity: AgentIdentity, doc: WikiDoc): WikiResult {
+  identity = withConfig(identity, doc.facts?.config);
   const links = connections(identity);
   return {
     tokenId: identity.id,
@@ -543,8 +629,8 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
   const doc = await redis.get<WikiDoc>(key);
   if (doc && now - doc.updatedAt < REFRESH_MS) return build(identity, doc);
 
-  const [chain, registrations, binding] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId)]);
-  const facts: WikiFacts = { owner: chain.owner, transfers: chain.transfers, registrations, binding };
+  const [chain, registrations, binding, config] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId), fetchConfig(tokenId)]);
+  const facts: WikiFacts = { owner: chain.owner, transfers: chain.transfers, registrations, binding, config };
 
   if (!facts.owner && doc) return build(identity, doc);
 
@@ -558,7 +644,7 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
   const prevFacts = doc && doc.entries.length > 0 ? doc.facts : null;
   const changes = diffSummary(prevFacts, facts, tokenId);
   const prevEntry = doc?.entries.length ? doc.entries[doc.entries.length - 1] : null;
-  const entryText = await generateEntry(identity, changes, prevEntry);
+  const entryText = await generateEntry(withConfig(identity, facts.config), changes, prevEntry);
 
   const entries = [...(doc?.entries ?? [])];
   if (entryText) entries.push({ date: new Date(now).toISOString().slice(0, 10), text: entryText });
@@ -580,6 +666,7 @@ export interface WikiContext {
   transfers: number;
   registrations: number;
   bound: boolean;
+  customized: boolean;
 }
 
 export async function readWikiContext(tokenId: number): Promise<WikiContext | null> {
@@ -592,6 +679,7 @@ export async function readWikiContext(tokenId: number): Promise<WikiContext | nu
       transfers: doc.facts?.transfers?.length ?? 0,
       registrations: doc.facts?.registrations?.length ?? 0,
       bound: !!doc.facts?.binding,
+      customized: !!doc.facts?.config,
     };
   } catch {
     return null;
