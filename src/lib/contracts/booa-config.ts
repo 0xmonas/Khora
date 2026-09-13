@@ -8,6 +8,10 @@ export const BOOA_CONFIG_ABI = [
       { name: 'o', type: 'tuple', components: [
         { name: 'version', type: 'uint8' },
         { name: 'palette', type: 'uint8' },
+        { name: 'levels', type: 'uint8' },
+        { name: 'agentId', type: 'uint32' },
+        { name: 'bg', type: 'uint32' },
+        { name: 'keep', type: 'uint8' },
         { name: 'vibe', type: 'string' },
         { name: 'personality', type: 'uint16[]' },
         { name: 'boundaries', type: 'uint16[]' },
@@ -25,6 +29,10 @@ export const BOOA_CONFIG_ABI = [
       { name: 'o', type: 'tuple', components: [
         { name: 'version', type: 'uint8' },
         { name: 'palette', type: 'uint8' },
+        { name: 'levels', type: 'uint8' },
+        { name: 'agentId', type: 'uint32' },
+        { name: 'bg', type: 'uint32' },
+        { name: 'keep', type: 'uint8' },
         { name: 'vibe', type: 'string' },
         { name: 'personality', type: 'uint16[]' },
         { name: 'boundaries', type: 'uint16[]' },
@@ -36,7 +44,8 @@ export const BOOA_CONFIG_ABI = [
   },
 ] as const;
 
-export const LIMITS = { personality: 6, boundaries: 5, skills: 8, domains: 6, vibeBytes: 200 } as const;
+export const LIMITS = { personality: 6, boundaries: 5, skills: 80, domains: 80, vibeBytes: 200 } as const;
+export const KEEP = { personality: 1, boundaries: 2, skills: 4, domains: 8 } as const;
 
 export function getBooaConfigAddress(chainId: number = mainnet.id): `0x${string}` | null {
   if (chainId !== mainnet.id) return null;
@@ -50,4 +59,18 @@ export function vibeError(v: string): string | null {
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f\u2028\u2029]/.test(v)) return 'Line breaks and control characters are not allowed';
   return null;
+}
+
+export const BG_TRANSPARENT = 0x2000000;
+
+export function encodeBg(bg: string): number {
+  if (!bg) return 0;
+  if (bg === 'transparent') return BG_TRANSPARENT;
+  return 0x1000000 | parseInt(bg, 16);
+}
+
+export function decodeBg(v: number): string {
+  if (!v) return '';
+  if (v === BG_TRANSPARENT) return 'transparent';
+  return (v & 0xffffff).toString(16).toUpperCase().padStart(6, '0');
 }

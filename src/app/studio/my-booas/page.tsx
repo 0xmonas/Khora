@@ -9,10 +9,10 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { ConnectPrompt } from '@/components/features/generator/components/ConnectPrompt';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
-import { BOOA_CONFIG_ABI, LIMITS, getBooaConfigAddress, vibeError } from '@/lib/contracts/booa-config';
+import { BOOA_CONFIG_ABI, LIMITS, KEEP, getBooaConfigAddress, vibeError, encodeBg, decodeBg } from '@/lib/contracts/booa-config';
 import { BOOA_PERSONALITY, BOOA_BOUNDARIES, PERSONALITY_LIST, BOUNDARY_LIST, type BooaCategory } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
-import { BOOA_PALETTES, recolorSvg } from '@/lib/booa-palettes';
+import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, recolorSvg, applyBackground } from '@/lib/booa-palettes';
 import { sfx } from '@/lib/sounds';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
 
@@ -31,12 +31,13 @@ const toIdx = (list: string[], picked: string[]) =>
   picked.map((p) => list.indexOf(p)).filter((i) => i >= 0).sort((a, b) => a - b);
 const fromIdx = (list: string[], idx: readonly number[]) => idx.map((i) => list[i]).filter(Boolean);
 
-interface Form { palette: number; vibe: string; personality: string[]; boundaries: string[]; skills: string[]; domains: string[] }
+interface Form { palette: number; levels: number; bg: string; keep: number; vibe: string; personality: string[]; boundaries: string[]; skills: string[]; domains: string[] }
 
 type Step = 'idle' | 'switching' | 'saving' | 'done' | 'error';
 
-function PickList({ title, cats, max, picked, onChange }: {
+function PickList({ title, cats, max, picked, onChange, original, keep, onKeep }: {
   title: string; cats: BooaCategory[]; max: number; picked: string[]; onChange: (v: string[]) => void;
+  original: string[]; keep: boolean; onKeep: (v: boolean) => void;
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
@@ -53,6 +54,17 @@ function PickList({ title, cats, max, picked, onChange }: {
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground" style={font}>{title}</span>
         <span className="text-[10px] text-muted-foreground/60" style={font}>{picked.length}/{max}</span>
       </div>
+      {original.length > 0 && (
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] text-muted-foreground/60 line-clamp-2" style={font} title={original.join(', ')}>
+            Mint: {original.join(' · ')}
+          </p>
+          <button onClick={() => { sfx.playClick(); onKeep(!keep); }} disabled={picked.length === 0} title={picked.length === 0 ? 'Nothing picked, mint values stay' : keep ? 'Your picks are added to the mint values' : 'Your picks replace the mint values'}
+            className={`text-[10px] px-2 py-0.5 rounded-md border shrink-0 transition-colors disabled:opacity-40 ${keep ? 'border-neutral-900 dark:border-neutral-100 text-foreground' : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600'}`} style={font}>
+            {picked.length === 0 ? 'mint stays' : keep ? 'keeps mint' : 'replaces mint'}
+          </button>
+        </div>
+      )}
       {picked.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {picked.map((p) => (
@@ -110,6 +122,10 @@ export default function MyBooasPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
 
   const [palette, setPalette] = useState(0);
+  const [levels, setLevels] = useState<number>(16);
+  const [bg, setBg] = useState('');
+  const [keep, setKeep] = useState(0);
+  const [agentByToken, setAgentByToken] = useState<Record<string, number>>({});
   const [vibe, setVibe] = useState('');
   const [personality, setPersonality] = useState<string[]>([]);
   const [boundaries, setBoundaries] = useState<string[]>([]);
@@ -141,10 +157,11 @@ export default function MyBooasPage() {
   const customized = !!cfg && cfg[1] === true;
   const cfgReady = !configAddress || cfg !== undefined;
 
-  const form: Form = useMemo(() => ({ palette, vibe, personality, boundaries, skills, domains }), [palette, vibe, personality, boundaries, skills, domains]);
+  const present = (personality.length ? KEEP.personality : 0) | (boundaries.length ? KEEP.boundaries : 0) | (skills.length ? KEEP.skills : 0) | (domains.length ? KEEP.domains : 0);
+  const form: Form = useMemo(() => ({ palette, levels, bg, keep: keep & present, vibe, personality, boundaries, skills, domains }), [palette, levels, bg, keep, present, vibe, personality, boundaries, skills, domains]);
   const dirty = !!baseline && JSON.stringify(form) !== JSON.stringify(baseline);
   const applyForm = (f: Form) => {
-    setPalette(f.palette); setVibe(f.vibe); setPersonality(f.personality);
+    setPalette(f.palette); setLevels(f.levels); setBg(f.bg); setKeep(f.keep); setVibe(f.vibe); setPersonality(f.personality);
     setBoundaries(f.boundaries); setSkills(f.skills); setDomains(f.domains);
   };
 
@@ -153,10 +170,19 @@ export default function MyBooasPage() {
     setLoading(true);
     setSelected(null);
     try {
-      const [ethRes, shapeRes] = await Promise.all([
+      const [ethRes, shapeRes, awkRes] = await Promise.all([
         fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${booaEth}`),
         fetch(`/api/migration/holdings/${address}`).catch(() => null),
+        fetch(`/api/awakened?chainId=${mainnet.id}`).catch(() => null),
       ]);
+      if (awkRes && awkRes.ok) {
+        try {
+          const awk = await awkRes.json();
+          const map: Record<string, number> = {};
+          for (const a of awk.agents || []) map[String(a.tokenId)] = Number(a.agentId);
+          setAgentByToken(map);
+        } catch { setAgentByToken({}); }
+      }
       const ethData = await ethRes.json();
       const owned: BOOA[] = Array.isArray(ethData.nfts) ? ethData.nfts : [];
       setBoois(owned);
@@ -195,6 +221,9 @@ export default function MyBooasPage() {
 
   const mintForm = useCallback((a: Agent | null): Form => ({
     palette: 0,
+    levels: 16,
+    bg: '',
+    keep: 0,
     vibe: a?.vibe || '',
     personality: (a?.personality || []).filter((p) => PERSONALITY_LIST.includes(p)).slice(0, LIMITS.personality),
     boundaries: (a?.boundaries || []).filter((p) => BOUNDARY_LIST.includes(p)).slice(0, LIMITS.boundaries),
@@ -210,6 +239,9 @@ export default function MyBooasPage() {
       const o = cfg[0];
       f = {
         palette: o.palette,
+        levels: o.levels === 0 ? 16 : o.levels,
+        bg: decodeBg(o.bg),
+        keep: o.keep,
         vibe: o.vibe || mint.vibe,
         personality: o.personality.length ? fromIdx(PERSONALITY_LIST, o.personality) : mint.personality,
         boundaries: o.boundaries.length ? fromIdx(BOUNDARY_LIST, o.boundaries) : mint.boundaries,
@@ -220,13 +252,16 @@ export default function MyBooasPage() {
     applyForm(f); setBaseline(f); setInitFor(selected.tokenId);
   }, [selected, agent, cfg, cfgReady, customized, initFor, mintForm]);
 
-  const previewSvg = useMemo(
-    () => (svg ? (palette === 0 ? svg : recolorSvg(svg, BOOA_PALETTES[palette].colors)) : null),
-    [svg, palette],
-  );
+  const boundAgent = selected ? agentByToken[selected.tokenId] : undefined;
+
+  const previewSvg = useMemo(() => {
+    if (!svg) return null;
+    const recolored = palette === 0 && levels >= 16 ? svg : recolorSvg(svg, posterize(BOOA_PALETTES[palette].colors, levels));
+    return applyBackground(recolored, bg);
+  }, [svg, palette, levels, bg]);
 
   const save = useCallback(async () => {
-    if (!address || !selected || !configAddress || !publicClient || vibeErr) return;
+    if (!address || !selected || !configAddress || !publicClient || vibeErr || !boundAgent) return;
     try {
       setError(null);
       if (chainId !== mainnet.id) {
@@ -237,7 +272,7 @@ export default function MyBooasPage() {
       const hash = await writeContractAsync({
         chainId: mainnet.id, address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'setConfig',
         args: [BigInt(selected.tokenId), {
-          version: 1, palette,
+          version: 1, palette, levels, agentId: boundAgent, bg: encodeBg(bg), keep: form.keep,
           vibe: vibe === (agent?.vibe || '') ? '' : vibe,
           personality: toIdx(PERSONALITY_LIST, personality),
           boundaries: toIdx(BOUNDARY_LIST, boundaries),
@@ -249,6 +284,7 @@ export default function MyBooasPage() {
       await publicClient.waitForTransactionReceipt({ hash });
       setBaseline(form);
       void refetchCfg();
+      void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
       setTxHash(hash); setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -257,7 +293,7 @@ export default function MyBooasPage() {
       setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
       sfx.playError();
     }
-  }, [address, selected, configAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg]);
+  }, [address, selected, configAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, levels, bg, boundAgent, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg]);
 
   const restore = useCallback(async () => {
     if (!address || !selected || !configAddress || !publicClient) return;
@@ -277,6 +313,7 @@ export default function MyBooasPage() {
       const mint = mintForm(agent);
       applyForm(mint); setBaseline(mint);
       void refetchCfg();
+      void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
       setTxHash(hash); setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -402,7 +439,7 @@ export default function MyBooasPage() {
                                 <p className="text-[10px] uppercase tracking-wider text-foreground" style={font}>
                                   Configure
                                   <span className={`ml-2 normal-case tracking-normal ${dirty ? 'text-amber-500' : customized ? 'text-foreground/70' : 'text-muted-foreground/60'}`}>
-                                    · {dirty ? 'unsaved changes' : customized ? 'customized onchain' : 'original'}
+                                    · {dirty ? 'unsaved changes' : customized ? 'customized onchain' : 'original'}{boundAgent ? ` · agent #${boundAgent}` : ' · not awakened'}
                                   </span>
                                 </p>
                                 {customized && (
@@ -422,8 +459,36 @@ export default function MyBooasPage() {
                                     </button>
                                   ))}
                                 </div>
+                                <div className="flex items-center gap-1 pt-1">
+                                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1" style={font}>Tones</span>
+                                  {LEVELS.map((l) => (
+                                    <button key={l} onClick={() => { sfx.playClick(); setLevels(l); }}
+                                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${levels === l ? 'border-neutral-900 dark:border-neutral-100 text-foreground' : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600'}`} style={font}>
+                                      {l}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1 pt-1">
+                                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1" style={font}>Background</span>
+                                  {[['', 'Original'], ['transparent', 'Transparent']].map(([v, l]) => (
+                                    <button key={l} onClick={() => { sfx.playClick(); setBg(v); }}
+                                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${bg === v ? 'border-neutral-900 dark:border-neutral-100 text-foreground' : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600'}`} style={font}>
+                                      {l}
+                                    </button>
+                                  ))}
+                                  {BG_SWATCHES.map((c) => (
+                                    <button key={c} onClick={() => { sfx.playClick(); setBg(c); }} title={`#${c}`}
+                                      className={`w-5 h-5 rounded-md border ${bg === c ? 'border-neutral-900 dark:border-neutral-100 ring-1 ring-neutral-900 dark:ring-neutral-100' : 'border-neutral-200 dark:border-neutral-800'}`}
+                                      style={{ background: `#${c}` }} />
+                                  ))}
+                                  <label className="w-5 h-5 rounded-md border border-dashed border-neutral-400 dark:border-neutral-600 cursor-pointer overflow-hidden" title="Custom colour">
+                                    <input type="color" value={`#${/^[0-9A-F]{6}$/.test(bg) ? bg : '000000'}`}
+                                      onChange={(e) => setBg(e.target.value.slice(1).toUpperCase())}
+                                      className="w-8 h-8 -m-1.5 cursor-pointer opacity-0" />
+                                  </label>
+                                </div>
                                 <p className="text-[10px] text-muted-foreground/60 leading-relaxed" style={font}>
-                                  Pixels never change, only the colours they point at. C64 is always the original. Preview above.
+                                  Pixels never change, only the colours they point at. Fewer tones fold the palette by brightness. Background fills only the outside — eyes and outlines keep their colour. C64 · 16 · Original is always the mint.
                                 </p>
                               </div>
                               <div className="space-y-2">
@@ -442,10 +507,14 @@ export default function MyBooasPage() {
                                 {vibeErr && <p className="text-[10px] text-red-400" style={font}>{vibeErr}</p>}
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <PickList title="Personality" cats={BOOA_PERSONALITY} max={LIMITS.personality} picked={personality} onChange={setPersonality} />
-                                <PickList title="Boundaries" cats={BOOA_BOUNDARIES} max={LIMITS.boundaries} picked={boundaries} onChange={setBoundaries} />
-                                <PickList title="Skills (OASF)" cats={SKILL_CATS} max={LIMITS.skills} picked={skills} onChange={setSkills} />
-                                <PickList title="Domains (OASF)" cats={DOMAIN_CATS} max={LIMITS.domains} picked={domains} onChange={setDomains} />
+                                <PickList title="Personality" cats={BOOA_PERSONALITY} max={LIMITS.personality} picked={personality} onChange={setPersonality}
+                                  original={agent?.personality || []} keep={!!(keep & KEEP.personality)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.personality : k & ~KEEP.personality))} />
+                                <PickList title="Boundaries" cats={BOOA_BOUNDARIES} max={LIMITS.boundaries} picked={boundaries} onChange={setBoundaries}
+                                  original={agent?.boundaries || []} keep={!!(keep & KEEP.boundaries)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.boundaries : k & ~KEEP.boundaries))} />
+                                <PickList title="Skills (OASF)" cats={SKILL_CATS} max={LIMITS.skills} picked={skills} onChange={setSkills}
+                                  original={agent?.skills || []} keep={!!(keep & KEEP.skills)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.skills : k & ~KEEP.skills))} />
+                                <PickList title="Domains (OASF)" cats={DOMAIN_CATS} max={LIMITS.domains} picked={domains} onChange={setDomains}
+                                  original={agent?.domains || []} keep={!!(keep & KEEP.domains)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.domains : k & ~KEEP.domains))} />
                               </div>
                             </div>
                           </TokenDetail>
@@ -456,6 +525,11 @@ export default function MyBooasPage() {
                         <div className="min-w-0 flex-1">
                           {!configAddress ? (
                             <span className="text-[11px] text-amber-500" style={font}>Onchain saving arrives with the Configure contract. Preview works now.</span>
+                          ) : selected && !boundAgent ? (
+                            <span className="text-[11px] text-amber-500" style={font}>
+                              Configuration is an agent capability.{' '}
+                              <Link href="/studio/awaken" className="underline hover:text-foreground">Awaken this BOOA</Link> to unlock it. Preview works now.
+                            </span>
                           ) : !onEthereum ? (
                             <span className="text-[11px] text-amber-500" style={font}>Configure runs on Ethereum</span>
                           ) : error ? (
@@ -474,7 +548,7 @@ export default function MyBooasPage() {
                               Discard
                             </button>
                           )}
-                          <button onClick={() => (step === 'error' ? reset() : save())} disabled={busy || !selected || !configAddress || !!vibeErr || (step !== 'error' && !dirty)}
+                          <button onClick={() => (step === 'error' ? reset() : save())} disabled={busy || !selected || !configAddress || !boundAgent || !!vibeErr || (step !== 'error' && !dirty)}
                             className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 disabled:opacity-30 transition-opacity uppercase tracking-wider" style={font}>
                             {busy ? 'Working' : step === 'error' ? 'Reset' : 'Save onchain'}
                           </button>

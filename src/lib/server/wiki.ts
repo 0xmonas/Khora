@@ -6,7 +6,7 @@ import { getAI } from '@/lib/server/gemini';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { getAdapterAddress, BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { CHAIN_CONFIG } from '@/types/agent';
-import { BOOA_CONFIG_ABI, getBooaConfigAddress } from '@/lib/contracts/booa-config';
+import { BOOA_CONFIG_ABI, KEEP, getBooaConfigAddress } from '@/lib/contracts/booa-config';
 import { PERSONALITY_LIST, BOUNDARY_LIST } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 import { BOOA_PALETTES } from '@/lib/booa-palettes';
@@ -60,6 +60,10 @@ interface WikiBinding {
 
 interface WikiConfig {
   palette: string;
+  levels: number;
+  background: string | null;
+  agentId: number;
+  keep: number;
   vibe: string | null;
   personality: string[];
   boundaries: string[];
@@ -312,6 +316,10 @@ async function fetchConfig(tokenId: number): Promise<WikiConfig | null> {
     if (!active) return null;
     return {
       palette: BOOA_PALETTES[o.palette]?.name ?? `#${o.palette}`,
+      levels: o.levels === 0 ? 16 : o.levels,
+      background: o.bg === 0 ? null : o.bg === 0x2000000 ? 'Transparent' : `#${(o.bg & 0xffffff).toString(16).toUpperCase().padStart(6, '0')}`,
+      agentId: o.agentId,
+      keep: o.keep,
       vibe: o.vibe || null,
       personality: pick(PERSONALITY_LIST, o.personality),
       boundaries: pick(BOUNDARY_LIST, o.boundaries),
@@ -325,25 +333,36 @@ async function fetchConfig(tokenId: number): Promise<WikiConfig | null> {
 
 function withConfig(identity: AgentIdentity, config: WikiConfig | null | undefined): AgentIdentity {
   if (!config) return identity;
+  const merge = (bit: number, mint: string[], next: string[]) =>
+    next.length === 0 ? mint : config.keep & bit ? [...mint, ...next] : next;
   return {
     ...identity,
     vibe: config.vibe ?? identity.vibe,
-    personality: config.personality.length ? config.personality : identity.personality,
-    boundaries: config.boundaries.length ? config.boundaries : identity.boundaries,
-    skills: config.skills.length ? config.skills : identity.skills,
-    domains: config.domains.length ? config.domains : identity.domains,
-    appearance: config.palette !== 'C64' ? { ...identity.appearance, Palette: config.palette } : identity.appearance,
+    personality: merge(KEEP.personality, identity.personality, config.personality),
+    boundaries: merge(KEEP.boundaries, identity.boundaries, config.boundaries),
+    skills: merge(KEEP.skills, identity.skills, config.skills),
+    domains: merge(KEEP.domains, identity.domains, config.domains),
+    appearance: {
+      ...identity.appearance,
+      ...(config.palette !== 'C64' || config.levels < 16
+        ? { Palette: config.levels < 16 ? `${config.palette} ${config.levels}-tone` : config.palette }
+        : {}),
+      ...(config.background ? { Background: config.background } : {}),
+    },
   };
 }
 
 function describeConfig(c: WikiConfig): string[] {
   const out: string[] = [];
   if (c.palette !== 'C64') out.push(`palette switched to ${c.palette}`);
+  if (c.levels < 16) out.push(`folded to ${c.levels} tones`);
+  if (c.background) out.push(`background set to ${c.background}`);
   if (c.vibe) out.push(`a new vibe: "${c.vibe}"`);
-  if (c.personality.length) out.push(`personality set to ${c.personality.join(', ')}`);
-  if (c.boundaries.length) out.push(`boundaries set to ${c.boundaries.join(', ')}`);
-  if (c.skills.length) out.push(`skills set to ${c.skills.join(', ')}`);
-  if (c.domains.length) out.push(`domains set to ${c.domains.join(', ')}`);
+  const verb = (bit: number) => (c.keep & bit ? 'extended with' : 'set to');
+  if (c.personality.length) out.push(`personality ${verb(KEEP.personality)} ${c.personality.join(', ')}`);
+  if (c.boundaries.length) out.push(`boundaries ${verb(KEEP.boundaries)} ${c.boundaries.join(', ')}`);
+  if (c.skills.length) out.push(`skills ${verb(KEEP.skills)} ${c.skills.join(', ')}`);
+  if (c.domains.length) out.push(`domains ${verb(KEEP.domains)} ${c.domains.join(', ')}`);
   return out;
 }
 
@@ -414,6 +433,8 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
   } else if (nc && pc && JSON.stringify(nc) !== JSON.stringify(pc)) {
     const d: string[] = [];
     if (nc.palette !== pc.palette) d.push(`palette ${pc.palette} → ${nc.palette}`);
+    if (nc.levels !== pc.levels) d.push(nc.levels < 16 ? `folded to ${nc.levels} tones` : 'back to the full 16 tones');
+    if ((nc.background ?? '') !== (pc.background ?? '')) d.push(nc.background ? `background now ${nc.background}` : 'background back to the original');
     if ((nc.vibe ?? '') !== (pc.vibe ?? '')) d.push(nc.vibe ? `a new vibe: "${nc.vibe}"` : 'vibe returned to the original');
     for (const k of ['personality', 'boundaries', 'skills', 'domains'] as const) {
       if (nc[k].join('|') !== pc[k].join('|')) d.push(nc[k].length ? `${k} now ${nc[k].join(', ')}` : `${k} returned to the original`);
