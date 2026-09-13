@@ -114,6 +114,7 @@ const NAV_LINKS: { href: string; label: string; highlight?: boolean; shimmer?: b
   { href: '/bridge', label: 'Bridge' },
   { href: '/studio', label: 'Studio' },
   { href: '/blog', label: 'Blog' },
+  { href: '/studio/my-booas', label: 'My BOOAs' },
 ];
 
 export function Header() {
