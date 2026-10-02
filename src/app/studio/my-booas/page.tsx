@@ -133,6 +133,7 @@ export default function MyBooasPage() {
   const [domains, setDomains] = useState<string[]>([]);
 
   const [baseline, setBaseline] = useState<Form | null>(null);
+  const [artVersion, setArtVersion] = useState(0);
   const [initFor, setInitFor] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -285,6 +286,7 @@ export default function MyBooasPage() {
       setBaseline(form);
       void refetchCfg();
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
+      setArtVersion((v) => v + 1);
       setTxHash(hash); setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -314,6 +316,7 @@ export default function MyBooasPage() {
       applyForm(mint); setBaseline(mint);
       void refetchCfg();
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
+      setArtVersion((v) => v + 1);
       setTxHash(hash); setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -421,7 +424,7 @@ export default function MyBooasPage() {
                                 title={nft.name || `BOOA #${nft.tokenId}`}>
                                 {nft.image ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={nft.image} alt={nft.name} className="w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                                  <img src={`/api/booa-image/${nft.tokenId}?live=1&v=${artVersion}`} alt={nft.name} className="w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-neutral-50 dark:bg-neutral-900 text-[9px] text-muted-foreground/50" style={font}>#{nft.tokenId}</div>
                                 )}
@@ -433,6 +436,7 @@ export default function MyBooasPage() {
                             token={{ tokenId: BigInt(selected.tokenId), svg: previewSvg, name: selected.name, isOwned: true }}
                             chainId={mainnet.id}
                             configureLink={false}
+                            liveArt={false}
                           >
                             <div className="pt-5 border-t border-neutral-100 dark:border-neutral-800 space-y-5">
                               <div className="flex items-center justify-between gap-3">

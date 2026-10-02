@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http } from 'viem';
 import { mainnet } from 'viem/chains';
 import { getV2RendererAddress, BOOA_V2_RENDERER_ABI } from '@/lib/contracts/booa-v2';
+import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
 
 export const maxDuration = 15;
 
@@ -14,16 +15,17 @@ export const maxDuration = 15;
  * tools can display the art without embedding ~9KB of SVG on-chain.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ tokenId: string }> },
 ) {
+  const live = req.nextUrl.searchParams.get('live') === '1';
   const { tokenId } = await context.params;
   const id = Number(tokenId);
   if (!Number.isInteger(id) || id < 0 || id >= 3333) {
     return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
-  const renderer = getV2RendererAddress(mainnet.id);
+  const renderer = live ? getBooaEthAddress() : getV2RendererAddress(mainnet.id);
   if (!renderer || renderer.length <= 2) {
     return NextResponse.json({ error: 'Renderer not configured' }, { status: 500 });
   }
@@ -31,7 +33,10 @@ export async function GET(
   try {
     const client = createPublicClient({
       chain: mainnet,
-      transport: http(process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com'),
+      transport: http(
+        process.env.ETH_RPC_URL
+          || (process.env.ALCHEMY_API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}` : 'https://ethereum-rpc.publicnode.com'),
+      ),
     });
 
     const uri = (await client.readContract({
@@ -58,7 +63,7 @@ export async function GET(
     return new NextResponse(svg, {
       headers: {
         'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+        'Cache-Control': live ? 'public, max-age=60, s-maxage=300' : 'public, max-age=86400, s-maxage=604800, immutable',
       },
     });
   } catch {

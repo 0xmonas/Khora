@@ -95,11 +95,13 @@ export function TokenDetail({
   token,
   chainId: chainOverride,
   configureLink = true,
+  liveArt = true,
   children,
 }: {
   token: GalleryToken;
   chainId?: number;
   configureLink?: boolean;
+  liveArt?: boolean;
   children?: ReactNode;
 }) {
   const walletChain = useChainId();
@@ -114,6 +116,18 @@ export function TokenDetail({
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
+  const [liveSvg, setLiveSvg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLiveSvg(null);
+    if (!isEth || !liveArt) return;
+    let alive = true;
+    fetch(`/api/booa-image/${tokenId}?live=1`)
+      .then((r) => (r.ok ? r.text() : null))
+      .then((s) => { if (alive && s) setLiveSvg(s); })
+      .catch(() => null);
+    return () => { alive = false; };
+  }, [isEth, liveArt, tokenId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,7 +166,8 @@ export function TokenDetail({
   const vibe = get('Vibe');
   const emoji = get('Emoji');
   const agent = metadata || (traits.length > 0 ? traitsToAgent(traits) : null);
-  const src = token.svg ? `data:image/svg+xml,${encodeURIComponent(token.svg)}` : null;
+  const art = liveSvg ?? token.svg;
+  const src = art ? `data:image/svg+xml,${encodeURIComponent(art)}` : null;
 
   return (
     <>
@@ -227,19 +242,19 @@ export function TokenDetail({
           <div className="space-y-1.5">
             <p className={LABEL} style={font}>Download</p>
             <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => downloadFormat(agent, token.svg, 'json')} className={PILL} style={font}><FileCode className="w-3 h-3" /> JSON</button>
-              <button onClick={() => downloadFormat(agent, token.svg, 'erc8004')} className={PILL} style={font}>8004</button>
+              <button onClick={() => downloadFormat(agent, art, 'json')} className={PILL} style={font}><FileCode className="w-3 h-3" /> JSON</button>
+              <button onClick={() => downloadFormat(agent, art, 'erc8004')} className={PILL} style={font}>8004</button>
               <button
-                onClick={() => downloadFormat(agent, token.svg, 'openclaw', `eip155:${isEth ? '1' : isMainnet ? '360' : '11011'}/erc721:${contract}/${tokenId}`)}
+                onClick={() => downloadFormat(agent, art, 'openclaw', `eip155:${isEth ? '1' : isMainnet ? '360' : '11011'}/erc721:${contract}/${tokenId}`)}
                 className={PILL} style={font}
               >
                 <Image src="/openclaw.svg" alt="" width={12} height={12} /> OpenClaw
               </button>
               {metadata?.image && (
-                <button onClick={() => downloadFormat(metadata, token.svg, 'png')} className={PILL} style={font}><ImageIcon className="w-3 h-3" /> PNG</button>
+                <button onClick={() => downloadFormat(metadata, art, 'png')} className={PILL} style={font}><ImageIcon className="w-3 h-3" /> PNG</button>
               )}
-              {token.svg && (
-                <button onClick={() => downloadFormat(agent, token.svg, 'svg')} className={PILL} style={font}><Download className="w-3 h-3" /> SVG</button>
+              {art && (
+                <button onClick={() => downloadFormat(agent, art, 'svg')} className={PILL} style={font}><Download className="w-3 h-3" /> SVG</button>
               )}
             </div>
           </div>
