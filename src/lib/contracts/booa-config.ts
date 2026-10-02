@@ -1,44 +1,40 @@
 import { mainnet } from 'wagmi/chains';
 
+export const OVERRIDE_COMPONENTS = [
+  { name: 'version', type: 'uint8' },
+  { name: 'palette', type: 'uint8' },
+  { name: 'levels', type: 'uint8' },
+  { name: 'agentId', type: 'uint32' },
+  { name: 'bg', type: 'uint32' },
+  { name: 'keep', type: 'uint8' },
+  { name: 'vibe', type: 'string' },
+  { name: 'personality', type: 'uint16[]' },
+  { name: 'boundaries', type: 'uint16[]' },
+  { name: 'skills', type: 'uint16[]' },
+  { name: 'domains', type: 'uint16[]' },
+] as const;
+
 export const BOOA_CONFIG_ABI = [
   {
     type: 'function', name: 'setConfig', stateMutability: 'nonpayable',
     inputs: [
       { name: 'tokenId', type: 'uint256' },
-      { name: 'o', type: 'tuple', components: [
-        { name: 'version', type: 'uint8' },
-        { name: 'palette', type: 'uint8' },
-        { name: 'levels', type: 'uint8' },
-        { name: 'agentId', type: 'uint32' },
-        { name: 'bg', type: 'uint32' },
-        { name: 'keep', type: 'uint8' },
-        { name: 'vibe', type: 'string' },
-        { name: 'personality', type: 'uint16[]' },
-        { name: 'boundaries', type: 'uint16[]' },
-        { name: 'skills', type: 'uint16[]' },
-        { name: 'domains', type: 'uint16[]' },
-      ] },
+      { name: 'o', type: 'tuple', components: OVERRIDE_COMPONENTS },
     ],
     outputs: [],
   },
+  {
+    type: 'function', name: 'raw', stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: 'c', type: 'tuple', components: [{ name: 'setBy', type: 'address' }, { name: 'ptr', type: 'address' }] }],
+  },
+  { type: 'function', name: 'contentFlag', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
   { type: 'function', name: 'clearConfig', stateMutability: 'nonpayable', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [] },
   {
     type: 'function', name: 'getConfig', stateMutability: 'view',
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     outputs: [
-      { name: 'o', type: 'tuple', components: [
-        { name: 'version', type: 'uint8' },
-        { name: 'palette', type: 'uint8' },
-        { name: 'levels', type: 'uint8' },
-        { name: 'agentId', type: 'uint32' },
-        { name: 'bg', type: 'uint32' },
-        { name: 'keep', type: 'uint8' },
-        { name: 'vibe', type: 'string' },
-        { name: 'personality', type: 'uint16[]' },
-        { name: 'boundaries', type: 'uint16[]' },
-        { name: 'skills', type: 'uint16[]' },
-        { name: 'domains', type: 'uint16[]' },
-      ] },
+      { name: 'o', type: 'tuple', components: OVERRIDE_COMPONENTS },
       { name: 'active', type: 'bool' },
     ],
   },

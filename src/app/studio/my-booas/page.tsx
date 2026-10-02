@@ -9,7 +9,8 @@ import { Header } from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
 import { ConnectPrompt } from '@/components/features/generator/components/ConnectPrompt';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
-import { BOOA_CONFIG_ABI, LIMITS, KEEP, getBooaConfigAddress, vibeError, encodeBg, decodeBg } from '@/lib/contracts/booa-config';
+import { BOOA_CONFIG_ABI, OVERRIDE_COMPONENTS, LIMITS, KEEP, getBooaConfigAddress, vibeError, encodeBg, decodeBg } from '@/lib/contracts/booa-config';
+import { decodeAbiParameters } from 'viem';
 import { BOOA_PERSONALITY, BOOA_BOUNDARIES, PERSONALITY_LIST, BOUNDARY_LIST, type BooaCategory } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
 import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, recolorSvg, applyBackground } from '@/lib/booa-palettes';
@@ -157,6 +158,23 @@ export default function MyBooasPage() {
   });
   const customized = !!cfg && cfg[1] === true;
   const cfgReady = !configAddress || cfg !== undefined;
+  const { data: rawCfg } = useReadContract({
+    address: configAddress ?? undefined,
+    abi: BOOA_CONFIG_ABI,
+    functionName: 'raw',
+    args: selected ? [BigInt(selected.tokenId)] : undefined,
+    chainId: mainnet.id,
+    query: { enabled: !!configAddress && !!selected && cfgReady && !customized },
+  });
+  const { data: flagged } = useReadContract({
+    address: configAddress ?? undefined,
+    abi: BOOA_CONFIG_ABI,
+    functionName: 'contentFlag',
+    args: selected ? [BigInt(selected.tokenId)] : undefined,
+    chainId: mainnet.id,
+    query: { enabled: !!configAddress && !!selected && cfgReady && !customized },
+  });
+  const [previous, setPrevious] = useState<{ form: Form; by: string } | null>(null);
 
   const present = (personality.length ? KEEP.personality : 0) | (boundaries.length ? KEEP.boundaries : 0) | (skills.length ? KEEP.skills : 0) | (domains.length ? KEEP.domains : 0);
   const form: Form = useMemo(() => ({ palette, levels, bg, keep: keep & present, vibe, personality, boundaries, skills, domains }), [palette, levels, bg, keep, present, vibe, personality, boundaries, skills, domains]);
@@ -254,6 +272,34 @@ export default function MyBooasPage() {
   }, [selected, agent, cfg, cfgReady, customized, initFor, mintForm]);
 
   const boundAgent = selected ? agentByToken[selected.tokenId] : undefined;
+
+  useEffect(() => {
+    setPrevious(null);
+    const ptr = rawCfg?.ptr;
+    if (!selected || !agent || customized || !publicClient || !ptr || /^0x0+$/.test(ptr)) return;
+    let alive = true;
+    publicClient.getCode({ address: ptr }).then((code) => {
+      if (!alive || !code || code.length < 4) return;
+      const [o] = decodeAbiParameters([{ type: 'tuple', components: OVERRIDE_COMPONENTS }], `0x${code.slice(4)}`);
+      if (o.version !== 1) return;
+      const mint = mintForm(agent);
+      setPrevious({
+        by: rawCfg.setBy,
+        form: {
+          palette: o.palette,
+          levels: o.levels === 0 ? 16 : o.levels,
+          bg: decodeBg(o.bg),
+          keep: o.keep,
+          vibe: o.vibe && !flagged ? o.vibe : mint.vibe,
+          personality: o.personality.length ? fromIdx(PERSONALITY_LIST, o.personality) : mint.personality,
+          boundaries: o.boundaries.length ? fromIdx(BOUNDARY_LIST, o.boundaries) : mint.boundaries,
+          skills: o.skills.length ? fromIdx(SKILL_LIST, o.skills) : mint.skills,
+          domains: o.domains.length ? fromIdx(DOMAIN_LIST, o.domains) : mint.domains,
+        },
+      });
+    }).catch(() => null);
+    return () => { alive = false; };
+  }, [selected, agent, customized, publicClient, rawCfg, flagged, mintForm]);
 
   const previewSvg = useMemo(() => {
     if (!svg) return null;
@@ -446,6 +492,13 @@ export default function MyBooasPage() {
                                     · {dirty ? 'unsaved changes' : customized ? 'customized onchain' : 'original'}{boundAgent ? ` · agent #${boundAgent}` : ' · not awakened'}
                                   </span>
                                 </p>
+                                {!customized && previous && !dirty && (
+                                  <button onClick={() => { sfx.playClick(); applyForm(previous.form); }} disabled={busy}
+                                    title={`Set by ${previous.by}. Applies their palette, tones, background and text picks; save to make it yours.`}
+                                    className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-1 rounded-md border border-amber-400/60 text-amber-600 dark:text-amber-300 hover:border-amber-500 transition-colors disabled:opacity-30" style={font}>
+                                    <RotateCcw className="w-3 h-3" /> Restore previous holder&apos;s look
+                                  </button>
+                                )}
                                 {customized && (
                                   <button onClick={restore} disabled={busy}
                                     className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-foreground transition-colors disabled:opacity-30" style={font}>
