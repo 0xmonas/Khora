@@ -78,6 +78,12 @@ export default function TermsOfUsePage() {
                   As the controller, you may link a wallet to your agent by signing an EIP-712 message that the adapter records on-chain. This links a self-hosted runtime to the agent; it does not grant us or anyone else access to that wallet&apos;s keys. You are solely responsible for the wallet you link and any funds it holds.
                 </p>
               </div>
+              <div>
+                <h3 className="text-[11px] font-bold text-foreground uppercase mb-1">Configure (My BOOAs)</h3>
+                <p>
+                  As the holder of an awakened BOOA you may write to its ERC-721 metadata through the BOOAConfig and BOOAPaint contracts: palette, tones, background, background pixels, a free-text vibe and picks from curated lists. Everything you write is stored on Ethereum permanently and publicly, is visible on every marketplace and cannot be deleted by anyone, including us. You are solely responsible for what you write; do not write anything unlawful, hateful, infringing or that impersonates others. We may hide holder-written text or paint from booa.app surfaces and from the live render when it violates these Terms. Settings are tied to the holder who wrote them and stop rendering when the token changes hands; the original art and mint traits are never modified.
+                </p>
+              </div>
             </Section>
 
             {/* CC0 License */}

@@ -118,6 +118,8 @@ curl "https://booa.app/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
 }
 ```
 
+**Holder configuration:** the holder may have reconfigured the token on-chain (booa.app/studio/my-booas). When that is the case the NFT's `tokenURI` carries the holder's version: a rewritten `Vibe`, replaced or extended `Personality` / `Boundary` / `Skill` / `Domain` traits, plus `Palette`, `Background`, `Paint` and `Agent` traits. Treat those as the operator's current intent for voice and scope; the mint-time identity in the agent files below is the origin, the wiki (`/api/wiki/{id}`) carries both and the chronicle of changes. Money and security rules are never affected by any of this (see agent-defense.md).
+
 ### 1c. Verify Ownership
 
 ```bash

@@ -100,10 +100,38 @@ The CC0 license means you can use your BOOA's art however you want — commercia
 Contract addresses (Ethereum Mainnet):
 - BOOA (ERC-721): 0xbc48fD45aAaf6549293056606397D351a100b222
 - BOOAStorage: 0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96
-- BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+- BOOARenderer (original): 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+- Live renderer with holder configuration: 0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7 (see My BOOAs)
 
 Origin (Shape Mainnet, still live until fully migrated):
 - BOOA (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654`,
+      },
+      {
+        slug: 'my-booas',
+        title: 'My BOOAs: Configure',
+        description: 'Change how your BOOA presents itself, on-chain, without touching the original.',
+        content: `Your BOOA, your words and colours. My BOOAs lets the holder change what the NFT says and how it looks, written to Ethereum, read by every marketplace through tokenURI. The original art and mint traits are never modified and the original render stays available forever.
+
+Open booa.app/studio/my-booas, pick a BOOA, and configure:
+- Palette: C64 original, PICO-8, Game Boy, NES, CGA, Apple II, Noir, Amber, Phosphor, Sepia, XCOPY. Fold any palette to 2, 4 or 8 tones.
+- Background: any colour or transparent. Only the outside background changes; enclosed pixels (eyes, outlines) stay.
+- Paint the background: colour individual background pixels in the active palette. Figure pixels are locked. You can paint at most as many pixels as the figure has.
+- Vibe: your own words, up to 200 characters. It goes on-chain permanently and publicly.
+- Personality (up to 6), Boundaries (up to 5), Skills (up to 80), Domains (up to 80): picks from curated lists. Per category you choose whether your picks replace the mint values or are added to them.
+
+Rules:
+- Only awakened BOOAs can be configured (the token must be bound to its ERC-8004 agent). Awaken first at booa.app/studio/awaken.
+- Only the current holder can write. Settings are tied to the holder: when the BOOA changes hands they go back to the original until the new holder restores them (one click in My BOOAs) or sets their own.
+- Restore original removes everything at once. Paint is saved separately from the other settings.
+- Gas only, no fee. Each save is one transaction.
+
+Where it shows: tokenURI immediately; OpenSea and other marketplaces after their refresh (My BOOAs asks for one after each save); the gallery and My BOOAs read the live render directly from the chain. Agent files (soul.md, identity.md) keep the original mint identity; the wiki shows both and records every change.
+
+Contracts (Ethereum Mainnet):
+- BOOAConfig: 0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F
+- BOOAPaint: 0x959d71DebcD8BdD9F8Dc1e77DFBecddF81CA8305
+- Live renderer: 0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7
+- Original renderer (never changes): 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76`,
       },
       {
         slug: 'agent-files',

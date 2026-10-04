@@ -20,7 +20,10 @@ Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, ce
 
 BOOA NFT (ERC-721): 0xbc48fD45aAaf6549293056606397D351a100b222
 BOOAStorage: 0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96
-BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+BOOARenderer (original, no holder changes): 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
+BOOARenderer (live, applies holder configuration): 0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7
+BOOAConfig (holder palette, tones, background, text picks): 0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F
+BOOAPaint (holder background pixels): 0x959d71DebcD8BdD9F8Dc1e77DFBecddF81CA8305
 
 Origin collection (Shape Mainnet, Chain ID: 360) — still live for holders who have not migrated:
 BOOA NFT (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
@@ -277,6 +280,25 @@ GET /api/agent-registry/1/1496
 - SVG rendered on-chain by Renderer contract
 - No IPFS, no external dependencies
 - 4-contract system: BOOA (ERC-721), BOOAMinter, BOOAStorage, BOOARenderer
+- The holder may configure the NFT's ERC-721 metadata (not the ERC-8004 record) through BOOAConfig + BOOAPaint; the live renderer reads both
+
+## Holder Configuration (My BOOAs)
+
+A BOOA's holder can change how the token presents itself, on-chain, without touching the mint data. Human UI: booa.app/studio/my-booas. Only a BOOA bound to an ERC-8004 agent can be configured; only the current holder (or a delegate.xyz delegate with rights "adapter8004.manage") can write; a transfer deactivates the configuration until the new holder restores or replaces it. Original art and mint traits are never modified and the original render is always available from the original renderer.
+
+What can change (tokenURI reflects it immediately; marketplaces after their refresh):
+- Palette: curated list (C64 original, PICO-8, Game Boy, NES, CGA, Apple II, Noir, Amber, Phosphor, Sepia, XCOPY) + tone folding to 2/4/8 levels. Trait "Palette" (e.g. "Game Boy 2-tone").
+- Background: any RGB colour or transparent, applied only to the border-reachable background. Trait "Background".
+- Background paint: individual background pixels in palette slots, never figure pixels, capped at the figure's pixel count. Trait "Paint" = applied pixel count.
+- Vibe: free text up to 200 bytes (holder-written, permanent, JSON-escaped at render). Personality (max 6), Boundary (max 5), Skill (max 80), Domain (max 80): picks from curated on-chain lists; each category may replace or extend the mint values.
+- Trait "Agent" = the bound ERC-8004 agent id, present whenever a configuration is active.
+
+Reading it:
+- tokenURI on the NFT contract is the source of truth.
+- GET /api/booa-image/{tokenId}?live=1 returns the live SVG; without ?live=1 the original.
+- GET /api/wiki/{tokenId} overlays the configuration on the identity and records holder changes in the chronicle.
+- GET /api/agent-files/... serves the ORIGINAL mint identity (soul.md, identity.md, avatar.svg are config-independent).
+- POST /api/refresh-metadata/{tokenId} (signed-in holder only, rate-limited) asks OpenSea and Alchemy to re-read the token.
 
 ## ERC-8004 Registration Format
 
@@ -345,6 +367,7 @@ Human UI: booa.app/studio/wiki
 - Website: booa.app
 - Collection: opensea.io/collection/booa
 - Studio: booa.app/studio
+- My BOOAs (holder configuration): booa.app/studio/my-booas
 - Bridge: booa.app/bridge
 - Blog: booa.app/blog
 - 8004scan: 8004scan.io
