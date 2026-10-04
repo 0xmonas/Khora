@@ -37,9 +37,8 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
       ctx.fillStyle = `#${palette[s]}`;
       ctx.fillRect((pos & 63) * CELL, (pos >> 6) * CELL, CELL, CELL);
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    for (let pos = 0; pos < 4096; pos++) if (!mask[pos]) ctx.fillRect((pos & 63) * CELL, (pos >> 6) * CELL, CELL, CELL);
   }, [grid, mask, palette, byPos]);
+  const [locked, setLocked] = useState(false);
 
   const posAt = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -63,10 +62,11 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
         <span className="text-[10px] text-muted-foreground/60" style={font}>{paint.length}/{cap} px</span>
       </div>
       <canvas ref={ref} width={SIZE} height={SIZE}
-        className={`w-full max-w-[320px] aspect-square rounded-md ring-1 ring-neutral-200 dark:ring-neutral-800 touch-none ${disabled ? 'opacity-60' : 'cursor-crosshair'}`}
+        className={`w-full max-w-[320px] aspect-square rounded-md ring-1 ring-neutral-200 dark:ring-neutral-800 touch-none ${disabled ? 'opacity-60' : locked ? 'cursor-not-allowed' : 'cursor-crosshair'}`}
         style={{ imageRendering: 'pixelated' }}
         onPointerDown={(e) => { if (disabled) return; drawing.current = true; e.currentTarget.setPointerCapture(e.pointerId); apply(posAt(e)); }}
-        onPointerMove={(e) => { if (drawing.current && !disabled) apply(posAt(e)); }}
+        onPointerMove={(e) => { const p = posAt(e); setLocked(p >= 0 && !mask[p]); if (drawing.current && !disabled) apply(p); }}
+        onPointerLeave={() => setLocked(false)}
         onPointerUp={() => { drawing.current = false; }}
         onPointerCancel={() => { drawing.current = false; }}
       />
@@ -87,7 +87,7 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
         )}
       </div>
       <p className="text-[10px] text-muted-foreground/60 leading-relaxed" style={font}>
-        Dimmed pixels are the figure and cannot be painted. Colours follow the palette above. Up to as many pixels as the figure has.
+        Only the background can be painted; the figure is locked. Colours are the palette above as it will be saved. Up to as many pixels as the figure has.
       </p>
     </div>
   );

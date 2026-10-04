@@ -10,7 +10,7 @@ export const maxDuration = 15;
 const OWNER_OF_ABI = [
   { type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'address' }] },
 ] as const;
-const COOLDOWN_SECONDS = 300;
+const COOLDOWN_SECONDS = 45;
 const UPSTREAM_TIMEOUT_MS = 8000;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tokenId: string }> }) {
