@@ -651,7 +651,7 @@ export default function MyBooasPage() {
                         )}
                       </div>
 
-                      <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3">
+                      <div className="sticky bottom-0 z-10 px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 bg-background/95 backdrop-blur flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           {!configAddress ? (
                             <span className="text-[11px] text-amber-500" style={font}>Onchain saving arrives with the Configure contract. Preview works now.</span>
@@ -668,7 +668,12 @@ export default function MyBooasPage() {
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground" style={font}><Loader2 className="w-3 h-3 animate-spin" /> {note}</span>
                           ) : (
                             <span className="text-[11px] text-muted-foreground/70" style={font}>
-                              {!selected ? 'Pick a BOOA above' : dirty ? (txCount > 1 ? 'Look, words and paint: 2 transactions. Gas only, no fee.' : 'Gas only, no fee. Editable any time.') : customized || painted ? 'Saved onchain. Restore original any time.' : 'Nothing changed yet.'}
+                              {!selected ? 'Pick a BOOA above'
+                                : dirty ? (txCount > 1 ? 'Look, words and paint: 2 transactions. Gas only, no fee.'
+                                  : paintDirty && paintEntries.length === 0 ? 'Removes the paint from the chain. Gas only.'
+                                  : paintDirty ? `Saves ${paintEntries.length} painted pixels onchain. Gas only.`
+                                  : 'Gas only, no fee. Editable any time.')
+                                : customized || painted ? 'Saved onchain. Restore original any time.' : 'Nothing changed yet.'}
                             </span>
                           )}
                         </div>
@@ -680,7 +685,7 @@ export default function MyBooasPage() {
                           )}
                           <button onClick={() => (step === 'error' ? reset() : save())} disabled={busy || !selected || !configAddress || !boundAgent || !!vibeErr || (step !== 'error' && !dirty)}
                             className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 disabled:opacity-30 transition-opacity uppercase tracking-wider" style={font}>
-                            {busy ? 'Working' : step === 'error' ? 'Reset' : txCount > 1 ? 'Save all onchain' : 'Save onchain'}
+                            {busy ? 'Working' : step === 'error' ? 'Reset' : txCount > 1 ? 'Save all onchain' : paintDirty && paintEntries.length === 0 ? 'Remove paint onchain' : 'Save onchain'}
                           </button>
                         </div>
                       </div>

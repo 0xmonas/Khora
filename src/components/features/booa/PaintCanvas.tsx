@@ -104,6 +104,11 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, saved, cap, di
       <p className="text-[10px] text-muted-foreground/60 leading-relaxed" style={font}>
         Only the background can be painted; the figure is locked. Colours are the palette above as it will be saved. Up to as many pixels as the figure has.
       </p>
+      {key(saved) !== key(paint) && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-300" style={font}>
+          {paint.length === 0 && saved.length > 0 ? 'Paint removed here only. Press Save onchain below to remove it from the chain.' : 'Unsaved paint. Press Save onchain below to write it.'}
+        </p>
+      )}
     </div>
   );
 }
