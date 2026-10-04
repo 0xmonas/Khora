@@ -65,6 +65,11 @@ describe('renderer parity', () => {
     expect(renderPreview(svg, posterize(C64, 16), '')).toBe(svg);
   });
 
+  it('renderPreview never merges pixels (RendererV3 was rolled back)', () => {
+    const svg = renderGrid(grid, C64, '');
+    expect(renderPreview(svg, palette, '')).toBe(renderGrid(grid, palette, ''));
+  });
+
   it('every palette renders without throwing and keeps 4096 pixels', () => {
     const svg = renderGrid(grid, C64, '');
     for (const p of BOOA_PALETTES) {

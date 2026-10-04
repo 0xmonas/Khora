@@ -160,7 +160,6 @@ export function renderGrid(grid: Uint8Array, palette: string[], bg: string): str
 export function renderPreview(ogSvg: string, palette: string[], bg: string): string {
   const grid = svgToGrid(ogSvg);
   if (!grid) return ogSvg;
-  const untouched = palette.every((c, i) => c === C64[i]);
-  return renderGrid(untouched ? grid : mergeIsolated(grid, palette), palette, bg);
+  return renderGrid(grid, palette, bg);
 }
 
