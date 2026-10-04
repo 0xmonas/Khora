@@ -13,7 +13,9 @@ import { BOOA_CONFIG_ABI, OVERRIDE_COMPONENTS, LIMITS, KEEP, getBooaConfigAddres
 import { decodeAbiParameters } from 'viem';
 import { BOOA_PERSONALITY, BOOA_BOUNDARIES, PERSONALITY_LIST, BOUNDARY_LIST, type BooaCategory } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
-import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, renderPreview } from '@/lib/booa-palettes';
+import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, renderPreview, svgToGrid, bgSlot, outsideMask, type PaintEntry } from '@/lib/booa-palettes';
+import { BOOA_PAINT_ABI, getBooaPaintAddress, encodePaint, decodePaint } from '@/lib/contracts/booa-paint';
+import { PaintCanvas } from '@/components/features/booa/PaintCanvas';
 import { sfx } from '@/lib/sounds';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
 
@@ -125,6 +127,8 @@ export default function MyBooasPage() {
   const [palette, setPalette] = useState(0);
   const [levels, setLevels] = useState<number>(16);
   const [bg, setBg] = useState('');
+  const [paintEntries, setPaintEntries] = useState<PaintEntry[]>([]);
+  const [paintBaseline, setPaintBaseline] = useState<PaintEntry[]>([]);
   const [keep, setKeep] = useState(0);
   const [agentByToken, setAgentByToken] = useState<Record<string, number>>({});
   const [vibe, setVibe] = useState('');
@@ -143,6 +147,7 @@ export default function MyBooasPage() {
 
   const booaEth = getBooaEthAddress();
   const configAddress = getBooaConfigAddress();
+  const paintAddress = getBooaPaintAddress();
   const onEthereum = chainId === mainnet.id;
   const busy = step === 'saving' || step === 'switching';
   const vibeErr = vibeError(vibe);
@@ -281,6 +286,29 @@ export default function MyBooasPage() {
 
   const boundAgent = selected ? agentByToken[selected.tokenId] : undefined;
 
+  const { data: onchainPaint, refetch: refetchPaint } = useReadContract({
+    address: paintAddress ?? undefined,
+    abi: BOOA_PAINT_ABI,
+    functionName: 'getPaint',
+    args: selected ? [BigInt(selected.tokenId)] : undefined,
+    chainId: mainnet.id,
+    query: { enabled: !!paintAddress && !!selected },
+  });
+  const paintGrid = useMemo(() => (svg ? svgToGrid(svg) : null), [svg]);
+  const paintMeta = useMemo(() => {
+    if (!paintGrid) return null;
+    const bgIdx = bgSlot(paintGrid);
+    const mask = outsideMask(paintGrid, bgIdx);
+    let figure = 0;
+    for (let i = 0; i < 4096; i++) if (paintGrid[i] !== bgIdx) figure++;
+    return { bgIdx, mask, cap: figure };
+  }, [paintGrid]);
+  useEffect(() => {
+    const entries = onchainPaint && onchainPaint[1] ? decodePaint(onchainPaint[0]) : [];
+    setPaintEntries(entries); setPaintBaseline(entries);
+  }, [onchainPaint, selected]);
+  const paintDirty = encodePaint(paintEntries) !== encodePaint(paintBaseline);
+
   useEffect(() => {
     setPrevious(null);
     const ptr = rawCfg?.ptr;
@@ -311,9 +339,9 @@ export default function MyBooasPage() {
 
   const previewSvg = useMemo(() => {
     if (!svg) return null;
-    if (palette === 0 && levels >= 16 && !bg) return svg;
-    return renderPreview(svg, posterize(BOOA_PALETTES[palette].colors, levels), bg);
-  }, [svg, palette, levels, bg]);
+    if (palette === 0 && levels >= 16 && !bg && paintEntries.length === 0) return svg;
+    return renderPreview(svg, posterize(BOOA_PALETTES[palette].colors, levels), bg, paintEntries);
+  }, [svg, palette, levels, bg, paintEntries]);
 
   const save = useCallback(async () => {
     if (!address || !selected || !configAddress || !publicClient || vibeErr || !boundAgent) return;
@@ -380,6 +408,34 @@ export default function MyBooasPage() {
       sfx.playError();
     }
   }, [address, selected, configAddress, publicClient, chainId, switchChainAsync, writeContractAsync, agent, mintForm, refetchCfg]);
+
+  const savePaint = useCallback(async () => {
+    if (!address || !selected || !paintAddress || !publicClient || !boundAgent) return;
+    try {
+      setError(null);
+      if (chainId !== mainnet.id) {
+        setStep('switching'); setNote('Switch your wallet to Ethereum');
+        await switchChainAsync({ chainId: mainnet.id });
+      }
+      setStep('saving'); setNote(paintEntries.length ? 'Saving paint' : 'Clearing paint');
+      const hash = paintEntries.length
+        ? await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'setPaint', args: [BigInt(selected.tokenId), boundAgent, encodePaint(paintEntries)] })
+        : await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'clearPaint', args: [BigInt(selected.tokenId)] });
+      setNote('Confirming onchain');
+      await publicClient.waitForTransactionReceipt({ hash });
+      setPaintBaseline(paintEntries);
+      void refetchPaint();
+      void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
+      setArtVersion((v) => v + 1);
+      setTxHash(hash); setStep('done'); setNote('');
+      sfx.playSuccess();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Paint failed.';
+      setStep('error');
+      setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
+      sfx.playError();
+    }
+  }, [address, selected, paintAddress, publicClient, boundAgent, chainId, switchChainAsync, writeContractAsync, paintEntries, refetchPaint]);
 
   const discard = () => { if (baseline) { sfx.playClick(); applyForm(baseline); } };
   const reset = () => { setStep('idle'); setError(null); setTxHash(null); setNote(''); };
@@ -581,6 +637,28 @@ export default function MyBooasPage() {
                                 <PickList title="Domains (OASF)" cats={DOMAIN_CATS} max={LIMITS.domains} picked={domains} onChange={setDomains}
                                   original={agent?.domains || []} keep={!!(keep & KEEP.domains)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.domains : k & ~KEEP.domains))} />
                               </div>
+                              {paintAddress && paintGrid && paintMeta && (
+                                <div className="pt-5 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
+                                  <PaintCanvas grid={paintGrid} mask={paintMeta.mask} bgSlot={paintMeta.bgIdx} cap={paintMeta.cap}
+                                    palette={posterize(BOOA_PALETTES[palette].colors, levels)} paint={paintEntries} onChange={setPaintEntries} disabled={busy || !boundAgent} />
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-[10px] text-muted-foreground/70" style={font}>
+                                      {paintDirty ? 'Paint is saved separately from the settings above. Gas only.' : paintBaseline.length ? 'Paint saved onchain.' : 'No paint yet.'}
+                                    </span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {paintDirty && !busy && (
+                                        <button onClick={() => { sfx.playClick(); setPaintEntries(paintBaseline); }} className="text-[11px] px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:text-foreground uppercase tracking-wider" style={font}>
+                                          Discard
+                                        </button>
+                                      )}
+                                      <button onClick={savePaint} disabled={busy || !boundAgent || !paintDirty}
+                                        className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 disabled:opacity-30 uppercase tracking-wider" style={font}>
+                                        {paintEntries.length ? 'Save paint' : 'Clear paint'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </TokenDetail>
                         )}

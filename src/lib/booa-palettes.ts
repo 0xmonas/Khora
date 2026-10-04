@@ -96,29 +96,7 @@ export function svgToGrid(svg: string): Uint8Array | null {
   return grid;
 }
 
-export function mergeIsolated(grid: Uint8Array, palette: string[]): Uint8Array {
-  const canon = palette.map((c, s) => palette.indexOf(c) < s ? palette.indexOf(c) : s);
-  const g = Uint8Array.from(grid, (s) => canon[s]);
-  const out = Uint8Array.from(grid);
-  for (let c = 0; c < 4096; c++) {
-    const self = g[c]; const x = c & 63;
-    const up = c >= 64 ? g[c - 64] : 255;
-    const down = c < 4032 ? g[c + 64] : 255;
-    const left = x > 0 ? g[c - 1] : 255;
-    const right = x < 63 ? g[c + 1] : 255;
-    if (self === up || self === down || self === left || self === right) continue;
-    const count = (v: number) => (v === 255 ? 0 : +(up === v) + +(down === v) + +(left === v) + +(right === v));
-    let pick = c - 64; let pickColor = up; let best = count(up);
-    let n = count(down); if (n > best) { best = n; pick = c + 64; pickColor = down; }
-    n = count(left); if (n > best) { best = n; pick = c - 1; pickColor = left; }
-    n = count(right); if (n > best) { pick = c + 1; pickColor = right; }
-    if (pickColor === 255) continue;
-    out[c] = grid[pick];
-  }
-  return out;
-}
-
-function outsideMask(grid: Uint8Array, bgColor: number): Uint8Array {
+export function outsideMask(grid: Uint8Array, bgColor: number): Uint8Array {
   const mask = new Uint8Array(4096);
   const stack: number[] = [];
   const visit = (c: number) => { if (mask[c] || grid[c] !== bgColor) return; mask[c] = 1; stack.push(c); };
@@ -133,23 +111,41 @@ function outsideMask(grid: Uint8Array, bgColor: number): Uint8Array {
   return mask;
 }
 
-export function renderGrid(grid: Uint8Array, palette: string[], bg: string): string {
+export function bgSlot(grid: Uint8Array): number {
   const counts = new Array<number>(16).fill(0);
   for (let i = 0; i < 4096; i++) counts[grid[i]]++;
   let bgColor = 0;
   for (let c = 1; c < 16; c++) if (counts[c] > counts[bgColor]) bgColor = c;
+  return bgColor;
+}
+
+export interface PaintEntry { pos: number; slot: number }
+
+export function applyPaint(grid: Uint8Array, paint: PaintEntry[], mask: Uint8Array, bgColor: number): Uint8Array {
+  const canvas = Uint8Array.from(grid);
+  for (const { pos, slot } of paint) {
+    if (pos < 0 || pos >= 4096 || !mask[pos] || slot === bgColor || slot < 0 || slot > 15) continue;
+    canvas[pos] = slot;
+  }
+  return canvas;
+}
+
+export function renderGrid(grid: Uint8Array, palette: string[], bg: string, paint: PaintEntry[] = []): string {
+  const bgColor = bgSlot(grid);
+  const painted = paint.length > 0;
+  const mask = bg || painted ? outsideMask(grid, bgColor) : null;
+  if (painted && mask) grid = applyPaint(grid, paint, mask, bgColor);
   let out = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">';
   if (!bg) out += `<rect fill="#${palette[bgColor]}" y="-0.5" width="64" height="65"/>`;
   else if (bg !== 'transparent') out += `<rect fill="#${bg.toUpperCase()}" y="-0.5" width="64" height="65"/>`;
-  const mask = bg ? outsideMask(grid, bgColor) : null;
   const paths = new Array<string>(16).fill('');
   for (let y = 0; y < 64; y++) {
     let x = 0;
     while (x < 64) {
       const color = grid[y * 64 + x];
-      if (color === bgColor && (!mask || mask[y * 64 + x])) { x++; continue; }
+      if (color === bgColor && (!bg || (mask && mask[y * 64 + x]))) { x++; continue; }
       const start = x; x++;
-      while (x < 64 && grid[y * 64 + x] === color && !(color === bgColor && mask && mask[y * 64 + x])) x++;
+      while (x < 64 && grid[y * 64 + x] === color && !(color === bgColor && bg && mask && mask[y * 64 + x])) x++;
       paths[color] += `M${start} ${y}h${x - start}`;
     }
   }
@@ -157,9 +153,9 @@ export function renderGrid(grid: Uint8Array, palette: string[], bg: string): str
   return out + '</svg>';
 }
 
-export function renderPreview(ogSvg: string, palette: string[], bg: string): string {
+export function renderPreview(ogSvg: string, palette: string[], bg: string, paint: PaintEntry[] = []): string {
   const grid = svgToGrid(ogSvg);
   if (!grid) return ogSvg;
-  return renderGrid(grid, palette, bg);
+  return renderGrid(grid, palette, bg, paint);
 }
 
