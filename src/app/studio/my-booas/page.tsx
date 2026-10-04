@@ -615,7 +615,7 @@ export default function MyBooasPage() {
                                 {paintAddress && paintGrid && paintMeta && (
                                   <div className="pt-2">
                                     <PaintCanvas grid={paintGrid} mask={paintMeta.mask} bgSlot={paintMeta.bgIdx} cap={paintMeta.cap}
-                                      palette={posterize(BOOA_PALETTES[palette].colors, levels)} paint={paintEntries} onChange={setPaintEntries} disabled={busy || !boundAgent} />
+                                      palette={posterize(BOOA_PALETTES[palette].colors, levels)} paint={paintEntries} saved={paintBaseline} onChange={setPaintEntries} disabled={busy || !boundAgent} />
                                   </div>
                                 )}
                               </div>

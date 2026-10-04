@@ -7,10 +7,12 @@ const font = { fontFamily: 'var(--font-departure-mono)' };
 const SIZE = 320;
 const CELL = SIZE / 64;
 
-export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled, onChange }: {
-  grid: Uint8Array; mask: Uint8Array; bgSlot: number; palette: string[]; paint: PaintEntry[]; cap: number; disabled?: boolean;
+export function PaintCanvas({ grid, mask, bgSlot, palette, paint, saved, cap, disabled, onChange }: {
+  grid: Uint8Array; mask: Uint8Array; bgSlot: number; palette: string[]; paint: PaintEntry[]; saved: PaintEntry[]; cap: number; disabled?: boolean;
   onChange: (next: PaintEntry[]) => void;
 }) {
+  const history = useRef<PaintEntry[][]>([]);
+  const stroke = useRef<PaintEntry[] | null>(null);
   const ref = useRef<HTMLCanvasElement>(null);
   const [slot, setSlot] = useState<number>(() => palette.findIndex((c, i) => i !== bgSlot && c !== palette[bgSlot]));
   const [eraser, setEraser] = useState(false);
@@ -47,6 +49,13 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
     return x < 0 || x > 63 || y < 0 || y > 63 ? -1 : y * 64 + x;
   };
 
+  const key = (p: PaintEntry[]) => p.map((e) => `${e.pos}:${e.slot}`).join(',');
+  const beginStroke = () => { stroke.current = paint; };
+  const endStroke = () => {
+    if (stroke.current && key(stroke.current) !== key(paint)) history.current = [...history.current.slice(-49), stroke.current];
+    stroke.current = null;
+  };
+  const undo = () => { const prev = history.current.pop(); if (prev) onChange(prev); };
   const apply = (pos: number) => {
     if (pos < 0 || !mask[pos]) return;
     if (eraser) { if (byPos.has(pos)) onChange(paint.filter((p) => p.pos !== pos)); return; }
@@ -64,11 +73,11 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
       <canvas ref={ref} width={SIZE} height={SIZE}
         className={`w-full max-w-[320px] aspect-square rounded-md ring-1 ring-neutral-200 dark:ring-neutral-800 touch-none ${disabled ? 'opacity-60' : locked ? 'cursor-not-allowed' : 'cursor-crosshair'}`}
         style={{ imageRendering: 'pixelated' }}
-        onPointerDown={(e) => { if (disabled) return; drawing.current = true; e.currentTarget.setPointerCapture(e.pointerId); apply(posAt(e)); }}
+        onPointerDown={(e) => { if (disabled) return; drawing.current = true; beginStroke(); e.currentTarget.setPointerCapture(e.pointerId); apply(posAt(e)); }}
         onPointerMove={(e) => { const p = posAt(e); setLocked(p >= 0 && !mask[p]); if (drawing.current && !disabled) apply(p); }}
         onPointerLeave={() => setLocked(false)}
-        onPointerUp={() => { drawing.current = false; }}
-        onPointerCancel={() => { drawing.current = false; }}
+        onPointerUp={() => { drawing.current = false; endStroke(); }}
+        onPointerCancel={() => { drawing.current = false; endStroke(); }}
       />
       <div className="flex flex-wrap items-center gap-1">
         {swatches.map((s) => (
@@ -80,11 +89,17 @@ export function PaintCanvas({ grid, mask, bgSlot, palette, paint, cap, disabled,
           className={`text-[10px] px-2 py-0.5 rounded-md border ${eraser ? 'border-neutral-900 dark:border-neutral-100 text-foreground' : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400'}`} style={font}>
           eraser
         </button>
-        {paint.length > 0 && (
-          <button onClick={() => onChange([])} className="text-[10px] px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400" style={font}>
-            clear
-          </button>
-        )}
+        <span className="w-px h-4 bg-neutral-200 dark:bg-neutral-800 mx-1" />
+        <button onClick={undo} disabled={history.current.length === 0} className="text-[10px] px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 disabled:opacity-30" style={font}>
+          undo
+        </button>
+        <button onClick={() => { history.current = []; onChange(saved); }} disabled={key(saved) === key(paint)} className="text-[10px] px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 disabled:opacity-30" style={font}>
+          back to saved
+        </button>
+        <button onClick={() => { if (paint.length) { history.current = [...history.current.slice(-49), paint]; onChange([]); } }} disabled={paint.length === 0} title="Removes every painted pixel; saving then clears the paint onchain"
+          className="text-[10px] px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 disabled:opacity-30" style={font}>
+          remove all
+        </button>
       </div>
       <p className="text-[10px] text-muted-foreground/60 leading-relaxed" style={font}>
         Only the background can be painted; the figure is locked. Colours are the palette above as it will be saved. Up to as many pixels as the figure has.
