@@ -191,7 +191,7 @@ export default function MyBooasPage() {
 
   const present = (personality.length ? KEEP.personality : 0) | (boundaries.length ? KEEP.boundaries : 0) | (skills.length ? KEEP.skills : 0) | (domains.length ? KEEP.domains : 0);
   const form: Form = useMemo(() => ({ palette, levels, bg, keep: keep & present, vibe, personality, boundaries, skills, domains }), [palette, levels, bg, keep, present, vibe, personality, boundaries, skills, domains]);
-  const dirty = !!baseline && JSON.stringify(form) !== JSON.stringify(baseline);
+  const settingsDirty = !!baseline && JSON.stringify(form) !== JSON.stringify(baseline);
   const applyForm = (f: Form) => {
     setPalette(f.palette); setLevels(f.levels); setBg(f.bg); setKeep(f.keep); setVibe(f.vibe); setPersonality(f.personality);
     setBoundaries(f.boundaries); setSkills(f.skills); setDomains(f.domains);
@@ -308,6 +308,9 @@ export default function MyBooasPage() {
     setPaintEntries(entries); setPaintBaseline(entries);
   }, [onchainPaint, selected]);
   const paintDirty = encodePaint(paintEntries) !== encodePaint(paintBaseline);
+  const painted = paintBaseline.length > 0;
+  const dirty = settingsDirty || paintDirty;
+  const txCount = (settingsDirty ? 1 : 0) + (paintDirty ? 1 : 0);
 
   useEffect(() => {
     setPrevious(null);
@@ -344,62 +347,87 @@ export default function MyBooasPage() {
   }, [svg, palette, levels, bg, paintEntries]);
 
   const save = useCallback(async () => {
-    if (!address || !selected || !configAddress || !publicClient || vibeErr || !boundAgent) return;
+    if (!address || !selected || !configAddress || !publicClient || vibeErr || !boundAgent || !dirty) return;
+    const id = BigInt(selected.tokenId);
+    const total = txCount;
+    let done = 0;
     try {
       setError(null);
       if (chainId !== mainnet.id) {
         setStep('switching'); setNote('Switch your wallet to Ethereum');
         await switchChainAsync({ chainId: mainnet.id });
       }
-      setStep('saving'); setNote(`Saving ${selected.name || `BOOA #${selected.tokenId}`}`);
-      const hash = await writeContractAsync({
-        chainId: mainnet.id, address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'setConfig',
-        args: [BigInt(selected.tokenId), {
-          version: 1, palette, levels, agentId: boundAgent, bg: encodeBg(bg), keep: form.keep,
-          vibe: vibe === (agent?.vibe || '') ? '' : vibe,
-          personality: toIdx(PERSONALITY_LIST, personality),
-          boundaries: toIdx(BOUNDARY_LIST, boundaries),
-          skills: toIdx(SKILL_LIST, skills),
-          domains: toIdx(DOMAIN_LIST, domains),
-        }],
-      });
-      setNote('Confirming onchain');
-      await publicClient.waitForTransactionReceipt({ hash });
-      setBaseline(form);
-      void refetchCfg();
+      setStep('saving');
+      if (settingsDirty) {
+        setNote(total > 1 ? `Saving look and words (1/${total})` : 'Saving look and words');
+        const hash = await writeContractAsync({
+          chainId: mainnet.id, address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'setConfig',
+          args: [id, {
+            version: 1, palette, levels, agentId: boundAgent, bg: encodeBg(bg), keep: form.keep,
+            vibe: vibe === (agent?.vibe || '') ? '' : vibe,
+            personality: toIdx(PERSONALITY_LIST, personality),
+            boundaries: toIdx(BOUNDARY_LIST, boundaries),
+            skills: toIdx(SKILL_LIST, skills),
+            domains: toIdx(DOMAIN_LIST, domains),
+          }],
+        });
+        setNote('Confirming onchain');
+        await publicClient.waitForTransactionReceipt({ hash });
+        setBaseline(form); setTxHash(hash); done++;
+        void refetchCfg();
+      }
+      if (paintDirty && paintAddress) {
+        setNote(total > 1 ? `Saving paint (${done + 1}/${total})` : paintEntries.length ? 'Saving paint' : 'Clearing paint');
+        const hash = paintEntries.length
+          ? await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'setPaint', args: [id, boundAgent, encodePaint(paintEntries)] })
+          : await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'clearPaint', args: [id] });
+        setNote('Confirming onchain');
+        await publicClient.waitForTransactionReceipt({ hash });
+        setPaintBaseline(paintEntries); setTxHash(hash); done++;
+        void refetchPaint();
+      }
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
       setArtVersion((v) => v + 1);
-      setTxHash(hash); setStep('done'); setNote('');
+      setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Save failed.';
       setStep('error');
-      setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
+      setError((/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg) + (done ? ` (${done}/${total} saved)` : ''));
       sfx.playError();
     }
-  }, [address, selected, configAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, levels, bg, boundAgent, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg]);
+  }, [address, selected, configAddress, paintAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, levels, bg, boundAgent, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg, refetchPaint, dirty, settingsDirty, paintDirty, txCount, paintEntries]);
 
   const restore = useCallback(async () => {
     if (!address || !selected || !configAddress || !publicClient) return;
+    const id = BigInt(selected.tokenId);
     try {
       setError(null);
       if (chainId !== mainnet.id) {
         setStep('switching'); setNote('Switch your wallet to Ethereum');
         await switchChainAsync({ chainId: mainnet.id });
       }
-      setStep('saving'); setNote('Restoring the original');
-      const hash = await writeContractAsync({
-        chainId: mainnet.id, address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'clearConfig',
-        args: [BigInt(selected.tokenId)],
-      });
-      setNote('Confirming onchain');
-      await publicClient.waitForTransactionReceipt({ hash });
-      const mint = mintForm(agent);
-      applyForm(mint); setBaseline(mint);
-      void refetchCfg();
+      setStep('saving');
+      if (customized) {
+        setNote(painted ? 'Restoring the original (1/2)' : 'Restoring the original');
+        const hash = await writeContractAsync({ chainId: mainnet.id, address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'clearConfig', args: [id] });
+        setNote('Confirming onchain');
+        await publicClient.waitForTransactionReceipt({ hash });
+        const mint = mintForm(agent);
+        applyForm(mint); setBaseline(mint); setTxHash(hash);
+        void refetchCfg();
+      }
+      if (painted && paintAddress) {
+        setNote(customized ? 'Clearing paint (2/2)' : 'Clearing paint');
+        const hash = await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'clearPaint', args: [id] });
+        setNote('Confirming onchain');
+        await publicClient.waitForTransactionReceipt({ hash });
+        setPaintEntries([]); setPaintBaseline([]); setTxHash(hash);
+        void refetchPaint();
+      }
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
       setArtVersion((v) => v + 1);
-      setTxHash(hash); setStep('done'); setNote('');
+      setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Restore failed.';
@@ -407,37 +435,9 @@ export default function MyBooasPage() {
       setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
       sfx.playError();
     }
-  }, [address, selected, configAddress, publicClient, chainId, switchChainAsync, writeContractAsync, agent, mintForm, refetchCfg]);
+  }, [address, selected, configAddress, paintAddress, publicClient, chainId, switchChainAsync, writeContractAsync, agent, mintForm, refetchCfg, refetchPaint, customized, painted]);
 
-  const savePaint = useCallback(async () => {
-    if (!address || !selected || !paintAddress || !publicClient || !boundAgent) return;
-    try {
-      setError(null);
-      if (chainId !== mainnet.id) {
-        setStep('switching'); setNote('Switch your wallet to Ethereum');
-        await switchChainAsync({ chainId: mainnet.id });
-      }
-      setStep('saving'); setNote(paintEntries.length ? 'Saving paint' : 'Clearing paint');
-      const hash = paintEntries.length
-        ? await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'setPaint', args: [BigInt(selected.tokenId), boundAgent, encodePaint(paintEntries)] })
-        : await writeContractAsync({ chainId: mainnet.id, address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'clearPaint', args: [BigInt(selected.tokenId)] });
-      setNote('Confirming onchain');
-      await publicClient.waitForTransactionReceipt({ hash });
-      setPaintBaseline(paintEntries);
-      void refetchPaint();
-      void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
-      setArtVersion((v) => v + 1);
-      setTxHash(hash); setStep('done'); setNote('');
-      sfx.playSuccess();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Paint failed.';
-      setStep('error');
-      setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
-      sfx.playError();
-    }
-  }, [address, selected, paintAddress, publicClient, boundAgent, chainId, switchChainAsync, writeContractAsync, paintEntries, refetchPaint]);
-
-  const discard = () => { if (baseline) { sfx.playClick(); applyForm(baseline); } };
+  const discard = () => { sfx.playClick(); if (baseline) applyForm(baseline); setPaintEntries(paintBaseline); };
   const reset = () => { setStep('idle'); setError(null); setTxHash(null); setNote(''); };
 
   return (
@@ -552,8 +552,8 @@ export default function MyBooasPage() {
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-[10px] uppercase tracking-wider text-foreground" style={font}>
                                   Configure
-                                  <span className={`ml-2 normal-case tracking-normal ${dirty ? 'text-amber-500' : customized ? 'text-foreground/70' : 'text-muted-foreground/60'}`}>
-                                    · {dirty ? 'unsaved changes' : customized ? 'customized onchain' : 'original'}{boundAgent ? ` · agent #${boundAgent}` : ' · not awakened'}
+                                  <span className={`ml-2 normal-case tracking-normal ${dirty ? 'text-amber-500' : customized || painted ? 'text-foreground/70' : 'text-muted-foreground/60'}`}>
+                                    · {dirty ? 'unsaved changes' : customized || painted ? 'customized onchain' : 'original'}{boundAgent ? ` · agent #${boundAgent}` : ' · not awakened'}
                                   </span>
                                 </p>
                                 {!customized && previous && !dirty && (
@@ -563,7 +563,7 @@ export default function MyBooasPage() {
                                     <RotateCcw className="w-3 h-3" /> Restore previous holder&apos;s look
                                   </button>
                                 )}
-                                {customized && (
+                                {(customized || painted) && (
                                   <button onClick={restore} disabled={busy}
                                     className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-foreground transition-colors disabled:opacity-30" style={font}>
                                     <RotateCcw className="w-3 h-3" /> Restore original
@@ -571,6 +571,7 @@ export default function MyBooasPage() {
                                 )}
                               </div>
                               <div className="space-y-1.5">
+                                <p className="text-[10px] uppercase tracking-wider text-foreground/80 pb-1" style={font}>Look</p>
                                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground" style={font}>Palette</span>
                                 <div className="flex flex-wrap gap-1">
                                   {BOOA_PALETTES.map((p, i) => ((p.hidden || i >= onchainPalettes) && palette !== i) ? null : (
@@ -611,8 +612,15 @@ export default function MyBooasPage() {
                                 <p className="text-[10px] text-muted-foreground/60 leading-relaxed" style={font}>
                                   Pixels never change, only the colours they point at. Fewer tones fold the palette by brightness. Background fills only the outside — eyes and outlines keep their colour. C64 · 16 · Original is always the mint.
                                 </p>
+                                {paintAddress && paintGrid && paintMeta && (
+                                  <div className="pt-2">
+                                    <PaintCanvas grid={paintGrid} mask={paintMeta.mask} bgSlot={paintMeta.bgIdx} cap={paintMeta.cap}
+                                      palette={posterize(BOOA_PALETTES[palette].colors, levels)} paint={paintEntries} onChange={setPaintEntries} disabled={busy || !boundAgent} />
+                                  </div>
+                                )}
                               </div>
                               <div className="space-y-2">
+                                <p className="text-[10px] uppercase tracking-wider text-foreground/80" style={font}>Words</p>
                                 <div className="flex items-center justify-between">
                                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground" style={font}>Vibe · how it talks</span>
                                   <span className={`text-[10px] ${vibeErr ? 'text-red-400' : 'text-muted-foreground/60'}`} style={font}>{vibeBytes}/{LIMITS.vibeBytes}</span>
@@ -627,6 +635,7 @@ export default function MyBooasPage() {
                                 </div>
                                 {vibeErr && <p className="text-[10px] text-red-400" style={font}>{vibeErr}</p>}
                               </div>
+                              <p className="text-[10px] uppercase tracking-wider text-foreground/80" style={font}>Traits</p>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <PickList title="Personality" cats={BOOA_PERSONALITY} max={LIMITS.personality} picked={personality} onChange={setPersonality}
                                   original={agent?.personality || []} keep={!!(keep & KEEP.personality)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.personality : k & ~KEEP.personality))} />
@@ -637,28 +646,6 @@ export default function MyBooasPage() {
                                 <PickList title="Domains (OASF)" cats={DOMAIN_CATS} max={LIMITS.domains} picked={domains} onChange={setDomains}
                                   original={agent?.domains || []} keep={!!(keep & KEEP.domains)} onKeep={(v) => setKeep((k) => (v ? k | KEEP.domains : k & ~KEEP.domains))} />
                               </div>
-                              {paintAddress && paintGrid && paintMeta && (
-                                <div className="pt-5 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
-                                  <PaintCanvas grid={paintGrid} mask={paintMeta.mask} bgSlot={paintMeta.bgIdx} cap={paintMeta.cap}
-                                    palette={posterize(BOOA_PALETTES[palette].colors, levels)} paint={paintEntries} onChange={setPaintEntries} disabled={busy || !boundAgent} />
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-[10px] text-muted-foreground/70" style={font}>
-                                      {paintDirty ? 'Paint is saved separately from the settings above. Gas only.' : paintBaseline.length ? 'Paint saved onchain.' : 'No paint yet.'}
-                                    </span>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      {paintDirty && !busy && (
-                                        <button onClick={() => { sfx.playClick(); setPaintEntries(paintBaseline); }} className="text-[11px] px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:text-foreground uppercase tracking-wider" style={font}>
-                                          Discard
-                                        </button>
-                                      )}
-                                      <button onClick={savePaint} disabled={busy || !boundAgent || !paintDirty}
-                                        className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 disabled:opacity-30 uppercase tracking-wider" style={font}>
-                                        {paintEntries.length ? 'Save paint' : 'Clear paint'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           </TokenDetail>
                         )}
@@ -681,7 +668,7 @@ export default function MyBooasPage() {
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground" style={font}><Loader2 className="w-3 h-3 animate-spin" /> {note}</span>
                           ) : (
                             <span className="text-[11px] text-muted-foreground/70" style={font}>
-                              {!selected ? 'Pick a BOOA above' : dirty ? 'Gas only, no fee. Editable any time.' : customized ? 'Saved onchain. Restore original any time.' : 'Nothing changed yet.'}
+                              {!selected ? 'Pick a BOOA above' : dirty ? (txCount > 1 ? 'Look, words and paint: 2 transactions. Gas only, no fee.' : 'Gas only, no fee. Editable any time.') : customized || painted ? 'Saved onchain. Restore original any time.' : 'Nothing changed yet.'}
                             </span>
                           )}
                         </div>
@@ -693,7 +680,7 @@ export default function MyBooasPage() {
                           )}
                           <button onClick={() => (step === 'error' ? reset() : save())} disabled={busy || !selected || !configAddress || !boundAgent || !!vibeErr || (step !== 'error' && !dirty)}
                             className="text-[11px] px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:opacity-90 disabled:opacity-30 transition-opacity uppercase tracking-wider" style={font}>
-                            {busy ? 'Working' : step === 'error' ? 'Reset' : 'Save onchain'}
+                            {busy ? 'Working' : step === 'error' ? 'Reset' : txCount > 1 ? 'Save all onchain' : 'Save onchain'}
                           </button>
                         </div>
                       </div>
