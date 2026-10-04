@@ -13,7 +13,7 @@ import { BOOA_CONFIG_ABI, OVERRIDE_COMPONENTS, LIMITS, KEEP, getBooaConfigAddres
 import { decodeAbiParameters } from 'viem';
 import { BOOA_PERSONALITY, BOOA_BOUNDARIES, PERSONALITY_LIST, BOUNDARY_LIST, type BooaCategory } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
-import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, recolorSvg, applyBackground } from '@/lib/booa-palettes';
+import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, renderPreview } from '@/lib/booa-palettes';
 import { sfx } from '@/lib/sounds';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
 
@@ -175,6 +175,14 @@ export default function MyBooasPage() {
     query: { enabled: !!configAddress && !!selected && cfgReady && !customized },
   });
   const [previous, setPrevious] = useState<{ form: Form; by: string } | null>(null);
+  const { data: paletteCount } = useReadContract({
+    address: configAddress ?? undefined,
+    abi: BOOA_CONFIG_ABI,
+    functionName: 'paletteCount',
+    chainId: mainnet.id,
+    query: { enabled: !!configAddress },
+  });
+  const onchainPalettes = paletteCount === undefined ? BOOA_PALETTES.length : Number(paletteCount);
 
   const present = (personality.length ? KEEP.personality : 0) | (boundaries.length ? KEEP.boundaries : 0) | (skills.length ? KEEP.skills : 0) | (domains.length ? KEEP.domains : 0);
   const form: Form = useMemo(() => ({ palette, levels, bg, keep: keep & present, vibe, personality, boundaries, skills, domains }), [palette, levels, bg, keep, present, vibe, personality, boundaries, skills, domains]);
@@ -303,8 +311,8 @@ export default function MyBooasPage() {
 
   const previewSvg = useMemo(() => {
     if (!svg) return null;
-    const recolored = palette === 0 && levels >= 16 ? svg : recolorSvg(svg, posterize(BOOA_PALETTES[palette].colors, levels));
-    return applyBackground(recolored, bg);
+    if (palette === 0 && levels >= 16 && !bg) return svg;
+    return renderPreview(svg, posterize(BOOA_PALETTES[palette].colors, levels), bg);
   }, [svg, palette, levels, bg]);
 
   const save = useCallback(async () => {
@@ -509,8 +517,8 @@ export default function MyBooasPage() {
                               <div className="space-y-1.5">
                                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground" style={font}>Palette</span>
                                 <div className="flex flex-wrap gap-1">
-                                  {BOOA_PALETTES.map((p, i) => (
-                                    <button key={p.name} onClick={() => { sfx.playClick(); setPalette(i); }}
+                                  {BOOA_PALETTES.map((p, i) => ((p.hidden || i >= onchainPalettes) && palette !== i) ? null : (
+                                    <button key={i} onClick={() => { sfx.playClick(); setPalette(i); }}
                                       className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${palette === i ? 'border-neutral-900 dark:border-neutral-100 text-foreground' : 'border-neutral-200 dark:border-neutral-800 text-muted-foreground hover:border-neutral-400 dark:hover:border-neutral-600'}`} style={font}>
                                       {p.name}
                                     </button>

@@ -28,6 +28,7 @@ export const BOOA_CONFIG_ABI = [
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     outputs: [{ name: 'c', type: 'tuple', components: [{ name: 'setBy', type: 'address' }, { name: 'ptr', type: 'address' }] }],
   },
+  { type: 'function', name: 'paletteCount', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'contentFlag', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
   { type: 'function', name: 'clearConfig', stateMutability: 'nonpayable', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [] },
   {

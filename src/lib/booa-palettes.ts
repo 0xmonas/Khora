@@ -1,5 +1,5 @@
 // Index == BOOAConfig palette index. 0 is the mint palette. Append only.
-export interface BooaPalette { name: string; colors: string[] }
+export interface BooaPalette { name: string; colors: string[]; hidden?: boolean }
 
 export const BOOA_PALETTES: BooaPalette[] = [
   { name: "C64", colors: ["000000", "626262", "898989", "ADADAD", "FFFFFF", "9F4E44", "CB7E75", "6D5412", "A1683C", "C9D487", "9AE29B", "5CAB5E", "6ABFC6", "887ECB", "50459B", "A057A3"] },
@@ -12,7 +12,8 @@ export const BOOA_PALETTES: BooaPalette[] = [
   { name: "Amber", colors: ["1A0E00", "573900", "946400", "D19000", "FFB000", "482E00", "B37A00", "291900", "764F00", "F0A500", "E09A00", "855A00", "C28500", "A36F00", "392400", "664400"] },
   { name: "Phosphor", colors: ["001400", "0E530E", "1B911B", "29D029", "33FF33", "0A430A", "22B122", "032403", "147214", "30EF30", "2CE02C", "188218", "25C025", "1FA11F", "073307", "116211"] },
   { name: "Sepia", colors: ["2B1D0F", "61523E", "96876E", "CCBC9D", "F4E4C1", "534533", "B1A286", "382A1B", "7B6D56", "E7D7B5", "D9C9A9", "897A62", "BEAF92", "A4947A", "463827", "6E5F4A"] },
-  { name: "XCOPY", colors: ["22133D", "7739D1", "E14D9C", "7EC292", "FFFFFF", "7739D1", "7EC292", "22133D", "E14D9C", "FFFFFF", "FFFFFF", "E14D9C", "7EC292", "E14D9C", "22133D", "7739D1"] },
+  { name: "XCOPY", colors: ["22133D", "7739D1", "E14D9C", "7EC292", "FFFFFF", "7739D1", "7EC292", "22133D", "E14D9C", "FFFFFF", "FFFFFF", "E14D9C", "7EC292", "E14D9C", "22133D", "7739D1"], hidden: true },
+  { name: "XCOPY", colors: ["22133D", "22133D", "7EC292", "7EC292", "FFFFFF", "E14D9C", "E14D9C", "22133D", "E14D9C", "7EC292", "7EC292", "7EC292", "7EC292", "7739D1", "7739D1", "E14D9C"] },
 ];
 
 export const C64 = BOOA_PALETTES[0].colors;
@@ -77,3 +78,89 @@ export function applyBackground(svg: string, bg: string): string {
   const inner = d ? `<path stroke="#${bgHex}" d="${d}"/>` : '';
   return svg.replace(rect[0], newRect + inner);
 }
+
+export function svgToGrid(svg: string): Uint8Array | null {
+  const rect = svg.match(/<rect fill="#([0-9A-Fa-f]{6})"[^>]*\/>/);
+  if (!rect) return null;
+  const bg = C64.indexOf(rect[1].toUpperCase());
+  if (bg < 0) return null;
+  const grid = new Uint8Array(4096).fill(bg);
+  for (const path of svg.matchAll(/<path stroke="#([0-9A-Fa-f]{6})" d="([^"]+)"/g)) {
+    const slot = C64.indexOf(path[1].toUpperCase());
+    if (slot < 0) return null;
+    for (const run of path[2].matchAll(/M(\d+) (\d+)h(\d+)/g)) {
+      const x = +run[1]; const y = +run[2]; const l = +run[3];
+      for (let i = 0; i < l; i++) grid[y * 64 + x + i] = slot;
+    }
+  }
+  return grid;
+}
+
+export function mergeIsolated(grid: Uint8Array, palette: string[]): Uint8Array {
+  const canon = palette.map((c, s) => palette.indexOf(c) < s ? palette.indexOf(c) : s);
+  const g = Uint8Array.from(grid, (s) => canon[s]);
+  const out = Uint8Array.from(grid);
+  for (let c = 0; c < 4096; c++) {
+    const self = g[c]; const x = c & 63;
+    const up = c >= 64 ? g[c - 64] : 255;
+    const down = c < 4032 ? g[c + 64] : 255;
+    const left = x > 0 ? g[c - 1] : 255;
+    const right = x < 63 ? g[c + 1] : 255;
+    if (self === up || self === down || self === left || self === right) continue;
+    const count = (v: number) => (v === 255 ? 0 : +(up === v) + +(down === v) + +(left === v) + +(right === v));
+    let pick = c - 64; let pickColor = up; let best = count(up);
+    let n = count(down); if (n > best) { best = n; pick = c + 64; pickColor = down; }
+    n = count(left); if (n > best) { best = n; pick = c - 1; pickColor = left; }
+    n = count(right); if (n > best) { pick = c + 1; pickColor = right; }
+    if (pickColor === 255) continue;
+    out[c] = grid[pick];
+  }
+  return out;
+}
+
+function outsideMask(grid: Uint8Array, bgColor: number): Uint8Array {
+  const mask = new Uint8Array(4096);
+  const stack: number[] = [];
+  const visit = (c: number) => { if (mask[c] || grid[c] !== bgColor) return; mask[c] = 1; stack.push(c); };
+  for (let i = 0; i < 64; i++) { visit(i); visit(4032 + i); visit(i * 64); visit(i * 64 + 63); }
+  while (stack.length) {
+    const c = stack.pop()!; const x = c & 63;
+    if (x > 0) visit(c - 1);
+    if (x < 63) visit(c + 1);
+    if (c >= 64) visit(c - 64);
+    if (c < 4032) visit(c + 64);
+  }
+  return mask;
+}
+
+export function renderGrid(grid: Uint8Array, palette: string[], bg: string): string {
+  const counts = new Array<number>(16).fill(0);
+  for (let i = 0; i < 4096; i++) counts[grid[i]]++;
+  let bgColor = 0;
+  for (let c = 1; c < 16; c++) if (counts[c] > counts[bgColor]) bgColor = c;
+  let out = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 64 64" shape-rendering="crispEdges">';
+  if (!bg) out += `<rect fill="#${palette[bgColor]}" y="-0.5" width="64" height="65"/>`;
+  else if (bg !== 'transparent') out += `<rect fill="#${bg.toUpperCase()}" y="-0.5" width="64" height="65"/>`;
+  const mask = bg ? outsideMask(grid, bgColor) : null;
+  const paths = new Array<string>(16).fill('');
+  for (let y = 0; y < 64; y++) {
+    let x = 0;
+    while (x < 64) {
+      const color = grid[y * 64 + x];
+      if (color === bgColor && (!mask || mask[y * 64 + x])) { x++; continue; }
+      const start = x; x++;
+      while (x < 64 && grid[y * 64 + x] === color && !(color === bgColor && mask && mask[y * 64 + x])) x++;
+      paths[color] += `M${start} ${y}h${x - start}`;
+    }
+  }
+  for (let c = 0; c < 16; c++) if (paths[c]) out += `<path stroke="#${palette[c]}" d="${paths[c]}"/>`;
+  return out + '</svg>';
+}
+
+export function renderPreview(ogSvg: string, palette: string[], bg: string): string {
+  const grid = svgToGrid(ogSvg);
+  if (!grid) return ogSvg;
+  const untouched = palette.every((c, i) => c === C64[i]);
+  return renderGrid(untouched ? grid : mergeIsolated(grid, palette), palette, bg);
+}
+
