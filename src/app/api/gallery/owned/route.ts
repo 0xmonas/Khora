@@ -35,34 +35,44 @@ export async function GET(request: NextRequest) {
     : 'shape-sepolia';
 
   try {
-    const url = new URL(
-      `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`
-    );
-    url.searchParams.set('owner', owner);
-    url.searchParams.set('contractAddresses[]', contract);
-    url.searchParams.set('withMetadata', 'true');
-    url.searchParams.set('pageSize', '100');
-
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(20000),
-    });
-
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: 'Ownership data temporarily unavailable' },
-        { status: 502 },
-      );
-    }
-
-    const data = await res.json();
-
     interface AlchemyOwnedNFT {
       tokenId?: string;
       name?: string;
       raw?: { metadata?: { image?: string; attributes?: { trait_type: string; value: string }[] } };
       image?: { cachedUrl?: string; thumbnailUrl?: string; originalUrl?: string };
     }
+
+    const ownedNfts: AlchemyOwnedNFT[] = [];
+    let pageKey: string | undefined;
+    for (let page = 0; page < 40; page++) {
+      const url = new URL(
+        `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`
+      );
+      url.searchParams.set('owner', owner);
+      url.searchParams.set('contractAddresses[]', contract);
+      url.searchParams.set('withMetadata', 'true');
+      url.searchParams.set('pageSize', '100');
+      if (pageKey) url.searchParams.set('pageKey', pageKey);
+
+      const res = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: 'Ownership data temporarily unavailable' },
+          { status: 502 },
+        );
+      }
+
+      const pageData = await res.json();
+      ownedNfts.push(...(pageData.ownedNfts || []));
+      pageKey = pageData.pageKey || undefined;
+      if (!pageKey) break;
+    }
+    const data = { ownedNfts };
+
 
     const tokens = (data.ownedNfts || []).map((nft: AlchemyOwnedNFT) => {
       const tokenId = nft.tokenId || '0';

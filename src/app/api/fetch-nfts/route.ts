@@ -75,6 +75,8 @@ export interface NFTItem {
   };
 }
 
+const MAX_CONTRACT_PAGES = 40;
+
 export async function GET(request: NextRequest) {
   const badParam = rejectUnknownParams(request.nextUrl.searchParams, ['address', 'chain', 'pageKey', 'contract']);
   if (badParam) return badParam;
@@ -100,29 +102,36 @@ export async function GET(request: NextRequest) {
   const chainId = CHAIN_IDS[chain] || 0;
 
   try {
-    const url = new URL(`https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`);
-    url.searchParams.set('owner', address);
-    url.searchParams.set('withMetadata', 'true');
-    url.searchParams.set('pageSize', '50');
-    if (pageKey) url.searchParams.set('pageKey', pageKey);
-    if (contractFilter && /^0x[a-fA-F0-9]{40}$/.test(contractFilter)) {
-      url.searchParams.append('contractAddresses[]', contractFilter);
+    const singleContract = !!contractFilter && /^0x[a-fA-F0-9]{40}$/.test(contractFilter);
+    const owned: Record<string, unknown>[] = [];
+    let nextKey: string | undefined = pageKey;
+    for (let page = 0; page < (singleContract ? MAX_CONTRACT_PAGES : 1); page++) {
+      const url = new URL(`https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`);
+      url.searchParams.set('owner', address);
+      url.searchParams.set('withMetadata', 'true');
+      url.searchParams.set('pageSize', singleContract ? '100' : '50');
+      if (nextKey) url.searchParams.set('pageKey', nextKey);
+      if (singleContract) url.searchParams.append('contractAddresses[]', contractFilter!);
+
+      const res = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!res.ok) {
+        console.error('fetch-nfts upstream error:', res.status, await res.text().catch(() => ''));
+        return NextResponse.json(
+          { error: 'Failed to fetch NFTs from provider' },
+          { status: 502 },
+        );
+      }
+
+      const pageData = await res.json();
+      owned.push(...(pageData.ownedNfts || []));
+      nextKey = pageData.pageKey || undefined;
+      if (!nextKey) break;
     }
-
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!res.ok) {
-      console.error('fetch-nfts upstream error:', res.status, await res.text().catch(() => ''));
-      return NextResponse.json(
-        { error: 'Failed to fetch NFTs from provider' },
-        { status: 502 },
-      );
-    }
-
-    const data = await res.json();
+    const data = { ownedNfts: owned, pageKey: nextKey };
 
     const nfts: NFTItem[] = (data.ownedNfts || []).map((nft: Record<string, unknown>) => {
       const contract = nft.contract as Record<string, unknown> || {};
