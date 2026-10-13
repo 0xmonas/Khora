@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, fallback } from 'viem';
 import { mainnet } from 'viem/chains';
 import { getV2RendererAddress, BOOA_V2_RENDERER_ABI } from '@/lib/contracts/booa-v2';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
@@ -33,10 +33,13 @@ export async function GET(
   try {
     const client = createPublicClient({
       chain: mainnet,
-      transport: http(
-        process.env.ETH_RPC_URL
-          || (process.env.ALCHEMY_API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}` : 'https://ethereum-rpc.publicnode.com'),
-      ),
+      transport: fallback([
+        http(
+          process.env.ETH_RPC_URL
+            || (process.env.ALCHEMY_API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}` : 'https://ethereum-rpc.publicnode.com'),
+        ),
+        http('https://ethereum-rpc.publicnode.com'),
+      ]),
     });
 
     const uri = (await client.readContract({
