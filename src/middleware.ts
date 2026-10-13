@@ -88,9 +88,10 @@ export async function middleware(request: NextRequest) {
 
   // ── Rate limiting (applied to ALL API routes, no exceptions) ──
   const isWrite = request.method !== 'GET';
+  const isImage = !isWrite && pathname.startsWith('/api/booa-image/');
   let rl: Awaited<ReturnType<typeof generalLimiter.limit>> | null = null;
   try {
-    rl = await (isWrite ? writeLimiter : generalLimiter).limit(ip);
+    rl = await (isWrite ? writeLimiter : isImage ? imageLimiter : generalLimiter).limit(ip);
   } catch {
     if (isWrite || pathname.startsWith('/api/auth/')) {
       return NextResponse.json(
@@ -98,7 +99,7 @@ export async function middleware(request: NextRequest) {
         { status: 503 },
       );
     }
-    if (!memoryLimit(`read:${ip}`, 60).success) {
+    if (!memoryLimit(isImage ? `img:${ip}` : `read:${ip}`, isImage ? 240 : 60).success) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 },

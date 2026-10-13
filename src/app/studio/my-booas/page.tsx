@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAccount, useChainId, useSwitchChain, useWriteContract, usePublicClient, useReadContract } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
@@ -13,7 +13,10 @@ import { BOOA_CONFIG_ABI, OVERRIDE_COMPONENTS, LIMITS, KEEP, getBooaConfigAddres
 import { decodeAbiParameters } from 'viem';
 import { BOOA_PERSONALITY, BOOA_BOUNDARIES, PERSONALITY_LIST, BOUNDARY_LIST, type BooaCategory } from '@/lib/booa-taxonomy';
 import { OASF_SKILLS, OASF_DOMAINS } from '@/lib/oasf-taxonomy';
-import { BOOA_PALETTES, LEVELS, BG_SWATCHES, posterize, renderPreview, svgToGrid, bgSlot, outsideMask, type PaintEntry } from '@/lib/booa-palettes';
+import { BOOA_PALETTES, C64, LEVELS, BG_SWATCHES, posterize, renderPreview, renderGrid, svgToGrid, bgSlot, outsideMask, type PaintEntry } from '@/lib/booa-palettes';
+import { BOOA_V2_STORAGE_ABI, getV2StorageAddress } from '@/lib/contracts/booa-v2';
+import { traitsToAgent } from '@/utils/helpers/exportFormats';
+import { hexToBytes, hexToString } from 'viem';
 import { BOOA_PAINT_ABI, getBooaPaintAddress, encodePaint, decodePaint } from '@/lib/contracts/booa-paint';
 import { PaintCanvas } from '@/components/features/booa/PaintCanvas';
 import { sfx } from '@/lib/sounds';
@@ -29,6 +32,15 @@ const SKILL_LIST = OASF_SKILLS.flatMap((c) => c.items.map((i) => i.label));
 const DOMAIN_LIST = OASF_DOMAINS.flatMap((c) => c.items.map((i) => i.label));
 const SKILL_CATS: BooaCategory[] = OASF_SKILLS.map((c) => ({ label: c.label, items: c.items.map((i) => i.label) }));
 const DOMAIN_CATS: BooaCategory[] = OASF_DOMAINS.map((c) => ({ label: c.label, items: c.items.map((i) => i.label) }));
+
+const THUMB_CHUNK = 20;
+const toGrid = (hex: `0x${string}`): Uint8Array | null => {
+  const b = hexToBytes(hex);
+  if (b.length !== 2048) return null;
+  const g = new Uint8Array(4096);
+  for (let i = 0; i < 2048; i++) { g[i * 2] = b[i] >> 4; g[i * 2 + 1] = b[i] & 15; }
+  return g;
+};
 
 const toIdx = (list: string[], picked: string[]) =>
   picked.map((p) => list.indexOf(p)).filter((i) => i >= 0).sort((a, b) => a - b);
@@ -122,6 +134,8 @@ export default function MyBooasPage() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<BOOA | null>(null);
   const [svg, setSvg] = useState('');
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const bitmapsRef = useRef<Record<string, Uint8Array>>({});
   const [agent, setAgent] = useState<Agent | null>(null);
 
   const [palette, setPalette] = useState(0);
@@ -138,7 +152,6 @@ export default function MyBooasPage() {
   const [domains, setDomains] = useState<string[]>([]);
 
   const [baseline, setBaseline] = useState<Form | null>(null);
-  const [artVersion, setArtVersion] = useState(0);
   const [initFor, setInitFor] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -234,22 +247,76 @@ export default function MyBooasPage() {
 
   useEffect(() => { void load(); }, [load, chainId]);
 
+  const renderThumbs = useCallback(async (ids: string[]) => {
+    if (!publicClient || ids.length === 0) return;
+    const storage = getV2StorageAddress(mainnet.id);
+    for (let i = 0; i < ids.length; i += THUMB_CHUNK) {
+      const chunk = ids.slice(i, i + THUMB_CHUNK);
+      const contracts = chunk.flatMap((id) => [
+        { address: storage, abi: BOOA_V2_STORAGE_ABI, functionName: 'getImageData', args: [BigInt(id)] },
+        ...(configAddress ? [{ address: configAddress, abi: BOOA_CONFIG_ABI, functionName: 'getConfig', args: [BigInt(id)] }] : []),
+        ...(paintAddress ? [{ address: paintAddress, abi: BOOA_PAINT_ABI, functionName: 'getPaint', args: [BigInt(id)] }] : []),
+      ]) as Parameters<typeof publicClient.multicall>[0]['contracts'];
+      const per = 1 + (configAddress ? 1 : 0) + (paintAddress ? 1 : 0);
+      let res;
+      try { res = await publicClient.multicall({ contracts, allowFailure: true }); } catch { continue; }
+      const next: Record<string, string> = {};
+      chunk.forEach((id, k) => {
+        const bm = res[k * per];
+        if (bm.status !== 'success') return;
+        const grid = toGrid(bm.result as `0x${string}`);
+        if (!grid) return;
+        bitmapsRef.current[id] = grid;
+        let pal = C64; let bgHex = ''; let strokes: PaintEntry[] = [];
+        let j = k * per + 1;
+        if (configAddress) {
+          const c = res[j++];
+          if (c.status === 'success') {
+            const [o, active] = c.result as unknown as [{ palette: number; levels: number; bg: number }, boolean];
+            if (active) { pal = posterize(BOOA_PALETTES[o.palette]?.colors ?? C64, o.levels === 0 ? 16 : o.levels); bgHex = decodeBg(o.bg); }
+          }
+        }
+        if (paintAddress) {
+          const pr = res[j++];
+          if (pr.status === 'success') {
+            const [data, active] = pr.result as unknown as [`0x${string}`, boolean];
+            if (active) strokes = decodePaint(data);
+          }
+        }
+        next[id] = `data:image/svg+xml,${encodeURIComponent(renderGrid(grid, pal, bgHex, strokes))}`;
+      });
+      setThumbs((prev) => ({ ...prev, ...next }));
+    }
+  }, [publicClient, configAddress, paintAddress]);
+
+  useEffect(() => { void renderThumbs(boois.map((b) => b.tokenId)); }, [boois, renderThumbs]);
+
   useEffect(() => {
     if (!selected) { setSvg(''); setAgent(null); return; }
     const id = Number(selected.tokenId);
     let alive = true;
     setSvg(''); setAgent(null); setStep('idle'); setError(null); setTxHash(null);
+    const storage = getV2StorageAddress(mainnet.id);
+    const cached = bitmapsRef.current[selected.tokenId];
     Promise.all([
-      fetch(`/api/agent-files/1/${id}/avatar.svg`).then((r) => (r.ok ? r.text() : '')).catch(() => ''),
-      fetch(`/api/agent-files/1/${id}/agent.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([s, a]: [string, Agent | null]) => {
+      cached
+        ? Promise.resolve(cached)
+        : publicClient
+          ? publicClient.readContract({ address: storage, abi: BOOA_V2_STORAGE_ABI, functionName: 'getImageData', args: [BigInt(id)] })
+            .then((hex) => toGrid(hex as `0x${string}`)).catch(() => null)
+          : Promise.resolve(null),
+      publicClient
+        ? publicClient.readContract({ address: storage, abi: BOOA_V2_STORAGE_ABI, functionName: 'getTraits', args: [BigInt(id)] })
+          .then((hex) => traitsToAgent(JSON.parse(hexToString(hex as `0x${string}`))) as Agent).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([grid, a]) => {
       if (!alive) return;
-      setSvg(s);
+      if (grid) { bitmapsRef.current[selected.tokenId] = grid; setSvg(renderGrid(grid, C64, '')); }
       setAgent(a);
     });
     setInitFor(null); setBaseline(null);
     return () => { alive = false; };
-  }, [selected]);
+  }, [selected, publicClient]);
 
   const mintForm = useCallback((a: Agent | null): Form => ({
     palette: 0,
@@ -387,7 +454,7 @@ export default function MyBooasPage() {
         void refetchPaint();
       }
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
-      setArtVersion((v) => v + 1);
+      void renderThumbs([selected.tokenId]);
       setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -396,7 +463,7 @@ export default function MyBooasPage() {
       setError((/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg) + (done ? ` (${done}/${total} saved)` : ''));
       sfx.playError();
     }
-  }, [address, selected, configAddress, paintAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, levels, bg, boundAgent, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg, refetchPaint, dirty, settingsDirty, paintDirty, txCount, paintEntries]);
+  }, [address, selected, configAddress, paintAddress, publicClient, vibeErr, chainId, switchChainAsync, writeContractAsync, palette, levels, bg, boundAgent, vibe, agent, personality, boundaries, skills, domains, form, refetchCfg, refetchPaint, dirty, settingsDirty, paintDirty, txCount, paintEntries, renderThumbs]);
 
   const restore = useCallback(async () => {
     if (!address || !selected || !configAddress || !publicClient) return;
@@ -426,7 +493,7 @@ export default function MyBooasPage() {
         void refetchPaint();
       }
       void fetch(`/api/refresh-metadata/${selected.tokenId}`, { method: 'POST' }).catch(() => null);
-      setArtVersion((v) => v + 1);
+      void renderThumbs([selected.tokenId]);
       setStep('done'); setNote('');
       sfx.playSuccess();
     } catch (e) {
@@ -435,7 +502,7 @@ export default function MyBooasPage() {
       setError(/user rejected|denied/i.test(msg) ? 'Transaction rejected in wallet.' : msg);
       sfx.playError();
     }
-  }, [address, selected, configAddress, paintAddress, publicClient, chainId, switchChainAsync, writeContractAsync, agent, mintForm, refetchCfg, refetchPaint, customized, painted]);
+  }, [address, selected, configAddress, paintAddress, publicClient, chainId, switchChainAsync, writeContractAsync, agent, mintForm, refetchCfg, refetchPaint, customized, painted, renderThumbs]);
 
   const discard = () => { sfx.playClick(); if (baseline) applyForm(baseline); setPaintEntries(paintBaseline); };
   const reset = () => { setStep('idle'); setError(null); setTxHash(null); setNote(''); };
@@ -532,9 +599,9 @@ export default function MyBooasPage() {
                               <button key={nft.tokenId} onClick={() => { sfx.playClick(); setSelected(nft); }}
                                 className="relative aspect-square rounded-md overflow-hidden transition-all ring-1 ring-neutral-200 dark:ring-neutral-800 hover:ring-neutral-400 dark:hover:ring-neutral-600"
                                 title={nft.name || `BOOA #${nft.tokenId}`}>
-                                {nft.image ? (
+                                {thumbs[nft.tokenId] || nft.image ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={`/api/booa-image/${nft.tokenId}?live=1&v=${artVersion}`} alt={nft.name} className="w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                                  <img src={thumbs[nft.tokenId] ?? nft.image} alt={nft.name} className="w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-neutral-50 dark:bg-neutral-900 text-[9px] text-muted-foreground/50" style={font}>#{nft.tokenId}</div>
                                 )}

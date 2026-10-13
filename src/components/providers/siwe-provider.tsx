@@ -56,7 +56,8 @@ export function SiweProvider({ children }: { children: ReactNode }) {
 
   // Check session on page load + window focus (official RainbowKit pattern)
   useEffect(() => {
-    const fetchStatus = async () => {
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const fetchStatus = async (attempt = 0) => {
       if (fetchingStatusRef.current || verifyingRef.current) {
         return;
       }
@@ -65,21 +66,30 @@ export function SiweProvider({ children }: { children: ReactNode }) {
 
       try {
         const res = await fetch('/api/auth/session');
+        if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         setStatus(data.address ? 'authenticated' : 'unauthenticated');
       } catch {
-        setStatus('unauthenticated');
+        if (attempt < 3) {
+          retry = setTimeout(() => { void fetchStatus(attempt + 1); }, 1500 * (attempt + 1));
+        } else {
+          setStatus((prev) => (prev === 'loading' ? 'unauthenticated' : prev));
+        }
       } finally {
         fetchingStatusRef.current = false;
       }
     };
+    const onFocus = () => { void fetchStatus(); };
 
     // 1. page loads
-    fetchStatus();
+    void fetchStatus();
 
     // 2. window is focused (in case user logs out of another window)
-    window.addEventListener('focus', fetchStatus);
-    return () => window.removeEventListener('focus', fetchStatus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (retry) clearTimeout(retry);
+    };
   }, []);
 
   const adapter = useMemo(
@@ -87,6 +97,7 @@ export function SiweProvider({ children }: { children: ReactNode }) {
       createAuthenticationAdapter({
         getNonce: async () => {
           const res = await fetch('/api/auth/nonce');
+          if (!res.ok) throw new Error('Sign-in is busy, try again in a moment.');
           const data = await res.json();
           return data.nonce;
         },
