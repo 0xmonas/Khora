@@ -42,3 +42,39 @@ describe('/api/fetch-nfts paging', () => {
     expect(json.pageKey).toBe('next');
   });
 });
+
+describe('owner routes stay single-page outside BOOA', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.ALCHEMY_API_KEY = 'test';
+  });
+
+  it('fetch-nfts does not follow pages for a non-BOOA contract', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify(page(50, 0, 'next')), { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    const { GET } = await import('@/app/api/fetch-nfts/route');
+    const res = await GET(new NextRequest('https://booa.app/api/fetch-nfts?address=0x0000000000000000000000000000000000000001&chain=ethereum&contract=0x0000000000000000000000000000000000000abc'));
+    const json = await res.json();
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(json.pageKey).toBe('next');
+  });
+
+  it('gallery/owned rejects a non-BOOA contract without calling upstream', async () => {
+    const f = vi.fn();
+    vi.stubGlobal('fetch', f);
+    const { GET } = await import('@/app/api/gallery/owned/route');
+    const res = await GET(new NextRequest('https://booa.app/api/gallery/owned?owner=0x0000000000000000000000000000000000000001&chain=ethereum&contract=0x0000000000000000000000000000000000000abc'));
+    expect(res.status).toBe(400);
+    expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe('query validation closes cache-key widening', () => {
+  it('rejects unknown and repeated parameters', async () => {
+    const { rejectUnknownParams } = await import('@/lib/server/query-params');
+    expect(rejectUnknownParams(new URLSearchParams('live=1'), ['live'])).toBeNull();
+    expect(rejectUnknownParams(new URLSearchParams('live=1&x=1'), ['live'])?.status).toBe(400);
+    expect(rejectUnknownParams(new URLSearchParams('live=1&live=1'), ['live'])?.status).toBe(400);
+  });
+});
+

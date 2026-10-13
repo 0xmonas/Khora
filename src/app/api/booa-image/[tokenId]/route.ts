@@ -3,6 +3,7 @@ import { createPublicClient, http, fallback } from 'viem';
 import { mainnet } from 'viem/chains';
 import { getV2RendererAddress, BOOA_V2_RENDERER_ABI } from '@/lib/contracts/booa-v2';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
+import { rejectUnknownParams } from '@/lib/server/query-params';
 
 export const maxDuration = 15;
 
@@ -18,7 +19,13 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ tokenId: string }> },
 ) {
-  const live = req.nextUrl.searchParams.get('live') === '1';
+  const badParam = rejectUnknownParams(req.nextUrl.searchParams, ['live']);
+  if (badParam) return badParam;
+  const liveParam = req.nextUrl.searchParams.get('live');
+  if (liveParam !== null && liveParam !== '1') {
+    return NextResponse.json({ error: 'live must be 1' }, { status: 400 });
+  }
+  const live = liveParam === '1';
   const { tokenId } = await context.params;
   const id = Number(tokenId);
   if (!Number.isInteger(id) || id < 0 || id >= 3333) {

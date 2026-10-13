@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rejectUnknownParams } from '@/lib/server/query-params';
+import { isBooaContract } from '@/lib/contracts/booa-v2';
 
 export const maxDuration = 30;
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   const chain = request.nextUrl.searchParams.get('chain') || 'shape';
   const owner = request.nextUrl.searchParams.get('owner');
 
-  if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract)) {
+  if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract) || !isBooaContract(contract)) {
     return NextResponse.json({ error: 'Invalid contract address' }, { status: 400 });
   }
   if (!owner || !/^0x[a-fA-F0-9]{40}$/.test(owner)) {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     const ownedNfts: AlchemyOwnedNFT[] = [];
     let pageKey: string | undefined;
-    for (let page = 0; page < 40; page++) {
+    for (let page = 0; page < 34; page++) {
       const url = new URL(
         `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`
       );

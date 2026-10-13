@@ -20,6 +20,14 @@ export const BOOA_ETH_STORAGE_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_STORAG
 export const BOOA_ETH_RENDERER_ADDRESS = (process.env.NEXT_PUBLIC_BOOA_ETH_RENDERER_ADDRESS || '0x7Cf376EE7263a78Db2d163775BE322fA7B842C76') as `0x${string}`;
 
 const MAINNET_IDS = new Set<number>([shape.id]);
+
+const BOOA_CONTRACTS = new Set(
+  [BOOA_ETH_ADDRESS, BOOA_V2_ADDRESS, BOOA_V2_ADDRESS_TESTNET].filter((a) => a.length === 42).map((a) => a.toLowerCase()),
+);
+
+export function isBooaContract(address: string | null | undefined): boolean {
+  return !!address && BOOA_CONTRACTS.has(address.toLowerCase());
+}
 const isEth = (chainId: number) => chainId === mainnet.id;
 
 export function getV2Address(chainId: number): `0x${string}` {

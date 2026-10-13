@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { IDENTITY_REGISTRY_MAINNET, IDENTITY_REGISTRY_TESTNET } from '@/lib/contracts/identity-registry';
 import { rejectUnknownParams } from '@/lib/server/query-params';
+import { isBooaContract } from '@/lib/contracts/booa-v2';
 
 export const maxDuration = 30;
 
@@ -75,7 +76,7 @@ export interface NFTItem {
   };
 }
 
-const MAX_CONTRACT_PAGES = 40;
+const MAX_CONTRACT_PAGES = 34;
 
 export async function GET(request: NextRequest) {
   const badParam = rejectUnknownParams(request.nextUrl.searchParams, ['address', 'chain', 'pageKey', 'contract']);
@@ -103,13 +104,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const singleContract = !!contractFilter && /^0x[a-fA-F0-9]{40}$/.test(contractFilter);
+    const fullList = singleContract && isBooaContract(contractFilter);
     const owned: Record<string, unknown>[] = [];
     let nextKey: string | undefined = pageKey;
-    for (let page = 0; page < (singleContract ? MAX_CONTRACT_PAGES : 1); page++) {
+    for (let page = 0; page < (fullList ? MAX_CONTRACT_PAGES : 1); page++) {
       const url = new URL(`https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForOwner`);
       url.searchParams.set('owner', address);
       url.searchParams.set('withMetadata', 'true');
-      url.searchParams.set('pageSize', singleContract ? '100' : '50');
+      url.searchParams.set('pageSize', fullList ? '100' : '50');
       if (nextKey) url.searchParams.set('pageKey', nextKey);
       if (singleContract) url.searchParams.append('contractAddresses[]', contractFilter!);
 
