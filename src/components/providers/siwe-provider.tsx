@@ -6,7 +6,7 @@ import {
   RainbowKitAuthenticationProvider,
   type AuthenticationStatus,
 } from '@rainbow-me/rainbowkit';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 
 const SiweStatusContext = createContext<AuthenticationStatus>('unauthenticated');
@@ -17,9 +17,7 @@ export function SiweProvider({ children }: { children: ReactNode }) {
   const verifyingRef = useRef(false);
   const [status, setStatus] = useState<AuthenticationStatus>('loading');
   const prevAddressRef = useRef<string | undefined>(undefined);
-  const prevChainIdRef = useRef<number | undefined>(undefined);
   const { address, isConnected } = useAccount();
-  const walletChainId = useChainId();
 
   // Debounced sign-out: multiple triggers (address change + chain change)
   // collapse into a single logout call to prevent nonce race conditions
@@ -34,25 +32,19 @@ export function SiweProvider({ children }: { children: ReactNode }) {
     }, 200);
   }, []);
 
-  // Detect wallet address OR chain changes and invalidate session
+  // Detect wallet address changes and invalidate session
   useEffect(() => {
     // Skip initial mount — let the session check handle it
     if (prevAddressRef.current === undefined) {
       prevAddressRef.current = address;
-      prevChainIdRef.current = walletChainId;
       return;
     }
 
-    const addressChanged = address !== prevAddressRef.current;
-    const chainChanged = walletChainId !== prevChainIdRef.current;
-
-    if (addressChanged) prevAddressRef.current = address;
-    if (chainChanged) prevChainIdRef.current = walletChainId;
-
-    if (addressChanged || chainChanged) {
+    if (address !== prevAddressRef.current) {
+      prevAddressRef.current = address;
       signOutSession();
     }
-  }, [address, isConnected, walletChainId, signOutSession]);
+  }, [address, isConnected, signOutSession]);
 
   // Check session on page load + window focus (official RainbowKit pattern)
   useEffect(() => {
