@@ -46,6 +46,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "replicate": "^1.4.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^1.14.0",
     "tailwind-scrollbar": "^3.1.0",
     "textmode.js": "^0.10.0",
@@ -87,6 +88,6 @@
     "bn.js": ">=5.2.3",
     "hono": ">=4.11.10",
     "axios": ">=1.15.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.5"
   }
 }
