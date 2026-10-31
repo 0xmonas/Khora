@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pixelateImageWithAspect } from '@/lib/server/bitmap';
+import { isSupportedRaster, pixelateImageWithAspect } from '@/lib/server/bitmap';
 import { heavyLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 30;
@@ -32,11 +32,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Image must be under 10MB' }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const dataUri = `data:${file.type};base64,${base64}`;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!isSupportedRaster(bytes)) {
+      return NextResponse.json({ error: 'Image must be PNG, JPEG or WebP' }, { status: 415 });
+    }
 
-    const result = await pixelateImageWithAspect(dataUri);
+    const result = await pixelateImageWithAspect(`data:${file.type};base64,${bytes.toString('base64')}`);
 
     return NextResponse.json(result);
   } catch (error) {

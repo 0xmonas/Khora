@@ -95,14 +95,31 @@ const GRID_SIZE = 64;
 const PREVIEW_SCALE = 16; // 64 * 16 = 1024
 
 /**
+ * True only for PNG, JPEG and WebP, judged by the file's own bytes: sharp picks
+ * its decoder from the content, whatever the upload claims to be.
+ */
+export function isSupportedRaster(buf: Buffer): boolean {
+  const png = buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const jpeg = buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  const webp = buf.length >= 12 && buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP';
+  return png || jpeg || webp;
+}
+
+function decodeImageInput(base64Image: string): Buffer {
+  const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+  const imageBuffer = Buffer.from(raw, 'base64');
+  if (!isSupportedRaster(imageBuffer)) throw new Error('Unsupported image format');
+  return imageBuffer;
+}
+
+/**
  * Encode a base64 image into a 2,048-byte bitmap (server-side).
  *
  * @param base64Image - Base64 data URI (data:image/...;base64,...) or raw base64
  * @returns Uint8Array of exactly 2,048 bytes
  */
 export async function encodeBitmapServer(base64Image: string): Promise<Uint8Array> {
-  const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-  const imageBuffer = Buffer.from(raw, 'base64');
+  const imageBuffer = decodeImageInput(base64Image);
 
   // Resize to 64x64 with nearest-neighbor (preserves pixel art)
   const { data } = await sharp(imageBuffer)
@@ -139,8 +156,7 @@ export async function encodeBitmapServer(base64Image: string): Promise<Uint8Arra
  * Returns base64 PNG for preview. Always produces square 64x64 output (for minting).
  */
 export async function pixelateImageServer(base64Image: string): Promise<string> {
-  const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-  const imageBuffer = Buffer.from(raw, 'base64');
+  const imageBuffer = decodeImageInput(base64Image);
 
   // Downscale to 64x64
   const { data } = await sharp(imageBuffer)
@@ -217,8 +233,7 @@ export interface PixelateResult {
  * Snaps to the nearest supported ratio, then produces a proportional pixel grid.
  */
 export async function pixelateImageWithAspect(base64Image: string): Promise<PixelateResult> {
-  const raw = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-  const imageBuffer = Buffer.from(raw, 'base64');
+  const imageBuffer = decodeImageInput(base64Image);
 
   // Auto-rotate based on EXIF orientation, then read true dimensions
   const rotatedBuf = await sharp(imageBuffer).rotate().toBuffer();
