@@ -277,44 +277,96 @@ export async function verifyBurn(holder: `0x${string}`, tokenId: number): Promis
   return { ok: false, reason: 'no_event' };
 }
 
+const BURN_INDEX_KEY = 'migration:burns:index:v1';
+const BURN_SCAN_BUDGET_MS = 40_000;
+
+interface BurnRecord { tokenId: number; holder: string; block: number }
+interface BurnIndex { cursor: number; burns: BurnRecord[] }
+
+/**
+ * Collection-wide burn index, scanned forward from BURN_FLOOR_BLOCK. Each call reads
+ * only the blocks past the stored cursor; a failed page stops the scan so that range
+ * is retried next time instead of being skipped. Both burn paths are indexed: direct
+ * Shape burns (Transfer to zero) and BurnHelper MigrationBurn events.
+ */
+async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> {
+  const helper = getBurnHelperAddress();
+  const shapeBooa = getShapeBooaAddress();
+  const client = shapeClient();
+
+  let index: BurnIndex | null = null;
+  try {
+    index = await getRedis().get<BurnIndex>(BURN_INDEX_KEY);
+  } catch { /* index unavailable — rebuild from the floor */ }
+
+  const latest = await client.getBlockNumber();
+  const byKey = new Map((index?.burns ?? []).map((b) => [`${b.tokenId}:${b.holder}`, b]));
+  const add = (tokenId: bigint | undefined, holder: string | undefined, block: bigint | null) => {
+    if (tokenId === undefined || !holder) return;
+    const rec = { tokenId: Number(tokenId), holder: holder.toLowerCase(), block: Number(block ?? 0) };
+    byKey.set(`${rec.tokenId}:${rec.holder}`, rec);
+  };
+
+  // Query by event topic only and match in JS: filtering by an indexed topic makes
+  // some Shape RPCs reject the request (partial/trailing null topics).
+  let scannedTo = index ? BigInt(index.cursor) : BURN_FLOOR_BLOCK - BigInt(1);
+  let failed = false;
+  const started = Date.now();
+  while (scannedTo < latest && Date.now() - started < BURN_SCAN_BUDGET_MS) {
+    const from = scannedTo + BigInt(1);
+    const to = from + LOG_PAGE > latest ? latest : from + LOG_PAGE;
+    try {
+      const [direct, viaHelper] = await Promise.all([
+        shapeBooa
+          ? client.getLogs({ address: shapeBooa, event: TRANSFER_EVENT, fromBlock: from, toBlock: to })
+          : Promise.resolve([]),
+        helper
+          ? client.getLogs({ address: helper, event: MIGRATION_BURN_EVENT, fromBlock: from, toBlock: to })
+          : Promise.resolve([]),
+      ]);
+      for (const l of direct) {
+        const a = l.args as { from?: string; to?: string; tokenId?: bigint };
+        if (a.to?.toLowerCase() === ZERO) add(a.tokenId, a.from, l.blockNumber);
+      }
+      for (const l of viaHelper) {
+        const a = l.args as { holder?: string; tokenId?: bigint };
+        add(a.tokenId, a.holder, l.blockNumber);
+      }
+      scannedTo = to;
+    } catch {
+      failed = true;
+      break;
+    }
+  }
+
+  const burns = Array.from(byKey.values());
+  if (!index || BigInt(index.cursor) !== scannedTo) {
+    try {
+      await getRedis().set(BURN_INDEX_KEY, { cursor: Number(scannedTo), burns });
+    } catch { /* best effort — the next call rescans the same range */ }
+  }
+  return { burns, complete: !failed && scannedTo >= latest };
+}
+
 /**
  * Recovery: find tokens this holder already burned on Shape but has NOT yet
  * claimed on Ethereum. Covers the case where the claim tx failed after the burn
  * succeeded (wallet timeout, page reload) — the burn is permanent, so the holder
  * must be able to claim later without re-burning. Reads purely on-chain.
+ * `complete: false` means the index has not reached the chain head yet.
  */
-export async function findBurnedUnclaimed(holder: `0x${string}`): Promise<number[]> {
+export async function findBurnedUnclaimed(
+  holder: `0x${string}`,
+): Promise<{ tokenIds: number[]; complete: boolean }> {
   const booaEth = getBooaEthAddress();
   const helper = getBurnHelperAddress();
   const shapeBooa = getShapeBooaAddress();
-  if (!booaEth || (!helper && !shapeBooa)) return [];
+  if (!booaEth || (!helper && !shapeBooa)) return { tokenIds: [], complete: true };
 
-  const client = shapeClient();
-  const latest = await client.getBlockNumber();
-  const floor = latest > BURN_FLOOR_BLOCK ? BURN_FLOOR_BLOCK : BigInt(0);
+  const { burns, complete } = await scanBurns();
   const holderLc = holder.toLowerCase();
-
-  // Fetch by event topic only and filter the holder in JS. Filtering the holder
-  // via an indexed topic makes some Shape RPCs reject the request (partial/trailing
-  // null topics), so we keep the query shape minimal and match locally instead.
-  const burned = new Set<number>();
-  let cursor = latest;
-  while (cursor >= floor) {
-    const from = cursor > LOG_PAGE ? cursor - LOG_PAGE : BigInt(0);
-    try {
-      const helperBurns = helper
-        ? await client.getLogs({ address: helper, event: MIGRATION_BURN_EVENT, fromBlock: from, toBlock: cursor })
-        : [];
-      for (const l of helperBurns) {
-        if ((l.args as { holder?: string }).holder?.toLowerCase() !== holderLc) continue;
-        const id = Number((l.args as { tokenId?: bigint }).tokenId);
-        if (Number.isInteger(id)) burned.add(id);
-      }
-    } catch { /* page failed — continue scanning */ }
-    if (from === BigInt(0)) break;
-    cursor = from - BigInt(1);
-  }
-  if (burned.size === 0) return [];
+  const burned = new Set(burns.filter((b) => b.holder === holderLc).map((b) => b.tokenId));
+  if (burned.size === 0) return { tokenIds: [], complete };
 
   // Keep only tokens NOT yet claimed on Ethereum.
   const eth = createPublicClient({
@@ -331,7 +383,7 @@ export async function findBurnedUnclaimed(holder: `0x${string}`): Promise<number
       .catch(() => false);
     if (!claimed) pending.push(id);
   }
-  return pending;
+  return { tokenIds: pending, complete };
 }
 
 /**

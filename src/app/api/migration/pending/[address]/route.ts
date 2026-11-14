@@ -21,10 +21,10 @@ export async function GET(
   }
 
   try {
-    const tokenIds = await findBurnedUnclaimed(getAddress(address));
+    const { tokenIds, complete } = await findBurnedUnclaimed(getAddress(address));
     return NextResponse.json(
-      { address, count: tokenIds.length, tokenIds },
-      { headers: { 'Cache-Control': 'private, max-age=15' } },
+      { address, count: tokenIds.length, tokenIds, complete },
+      { headers: { 'Cache-Control': complete ? 'private, max-age=15' : 'no-store' } },
     );
   } catch {
     return NextResponse.json({ error: 'Failed to scan burns' }, { status: 500 });

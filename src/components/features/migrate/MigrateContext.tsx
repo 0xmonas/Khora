@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode,
+  createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode,
 } from 'react';
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from 'wagmi';
 import {
@@ -118,21 +118,34 @@ export function MigrateProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void refreshHoldings(); }, [refreshHoldings]);
 
   // Recovery: tokens already burned on Shape but not yet claimed on Ethereum.
+  // The server reports complete:false while its burn index is still catching up.
+  const pendingRun = useRef(0);
   const refreshPending = useCallback(async () => {
+    const run = ++pendingRun.current;
     if (!address) { setPending([]); return; }
     setLoadingPending(true);
     try {
-      const res = await fetch(`/api/migration/pending/${address}`);
-      const data = await res.json();
-      setPending(Array.isArray(data.tokenIds) ? data.tokenIds : []);
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const res = await fetch(`/api/migration/pending/${address}`);
+        const data = await res.json();
+        if (run !== pendingRun.current) return;
+        setPending(Array.isArray(data.tokenIds) ? data.tokenIds : []);
+        if (data.complete !== false) break;
+        await new Promise((r) => setTimeout(r, 5000));
+        if (run !== pendingRun.current) return;
+      }
     } catch {
-      setPending([]);
+      if (run === pendingRun.current) setPending([]);
     } finally {
-      setLoadingPending(false);
+      if (run === pendingRun.current) setLoadingPending(false);
     }
   }, [address]);
 
-  useEffect(() => { void refreshPending(); }, [refreshPending]);
+  useEffect(() => {
+    void refreshPending();
+    const runs = pendingRun;
+    return () => { runs.current++; };
+  }, [refreshPending]);
 
   const toggle = useCallback((id: number) => {
     setSelected((prev) => {
