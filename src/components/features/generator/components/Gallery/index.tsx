@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { GalleryThumbnail } from './GalleryThumbnail';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
 import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
-import { useGenerator } from '@/components/features/generator/GeneratorContext';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
 
 function GallerySkeleton() {
@@ -23,7 +22,6 @@ function GallerySkeleton() {
 }
 
 export function Gallery() {
-  const { currentStep } = useGenerator();
   const [selectedToken, setSelectedToken] = useState<GalleryToken | null>(null);
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,17 +29,7 @@ export function Gallery() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('filter') === 'mine') setFilter('mine');
   }, []);
-  const { tokens, isLoading, totalSupply, hasMore, loadMore, refetch } = useGalleryTokens(filter);
-
-  // Refetch when a new token is minted — staggered to handle RPC cache delay
-  useEffect(() => {
-    if (currentStep === 'complete') {
-      refetch();
-      const t1 = setTimeout(() => refetch(), 2000);
-      const t2 = setTimeout(() => refetch(), 5000);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
-    }
-  }, [currentStep, refetch]);
+  const { tokens, isLoading, totalSupply, hasMore, loadMore } = useGalleryTokens(filter);
 
   const filteredTokens = useMemo(() => {
     let result = [...tokens];

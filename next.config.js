@@ -22,6 +22,7 @@ const nextConfig = {
       // Collection mint closed; the route was renamed to /booa/gallery.
       // Keep this 301 so external links / bookmarks still resolve.
       { source: '/booa/mint', destination: '/booa/gallery', permanent: true },
+      { source: '/mint', destination: '/booa/gallery', permanent: true },
     ];
   },
   async headers() {
