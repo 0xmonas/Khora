@@ -293,6 +293,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // On-chain ownerOf verification
+    const { createPublicClient, http } = await import('viem');
+    const { getV2Address } = await import('@/lib/contracts/booa-v2');
+
+    const contractAddress = getV2Address(chainId);
+    const client = createPublicClient({
+      transport: http(SHAPE_RPCS[chainId]),
+    });
+
+    let owner: string;
+    try {
+      owner = (await client.readContract({
+        address: contractAddress,
+        abi: OWNER_OF_ABI,
+        functionName: 'ownerOf',
+        args: [BigInt(tokenId)],
+      })) as string;
+    } catch {
+      return NextResponse.json({ error: 'Token not found' }, { status: 404 });
+    }
+
+    if (owner.toLowerCase() !== walletAddress.toLowerCase()) {
+      return NextResponse.json({ error: 'You do not own this agent' }, { status: 403 });
+    }
+
     // Rate limit: 10 messages/day/wallet (free tier)
     // Users can bypass quota by providing their own Gemini API key (real one)
     // Reject junk keys to prevent quota bypass via arbitrary headers.
@@ -322,31 +347,6 @@ export async function POST(request: NextRequest) {
           { status: 429 },
         );
       }
-    }
-
-    // On-chain ownerOf verification
-    const { createPublicClient, http } = await import('viem');
-    const { getV2Address } = await import('@/lib/contracts/booa-v2');
-
-    const contractAddress = getV2Address(chainId);
-    const client = createPublicClient({
-      transport: http(SHAPE_RPCS[chainId]),
-    });
-
-    let owner: string;
-    try {
-      owner = (await client.readContract({
-        address: contractAddress,
-        abi: OWNER_OF_ABI,
-        functionName: 'ownerOf',
-        args: [BigInt(tokenId)],
-      })) as string;
-    } catch {
-      return NextResponse.json({ error: 'Token not found' }, { status: 404 });
-    }
-
-    if (owner.toLowerCase() !== walletAddress.toLowerCase()) {
-      return NextResponse.json({ error: 'You do not own this agent' }, { status: 403 });
     }
 
     // Fetch agent metadata — try Redis first, fallback to on-chain tokenURI
