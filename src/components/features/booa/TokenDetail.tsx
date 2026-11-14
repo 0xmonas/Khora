@@ -23,13 +23,14 @@ const LABEL = 'text-[10px] uppercase tracking-wider text-muted-foreground';
 
 interface OnChainTrait { trait_type: string; value: string }
 
-function useOnChainTraits(tokenId: bigint, storageAddress: `0x${string}`) {
+function useOnChainTraits(tokenId: bigint, storageAddress: `0x${string}`, chainId: number, enabled: boolean) {
   const { data } = useReadContract({
     address: storageAddress,
     abi: BOOA_V2_STORAGE_ABI,
     functionName: 'getTraits',
     args: [tokenId],
-    query: { enabled: !!storageAddress && storageAddress.length > 2 },
+    chainId,
+    query: { enabled: enabled && !!storageAddress && storageAddress.length > 2 },
   });
   if (!data) return [];
   try {
@@ -112,11 +113,24 @@ export function TokenDetail({
   const isEth = chainId === mainnet.id;
   const isMainnet = chainId === shape.id;
   const tokenId = token.tokenId.toString();
-  const traits = useOnChainTraits(token.tokenId, storage);
+  const storageTraits = useOnChainTraits(token.tokenId, storage, chainId, !isEth);
+  const [liveTraits, setLiveTraits] = useState<OnChainTrait[] | null>(null);
+  const traits = isEth ? liveTraits ?? [] : storageTraits;
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [registryAgentId, setRegistryAgentId] = useState<bigint | null>(null);
   const [liveSvg, setLiveSvg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLiveTraits(null);
+    if (!isEth) return;
+    let alive = true;
+    fetch(`/api/v1/booas/${tokenId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && Array.isArray(d?.attributes)) setLiveTraits(d.attributes); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isEth, tokenId]);
 
   useEffect(() => {
     setLiveSvg(null);
