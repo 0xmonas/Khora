@@ -116,6 +116,13 @@ describe('/api/v1/booas', () => {
     expect(res.headers.get('Cache-Control')).not.toContain('immutable');
   });
 
+  it('booa-token serves the live traits on mainnet, which is now the default network', async () => {
+    const { GET } = await import('@/app/api/booa-token/route');
+    const body = await (await GET(new NextRequest('https://booa.app/api/booa-token?tokenId=1496'))).json();
+    expect(body.attributes).toContainEqual({ trait_type: 'Personality', value: 'Dry-witted' });
+    expect(Buffer.from(body.image.split(',')[1], 'base64').toString()).toBe('<svg>live</svg>');
+  });
+
   it('answers repeat reads from the cache', async () => {
     await json('1496');
     const reads = readContract.mock.calls.length;

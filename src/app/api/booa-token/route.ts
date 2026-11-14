@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BOOA_V2_RENDERER_ABI, getV2RendererAddress } from '@/lib/contracts/booa-v2';
+import { isTokenId, readArt } from '@/lib/server/booa';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 
@@ -12,7 +13,7 @@ export const maxDuration = 15;
  * Returns parsed metadata (name, image, attributes) for our collection only.
  */
 export async function GET(request: NextRequest) {
-  const network = request.nextUrl.searchParams.get('network') || 'testnet';
+  const network = request.nextUrl.searchParams.get('network') || 'mainnet';
   const tokenIdStr = request.nextUrl.searchParams.get('tokenId');
 
   if (!tokenIdStr || !Number.isInteger(Number(tokenIdStr)) || Number(tokenIdStr) < 0) {
@@ -20,6 +21,25 @@ export async function GET(request: NextRequest) {
   }
 
   const tokenId = Number(tokenIdStr);
+  if (network === 'mainnet') {
+    if (!isTokenId(tokenId)) {
+      return NextResponse.json({ error: 'Token not found in BOOA collection' }, { status: 404 });
+    }
+    try {
+      const art = await readArt(tokenId, 'live');
+      return NextResponse.json({
+        tokenId,
+        name: art.name || `BOOA #${tokenId}`,
+        image: `data:image/svg+xml;base64,${Buffer.from(art.svg).toString('base64')}`,
+        description: art.description,
+        attributes: art.attributes,
+      }, {
+        headers: { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600' },
+      });
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch token' }, { status: 502 });
+    }
+  }
   // Post-migration canonical chain is Ethereum. Read from the RENDERER (not the
   // token contract) so all 3,333 render even for tokens not yet migrated/minted
   // on Ethereum — storage holds the full collection, renderer isn't ownership-gated.

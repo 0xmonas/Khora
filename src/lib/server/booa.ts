@@ -43,12 +43,12 @@ export function caipRef(id: number): string {
   return `eip155:1/erc721:${BOOA_ETH_ADDRESS}/${id}`;
 }
 
-function decode(uri: string): { name: string; attributes: BooaTrait[]; svg: string } {
+function decode(uri: string): { name: string; description: string; attributes: BooaTrait[]; svg: string } {
   const json = JSON.parse(Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64').toString('utf8'));
   const image: string = json.image || '';
   const body = image.slice(image.indexOf(',') + 1);
   const svg = image.includes(';base64,') ? Buffer.from(body, 'base64').toString('utf8') : decodeURIComponent(body);
-  return { name: json.name || '', attributes: json.attributes || [], svg };
+  return { name: json.name || '', description: json.description || '', attributes: json.attributes || [], svg };
 }
 
 async function cached<T>(key: string, ttl: number | null, load: () => Promise<T>): Promise<T> {
