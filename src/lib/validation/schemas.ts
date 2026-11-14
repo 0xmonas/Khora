@@ -1,12 +1,5 @@
 import { z } from 'zod';
 
-// Block null bytes and ALL control characters (single-line input only)
-const safeString = (max: number) =>
-  z.string().trim().max(max).refine(
-    (s) => !/[\x00-\x1F\x7F]/.test(s),
-    'Contains invalid control characters',
-  );
-
 export const fetchAgentSchema = z.object({
   chain: z.enum([
     // Mainnets
