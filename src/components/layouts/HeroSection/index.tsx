@@ -278,7 +278,7 @@ export function HeroSection() {
                   trusting a centralized server.
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
-                  The Identity Registry is deployed on 16 chains at the same address via
+                  The Identity Registry is deployed on every supported chain at the same address via
                   deterministic CREATE2. Agents can register on any chain, and BOOA discovers
                   them all in parallel.
                 </p>
