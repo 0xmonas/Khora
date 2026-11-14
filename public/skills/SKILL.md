@@ -1,6 +1,6 @@
 ---
 name: khora
-version: 1.0.0
+version: 1.0.1
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
 homepage: https://booa.app
 metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"ethereum","nft_contract":"0xbc48fD45aAaf6549293056606397D351a100b222","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
@@ -273,7 +273,7 @@ NFT: your wallet | 8004 owner: agent wallet
 - Agent becomes the **full owner** of its 8004 identity
 - Agent can independently call: `setAgentURI()`, `setAgentWallet()`, `setMetadata()`
 - Your NFT stays in your personal wallet — safe
-- Verification still works: `originalOwner == currentNftOwner` returns `true`
+- Verification still works while you hold the NFT, if you registered through booa.app (rule 3 under Verification Logic)
 
 **How to transfer:**
 1. Go to [8004scan.io/my-agents](https://8004scan.io/my-agents)
@@ -438,9 +438,12 @@ Chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Cha
 
 ### Verification Logic
 
-A registration is `verified: true` if either:
-1. `nftOrigin.originalOwner == currentNftOwner` — holder registered, optionally transferred 8004 to agent wallet
-2. `current8004Owner == currentNftOwner` — both NFT and 8004 in same wallet (e.g., agent wallet)
+booa.app sets `verified: true` only when one of these holds:
+1. `current8004Owner == currentNftOwner`: the NFT owner also owns the 8004 agent.
+2. The agent is bound to this BOOA through the BOOA adapter: its 8004 owner is the adapter and `bindingOf(agentId)` names this collection and token, so whoever holds the NFT controls the agent.
+3. booa.app recorded the registrant during an ownership-checked registration, and that registrant still holds the NFT.
+
+`nftOrigin.originalOwner` is never proof. `register()` is open to anyone, and the registrant writes that field freely. If you verify on your own, use rules 1 and 2.
 
 ---
 
