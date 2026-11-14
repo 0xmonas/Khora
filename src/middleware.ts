@@ -48,6 +48,7 @@ const PUBLIC_READ_PATHS = [
   '/api/migration',
   '/api/booa-image',
   '/api/awakened',
+  '/api/v1/booas',
 ];
 
 // Public for reads, but writes must carry a verified session. PUBLIC_READ_PATHS is
