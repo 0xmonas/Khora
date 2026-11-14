@@ -417,6 +417,11 @@ async function resolveAndVerify(
     } catch { /* fall through to the range scan */ }
   }
 
+  const scanMissKey = `agent:scanmiss:${chainIdNum}:${tokenIdNum}`;
+  if (await redis.get(scanMissKey)) {
+    return { verified: false, currentNftOwner, agentId: null, registeredBy: null, boundToBooa: false };
+  }
+
   // No cache (or cached looked deprecated) — full on-chain scan by nftOrigin
   let allRegs = await findAllRegistrations(tokenIdNum, chainIdNum);
 
@@ -433,6 +438,7 @@ async function resolveAndVerify(
   }
 
   if (allRegs.length === 0) {
+    await redis.set(scanMissKey, 1, { ex: 3600 });
     return { verified: false, currentNftOwner, agentId: null, registeredBy: null, boundToBooa: false };
   }
 

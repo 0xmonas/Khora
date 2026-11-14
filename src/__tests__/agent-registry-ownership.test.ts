@@ -138,6 +138,17 @@ describe('agent-registry GET: input validation', () => {
     const res = await GET(req, { params: Promise.resolve({ chainId: '360', tokenId: '42' }) });
     expect(res.status).toBe(404);
   });
+
+  it('remembers a scan that found nothing, so repeat lookups skip the range scan', async () => {
+    const { GET } = await import('@/app/api/agent-registry/[chainId]/[tokenId]/route');
+    const call = () => GET(new NextRequest('http://localhost/api/agent-registry/360/42'), { params: Promise.resolve({ chainId: '360', tokenId: '42' }) });
+    await call();
+    expect(mockMulticall).toHaveBeenCalled();
+    mockMulticall.mockClear();
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect(mockMulticall).not.toHaveBeenCalled();
+  });
 });
 
 describe('agent-registry GET: verified field', () => {
