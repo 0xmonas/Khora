@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server';
 
 const REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432';
 const BOOA = '0x7aecA981734d133d3f695937508C48483BA6b654';
+const ETH_BOOA = '0xbc48fD45aAaf6549293056606397D351a100b222';
+const TESTNET_BOOA = '0x00000000000000000000000000000000000000Ee';
 
 // Per-test knobs
 let agentOwner = '0xagentwallet';        // registry ownerOf(agentId) — the 8004 owner
@@ -17,7 +19,8 @@ const readContract = vi.fn(async ({ address, functionName }: { address: string; 
   }
   if (functionName === 'ownerOf') {
     if (address.toLowerCase() === REGISTRY.toLowerCase()) return agentOwner;
-    if (address.toLowerCase() === BOOA.toLowerCase()) return nftOwner;
+    if (address.toLowerCase() === BOOA.toLowerCase() || address.toLowerCase() === ETH_BOOA.toLowerCase()) return nftOwner;
+    if (address.toLowerCase() === TESTNET_BOOA.toLowerCase()) return '0xstranger';
   }
   return null;
 });
@@ -41,7 +44,8 @@ vi.mock('@/lib/contracts/identity-registry', () => ({
   ],
 }));
 vi.mock('@/lib/contracts/booa-v2', () => ({
-  getV2Address: () => BOOA,
+  getV2Address: (id: number) => (id === 1 ? ETH_BOOA : id === 360 ? BOOA : TESTNET_BOOA),
+  isBooaContract: (a: string) => [BOOA, ETH_BOOA].some((b) => b.toLowerCase() === a?.toLowerCase()),
   BOOA_V2_ABI: [{ name: 'ownerOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'a', type: 'uint256' }], outputs: [{ name: '', type: 'address' }] }],
 }));
 vi.mock('@/lib/contracts/booa-adapter', () => ({ getAdapterAddress: () => null }));
@@ -52,9 +56,9 @@ vi.mock('@/utils/agent-score', () => ({
 const mockGet = vi.fn(async () => cacheEntry);
 vi.mock('@/lib/server/redis', () => ({ getRedis: () => ({ get: mockGet }) }));
 
-async function callCard(agentId: number) {
+async function callCard(agentId: number, chain = 'shape') {
   const { GET } = await import('@/app/api/agent-card/route');
-  const req = new NextRequest(`http://localhost/api/agent-card?chain=shape&agentId=${agentId}`);
+  const req = new NextRequest(`http://localhost/api/agent-card?chain=${chain}&agentId=${agentId}`);
   const res = await GET(req);
   return res.json();
 }
@@ -90,5 +94,21 @@ describe('agent-card verified — Scenario B registrantOwner arm', () => {
     cacheEntry = { agentId: 312, registrantOwner: '0xbob' };
     const data = await callCard(312);
     expect(data.agent.verified).toBe(false);
+  });
+});
+
+describe('agent-card verified — registry chains other than Ethereum and Shape', () => {
+  beforeEach(() => {
+    nftOriginTokenId = 42;
+    cacheEntry = null;
+    vi.clearAllMocks();
+  });
+
+  it('checks the BOOA owner on Ethereum, not a testnet contract, for an agent registered on Base', async () => {
+    nftOwner = '0xbob';
+    agentOwner = '0xbob';
+    const body = await callCard(7, 'base');
+    expect(body.agent.currentNftOwner).toBe('0xbob');
+    expect(body.agent.verified).toBe(true);
   });
 });

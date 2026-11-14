@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, fallback } from 'viem';
-import { shape, shapeSepolia, mainnet } from 'viem/chains';
 import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getRegistryAddress, IDENTITY_REGISTRY_ABI } from '@/lib/contracts/identity-registry';
-import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
+import { isBooaContract } from '@/lib/contracts/booa-v2';
+import { getBooaOwner } from '@/lib/server/nft-owner';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
 import { getRedis } from '@/lib/server/redis';
@@ -124,17 +124,9 @@ export async function GET(request: NextRequest) {
 
     if (nftOrigin?.tokenId !== undefined) {
       try {
-        const booaContract = getV2Address(chainId);
+        currentNftOwner = await getBooaOwner(nftOrigin.tokenId, chainId);
 
-        if (booaContract && booaContract.length > 2) {
-          const booaChain = chainId === 1 ? mainnet : chainId === 360 ? shape : shapeSepolia;
-          const booaClient = createPublicClient({ chain: booaChain, transport: http() });
-          currentNftOwner = (await booaClient.readContract({
-            address: booaContract,
-            abi: BOOA_V2_ABI,
-            functionName: 'ownerOf',
-            args: [BigInt(nftOrigin.tokenId)],
-          }) as string).toLowerCase();
+        if (currentNftOwner) {
 
           // Only on-chain facts count; nftOrigin.originalOwner is self-asserted and
           // can never prove ownership. Three sound arms:
@@ -157,7 +149,7 @@ export async function GET(request: NextRequest) {
               }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
               if (
                 Number(binding.tokenId) === nftOrigin.tokenId &&
-                binding.tokenContract.toLowerCase() === booaContract.toLowerCase()
+                isBooaContract(binding.tokenContract)
               ) {
                 verified = true;
               }
