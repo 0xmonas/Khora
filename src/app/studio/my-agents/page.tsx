@@ -51,6 +51,7 @@ interface AgentTile {
   verified: boolean | null;
   agentWallet: string | null;
   walletStale: boolean;
+  walletSetBy: string | null;
   services: number | null;
   skills: number | null;
   detailLoaded: boolean;
@@ -169,7 +170,7 @@ function Tile({ tile, booaEth, adapter, highlight, onLink }: {
             </p>
             {tile.walletStale && (
               <p className="text-[9px] text-amber-600 dark:text-amber-500" style={font}>
-                Set by another wallet, likely a previous holder. Relink it to your own agent.
+                Set by {tile.walletSetBy ? `${tile.walletSetBy.slice(0, 6)}…${tile.walletSetBy.slice(-4)}` : 'another wallet'}, not the wallet holding this BOOA. If that was not you, relink it.
               </p>
             )}
             {(tile.services !== null || tile.skills !== null) && (
@@ -270,6 +271,7 @@ function MyAgentsInner() {
             verified: null,
             agentWallet: null,
             walletStale: false,
+            walletSetBy: null,
             services: null,
             skills: null,
             detailLoaded: false,
@@ -310,6 +312,7 @@ function MyAgentsInner() {
             verified: !!d.verified,
             agentWallet: typeof d.agentWallet === 'string' ? d.agentWallet : null,
             walletStale: !!d.agentWalletStale,
+            walletSetBy: typeof d.agentWalletSetBy === 'string' ? d.agentWalletSetBy : null,
             walletLinked: !!d.agentWallet || p.walletLinked,
             services: Array.isArray(d.services) ? d.services.length : 0,
             skills: Array.isArray(d.skills) ? d.skills.length : 0,
