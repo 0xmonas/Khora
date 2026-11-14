@@ -115,6 +115,7 @@ export function TokenDetail({
   const tokenId = token.tokenId.toString();
   const storageTraits = useOnChainTraits(token.tokenId, storage, chainId, !isEth);
   const [liveTraits, setLiveTraits] = useState<OnChainTrait[] | null>(null);
+  const [shapeHome, setShapeHome] = useState(false);
   const traits = isEth ? liveTraits ?? [] : storageTraits;
   const { metadata, isLoading: metadataLoading } = useAgentMetadata(token.isOwned ? token.tokenId : null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -123,11 +124,12 @@ export function TokenDetail({
 
   useEffect(() => {
     setLiveTraits(null);
+    setShapeHome(false);
     if (!isEth) return;
     let alive = true;
     fetch(`/api/v1/booas/${tokenId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && Array.isArray(d?.attributes)) setLiveTraits(d.attributes); })
+      .then((d) => { if (alive && Array.isArray(d?.attributes)) { setLiveTraits(d.attributes); setShapeHome(d.home === 'shape'); } })
       .catch(() => {});
     return () => { alive = false; };
   }, [isEth, tokenId]);
@@ -161,13 +163,14 @@ export function TokenDetail({
     return () => document.removeEventListener('keydown', onEsc);
   }, [lightboxOpen]);
 
-  const marketplaceUrl = isEth
+  const linkContract = shapeHome ? getV2Address(shape.id) : contract;
+  const marketplaceUrl = isEth && !shapeHome
     ? `https://opensea.io/assets/ethereum/${contract}/${tokenId}`
-    : isMainnet
-      ? `https://opensea.io/assets/shape/${contract}/${tokenId}`
+    : isMainnet || shapeHome
+      ? `https://opensea.io/assets/shape/${linkContract}/${tokenId}`
       : `https://testnet.rarible.com/token/shape/${contract}:${tokenId}`;
   const chainSlug = isEth ? 'ethereum' : isMainnet ? 'shape' : 'shape-sepolia';
-  const onchainCheckerUrl = `https://onchainchecker.xyz/collection/${chainSlug}/${contract}/${tokenId}`;
+  const onchainCheckerUrl = `https://onchainchecker.xyz/collection/${shapeHome ? 'shape' : chainSlug}/${linkContract}/${tokenId}`;
   const scan8004Url = registryAgentId !== null
     ? `https://${isEth || isMainnet ? 'www' : 'testnet'}.8004scan.io/agents/${chainSlug}/${registryAgentId.toString()}`
     : null;

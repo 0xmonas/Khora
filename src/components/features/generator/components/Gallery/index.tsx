@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { mainnet } from 'wagmi/chains';
 import { GalleryThumbnail } from './GalleryThumbnail';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
-import { useGalleryTokens, type GalleryToken } from '@/hooks/useGalleryTokens';
+import { useGalleryTokens, selectGallery, type GalleryToken } from '@/hooks/useGalleryTokens';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
+
+const PAGE = 50;
 
 function GallerySkeleton() {
   return (
@@ -29,29 +32,21 @@ export function Gallery() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('filter') === 'mine') setFilter('mine');
   }, []);
-  const { tokens, isLoading, totalSupply, hasMore, loadMore } = useGalleryTokens(filter);
+  const { tokens, isLoading, totalSupply, connected, ownedError } = useGalleryTokens(filter);
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => setShown(PAGE), [filter, searchQuery]);
 
-  const filteredTokens = useMemo(() => {
-    let result = [...tokens];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      result = result.filter(t =>
-        t.tokenId.toString().includes(q) ||
-        t.name.toLowerCase().includes(q)
-      );
-    }
-
-    if (filter === 'oldest') {
-      result.sort((a, b) => Number(a.tokenId - b.tokenId));
-    } else {
-      result.sort((a, b) => Number(b.tokenId - a.tokenId));
-    }
-
-    return result;
-  }, [tokens, searchQuery, filter]);
+  const filteredTokens = useMemo(() => selectGallery(tokens, filter, searchQuery), [tokens, searchQuery, filter]);
+  const visibleTokens = filteredTokens.slice(0, shown);
+  const hasMore = filteredTokens.length > shown;
 
   const hasActiveFilter = searchQuery.trim() || filter === 'mine';
+  const emptyMessage =
+    filter === 'mine' && !connected ? 'Connect your wallet to see your BOOAs'
+    : filter === 'mine' && ownedError ? "Couldn't load your BOOAs. Try again."
+    : filteredTokens.length > 0 ? null
+    : filter === 'mine' && !searchQuery.trim() ? 'No BOOAs in this wallet'
+    : 'No matching agents';
 
   return (
     <div
@@ -79,7 +74,7 @@ export function Gallery() {
       {/* Content */}
       {selectedToken ? (
         <div className="h-[calc(100%-40px)] min-w-0 overflow-hidden">
-          <CustomScrollArea className="h-full"><div className="p-4"><TokenDetail token={selectedToken} /></div></CustomScrollArea>
+          <CustomScrollArea className="h-full"><div className="p-4"><TokenDetail token={selectedToken} chainId={mainnet.id} /></div></CustomScrollArea>
         </div>
       ) : (
         <div className="h-[calc(100%-40px)] flex flex-col">
@@ -113,40 +108,32 @@ export function Gallery() {
           <CustomScrollArea className="flex-1 min-h-0">
             {isLoading ? (
               <GallerySkeleton />
-            ) : tokens.length === 0 ? (
+            ) : emptyMessage ? (
               <div className="flex items-center justify-center h-full min-h-[200px]">
-                <p className="font-mono text-sm text-neutral-500">No agents minted yet</p>
-              </div>
-            ) : filteredTokens.length === 0 ? (
-              <div className="flex items-center justify-center h-full min-h-[200px]">
-                <p className="font-mono text-sm text-neutral-500">No matching agents</p>
+                <p className="font-mono text-sm text-neutral-500">{emptyMessage}</p>
               </div>
             ) : (
               <div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 p-3">
-                  {filteredTokens.map((token) => (
+                  {visibleTokens.map((token) => (
                     <GalleryThumbnail
                       key={token.tokenId.toString()}
                       tokenId={token.tokenId}
-                      svg={token.svg}
                       name={token.name}
                       isOwned={token.isOwned}
                       onClick={() => (token.isOwned ? router.push(`/studio/my-booas?token=${token.tokenId.toString()}`) : setSelectedToken(token))}
                     />
                   ))}
                 </div>
-                {hasMore && !isLoading && (
+                {hasMore && (
                   <div className="flex justify-center p-3">
                     <button
-                      onClick={loadMore}
+                      onClick={() => setShown((s) => s + PAGE)}
                       className="px-4 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-xs font-mono hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                       Load More
                     </button>
                   </div>
-                )}
-                {isLoading && tokens.length > 0 && (
-                  <p className="text-center text-xs text-neutral-500 font-mono p-3">Loading...</p>
                 )}
               </div>
             )}

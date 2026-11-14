@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount, useChainId, useReadContracts } from 'wagmi';
-import { BOOA_V2_ABI, getV2Address, getV2ChainId, getBooaChainSlug } from '@/lib/contracts/booa-v2';
+import { useEffect, useMemo, useState } from 'react';
+import { useAccount } from 'wagmi';
+import { BOOA_ETH_ADDRESS, MIGRATION_MAX_SUPPLY } from '@/lib/contracts/booa-eth';
 
-const PAGE_SIZE = 50;
+export type GalleryFilter = 'newest' | 'oldest' | 'mine';
 
 export interface GalleryToken {
   tokenId: bigint;
@@ -13,177 +13,63 @@ export interface GalleryToken {
   isOwned: boolean;
 }
 
-/**
- * Fetches gallery tokens with pagination (50 per page).
- * Uses /api/gallery (Alchemy) for metadata + on-chain ownerOf for ownership.
- * When filter is 'mine', fetches owned tokens via /api/gallery/owned instead.
- */
-export function useGalleryTokens(filter: 'newest' | 'oldest' | 'mine' = 'newest') {
-  const { address } = useAccount();
-  const chainId = useChainId();
-  const contractAddress = getV2Address(chainId);
-  const targetChainId = getV2ChainId(chainId);
-  const enabled = !!contractAddress && contractAddress.length > 2;
+export const booaImageUrl = (tokenId: bigint | number) => `/api/booa-image/${tokenId}`;
 
-  const [galleryData, setGalleryData] = useState<{ tokenId: string; svg: string | null; name: string }[]>([]);
-  const [ownedData, setOwnedData] = useState<{ tokenId: string; svg: string | null; name: string }[]>([]);
-  const [ownedLoading, setOwnedLoading] = useState(false);
-  const [ownedFetched, setOwnedFetched] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const nextTokenRef = useRef<string | undefined>(undefined);
-  const fetchedRef = useRef(false);
-
-  const chain = getBooaChainSlug(chainId);
-
-  // Fetch one page of collection tokens
-  const fetchPage = useCallback(async (isInitial = false) => {
-    if (!enabled || isLoading) return;
-    if (!isInitial && !hasMore) return;
-
-    setIsLoading(true);
-    try {
-      const url = new URL('/api/gallery', window.location.origin);
-      url.searchParams.set('contract', contractAddress);
-      url.searchParams.set('chain', chain);
-      url.searchParams.set('limit', String(PAGE_SIZE));
-      if (!isInitial && nextTokenRef.current) {
-        url.searchParams.set('startToken', nextTokenRef.current);
-      }
-
-      const res = await fetch(url.toString());
-      if (!res.ok) return;
-
-      const data = await res.json();
-      const newTokens = (data.tokens || []).map((t: { tokenId: string; svg: string | null; name?: string }) => ({
-        tokenId: t.tokenId,
-        svg: t.svg || null,
-        name: t.name || `#${t.tokenId}`,
-      }));
-
-      if (isInitial) {
-        setGalleryData(newTokens);
-      } else {
-        setGalleryData(prev => [...prev, ...newTokens]);
-      }
-
-      nextTokenRef.current = data.nextToken || undefined;
-      setHasMore(!!data.nextToken);
-    } catch {
-      // Keep existing data on error
-    } finally {
-      setIsLoading(false);
-    }
-  }, [enabled, contractAddress, chain, isLoading, hasMore]);
-
-  // Fetch owned tokens via Alchemy getNFTsForOwner
-  const fetchOwned = useCallback(async () => {
-    if (!enabled || !address || ownedLoading) return;
-    setOwnedLoading(true);
-    try {
-      const url = new URL('/api/gallery/owned', window.location.origin);
-      url.searchParams.set('contract', contractAddress);
-      url.searchParams.set('chain', chain);
-      url.searchParams.set('owner', address);
-
-      const res = await fetch(url.toString());
-      if (!res.ok) return;
-
-      const data = await res.json();
-      setOwnedData((data.tokens || []).map((t: { tokenId: string; svg: string | null; name?: string }) => ({
-        tokenId: t.tokenId,
-        svg: t.svg || null,
-        name: t.name || `#${t.tokenId}`,
-      })));
-      setOwnedFetched(true);
-    } catch {
-      // Keep existing data on error
-    } finally {
-      setOwnedLoading(false);
-    }
-  }, [enabled, contractAddress, chain, address, ownedLoading]);
-
-  // Initial collection fetch
-  useEffect(() => {
-    if (!fetchedRef.current && enabled) {
-      fetchedRef.current = true;
-      fetchPage(true);
-    }
-  }, [enabled, fetchPage]);
-
-  // Fetch owned tokens when 'mine' filter is selected
-  useEffect(() => {
-    if (filter === 'mine' && !ownedFetched && address) {
-      fetchOwned();
-    }
-  }, [filter, ownedFetched, address, fetchOwned]);
-
-  // Load more (called by UI on scroll/button)
-  const loadMore = useCallback(() => {
-    if (hasMore && !isLoading) fetchPage(false);
-  }, [hasMore, isLoading, fetchPage]);
-
-  // On-chain ownerOf batch — only for currently loaded collection tokens
-  const allTokenIds = galleryData.map((t) => BigInt(t.tokenId));
-
-  const ownerCalls = allTokenIds.map((tokenId) => ({
-    address: contractAddress,
-    abi: BOOA_V2_ABI,
-    functionName: 'ownerOf' as const,
-    args: [tokenId] as const,
-    chainId: targetChainId,
+export function buildGallery(names: string[] | null, owned: Set<string> | null, filter: GalleryFilter): GalleryToken[] {
+  const all: GalleryToken[] = Array.from({ length: MIGRATION_MAX_SUPPLY }, (_, i) => ({
+    tokenId: BigInt(i),
+    svg: null,
+    name: names?.[i] || `#${i}`,
+    isOwned: !!owned?.has(String(i)),
   }));
+  return filter === 'mine' ? all.filter((t) => t.isOwned) : all;
+}
 
-  const { data: ownerResults } = useReadContracts({
-    contracts: ownerCalls,
-    query: { enabled: galleryData.length > 0 && !!address },
-  });
+export function selectGallery(tokens: GalleryToken[], filter: GalleryFilter, query: string): GalleryToken[] {
+  const q = query.trim().toLowerCase();
+  const hits = q ? tokens.filter((t) => t.tokenId.toString().includes(q) || t.name.toLowerCase().includes(q)) : [...tokens];
+  return hits.sort((a, b) => Number(filter === 'oldest' ? a.tokenId - b.tokenId : b.tokenId - a.tokenId));
+}
 
-  // Build ownership set from on-chain data (for collection view)
-  const ownedSet = new Set<string>();
-  if (address && ownerResults) {
-    ownerResults.forEach((result, i) => {
-      if (result.status === 'success' && (result.result as string).toLowerCase() === address.toLowerCase()) {
-        ownedSet.add(allTokenIds[i].toString());
-      }
-    });
-  }
-  // Also add owned tokens from Alchemy owned endpoint
-  if (ownedData.length > 0) {
-    ownedData.forEach(t => ownedSet.add(t.tokenId));
-  }
+let namesRequest: Promise<string[] | null> | null = null;
+function loadNames(): Promise<string[] | null> {
+  namesRequest ??= fetch('/data/booa-names.json')
+    .then((r) => (r.ok ? (r.json() as Promise<string[]>) : null), () => null)
+    .then((n) => { if (!n) namesRequest = null; return n; });
+  return namesRequest;
+}
 
-  // When filter is 'mine', return owned tokens directly from Alchemy
-  const tokens: GalleryToken[] = filter === 'mine'
-    ? ownedData.map((t) => ({
-        tokenId: BigInt(t.tokenId),
-        svg: t.svg,
-        name: t.name,
-        isOwned: true,
-      }))
-    : galleryData.map((t) => ({
-        tokenId: BigInt(t.tokenId),
-        svg: t.svg,
-        name: t.name,
-        isOwned: ownedSet.has(t.tokenId),
-      }));
+export function useGalleryTokens(filter: GalleryFilter = 'newest') {
+  const { address } = useAccount();
+  const [names, setNames] = useState<string[] | null>(null);
+  const [owned, setOwned] = useState<Set<string> | null>(null);
+  const [ownedError, setOwnedError] = useState(false);
 
-  const refetch = useCallback(async () => {
-    fetchedRef.current = false;
-    nextTokenRef.current = undefined;
-    setHasMore(true);
-    setGalleryData([]);
-    setOwnedData([]);
-    setOwnedFetched(false);
-    await fetchPage(true);
-  }, [fetchPage]);
+  useEffect(() => {
+    let alive = true;
+    void loadNames().then((n) => { if (alive) setNames(n); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    setOwned(null);
+    setOwnedError(false);
+    if (!address) return;
+    let alive = true;
+    fetch(`/api/fetch-nfts?address=${address}&chain=ethereum&contract=${BOOA_ETH_ADDRESS}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`fetch-nfts ${r.status}`))))
+      .then((d: { nfts?: { tokenId: string }[] }) => { if (alive) setOwned(new Set((d.nfts ?? []).map((n) => n.tokenId))); })
+      .catch(() => { if (alive) setOwnedError(true); });
+    return () => { alive = false; };
+  }, [address]);
+
+  const tokens = useMemo(() => buildGallery(names, owned, filter), [names, owned, filter]);
 
   return {
     tokens,
-    totalSupply: galleryData.length,
-    isLoading: filter === 'mine' ? ownedLoading : isLoading,
-    hasMore: filter === 'mine' ? false : hasMore,
-    loadMore,
-    refetch,
+    totalSupply: MIGRATION_MAX_SUPPLY,
+    isLoading: filter === 'mine' && !!address && !owned && !ownedError,
+    connected: !!address,
+    ownedError,
   };
 }

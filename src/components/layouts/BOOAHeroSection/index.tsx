@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Github } from 'lucide-react';
-import { useGalleryTokens } from '@/hooks/useGalleryTokens';
+import { booaImageUrl } from '@/hooks/useGalleryTokens';
+import { MIGRATION_MAX_SUPPLY } from '@/lib/contracts/booa-eth';
 import { useReadContract } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
@@ -58,15 +59,9 @@ function LiveStats() {
   );
 }
 
+const RECENT = Array.from({ length: 8 }, (_, i) => MIGRATION_MAX_SUPPLY - 1 - i);
+
 function RecentMints() {
-  const { tokens, isLoading } = useGalleryTokens();
-
-  const recent = [...tokens]
-    .sort((a, b) => Number(b.tokenId - a.tokenId))
-    .slice(0, 8)
-    .filter(t => t.svg);
-
-  if (isLoading || recent.length === 0) return null;
 
   return (
     <div className="space-y-4">
@@ -74,22 +69,22 @@ function RecentMints() {
         recent mints
       </p>
       <div className="flex justify-center gap-3 flex-wrap">
-        {recent.map((token) => (
+        {RECENT.map((tokenId) => (
           <Link
-            key={token.tokenId.toString()}
+            key={tokenId}
             href="/booa/gallery"
             className="group"
           >
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800 overflow-hidden transition-transform duration-200 group-hover:scale-110">
               <img
-                src={`data:image/svg+xml,${encodeURIComponent(token.svg!)}`}
-                alt={`Agent #${token.tokenId.toString()}`}
+                src={booaImageUrl(tokenId)}
+                alt={`Agent #${tokenId}`}
                 className="w-full h-full object-contain"
                 style={{ imageRendering: 'pixelated' }}
               />
             </div>
             <p className="text-[9px] text-muted-foreground text-center mt-1" style={font}>
-              #{token.tokenId.toString()}
+              #{tokenId}
             </p>
           </Link>
         ))}

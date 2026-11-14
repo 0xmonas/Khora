@@ -1,17 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { booaImageUrl } from '@/hooks/useGalleryTokens';
 
 interface GalleryThumbnailProps {
   tokenId: bigint;
-  svg: string | null;
   name: string;
   isOwned: boolean;
   onClick?: () => void;
 }
 
-export function GalleryThumbnail({ tokenId, svg, name, isOwned, onClick }: GalleryThumbnailProps) {
+export function GalleryThumbnail({ tokenId, name, isOwned, onClick }: GalleryThumbnailProps) {
   const [hovered, setHovered] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const ringClass = isOwned
     ? 'ring-2 ring-green-500'
@@ -24,16 +25,17 @@ export function GalleryThumbnail({ tokenId, svg, name, isOwned, onClick }: Galle
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
     >
-      {svg ? (
+      {failed ? (
+        <div className="w-full h-full flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 font-mono text-[9px] text-neutral-500">#{tokenId.toString()}</div>
+      ) : (
         <img
-          src={`data:image/svg+xml,${encodeURIComponent(svg)}`}
+          src={booaImageUrl(tokenId)}
           alt={`Token #${tokenId.toString()}`}
           className="w-full h-full object-contain"
           style={{ imageRendering: 'pixelated' }}
           loading="lazy"
+          onError={() => setFailed(true)}
         />
-      ) : (
-        <div className="w-full h-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
       )}
 
       {hovered && (

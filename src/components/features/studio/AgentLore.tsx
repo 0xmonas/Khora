@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useChainId, useReadContract } from 'wagmi';
-import { useGalleryTokens } from '@/hooks/useGalleryTokens';
+import { useReadContract } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
+import { useGalleryTokens, booaImageUrl } from '@/hooks/useGalleryTokens';
 import { Eye, EyeOff, ExternalLink, RefreshCw, ChevronDown, Copy, Check, Download } from 'lucide-react';
 import { sfx } from '@/lib/sounds';
 import {
   getV2Address,
   getV2StorageAddress,
-  getV2ChainId,
   BOOA_V2_ABI,
   BOOA_V2_STORAGE_ABI,
 } from '@/lib/contracts/booa-v2';
@@ -89,8 +89,7 @@ function parseTokenURI(uri: string | undefined): { name: string | null; image: s
 }
 
 export function AgentLore() {
-  const walletChainId = useChainId();
-  const targetChainId = getV2ChainId(walletChainId);
+  const targetChainId = mainnet.id;
   const booaAddress = getV2Address(targetChainId);
   const storageAddress = getV2StorageAddress(targetChainId);
 
@@ -452,10 +451,10 @@ export function AgentLore() {
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-40 transition-colors"
               style={font}
             >
-              {selected?.svg && (
+              {selected && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`data:image/svg+xml,${encodeURIComponent(selected.svg)}`}
+                  src={booaImageUrl(selected.tokenId)}
                   alt=""
                   width={22}
                   height={22}
@@ -488,17 +487,15 @@ export function AgentLore() {
                       }`}
                       style={font}
                     >
-                      {t.svg && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`data:image/svg+xml,${encodeURIComponent(t.svg)}`}
-                          alt=""
-                          width={18}
-                          height={18}
-                          className="rounded flex-shrink-0"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={booaImageUrl(t.tokenId)}
+                        alt=""
+                        width={18}
+                        height={18}
+                        className="rounded flex-shrink-0"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
                       <span className="truncate">{t.name}</span>
                     </button>
                   );

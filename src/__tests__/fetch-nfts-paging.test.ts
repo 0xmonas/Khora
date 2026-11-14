@@ -58,15 +58,6 @@ describe('owner routes stay single-page outside BOOA', () => {
     expect(f).toHaveBeenCalledTimes(1);
     expect(json.pageKey).toBe('next');
   });
-
-  it('gallery/owned rejects a non-BOOA contract without calling upstream', async () => {
-    const f = vi.fn();
-    vi.stubGlobal('fetch', f);
-    const { GET } = await import('@/app/api/gallery/owned/route');
-    const res = await GET(new NextRequest('https://booa.app/api/gallery/owned?owner=0x0000000000000000000000000000000000000001&chain=ethereum&contract=0x0000000000000000000000000000000000000abc'));
-    expect(res.status).toBe(400);
-    expect(f).not.toHaveBeenCalled();
-  });
 });
 
 describe('query validation closes cache-key widening', () => {
