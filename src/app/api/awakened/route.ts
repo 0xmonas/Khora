@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
       agentId: e.agentId,
       holder: null as string | null,
       walletLinked: false,
+      walletStale: false,
       awakenedBy: e.awakenedBy.toLowerCase(),
       awakenedAt: e.awakenedAt,
       txHash: e.txHash,
@@ -82,10 +83,14 @@ export async function GET(req: NextRequest) {
       enriched = enriched.map((row, i) => {
         const o = owners[i] as { status: string; result?: string };
         const w = wallets[i] as { status: string; result?: string };
+        const holder = o.status === 'success' && o.result ? (o.result as string).toLowerCase() : null;
+        const walletLinked = w.status === 'success' && !!w.result && (w.result as string).toLowerCase() !== ZERO;
+        const setBy = events[i].walletSetBy;
         return {
           ...row,
-          holder: o.status === 'success' && o.result ? (o.result as string).toLowerCase() : null,
-          walletLinked: w.status === 'success' && !!w.result && (w.result as string).toLowerCase() !== ZERO,
+          holder,
+          walletLinked,
+          walletStale: walletLinked && !!setBy && !!holder && setBy !== holder,
         };
       });
     }

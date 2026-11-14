@@ -5,6 +5,7 @@
 // every surface (Agent Chat, BOOASK, Wiki, /api/awakened) resolves binding facts
 // from, so the numbers never disagree.
 
+import { createPublicClient, fallback, http, parseAbiItem } from 'viem';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { getV2Address } from '@/lib/contracts/booa-v2';
 import { CHAIN_CONFIG } from '@/types/agent';
@@ -29,6 +30,10 @@ function rpcUrlsFor(chainId: number): string[] {
 
 const AGENT_BOUND_EVENT =
   'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)';
+const WALLET_EVENTS = [
+  parseAbiItem('event AgentWalletSet(uint256 indexed agentId, address indexed newWallet, address indexed updatedBy)'),
+  parseAbiItem('event AgentWalletUnset(uint256 indexed agentId, address indexed updatedBy)'),
+] as const;
 
 // eth_getLogs page size + a per-call page cap. The index is cumulative and persisted,
 // so a long-idle instance catches up over successive calls instead of one huge scan.
@@ -54,6 +59,8 @@ export interface Awakening {
   block: number;
   awakenedAt: number | null; // ms
   txHash: string;
+  walletSetBy: string | null;
+  walletBlock: number;
 }
 
 interface AwakenedIndex {
@@ -62,11 +69,15 @@ interface AwakenedIndex {
   updatedAt: number; // ms
 }
 
+const clients = new Map<number, ReturnType<typeof createPublicClient>>();
 async function makeClient(chainId: number) {
-  const { createPublicClient, http, fallback } = await import('viem');
+  const cached = clients.get(chainId);
+  if (cached) return cached;
   const urls = rpcUrlsFor(chainId);
   if (urls.length === 0) return null;
-  return createPublicClient({ transport: fallback(urls.map((u) => http(u))) });
+  const client = createPublicClient({ transport: fallback(urls.map((u) => http(u))) });
+  clients.set(chainId, client);
+  return client;
 }
 
 /**
@@ -78,7 +89,7 @@ async function makeClient(chainId: number) {
  * stored cursor (bounded per call), so cost stays low once caught up. `fresh` forces
  * a delta scan even when the index was refreshed within FRESH_WINDOW_MS.
  */
-const INDEX_KEY = (chainId: number) => `awakened:index:v1:${chainId}`;
+const INDEX_KEY = (chainId: number) => `awakened:index:v2:${chainId}`;
 
 export async function scanAwakenings(chainId: number, fresh = false): Promise<Awakening[]> {
   const adapter = getAdapterAddress(chainId);
@@ -105,23 +116,36 @@ export async function scanAwakenings(chainId: number, fresh = false): Promise<Aw
     return index?.agents ?? [];
   }
 
-  const { parseAbiItem } = await import('viem');
   const event = parseAbiItem(AGENT_BOUND_EVENT);
 
   // AgentBound has a non-indexed tokenId; filter by the indexed tokenContract.
   const fresh_raw: { agentId: number; tokenId: number; awakenedBy: string; block: bigint; txHash: string }[] = [];
+  const walletRaw: { agentId: number; by: string | null; block: number; logIndex: number }[] = [];
   let cursor = fromBlock;
   let scannedTo = index ? BigInt(index.cursor) : floor - BigInt(1);
   for (let i = 0; i < CATCHUP_PAGES && cursor <= latest; i++) {
     const to = cursor + LOG_PAGE > latest ? latest : cursor + LOG_PAGE;
     try {
-      const logs = await client.getLogs({
-        address: adapter,
-        event,
-        args: { tokenContract: booa as `0x${string}` },
-        fromBlock: cursor,
-        toBlock: to,
-      });
+      const [logs, walletLogs] = await Promise.all([
+        client.getLogs({
+          address: adapter,
+          event,
+          args: { tokenContract: booa as `0x${string}` },
+          fromBlock: cursor,
+          toBlock: to,
+        }),
+        client.getLogs({ address: adapter, events: WALLET_EVENTS, fromBlock: cursor, toBlock: to }),
+      ]);
+      for (const l of walletLogs) {
+        const args = l.args as { agentId?: bigint; updatedBy?: string };
+        if (args.agentId === undefined) continue;
+        walletRaw.push({
+          agentId: Number(args.agentId),
+          by: l.eventName === 'AgentWalletSet' && args.updatedBy ? args.updatedBy.toLowerCase() : null,
+          block: Number(l.blockNumber ?? 0),
+          logIndex: l.logIndex ?? 0,
+        });
+      }
       for (const l of logs) {
         fresh_raw.push({
           agentId: Number(l.args.agentId),
@@ -151,6 +175,8 @@ export async function scanAwakenings(chainId: number, fresh = false): Promise<Aw
     block: Number(r.block),
     awakenedAt: blocks[i] ? Number(blocks[i]!.timestamp) * 1000 : null,
     txHash: r.txHash,
+    walletSetBy: null,
+    walletBlock: 0,
   }));
 
   // Merge into the cumulative set, deduped by tokenId keeping the newest binding.
@@ -159,6 +185,15 @@ export async function scanAwakenings(chainId: number, fresh = false): Promise<Aw
   for (const a of newEvents) {
     const prev = newestByToken.get(a.tokenId);
     if (!prev || a.block > prev.block) newestByToken.set(a.tokenId, a);
+  }
+  const byAgent = new Map(Array.from(newestByToken.values()).map((a) => [a.agentId, a]));
+  walletRaw.sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
+  for (const w of walletRaw) {
+    const a = byAgent.get(w.agentId);
+    if (a && w.block >= a.walletBlock) {
+      a.walletSetBy = w.by;
+      a.walletBlock = w.block;
+    }
   }
   const merged = Array.from(newestByToken.values()).sort((a, b) => b.block - a.block);
 

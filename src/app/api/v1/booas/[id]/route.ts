@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rejectUnknownParams } from '@/lib/server/query-params';
-import { getBooaAgent, getBooaCurrent, getBooaMint, isTokenId } from '@/lib/server/booa';
+import { getBooaAgent, getBooaCurrent, getBooaMint, isTokenId, walletStale } from '@/lib/server/booa';
 import { traitsToAgent } from '@/utils/helpers/exportFormats';
 
 export const maxDuration = 15;
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         identity: identity(current.attributes),
         attributes: current.attributes,
         mint: { identity: identity(mint.attributes), attributes: mint.attributes },
-        agent,
+        agent: agent ? { ...agent, walletStale: walletStale(agent, current.owner) } : null,
         image: { live: `${base}/image.svg`, original: `${base}/image.svg?variant=original` },
         files: Object.fromEntries(FILES.map((f) => [f, `${base}/${f}`])),
       },

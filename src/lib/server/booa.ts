@@ -33,6 +33,11 @@ export interface BooaAgentLink {
   awakenedBy: string;
   awakenedAt: number | null;
   agentWallet: string | null;
+  walletSetBy: string | null;
+}
+
+export function walletStale(link: { agentWallet: string | null; walletSetBy: string | null }, owner: string | null): boolean {
+  return !!(link.agentWallet && link.walletSetBy && owner && link.walletSetBy !== owner.toLowerCase());
 }
 
 export function isTokenId(id: number): boolean {
@@ -106,6 +111,7 @@ export async function getBooaAgent(id: number): Promise<BooaAgentLink | null> {
       awakenedBy: awakening.awakenedBy.toLowerCase(),
       awakenedAt: awakening.awakenedAt,
       agentWallet: wallet && wallet.toLowerCase() !== ZERO ? wallet.toLowerCase() : null,
+      walletSetBy: awakening.walletSetBy ?? null,
     };
   });
 }

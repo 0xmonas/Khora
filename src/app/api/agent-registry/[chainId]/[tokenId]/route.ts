@@ -593,6 +593,14 @@ export async function GET(
       }
     } catch { /* no agent wallet set (or read failed) — leave null */ }
   }
+  let agentWalletSetBy: string | null = null;
+  if (agentWallet) {
+    try {
+      const { findAwakening } = await import('@/lib/server/awakened');
+      agentWalletSetBy = (await findAwakening(chainIdNum, tokenIdNum))?.walletSetBy ?? null;
+    } catch { /* index unavailable — setter unknown */ }
+  }
+  const agentWalletStale = !!(agentWallet && agentWalletSetBy && controller && agentWalletSetBy !== controller.toLowerCase());
 
   // No metadata and no registration found
   if (!entry && verification.agentId === null) {
@@ -614,6 +622,8 @@ export async function GET(
       bindingContract,
       controller,
       agentWallet,
+      agentWalletSetBy,
+      agentWalletStale,
     }, {
       headers: { 'Cache-Control': 'public, max-age=300' },
     });
@@ -674,6 +684,8 @@ export async function GET(
     bindingContract,
     controller,
     agentWallet,
+    agentWalletSetBy,
+    agentWalletStale,
   }, {
     headers: { 'Cache-Control': 'public, max-age=300' },
   });
