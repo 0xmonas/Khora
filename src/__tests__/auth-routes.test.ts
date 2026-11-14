@@ -387,6 +387,30 @@ describe('Auth Routes', () => {
       expect(mockVerifySiweMessage).not.toHaveBeenCalled();
     });
 
+    it('signs in an EOA on a chain the app offers but viem cannot verify contracts on', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({ ...parsedOk(), chainId: 4663 });
+      mockVerifyMessage.mockResolvedValueOnce(true);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(200);
+      expect(mockSession.chainId).toBe(4663);
+    });
+
+    it('rejects a smart-account signature on such a chain without calling any RPC', async () => {
+      mockSession.nonce = 'test-nonce';
+      mockParseSiweMessage.mockReturnValue({ ...parsedOk(), chainId: 4663 });
+      mockVerifyMessage.mockResolvedValueOnce(false);
+
+      const { POST } = await import('@/app/api/auth/verify/route');
+      const res = await POST(makeRequest({ message: validMessage, signature: validSignature }));
+
+      expect(res.status).toBe(401);
+      expect(mockVerifySiweMessage).not.toHaveBeenCalled();
+    });
+
     it('should fall through to the chain when recovery cannot explain the signature', async () => {
       mockSession.nonce = 'test-nonce';
       mockParseSiweMessage.mockReturnValue(parsedOk());

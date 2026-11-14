@@ -6,6 +6,7 @@ import { shape, shapeSepolia, mainnet, base, arbitrum, optimism, polygon, avalan
 import { parseSiweMessage, validateSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { sessionOptions, type SessionData } from '@/lib/session';
 import { serverRpcUrl } from '@/lib/chains/rpc';
+import { CHAIN_CONFIG } from '@/types/agent';
 
 export const maxDuration = 15;
 
@@ -28,6 +29,7 @@ const CHAINS: Record<number, any> = {
   [linea.id]: linea,
   [mantle.id]: mantle,
 };
+const SUPPORTED_CHAIN_IDS = new Set(Object.values(CHAIN_CONFIG).map((c) => c.chainId));
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,8 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Chain must be supported
-    const chain = CHAINS[parsed.chainId as keyof typeof CHAINS];
-    if (!chain) {
+    if (!parsed.chainId || !SUPPORTED_CHAIN_IDS.has(parsed.chainId)) {
       session.nonce = undefined;
       await session.save();
       return NextResponse.json({ error: 'Unsupported chain' }, { status: 400 });
@@ -103,7 +104,8 @@ export async function POST(request: NextRequest) {
     let isValid =
       fieldsValid &&
       (await verifyMessage({ address: parsed.address, message, signature: sig }).catch(() => false));
-    if (fieldsValid && !isValid) {
+    const chain = CHAINS[parsed.chainId as keyof typeof CHAINS];
+    if (fieldsValid && !isValid && chain) {
       const publicClient = createPublicClient({
         chain,
         transport: http(serverRpcUrl(chain), { timeout: 4_000, retryCount: 1 }),
