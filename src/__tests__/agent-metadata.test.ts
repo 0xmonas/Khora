@@ -199,18 +199,15 @@ describe('Agent Metadata API', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should return 429 when rate limited', async () => {
-      mockGeneralLimit.mockResolvedValueOnce({
-        success: false, limit: 60, remaining: 0, reset: Date.now() + 60000,
-      });
+    it('leaves rate limiting to the middleware', async () => {
       const { GET } = await import('@/app/api/agent-metadata/route');
-      const res = await GET(
+      await GET(
         makeGetRequest(
           { chainId: '11011', tokenId: '1', address: VALID_ADDRESS },
           { 'x-siwe-address': VALID_ADDRESS },
         ),
       );
-      expect(res.status).toBe(429);
+      expect(mockGeneralLimit).not.toHaveBeenCalled();
     });
   });
 
@@ -358,13 +355,10 @@ describe('Agent Metadata API', () => {
       expect(res.status).toBe(200);
     });
 
-    it('should return 429 when rate limited', async () => {
-      mockWriteLimit.mockResolvedValueOnce({
-        success: false, limit: 30, remaining: 0, reset: Date.now() + 60000,
-      });
+    it('leaves rate limiting to the middleware', async () => {
       const { POST } = await import('@/app/api/agent-metadata/route');
-      const res = await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
-      expect(res.status).toBe(429);
+      await POST(makePostRequest(validBody, { 'x-siwe-address': VALID_ADDRESS.toLowerCase() }));
+      expect(mockWriteLimit).not.toHaveBeenCalled();
     });
 
     it('should store metadata without TTL (permanent)', async () => {

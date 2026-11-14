@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAddress } from 'viem';
 import { findBurnedUnclaimed } from '@/lib/server/migration';
-import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
@@ -16,12 +15,6 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ address: string }> },
 ) {
-  const ip = getIP(req);
-  const rl = await generalLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
-  }
-
   const { address } = await context.params;
   if (!ADDR_RE.test(address)) {
     return NextResponse.json({ error: 'Invalid address' }, { status: 400 });
@@ -31,7 +24,7 @@ export async function GET(
     const tokenIds = await findBurnedUnclaimed(getAddress(address));
     return NextResponse.json(
       { address, count: tokenIds.length, tokenIds },
-      { headers: { 'Cache-Control': 'private, max-age=15', ...rateLimitHeaders(rl) } },
+      { headers: { 'Cache-Control': 'private, max-age=15' } },
     );
   } catch {
     return NextResponse.json({ error: 'Failed to scan burns' }, { status: 500 });

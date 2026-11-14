@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CHAIN_CONFIG } from '@/types/agent';
 import { getRedis } from '@/lib/server/redis';
-import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 15;
 
@@ -10,15 +9,6 @@ const VALID_CHAIN_IDS = new Set(
 );
 
 export async function GET(request: NextRequest) {
-  const ip = getIP(request);
-  const rl = await generalLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: rateLimitHeaders(rl) },
-    );
-  }
-
   const filterChainId = request.nextUrl.searchParams.get('chainId');
 
   try {

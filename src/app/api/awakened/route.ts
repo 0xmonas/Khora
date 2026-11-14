@@ -4,7 +4,6 @@ import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
 import { getV2Address } from '@/lib/contracts/booa-v2';
 import { CHAIN_CONFIG } from '@/types/agent';
 import { getRedis } from '@/lib/server/redis';
-import { generalLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 
 export const maxDuration = 120;
 
@@ -28,12 +27,6 @@ const ZERO = '0x0000000000000000000000000000000000000000';
  * getAgentWallet); cached in Redis so the shared adapter isn't rescanned per hit.
  */
 export async function GET(req: NextRequest) {
-  const ip = getIP(req);
-  const rl = await generalLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
-  }
-
   const chainId = Number(req.nextUrl.searchParams.get('chainId') || ETH_MAINNET);
   if (!Number.isInteger(chainId) || !Object.values(CHAIN_CONFIG).some((c) => c.chainId === chainId)) {
     return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
@@ -49,7 +42,7 @@ export async function GET(req: NextRequest) {
     try {
       const cached = await redis.get<unknown>(CACHE_KEY(chainId));
       if (cached) {
-        return NextResponse.json(cached, { headers: { 'Cache-Control': 'public, s-maxage=120', ...rateLimitHeaders(rl) } });
+        return NextResponse.json(cached, { headers: { 'Cache-Control': 'public, s-maxage=120' } });
       }
     } catch { /* cache miss */ }
   }
@@ -103,7 +96,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(payload, {
       headers: {
         'Cache-Control': fresh ? 'no-store' : 'public, s-maxage=120',
-        ...rateLimitHeaders(rl),
       },
     });
   } catch {

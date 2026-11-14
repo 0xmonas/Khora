@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { toERC8004 } from '@/utils/helpers/exportFormats';
 import { getRegistryAddress } from '@/lib/contracts/identity-registry';
 import { getAdapterAddress } from '@/lib/contracts/booa-adapter';
-import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import type { BooaAgent } from '@/types/agent';
 import { BOOA_NFT_ABI, isMainnetChain, isTestnetChain } from '@/lib/contracts/booa';
 import type { Chain } from 'viem';
@@ -535,15 +534,6 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ chainId: string; tokenId: string }> },
 ) {
-  const ip = getIP(req);
-  const rl = await generalLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: rateLimitHeaders(rl) },
-    );
-  }
-
   const { chainId, tokenId } = await params;
   const chainIdNum = Number(chainId);
   const tokenIdNum = Number(tokenId);
@@ -619,7 +609,7 @@ export async function GET(
       controller,
       agentWallet,
     }, {
-      headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
+      headers: { 'Cache-Control': 'public, max-age=300' },
     });
   }
 
@@ -679,7 +669,7 @@ export async function GET(
     controller,
     agentWallet,
   }, {
-    headers: { 'Cache-Control': 'public, max-age=300', ...rateLimitHeaders(rl) },
+    headers: { 'Cache-Control': 'public, max-age=300' },
   });
 }
 
@@ -697,15 +687,6 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ chainId: string; tokenId: string }> },
 ) {
-  const ip = getIP(req);
-  const rl = await writeLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: rateLimitHeaders(rl) },
-    );
-  }
-
   const { chainId, tokenId } = await params;
   const chainIdNum = Number(chainId);
   const tokenIdNum = Number(tokenId);
@@ -910,5 +891,5 @@ export async function POST(
     txHash,
   });
 
-  return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });
+  return NextResponse.json({ ok: true });
 }

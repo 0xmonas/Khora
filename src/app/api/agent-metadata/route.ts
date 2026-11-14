@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generalLimiter, writeLimiter, getIP, rateLimitHeaders } from '@/lib/ratelimit';
 import { getRedis } from '@/lib/server/redis';
 
 export const maxDuration = 15;
@@ -27,15 +26,6 @@ function makeKey(chainId: number, tokenId: number) {
 // GET /api/agent-metadata?chainId=84532&tokenId=1&address=0x...
 // Only the authenticated minter can retrieve full metadata
 export async function GET(req: NextRequest) {
-  const ip = getIP(req);
-  const rl = await generalLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: rateLimitHeaders(rl) },
-    );
-  }
-
   // Require SIWE authentication
   const sessionAddress = req.headers.get('x-siwe-address');
   if (!sessionAddress) {
@@ -57,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   // Verify the requesting address matches the authenticated session
   if (address.toLowerCase() !== sessionAddress.toLowerCase()) {
-    return NextResponse.json({ found: false }, { headers: rateLimitHeaders(rl) });
+    return NextResponse.json({ found: false });
   }
 
   const chainIdNum = Number(chainId);
@@ -73,13 +63,13 @@ export async function GET(req: NextRequest) {
   const entry = await redis.get<Record<string, unknown>>(key);
 
   if (!entry) {
-    return NextResponse.json({ found: false }, { headers: rateLimitHeaders(rl) });
+    return NextResponse.json({ found: false });
   }
 
   // Only the minter can access the full metadata
   const minter = (entry._minter as string) || '';
   if (minter && address.toLowerCase() !== minter.toLowerCase()) {
-    return NextResponse.json({ found: false }, { headers: rateLimitHeaders(rl) });
+    return NextResponse.json({ found: false });
   }
 
   // Strip internal fields before returning
@@ -88,21 +78,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     { found: true, metadata: publicMetadata },
-    { headers: rateLimitHeaders(rl) },
   );
 }
 
 // POST /api/agent-metadata — save full agent metadata (permanent, no TTL)
 export async function POST(req: NextRequest) {
-  const ip = getIP(req);
-  const rl = await writeLimiter.limit(ip);
-  if (!rl.success) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: rateLimitHeaders(rl) },
-    );
-  }
-
   const body = await req.json();
   const { address, chainId, tokenId, agent } = body;
 
@@ -178,5 +158,5 @@ export async function POST(req: NextRequest) {
     _updatedAt: Date.now(),
   });
 
-  return NextResponse.json({ ok: true }, { headers: rateLimitHeaders(rl) });
+  return NextResponse.json({ ok: true });
 }
