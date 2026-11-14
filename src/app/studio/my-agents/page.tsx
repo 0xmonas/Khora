@@ -50,6 +50,7 @@ interface AgentTile {
   // Lazily resolved from /api/agent-registry:
   verified: boolean | null;
   agentWallet: string | null;
+  walletStale: boolean;
   services: number | null;
   skills: number | null;
   detailLoaded: boolean;
@@ -160,12 +161,17 @@ function Tile({ tile, booaEth, adapter, highlight, onLink }: {
                 className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground transition-colors"
                 style={font}
               >
-                {tile.agentWallet ? 'Change' : 'Link'}
+                {tile.walletStale ? 'Relink' : tile.agentWallet ? 'Change' : 'Link'}
               </button>
             </div>
             <p className="text-[10px] text-foreground/80 truncate" style={font}>
               {tile.agentWallet ? `${tile.agentWallet.slice(0, 10)}…${tile.agentWallet.slice(-6)}` : '—'}
             </p>
+            {tile.walletStale && (
+              <p className="text-[9px] text-amber-600 dark:text-amber-500" style={font}>
+                Set by another wallet, likely a previous holder. Relink it to your own agent.
+              </p>
+            )}
             {(tile.services !== null || tile.skills !== null) && (
               <p className="text-[9px] text-muted-foreground/60" style={font}>
                 {tile.services ?? 0} services · {tile.skills ?? 0} skills
@@ -263,6 +269,7 @@ function MyAgentsInner() {
             walletLinked: a ? a.walletLinked : false,
             verified: null,
             agentWallet: null,
+            walletStale: false,
             services: null,
             skills: null,
             detailLoaded: false,
@@ -302,6 +309,7 @@ function MyAgentsInner() {
             ...p,
             verified: !!d.verified,
             agentWallet: typeof d.agentWallet === 'string' ? d.agentWallet : null,
+            walletStale: !!d.agentWalletStale,
             walletLinked: !!d.agentWallet || p.walletLinked,
             services: Array.isArray(d.services) ? d.services.length : 0,
             skills: Array.isArray(d.skills) ? d.skills.length : 0,
@@ -429,7 +437,7 @@ function MyAgentsInner() {
           adapterAddress={adapter as `0x${string}`}
           currentWallet={linkTarget.agentWallet}
           onLinked={(wallet) => {
-            setTiles((prev) => prev.map((p) => (p.tokenId === linkTarget.tokenId ? { ...p, agentWallet: wallet, walletLinked: true } : p)));
+            setTiles((prev) => prev.map((p) => (p.tokenId === linkTarget.tokenId ? { ...p, agentWallet: wallet, walletLinked: true, walletStale: false } : p)));
           }}
         />
       )}
