@@ -7,11 +7,6 @@ const safeString = (max: number) =>
     'Contains invalid control characters',
   );
 
-export const generateAgentSchema = z.object({
-  name: safeString(100).pipe(z.string().min(1, 'Name is required')),
-  description: safeString(1000).pipe(z.string().min(1, 'Description is required')),
-});
-
 export const fetchAgentSchema = z.object({
   chain: z.enum([
     // Mainnets
@@ -23,13 +18,6 @@ export const fetchAgentSchema = z.object({
     'base-sepolia', 'shape-sepolia', 'robinhood-testnet',
   ]),
   agentId: z.number().int().positive('Agent ID must be a positive integer').max(100_000_000, 'Agent ID too large'),
-});
-
-export const enrichAgentSchema = z.object({
-  name: safeString(100).pipe(z.string().min(1)),
-  description: safeString(1000).pipe(z.string().min(1)),
-  skills: z.array(safeString(100)).max(20).default([]),
-  domains: z.array(safeString(100)).max(20).default([]),
 });
 
 export const discoverAgentsSchema = z.object({

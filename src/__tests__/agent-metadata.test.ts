@@ -31,7 +31,6 @@ vi.mock('@/lib/ratelimit', () => ({
     'X-RateLimit-Remaining': result.remaining.toString(),
     'X-RateLimit-Reset': result.reset.toString(),
   }),
-  resetGenerationQuota: vi.fn(),
 }));
 
 const mockOwnsBooa = vi.fn().mockResolvedValue(true);

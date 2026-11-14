@@ -72,7 +72,7 @@ describe('Middleware', () => {
   it('should return 401 for protected route without session', async () => {
     const { middleware } = await import('@/middleware');
 
-    const response = await middleware(makeRequest('/api/generate-agent'));
+    const response = await middleware(makeRequest('/api/agent-chat'));
 
     expect(response.status).toBe(401);
     const body = await response.json();
@@ -92,7 +92,7 @@ describe('Middleware', () => {
 
     const { middleware } = await import('@/middleware');
 
-    const response = await middleware(makeRequest('/api/generate-agent'));
+    const response = await middleware(makeRequest('/api/agent-chat'));
 
     // NextResponse.next() returns 200
     expect(response.status).toBe(200);
@@ -104,7 +104,7 @@ describe('Middleware', () => {
 
     const { middleware } = await import('@/middleware');
 
-    const response = await middleware(makeRequest('/api/generate-agent'));
+    const response = await middleware(makeRequest('/api/agent-chat'));
 
     // The middleware adds headers to the request (forwarded via NextResponse.next({ request: { headers } }))
     // We check the response was not a 401
@@ -139,7 +139,7 @@ describe('Middleware', () => {
 
     const { middleware } = await import('@/middleware');
 
-    const response = await middleware(makeRequest('/api/generate-agent'));
+    const response = await middleware(makeRequest('/api/agent-chat'));
     expect(response.status).toBe(401);
   });
 

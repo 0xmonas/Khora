@@ -2,10 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { validateInput } from '@/lib/api/api-helpers';
-import { enrichAgentSchema } from '@/lib/validation/schemas';
 
 const LIMIT = 64 * 1024;
-const url = 'https://booa.app/api/enrich-agent';
+const url = 'https://booa.app/api/fetch-agent';
 const post = (body: string, headers: Record<string, string> = {}) =>
   new NextRequest(url, { method: 'POST', body, headers });
 const streamed = (chunks: string[], onPull?: () => void, headers: Record<string, string> = {}) => {
@@ -21,19 +20,12 @@ const streamed = (chunks: string[], onPull?: () => void, headers: Record<string,
   return new NextRequest(url, { method: 'POST', body: stream, headers, duplex: 'half' } as ConstructorParameters<typeof NextRequest>[1]);
 };
 const schema = z.object({ a: z.string() });
+const listSchema = z.object({ skills: z.array(z.string().max(100)).max(20) });
 
 describe('validateInput body limit', () => {
   it('accepts a normal body', async () => {
     const r = await validateInput(post('{"a":"x"}'), schema);
     expect('data' in r && r.data).toEqual({ a: 'x' });
-  });
-
-  it('accepts the largest valid enrich body', async () => {
-    const big = '界'.repeat(100);
-    const body = JSON.stringify({ name: big, description: '界'.repeat(1000), skills: Array(20).fill(big), domains: Array(20).fill(big) });
-    expect(Buffer.byteLength(body)).toBeLessThan(LIMIT);
-    const r = await validateInput(post(body), enrichAgentSchema);
-    expect('data' in r).toBe(true);
   });
 
   it('accepts a body of exactly the limit', async () => {
@@ -65,9 +57,9 @@ describe('validateInput body limit', () => {
   });
 
   it('never parses the oversized array that used to exhaust memory', async () => {
-    const parse = vi.spyOn(enrichAgentSchema, 'parse');
-    const body = JSON.stringify({ name: 'a', description: 'b', skills: new Array(2_000_000).fill(1) });
-    const r = await validateInput(post(body), enrichAgentSchema);
+    const parse = vi.spyOn(listSchema, 'parse');
+    const body = JSON.stringify({ skills: new Array(2_000_000).fill(1) });
+    const r = await validateInput(post(body), listSchema);
     expect('error' in r && r.error.status).toBe(413);
     expect(parse).not.toHaveBeenCalled();
     parse.mockRestore();
