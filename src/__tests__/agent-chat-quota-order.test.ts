@@ -9,6 +9,8 @@ vi.mock('@/lib/server/redis', () => ({
 const checkChatQuota = vi.fn(async () => ({ allowed: true, remaining: 9 }));
 vi.mock('@/lib/ratelimit', () => ({ checkChatQuota: (...a: unknown[]) => checkChatQuota(...(a as [])) }));
 
+vi.mock('@/lib/server/booa', () => ({ getBooaCurrent: vi.fn() }));
+
 vi.mock('viem', () => ({
   createPublicClient: () => ({ readContract: async () => '0x000000000000000000000000000000000000dEaD' }),
   http: () => ({}),

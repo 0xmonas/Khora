@@ -3,6 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 import { checkChatQuota } from '@/lib/ratelimit';
 import { getRedis } from '@/lib/server/redis';
 import { normalizeGeminiKey } from '@/lib/server/byok';
+import { getBooaCurrent } from '@/lib/server/booa';
+import { traitsToAgent } from '@/utils/helpers/exportFormats';
 
 export const maxDuration = 30;
 
@@ -351,7 +353,17 @@ export async function POST(request: NextRequest) {
 
     // Fetch agent metadata — try Redis first, fallback to on-chain tokenURI
     const metadataKey = `agent:metadata:${chainId}:${tokenId}`;
-    let agentData = await redis.get<Record<string, unknown>>(metadataKey);
+    let agentData: Record<string, unknown> | null = null;
+    if (chainId === 1) {
+      try {
+        const { image: _i, services: _s, ...live } = traitsToAgent((await getBooaCurrent(tokenId)).attributes);
+        agentData = live;
+      } catch {
+        return NextResponse.json({ error: 'Could not load agent data' }, { status: 404 });
+      }
+    } else {
+      agentData = await redis.get<Record<string, unknown>>(metadataKey);
+    }
 
     if (!agentData) {
       // Fallback: parse traits from on-chain tokenURI
