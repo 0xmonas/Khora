@@ -5,6 +5,7 @@ import { getRedis } from '@/lib/server/redis';
 import { readWikiContext, type WikiContext } from '@/lib/server/wiki';
 import { normalizeGeminiKey } from '@/lib/server/byok';
 import { isAllowedOrigin } from '@/lib/server/origin';
+import { getBooaCurrent } from '@/lib/server/booa';
 import {
   getV2Address,
   getV2StorageAddress,
@@ -264,7 +265,7 @@ export async function POST(request: NextRequest) {
   });
 
   let tokenOwner: string;
-  let traitsHex: string;
+  let traits: Trait[];
   try {
     const [ownerRes, traitsRes] = await Promise.all([
       client.readContract({
@@ -273,15 +274,17 @@ export async function POST(request: NextRequest) {
         functionName: 'ownerOf',
         args: [BigInt(tokenId)],
       }),
-      client.readContract({
-        address: storageAddress,
-        abi: BOOA_V2_STORAGE_ABI,
-        functionName: 'getTraits',
-        args: [BigInt(tokenId)],
-      }),
+      chainId === ETH_MAINNET
+        ? getBooaCurrent(tokenId).then((c) => c.attributes)
+        : client.readContract({
+            address: storageAddress,
+            abi: BOOA_V2_STORAGE_ABI,
+            functionName: 'getTraits',
+            args: [BigInt(tokenId)],
+          }).then((hex) => decodeTraitsBytes(hex as string)),
     ]);
     tokenOwner = ownerRes as string;
-    traitsHex = traitsRes as string;
+    traits = traitsRes;
   } catch {
     return NextResponse.json(
       { error: 'Chain read failed. The BOOA may not exist or RPC is unreachable.' },
@@ -296,7 +299,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const traits = decodeTraitsBytes(traitsHex);
   if (traits.length === 0) {
     return NextResponse.json({ error: 'No traits found for this BOOA.' }, { status: 404 });
   }
