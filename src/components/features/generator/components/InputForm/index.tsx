@@ -69,7 +69,6 @@ export function InputForm() {
     maxPerWallet,
     userMintCount,
     currentPhase,
-    isUserAllowlisted,
     minterAddress,
     erc8004Services,
     setErc8004Services,
@@ -237,7 +236,6 @@ export function InputForm() {
     if (!isOwner) {
       if (currentPhase === 0) return true; // Closed
       if (isLimitReached) return true;
-      if (currentPhase === 1 && isUserAllowlisted === false) return true;
     }
     if (mode === 'create') {
       return false; // Fully generative — no user input needed
@@ -756,11 +754,6 @@ export function InputForm() {
                 }`}>
                   {currentPhase === 0 ? 'CLOSED' : currentPhase === 1 ? 'ALLOWLIST' : 'PUBLIC'}
                 </span>
-                {currentPhase === 1 && isUserAllowlisted && (
-                  <span className="text-[10px] text-green-600 dark:text-green-400">
-                    ELIGIBLE
-                  </span>
-                )}
               </div>
               {/* Supply + Price */}
               <div className="flex justify-between text-neutral-500">
@@ -786,11 +779,6 @@ export function InputForm() {
               {currentPhase === 0 && !isSoldOut && (
                 <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700">
                   <span className="text-red-600 dark:text-red-400 font-mono text-xs uppercase">Minting is paused</span>
-                </div>
-              )}
-              {currentPhase === 1 && isUserAllowlisted === false && (
-                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
-                  <span className="text-red-600 dark:text-red-400 font-mono text-xs">Your wallet is not on the allowlist</span>
                 </div>
               )}
               {isLimitReached && !isSoldOut && !isOwner && (
