@@ -50,7 +50,7 @@ export default function AgentsPage() {
               {/* Search Card — centered in full col-span-10 */}
               <div className="mt-8 flex justify-center">
                 <TokenLookup
-                  onSubmit={(id, chain) => router.push(`/agent/${chain}/${id}`)}
+                  onSubmit={(id, chain) => router.push(`/agent/${chain === 'shape' ? 'ethereum' : chain}/${id}`)}
                   buttonLabel="VIEW IDENT CARD"
                 />
               </div>

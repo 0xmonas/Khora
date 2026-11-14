@@ -3,6 +3,7 @@ import { CHAIN_CONFIG } from '@/types/agent';
 import type { SupportedChain } from '@/types/agent';
 import { getV2Address, getV2StorageAddress, BOOA_V2_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
 import { calculateAgentScores, type AgentScoreInput } from '@/utils/agent-score';
+import { isTokenId, readArt } from '@/lib/server/booa';
 
 export const revalidate = 300;
 export const contentType = 'image/png';
@@ -19,9 +20,10 @@ export default async function OGImage({
 
   const parsedId = Number(agentId);
   if (
-    (chain !== 'shape' && chain !== 'shape-sepolia') ||
+    (chain !== 'ethereum' && chain !== 'shape' && chain !== 'shape-sepolia') ||
     !Number.isInteger(parsedId) ||
-    parsedId < 0
+    parsedId < 0 ||
+    (chain === 'ethereum' && !isTokenId(parsedId))
   ) {
     return new ImageResponse(
       <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0a0a0a', color: '#fff', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace' }}>
@@ -42,40 +44,51 @@ export default async function OGImage({
   const chainName = CHAIN_CONFIG[chain as SupportedChain].name;
 
   try {
-    const { createPublicClient, http, fallback } = await import('viem');
-    const config = CHAIN_CONFIG[chain as SupportedChain];
-    const chainId = config.chainId;
-    const booaAddress = getV2Address(chainId);
-    const storageAddress = getV2StorageAddress(chainId);
-
-    const client = createPublicClient({
-      transport: fallback(config.rpcUrls.map((url) => http(url))),
-    });
-
-    // Fetch traits and tokenURI in parallel
-    const [traitsHex, tokenURI] = await Promise.all([
-      client.readContract({
-        address: storageAddress,
-        abi: BOOA_V2_STORAGE_ABI,
-        functionName: 'getTraits',
-        args: [BigInt(parsedId)],
-      }) as Promise<string>,
-      client.readContract({
-        address: booaAddress,
-        abi: BOOA_V2_ABI,
-        functionName: 'tokenURI',
-        args: [BigInt(parsedId)],
-      }) as Promise<string>,
-    ]);
-
-    // Parse traits
     let traits: OnChainTrait[] = [];
-    if (traitsHex && traitsHex !== '0x') {
-      const hex = traitsHex as `0x${string}`;
-      const bytes = new Uint8Array(
-        hex.slice(2).match(/.{1,2}/g)!.map(b => parseInt(b, 16))
-      );
-      traits = JSON.parse(new TextDecoder().decode(bytes));
+    if (chain === 'ethereum') {
+      const art = await readArt(parsedId, 'live');
+      traits = art.attributes;
+      imageUrl = `data:image/svg+xml;base64,${Buffer.from(art.svg).toString('base64')}`;
+    } else {
+      const { createPublicClient, http, fallback } = await import('viem');
+      const config = CHAIN_CONFIG[chain as SupportedChain];
+      const chainId = config.chainId;
+      const booaAddress = getV2Address(chainId);
+      const storageAddress = getV2StorageAddress(chainId);
+
+      const client = createPublicClient({
+        transport: fallback(config.rpcUrls.map((url) => http(url))),
+      });
+
+      // Fetch traits and tokenURI in parallel
+      const [traitsHex, tokenURI] = await Promise.all([
+        client.readContract({
+          address: storageAddress,
+          abi: BOOA_V2_STORAGE_ABI,
+          functionName: 'getTraits',
+          args: [BigInt(parsedId)],
+        }) as Promise<string>,
+        client.readContract({
+          address: booaAddress,
+          abi: BOOA_V2_ABI,
+          functionName: 'tokenURI',
+          args: [BigInt(parsedId)],
+        }) as Promise<string>,
+      ]);
+
+      // Parse traits
+      if (traitsHex && traitsHex !== '0x') {
+        const hex = traitsHex as `0x${string}`;
+        const bytes = new Uint8Array(
+          hex.slice(2).match(/.{1,2}/g)!.map(b => parseInt(b, 16))
+        );
+        traits = JSON.parse(new TextDecoder().decode(bytes));
+      }
+
+      if (tokenURI?.startsWith('data:')) {
+        const json = JSON.parse(Buffer.from(tokenURI.split(',')[1], 'base64').toString('utf-8'));
+        imageUrl = json.image || '';
+      }
     }
 
     const get = (type: string) => traits.find(t => t.trait_type === type)?.value || '';
@@ -86,13 +99,6 @@ export default async function OGImage({
     vibe = get('Vibe');
     emoji = get('Emoji');
     skills = getAll('Skill').slice(0, 4);
-
-    // Get image from tokenURI
-    if (tokenURI?.startsWith('data:')) {
-      const base64 = tokenURI.split(',')[1];
-      const json = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
-      imageUrl = json.image || '';
-    }
 
     const scoreInput: AgentScoreInput = {
       name, description: get('Description') || null,
