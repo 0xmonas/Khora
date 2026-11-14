@@ -122,7 +122,7 @@ function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
   return work(ctrl.signal).finally(() => clearTimeout(timer));
 }
 
-export async function getAgentsByOwner(address: string): Promise<EightAgent[]> {
+export async function getAgentsByOwner(address: string): Promise<EightAgent[] | null> {
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return [];
   const addr = address.toLowerCase();
 
@@ -134,13 +134,13 @@ export async function getAgentsByOwner(address: string): Promise<EightAgent[]> {
     const url = `${BASE}/agents?owner_address=${addr}&limit=100`;
     const data = await withTimeout((signal) => fetchJson(url, signal)) as RawListResponse;
 
-    if (!data || typeof data !== 'object') return [];
+    if (!data || typeof data !== 'object') return null;
     const items = Array.isArray(data.items) ? data.items : [];
     const total = asNumber(data.total) ?? 0;
 
     if (total > 1000) {
       console.warn(`[8004scan] owner filter appears ignored (total=${total}), bailing out`);
-      return [];
+      return null;
     }
 
     const parsed = items
@@ -151,7 +151,7 @@ export async function getAgentsByOwner(address: string): Promise<EightAgent[]> {
     return parsed;
   } catch (err) {
     console.warn('[8004scan] getAgentsByOwner failed:', err instanceof Error ? err.message : err);
-    return [];
+    return null;
   }
 }
 
