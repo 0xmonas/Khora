@@ -56,6 +56,16 @@ const awakening = { agentId: 36637, tokenId: TOKEN, awakenedBy: HOLDER, block: 2
 const findAwakening = vi.fn(async (): Promise<typeof awakening | null> => awakening);
 vi.mock('@/lib/server/awakened', () => ({ findAwakening: () => findAwakening() }));
 
+const liveAttributes = [
+  { trait_type: 'Name', value: 'Ink-Sync' },
+  { trait_type: 'Personality', value: 'Dry-witted' },
+  { trait_type: 'Palette', value: 'XCOPY' },
+  { trait_type: 'Paint', value: '191 px' },
+];
+vi.mock('@/lib/server/booa', () => ({
+  getBooaCurrent: async () => ({ name: 'BOOA #1496', owner: HOLDER, home: 'ethereum', attributes: liveAttributes }),
+}));
+
 type Doc = { updatedAt: number; facts: { owner: string; binding: { agentId: number } | null; config: unknown } };
 const doc = () => store.get(KEY) as Doc;
 const expire = () => store.set(KEY, { ...doc(), updatedAt: 0 });
@@ -74,6 +84,13 @@ describe('wiki facts', () => {
     findAwakening.mockReset();
     findAwakening.mockResolvedValue(awakening);
     Object.assign(chain, { owner: HOLDER, configFails: false, configActive: true });
+  });
+
+  it('shows the live identity, palette and paint from the single source', async () => {
+    const res = await wiki();
+    expect(res?.markdown).toContain('Dry-witted');
+    expect(res?.markdown).toContain('191 px');
+    expect(res?.markdown).toContain('XCOPY');
   });
 
   it('keeps an awakening that is older than any recent block window', async () => {

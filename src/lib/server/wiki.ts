@@ -6,6 +6,7 @@ import { mainnet, shape } from 'viem/chains';
 import { getRedis } from '@/lib/server/redis';
 import { getAI } from '@/lib/server/gemini';
 import { findAwakening } from '@/lib/server/awakened';
+import { getBooaCurrent } from '@/lib/server/booa';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { getAdapterAddress, BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { CHAIN_CONFIG } from '@/types/agent';
@@ -163,9 +164,29 @@ async function loadAgents(): Promise<Map<number, AgentIdentity>> {
   return agentIndex;
 }
 
-async function getIdentity(tokenId: number): Promise<AgentIdentity | null> {
+function identityFromTraits(id: number, traits: { trait_type: string; value: string }[]): AgentIdentity {
+  const get = (type: string) => traits.find((t) => t.trait_type === type)?.value ?? '';
+  const all = (type: string) => traits.filter((t) => t.trait_type === type).map((t) => t.value);
+  const appearance: Record<string, string> = {};
+  for (const t of traits) {
+    if (APPEARANCE_TRAITS.includes(t.trait_type) || t.trait_type === 'Background' || t.trait_type === 'Paint') appearance[t.trait_type] = t.value;
+  }
+  return {
+    id, name: get('Name'), creature: get('Creature'), vibe: get('Vibe'), emoji: get('Emoji'),
+    skills: all('Skill'), domains: all('Domain'), personality: all('Personality'), boundaries: all('Boundary'),
+    description: get('Description'), appearance,
+  };
+}
+
+async function getIdentity(tokenId: number): Promise<{ identity: AgentIdentity; live: boolean } | null> {
   const index = await loadAgents();
-  return index.get(tokenId) ?? null;
+  const snapshot = index.get(tokenId);
+  if (!snapshot) return null;
+  try {
+    return { identity: identityFromTraits(tokenId, (await getBooaCurrent(tokenId)).attributes), live: true };
+  } catch {
+    return { identity: snapshot, live: false };
+  }
 }
 
 async function fetchChainOn(chainId: number, tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
@@ -401,7 +422,7 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
   const pc = prev.config ?? null;
   const nc = next.config ?? null;
   if (nc && !pc) {
-    changes.push(`Its holder rewrote it onchain: ${describeConfig(nc).join('; ')}. The art and name stayed.`);
+    changes.push(`Its holder rewrote it onchain: ${describeConfig(nc).join('; ')}. The name stayed.`);
   } else if (!nc && pc) {
     changes.push('Its holder restored the original — every customization cleared, back to the mint self.');
   } else if (nc && pc && JSON.stringify(nc) !== JSON.stringify(pc)) {
@@ -534,7 +555,7 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   if (identity.boundaries.length) lines.push(`- **Boundaries:** ${identity.boundaries.join(', ')}`);
   const looks = Object.entries(identity.appearance).map(([k, v]) => `${k} ${v}`).join(' · ');
   if (looks) lines.push(`- **Appearance:** ${looks}`);
-  if (facts.config) lines.push('- **Customized:** yes — the holder rewrote the behavioural traits onchain; art and name are the mint originals.');
+  if (facts.config) lines.push('- **Customized:** yes — the holder changed this BOOA onchain; the mint original is kept on chain alongside it.');
   lines.push('');
   lines.push('## Chronicle');
   lines.push('');
@@ -593,8 +614,8 @@ function buildMarkdown(identity: AgentIdentity, doc: WikiDoc, links: WikiConnect
   return lines.join('\n');
 }
 
-function build(identity: AgentIdentity, doc: WikiDoc): WikiResult {
-  identity = withConfig(identity, doc.facts?.config);
+function build(identity: AgentIdentity, doc: WikiDoc, live: boolean): WikiResult {
+  if (!live) identity = withConfig(identity, doc.facts?.config);
   const links = connections(identity);
   return {
     tokenId: identity.id,
@@ -615,15 +636,16 @@ function build(identity: AgentIdentity, doc: WikiDoc): WikiResult {
 }
 
 export async function getWiki(tokenId: number): Promise<WikiResult | null> {
-  const identity = await getIdentity(tokenId);
-  if (!identity) return null;
+  const found = await getIdentity(tokenId);
+  if (!found) return null;
+  const { identity, live } = found;
   const redis = getRedis();
   const key = `wiki:v1:${tokenId}`;
   const now = Date.now();
 
   const doc = await redis.get<WikiDoc>(key);
-  if (doc && now - doc.updatedAt < REFRESH_MS) return build(identity, doc);
-  if (doc && !(await redis.set(`wiki:lock:${tokenId}`, 1, { nx: true, ex: 60 }))) return build(identity, doc);
+  if (doc && now - doc.updatedAt < REFRESH_MS) return build(identity, doc, live);
+  if (doc && !(await redis.set(`wiki:lock:${tokenId}`, 1, { nx: true, ex: 60 }))) return build(identity, doc, live);
 
   const [chain, registrations, bindingRead, configRead] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId), fetchConfig(tokenId)]);
   const facts: WikiFacts = {
@@ -634,20 +656,20 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
     config: configRead === undefined ? (doc?.facts.config ?? null) : configRead,
   };
 
-  if (!facts.owner && doc) return build(identity, doc);
+  if (!facts.owner && doc) return build(identity, doc, live);
 
   const chronicled = doc ? (doc.chronicled ?? doc.facts) : null;
   const hash = hashFacts(facts);
   if (doc && doc.factsHash === hash) {
     const refreshed: WikiDoc = { ...doc, updatedAt: now, facts };
     await redis.set(key, refreshed);
-    return build(identity, refreshed);
+    return build(identity, refreshed, live);
   }
 
   const prevFacts = doc && doc.entries.length > 0 ? chronicled : null;
   const changes = diffSummary(prevFacts, facts, tokenId);
   const prevEntry = doc?.entries.length ? doc.entries[doc.entries.length - 1] : null;
-  const entryText = await generateEntry(withConfig(identity, facts.config), changes, prevEntry);
+  const entryText = await generateEntry(live ? identity : withConfig(identity, facts.config), changes, prevEntry);
 
   const entries = [...(doc?.entries ?? [])];
   if (entryText) entries.push({ date: new Date(now).toISOString().slice(0, 10), text: entryText });
@@ -661,7 +683,7 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
     entries: entries.slice(-12),
   };
   await redis.set(key, next);
-  return build(identity, next);
+  return build(identity, next, live);
 }
 
 export interface WikiContext {
