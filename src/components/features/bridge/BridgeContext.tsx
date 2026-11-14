@@ -10,7 +10,7 @@ import { BOOA_ADAPTER_ABI, getAdapterAddress, TOKEN_STANDARD_ERC721 } from '@/li
 import { friendlyError } from '@/utils/helpers/friendlyError';
 import { ensureSmallImageURI } from '@/utils/helpers/ensureSmallImageURI';
 import { toAgentDataURI, traitsToAgent, toERC8004 } from '@/utils/helpers/exportFormats';
-import { getV2Address } from '@/lib/contracts/booa-v2';
+import { getV2Address, isBooaContract } from '@/lib/contracts/booa-v2';
 import {
   decodeAgentWalletBlob,
   checkAgentWalletBlobSignature,
@@ -411,7 +411,7 @@ export function BridgeProvider({ children }: { children: React.ReactNode }) {
 
       setAgentName(nft.name || `${nft.collection} #${nft.tokenId}`);
       setAgentDescription(characterDesc || nft.description || '');
-      setAgentImage(nft.image || '');
+      setAgentImage(isBooaContract(nft.contractAddress) ? `https://booa.app/api/booa-image/${Number(nft.tokenId)}` : (nft.image || ''));
 
       const skillTypes = new Set(['skill', 'ability', 'power', 'class', 'trait']);
       const domainTypes = new Set(['domain', 'category', 'type', 'faction', 'realm']);
