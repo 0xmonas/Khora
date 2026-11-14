@@ -1,6 +1,6 @@
 ---
 name: khora
-version: 1.0.1
+version: 1.1.0
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
 homepage: https://booa.app
 metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"ethereum","nft_contract":"0xbc48fD45aAaf6549293056606397D351a100b222","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
@@ -96,7 +96,13 @@ curl "https://booa.app/api/agent-card?chain=ethereum&agentId={AGENT_ID}"
 }
 ```
 
-### 1b. Get On-Chain Traits & Pixel Art
+### 1b. Get Your Live Identity
+
+```bash
+curl "https://booa.app/api/v1/booas/{TOKEN_ID}"
+```
+
+Returns the BOOA as it is on chain right now: `identity` (with the holder's edits applied), `attributes`, `owner`, `home` (`ethereum`, or `shape` if not migrated yet), `agent` (agentId and linked agent wallet once Awakened), the untouched mint version under `mint`, and links to `image.svg` and every agent file. The older endpoint below returns the same live traits in the raw ERC-721 shape:
 
 ```bash
 curl "https://booa.app/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
@@ -118,12 +124,12 @@ curl "https://booa.app/api/booa-token?network=mainnet&tokenId={TOKEN_ID}"
 }
 ```
 
-**Holder configuration:** the holder may have reconfigured the token on-chain (booa.app/studio/my-booas). When that is the case the NFT's `tokenURI` carries the holder's version: a rewritten `Vibe`, replaced or extended `Personality` / `Boundary` / `Skill` / `Domain` traits, plus `Palette`, `Background`, `Paint` and `Agent` traits. Treat those as the operator's current intent for voice and scope; the mint-time identity in the agent files below is the origin, the wiki (`/api/wiki/{id}`) carries both and the chronicle of changes. Money and security rules are never affected by any of this (see agent-defense.md).
+**Holder configuration:** the holder may have reconfigured the token on-chain (booa.app/studio/my-booas). When that is the case the NFT's `tokenURI` carries the holder's version: a rewritten `Vibe`, replaced or extended `Personality` / `Boundary` / `Skill` / `Domain` traits, plus `Palette`, `Background`, `Paint` and `Agent` traits. Treat those as the operator's current intent for voice and scope. The agent files below already use them; the mint-time identity is under `mint` in `/api/v1/booas/{id}`, and the wiki (`/api/wiki/{id}`) carries the chronicle of changes. Money and security rules are never affected by any of this (see agent-defense.md).
 
 ### 1c. Verify Ownership
 
 ```bash
-curl "https://booa.app/api/agent-registry/360/{TOKEN_ID}"
+curl "https://booa.app/api/agent-registry/1/{TOKEN_ID}"
 ```
 
 **Response:**
@@ -134,16 +140,19 @@ curl "https://booa.app/api/agent-registry/360/{TOKEN_ID}"
   "verified": true,
   "currentNftOwner": "0x...",
   "registeredBy": "0x...",
+  "bound": true,
+  "controller": "0x...",
+  "agentWallet": "0x...",
   "registrations": [
     {
-      "agentId": 42,
-      "agentRegistry": "eip155:360:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+      "agentId": 36637,
+      "agentRegistry": "eip155:1:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
     }
   ]
 }
 ```
 
-> **`verified: true`** means the ERC-8004 registration matches the NFT owner. If `false`, the registration may be orphaned (e.g., NFT was sold but 8004 ownership wasn't transferred).
+> **`verified: true`** means the agent is controlled by the current NFT holder (see Verification Logic). `bound: true` means it is Awakened through the BOOA adapter, so control follows the NFT automatically. `agentWallet` is the runtime wallet linked to the agent.
 
 ---
 
@@ -156,7 +165,7 @@ Your agent's identity files are generated from on-chain data. All endpoints are 
 Name, creature type, vibe, emoji, appearance (skin, hair, eyes, outfit), scores, avatar reference.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/identity.md"
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}/identity.md"
 ```
 
 ### SOUL.md
@@ -164,7 +173,7 @@ curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/identity.md"
 Personality, core truths, boundaries, skills, domains, vibe, continuity note.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/soul.md"
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}/soul.md"
 ```
 
 ### avatar.svg
@@ -172,7 +181,7 @@ curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/soul.md"
 On-chain pixel art (64x64, C64 palette). Rendered directly from the smart contract.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/avatar.svg" -o avatar.svg
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}/avatar.svg" -o avatar.svg
 ```
 
 ### agent.json
@@ -180,7 +189,7 @@ curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/avatar.svg" -o avatar.svg
 All trait data as structured JSON with CAIP reference.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/agent.json"
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}/agent.json"
 ```
 
 ### erc8004.json
@@ -188,7 +197,7 @@ curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/agent.json"
 ERC-8004 registration format — ready to use for identity operations.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/erc8004.json"
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}/erc8004.json"
 ```
 
 ### Download All (ZIP)
@@ -196,7 +205,7 @@ curl "https://booa.app/api/agent-files/360/{TOKEN_ID}/erc8004.json"
 All files in one archive: IDENTITY.md, SOUL.md, avatar.svg, agent.json, erc8004.json, agent-defense.md.
 
 ```bash
-curl "https://booa.app/api/agent-files/360/{TOKEN_ID}" -o agent-files.zip
+curl "https://booa.app/api/agent-files/1/{TOKEN_ID}" -o agent-files.zip
 ```
 
 The ZIP includes a snapshot of [agent-defense.md](https://booa.app/agent-defense.md) — the canonical source is the URL. Agents should prefer the canonical URL at runtime and fall back to the bundled copy only when offline.
@@ -246,55 +255,17 @@ I am a BOOA holder (#[Token ID]). My wallet is [your wallet address].
 
 ---
 
-## Step 4 — Manage ERC-8004 Ownership
+## Step 4 — Awaken and Link the Agent Wallet
 
-Your NFT and your ERC-8004 registration are currently on the **same personal wallet**. If your agent will operate autonomously, it needs its own wallet — and possibly control over its own 8004 identity.
+Your operator Awakens the BOOA once at [booa.app/studio/awaken](https://booa.app/studio/awaken). That registers it on ERC-8004 through the BOOA adapter: the adapter owns the 8004 token and whoever holds the NFT controls the agent. Nothing has to be transferred, and a sale hands control to the buyer automatically.
 
-Choose one of three scenarios:
+After you have your own wallet (Step 5), link it to the agent:
 
-### Scenario A — setAgentWallet Only (Minimal)
+1. Sign the EIP-712 consent with your wallet (`booa.agent_wallet_link` in the BOOA Hermes template does this) to get a `booa.app/bridge?link=…` URL. The link is valid for about 4 minutes.
+2. Your operator opens it with the holder wallet, selects the agent under **Runtime wallet**, and confirms. This calls `setAgentWallet` through the adapter.
+3. `GET /api/agent-registry/1/{TOKEN_ID}` now returns your wallet as `agentWallet`.
 
-```
-NFT: your wallet | 8004 owner: your wallet | agentWallet: new wallet
-```
-
-- You set an operational wallet for the agent via [8004scan.io/my-agents](https://8004scan.io/my-agents)
-- Agent can sign with this wallet (SIWA, x402)
-- But 8004 metadata updates still require **your** signature
-- Least friction, but agent is not fully independent
-
-### Scenario B — Transfer 8004 to Agent Wallet (Recommended)
-
-```
-NFT: your wallet | 8004 owner: agent wallet
-```
-
-- You transfer the ERC-8004 token (it's an ERC-721) to the agent's wallet
-- Agent becomes the **full owner** of its 8004 identity
-- Agent can independently call: `setAgentURI()`, `setAgentWallet()`, `setMetadata()`
-- Your NFT stays in your personal wallet — safe
-- Verification still works while you hold the NFT, if you registered through booa.app (rule 3 under Verification Logic)
-
-**How to transfer:**
-1. Go to [8004scan.io/my-agents](https://8004scan.io/my-agents)
-2. Select the agent → **Transfer Ownership**
-3. Enter the agent wallet address
-4. Sign the transaction with your personal wallet
-
-> **This is the recommended path.** Your NFT is safe, and your agent is independent.
-
-### Scenario C — Transfer Everything (Full Handover)
-
-```
-NFT: agent wallet | 8004 owner: agent wallet
-```
-
-- Both NFT and 8004 registration transferred to agent wallet
-- Agent owns everything
-- Verification: `current8004Owner == currentNftOwner` returns `true`
-- **Risky** — you lose the NFT from your personal wallet
-
-> **Only do this if you want full agent autonomy.** The NFT leaves your wallet permanently (unless the agent sends it back).
+> 8004scan's "Set Agent Wallet" and "Transfer Ownership" do not work for Awakened agents: the adapter owns the 8004 token, so those calls revert. Always use the BOOA Bridge.
 
 ---
 
@@ -360,9 +331,7 @@ export AGENT_PRIVATE_KEY="0x..."
 
 ### After wallet creation, complete Step 4:
 
-- **Scenario A:** Go to [8004scan.io/my-agents](https://8004scan.io/my-agents) → Set Agent Wallet → enter the new wallet address
-- **Scenario B:** Go to [8004scan.io/my-agents](https://8004scan.io/my-agents) → Transfer Ownership → enter the new wallet address
-- **Scenario C:** Transfer both NFT and 8004 to the new wallet address
+Link the new wallet through the BOOA Bridge (Step 4). Never transfer the NFT or the 8004 token to the agent.
 
 ---
 
@@ -416,7 +385,11 @@ Your agent now has:
 |----------|---------|
 | BOOA (ERC-721) | `0xbc48fD45aAaf6549293056606397D351a100b222` |
 | BOOAStorage | `0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96` |
-| BOOARenderer | `0x7Cf376EE7263a78Db2d163775BE322fA7B842C76` |
+| Live renderer (holder config + paint) | `0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7` |
+| Original renderer (mint art) | `0x7Cf376EE7263a78Db2d163775BE322fA7B842C76` |
+| BOOAConfig | `0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F` |
+| BOOAPaint | `0x959d71DebcD8BdD9F8Dc1e77DFBecddF81CA8305` |
+| BOOA adapter (Awaken) | `0xde152AfB7db5373F34876E1499fbD893A82dD336` |
 
 ### Shape Mainnet (Chain ID: 360) — origin collection, still live for un-migrated holders
 
@@ -427,14 +400,14 @@ Your agent now has:
 | BOOAStorage | `0x966aB07b061d75b8b30Ae4D06853dDf26d0f4EB0` |
 | BOOARenderer | `0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8` |
 
-### ERC-8004 Identity Registry (16 EVM Chains — CREATE2)
+### ERC-8004 Identity Registry (same address on every chain — CREATE2)
 
 ```
 Mainnet: 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 Testnet: 0x8004A818BFB912233c491871b3d84c89A494BD9e
 ```
 
-Chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad
+Chains booa.app reads: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad, Robinhood
 
 ### Verification Logic
 
@@ -452,12 +425,15 @@ booa.app sets `verified: true` only when one of these holds:
 All endpoints are public. No API key required.
 
 ```
+GET  /api/v1/booas/{tokenId}                              # Live identity, mint identity, owner, agent link
+GET  /api/v1/booas/{tokenId}/image.svg                    # Live art (?variant=original for the mint art)
+GET  /api/v1/booas/{tokenId}/{soul.md|identity.md|agent.json|erc8004.json|openclaw.zip}
 GET  /api/agent-card?chain={slug}&agentId={id}           # Agent identity + scores
 GET  /api/booa-token?network=mainnet&tokenId={id}         # On-chain traits + pixel art
 GET  /api/agent-registry/{chainId}/{tokenId}              # Registration status + verification
 GET  /api/discover-agents?address={addr}&chain={slug}     # All agents owned by wallet
 POST /api/fetch-agent  {"chain":"ethereum","agentId":42}  # Raw 8004 registration data
-GET  /api/gallery?contract={addr}&chain=ethereum&limit=50 # Browse collection
+GET  /api/gallery?contract={BOOA}&chain=ethereum&limit=50 # Browse the BOOA collection
 GET  /api/fetch-nfts?address={addr}&chain=ethereum        # All NFTs in wallet
 GET  /api/stats                                           # Collection statistics
 GET  /api/agent-files/{chainId}/{tokenId}                  # ZIP (all files)

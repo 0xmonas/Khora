@@ -1,10 +1,10 @@
 # BOOA API Reference
 # Base URL: https://booa.app
-# Rate limit: 60 requests / 60 seconds per IP (all endpoints)
+# Rate limit: 60 GET / 30 write requests per 60 seconds per IP
 
 ## Overview
 
-BOOA provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Ethereum) and ERC-8004 agent identities across 16 EVM chains. All data is read directly from on-chain contracts. No API key required.
+BOOA provides public APIs for querying BOOA NFTs (fully on-chain AI agent identities on Ethereum) and ERC-8004 agent identities across the EVM chains listed below. All data is read directly from on-chain contracts. No API key required.
 
 ## Collection Status
 
@@ -14,7 +14,7 @@ ERC-8004 registered: 1,600+ agents
 
 ## Supported Chains
 
-Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract, monad
+Mainnets: ethereum, base, shape, polygon, arbitrum, optimism, avalanche, bsc, celo, gnosis, scroll, linea, mantle, metis, abstract, monad, robinhood
 
 ## On-Chain Contracts (Ethereum Mainnet, Chain ID: 1)
 
@@ -24,6 +24,7 @@ BOOARenderer (original, no holder changes): 0x7Cf376EE7263a78Db2d163775BE322fA7B
 BOOARenderer (live, applies holder configuration): 0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7
 BOOAConfig (holder palette, tones, background, text picks): 0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F
 BOOAPaint (holder background pixels): 0x959d71DebcD8BdD9F8Dc1e77DFBecddF81CA8305
+BOOA adapter (Awaken, ERC-8004 binding): 0xde152AfB7db5373F34876E1499fbD893A82dD336
 
 Origin collection (Shape Mainnet, Chain ID: 360) — still live for holders who have not migrated:
 BOOA NFT (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
@@ -32,12 +33,38 @@ BOOARenderer: 0xD9Eb24AAe8099E336F7F37164173E81D1bF96aD8
 
 ## ERC-8004 Identity Registry
 
-Mainnet address (all 16 chains): 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
+Mainnet address (every chain): 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 Deployed via deterministic CREATE2 — same address on every EVM chain.
 
 ---
 
 ## Endpoints
+
+### GET /api/v1/booas/{tokenId}
+
+One source for a BOOA as it is on chain now. Token ids: 0-3332. Works for tokens not yet migrated from Shape.
+
+Response:
+{
+  "id": 1496,
+  "name": "BOOA #1496",
+  "home": "ethereum",
+  "owner": "0x...",
+  "identity": { "name": "Ink-Sync", "creature": "...", "vibe": "...", "personality": [...], "boundaries": [...], "skills": [...], "domains": [...] },
+  "attributes": [ { "trait_type": "Palette", "value": "XCOPY" }, ... ],
+  "mint": { "identity": { ... }, "attributes": [ ... ] },
+  "agent": { "agentId": 36637, "awakenedBy": "0x...", "awakenedAt": 1784000000000, "agentWallet": "0x..." },
+  "image": { "live": "https://booa.app/api/v1/booas/1496/image.svg", "original": "https://booa.app/api/v1/booas/1496/image.svg?variant=original" },
+  "files": { "soul.md": "...", "identity.md": "...", "agent.json": "...", "erc8004.json": "...", "openclaw.zip": "..." }
+}
+
+`identity` and `attributes` include the holder's configuration; `mint` is the original. `home` is "shape" and `owner` null for tokens not yet claimed on Ethereum. `agent` is null until the BOOA is Awakened.
+
+### GET /api/v1/booas/{tokenId}/{file}
+
+Files built from the live identity: image.svg (add ?variant=original for the mint art), soul.md, identity.md, agent.json, erc8004.json, openclaw.zip (IDENTITY.md, SOUL.md, USER.md).
+
+---
 
 ### GET /api/agent-card
 
@@ -219,10 +246,10 @@ GET /api/fetch-nfts?address=0x1234...&chain=ethereum&contract=0xbc48fD45aAaf6549
 
 ### GET /api/booa-token
 
-Fetch metadata for a specific BOOA token. Requires wallet authentication (SIWE).
+Fetch the live ERC-721 metadata of a BOOA token (holder configuration applied). Public. Prefer /api/v1/booas/{tokenId}.
 
 Parameters:
-- network: "mainnet" or "testnet"
+- network: "mainnet" (default) or "testnet"
 - tokenId: Token ID number
 
 Response:
@@ -249,7 +276,7 @@ GET /api/booa-token?network=mainnet&tokenId=1496
 Fetch ERC-8004 registration status for a BOOA token. Falls back to on-chain scan if not cached.
 
 Parameters (URL path):
-- chainId: Numeric chain ID (e.g. 1 for Ethereum, 360 for Shape)
+- chainId: Numeric chain ID of the ERC-8004 registry (1 for Ethereum, where Awakened BOOAs live)
 - tokenId: BOOA token ID
 
 Response (if registered):
@@ -265,7 +292,13 @@ Response (if registered):
       "agentRegistry": "eip155:1:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
     }
   ],
-  "registeredBy": "0x..."
+  "registeredBy": "0x...",
+  "verified": true,
+  "currentNftOwner": "0x...",
+  "bound": true,
+  "bindingContract": "0xde152AfB7db5373F34876E1499fbD893A82dD336",
+  "controller": "0x...",
+  "agentWallet": "0x..."
 }
 
 Example:
@@ -279,7 +312,7 @@ GET /api/agent-registry/1/1496
 - Traits stored as JSON bytes via SSTORE2
 - SVG rendered on-chain by Renderer contract
 - No IPFS, no external dependencies
-- 4-contract system: BOOA (ERC-721), BOOAMinter, BOOAStorage, BOOARenderer
+- Contracts: BOOA (ERC-721), BOOAStorage, an original and a live renderer, BOOAConfig, BOOAPaint
 - The holder may configure the NFT's ERC-721 metadata (not the ERC-8004 record) through BOOAConfig + BOOAPaint; the live renderer reads both
 
 ## Holder Configuration (My BOOAs)
@@ -295,9 +328,10 @@ What can change (tokenURI reflects it immediately; marketplaces after their refr
 
 Reading it:
 - tokenURI on the NFT contract is the source of truth.
-- GET /api/booa-image/{tokenId}?live=1 returns the live SVG; without ?live=1 the original.
+- GET /api/v1/booas/{tokenId} returns the live identity next to the mint identity.
+- GET /api/booa-image/{tokenId} returns the live SVG (the image URL inside ERC-8004 records). The mint art: /api/v1/booas/{tokenId}/image.svg?variant=original.
 - GET /api/wiki/{tokenId} overlays the configuration on the identity and records holder changes in the chronicle.
-- GET /api/agent-files/... serves the ORIGINAL mint identity (soul.md, identity.md, avatar.svg are config-independent).
+- GET /api/agent-files/1/{tokenId}/... serves the live identity (soul.md, identity.md, avatar.svg, agent.json with attributes).
 - POST /api/refresh-metadata/{tokenId} (signed-in holder only, rate-limited) asks OpenSea and Alchemy to re-read the token.
 
 ## ERC-8004 Registration Format
@@ -345,7 +379,7 @@ Every BOOA can be exported as an autonomous agent:
 - IDENTITY.md — creature, skills, domains, on-chain metadata
 - USER.md — owner instructions
 
-Download from: booa.app/booa (click on any token)
+Download from: booa.app/studio/my-booas, or GET /api/v1/booas/{tokenId}/openclaw.zip
 Full setup guide: booa.app/blog/your-agent-your-rules
 
 ## Wiki API
@@ -375,6 +409,6 @@ Human UI: booa.app/studio/wiki
 
 ## Rate Limits
 
-All endpoints: 60 requests per 60 seconds per IP (sliding window)
+GET endpoints: 60 requests per 60 seconds per IP (sliding window)
 POST endpoints: 30 requests per 60 seconds per IP
-Responses include rate limit headers when limits are approached.
+A 429 response carries X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset.

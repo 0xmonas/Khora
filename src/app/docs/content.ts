@@ -33,14 +33,14 @@ Each agent lives in Khôra — a fictional cyberpunk megacity, the universe in w
 BOOA is also an open-source studio building tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it. The platform includes:
 
 Website: booa.app — collection gallery, agent tools, bridge, studio
-Bridge: Register and manage your agent's ERC-8004 identity across 16 chains
+Bridge: Register and manage your agent's ERC-8004 identity across every supported EVM chain
 Studio: Agent Chat, Pixel Forge, Agent Sound, Banner Builder, and more
 Agent Files API: Public endpoints for fetching agent identity, traits, and pixel art
 SKILL.md: Setup guide that any AI can follow to onboard your agent
 
 Key numbers:
 - 3,333 unique agents
-- 16 EVM chains supported via ERC-8004
+- ERC-8004 on every supported EVM chain
 - CC0 license (artwork), MIT license (contracts)
 - 100% on-chain storage (SSTORE2)
 - Public API — no authentication required`,
@@ -125,7 +125,7 @@ Rules:
 - Restore original removes everything at once. Paint is saved separately from the other settings.
 - Gas only, no fee. Each save is one transaction.
 
-Where it shows: tokenURI immediately; OpenSea and other marketplaces after their refresh (My BOOAs asks for one after each save); the gallery and My BOOAs read the live render directly from the chain. Agent files (soul.md, identity.md) keep the original mint identity; the wiki shows both and records every change.
+Where it shows: tokenURI immediately; OpenSea and other marketplaces after their refresh (My BOOAs asks for one after each save); My BOOAs reads the live render directly from the chain; the gallery grid shows the marketplace cache until it refreshes. Agent files (soul.md, identity.md, avatar.svg) follow the live identity; the original stays under mint in booa.app/api/v1/booas/{tokenId}, and the wiki records every change.
 
 Contracts (Ethereum Mainnet):
 - BOOAConfig: 0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F
@@ -149,7 +149,8 @@ USER.md
 The owner's private instructions to the agent. Not stored on-chain, not served by any API. The holder writes this and gives it directly to their agent. Contains owner preferences, tasks, spending limits, and communication style.
 
 Download your agent files:
-- ZIP: booa.app (click any token in gallery, then "OpenClaw ZIP")
+- ZIP: My BOOAs (booa.app/studio/my-booas), or booa.app/api/v1/booas/{tokenId}/openclaw.zip
+- API: booa.app/api/v1/booas/{tokenId} (live identity, mint identity, owner, agent link)
 - API: booa.app/api/agent-files/1/{tokenId}
 - Individual files: /soul.md, /identity.md, /avatar.svg, /agent.json, /erc8004.json`,
       },
@@ -193,7 +194,7 @@ Full API reference: booa.app/llms.txt`,
       {
         slug: 'what-is-erc-8004',
         title: 'What is ERC-8004?',
-        description: 'On-chain agent identity standard across 16 chains.',
+        description: 'On-chain agent identity standard across every supported EVM chain.',
         content: `ERC-8004 is the on-chain identity standard for AI agents. It's an EIP (Ethereum Improvement Proposal) that defines how agents register, discover, and verify each other across blockchains.
 
 Think of it this way: your BOOA NFT is the birth certificate — it defines who your agent is. The ERC-8004 registration is the passport — it's how other agents, platforms, and protocols find your agent, verify its owner, check its skills, and decide whether to trust it.
@@ -209,7 +210,7 @@ Feedback layer. Other agents and platforms can submit reputation scores after in
 Validation Registry
 Proof of work. Stores attestations and validation records for agent capabilities.
 
-The Identity Registry is deployed on 16 EVM chains at the same address via deterministic CREATE2:
+The Identity Registry is deployed at the same address on every EVM chain via deterministic CREATE2:
 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 
 Supported chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad
@@ -238,7 +239,7 @@ EIP: eips.ethereum.org/EIPS/eip-8004`,
         slug: 'bridge',
         title: 'Bridge Tool',
         description: 'Register and manage your agent identity.',
-        content: `The Bridge on booa.app lets you register and manage your agent's ERC-8004 identity across all 16 chains. It works with any NFT — not just BOOAs.
+        content: `The Bridge on booa.app lets you register and manage your agent's ERC-8004 identity across every supported EVM chain. It works with any NFT — not just BOOAs.
 
 What you can do:
 - Register a new agent identity from any NFT you own
@@ -263,7 +264,7 @@ Skills and domains are mapped to the OASF taxonomy — a standardized way for ag
         slug: '8004scan',
         title: '8004scan Integration',
         description: 'Multi-chain agent discovery.',
-        content: `8004scan.io is the explorer for ERC-8004 agent identities. It indexes all 16 chains and provides:
+        content: `8004scan.io is the explorer for ERC-8004 agent identities. It indexes every chain the registry lives on and provides:
 
 - Agent discovery and search
 - Agent scoring (identity, capability, interoperability, trust)
@@ -274,8 +275,7 @@ Skills and domains are mapped to the OASF taxonomy — a standardized way for ag
 
 For BOOA holders:
 - View your agent's registration: 8004scan.io/my-agents
-- Set agent wallet: Manage Agent > Set Agent Wallet
-- Transfer 8004 ownership: Manage Agent > Transfer Ownership
+- Awakened BOOAs are owned on chain by the BOOA adapter, so 8004scan's Set Agent Wallet and Transfer Ownership revert for them. Link the agent wallet through the BOOA Bridge instead (booa.app/bridge, Agents tab, Runtime wallet).
 
 The BOOA dashboard and Cobbee both link to 8004scan for identity verification. When someone clicks the agent badge on Cobbee, it opens the 8004scan agent page.
 
@@ -448,7 +448,7 @@ The guide covers 5 steps:
 1. Know Your Agent — fetch on-chain identity via API
 2. Get Agent Files — SOUL.md, IDENTITY.md, avatar.svg
 3. Write USER.md — holder fills in private instructions
-4. Manage ERC-8004 Ownership — three scenarios (A, B, or C)
+4. Awaken and link the agent wallet — through the BOOA Bridge
 5. Set Up Agent Wallet — OWS recommended
 
 The wallet setup reference is at:
@@ -459,7 +459,7 @@ After completing these steps, your agent has identity, personality, instructions
       {
         slug: 'wallet-setup',
         title: 'Wallet Setup',
-        description: 'OWS and the three ownership scenarios.',
+        description: 'OWS and linking the agent wallet.',
         content: `Your agent needs its own wallet — separate from your personal wallet. OWS (Open Wallet Standard) is the recommended approach.
 
 Why a separate wallet?
@@ -475,21 +475,10 @@ API Key: ows key create --name "agent" --wallet my-agent --policy agent-policy
 
 Full guide: booa.app/skills/references/wallet-setup.md
 
-Three ownership scenarios:
-
-Scenario A — setAgentWallet only
-You keep 8004 ownership. Agent gets an operational wallet for signing.
-Simplest but agent can't update its own 8004 metadata.
-
-Scenario B — Transfer 8004 (Recommended)
-Transfer the 8004 ERC-721 token to the agent wallet. Your NFT stays in your personal wallet.
-Agent can independently manage its own identity. Verification still works.
-
-Scenario C — Transfer everything
-Both NFT and 8004 to the agent wallet. Agent owns everything.
-Risky — you lose the NFT from your personal wallet.
-
-Set agent wallet or transfer via 8004scan.io/my-agents.`,
+Linking the agent wallet:
+Awaken the BOOA once at booa.app/studio/awaken. The BOOA adapter then owns the 8004 token and whoever holds the NFT controls the agent; nothing is transferred, and a sale hands control to the buyer.
+The agent signs an EIP-712 consent with its own wallet, which gives a booa.app/bridge?link=... URL. Open it with your holder wallet, pick the agent under Runtime wallet and confirm. That calls setAgentWallet through the adapter.
+Never transfer the NFT or the 8004 token to the agent. 8004scan's wallet and transfer forms revert for Awakened agents.`,
       },
     ],
   },
@@ -695,7 +684,7 @@ BOOARenderer: 0x7Cf376EE7263a78Db2d163775BE322fA7B842C76
 Origin (Shape Mainnet, still live until fully migrated):
 BOOA (ERC-721): 0x7aecA981734d133d3f695937508C48483BA6b654
 
-ERC-8004 Identity Registry (16 chains):
+ERC-8004 Identity Registry (every chain):
 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`,
       },
     ],

@@ -88,7 +88,7 @@ ows policy create --file policy.json
 
 > **Primary chains:** Ethereum (`eip155:1`) for NFT & 8004 operations, Base (`eip155:8453`) for x402 payments (USDC).
 >
-> **Supported chains for ERC-8004 registration:** Ethereum (`1`), Base (`8453`), Shape (`360`), Polygon (`137`), Arbitrum (`42161`), OP Mainnet (`10`), Avalanche (`43114`), BNB Chain (`56`), Celo (`42220`), Gnosis (`100`), Scroll (`534352`), Linea (`59144`), Mantle (`5000`), Metis (`1088`), Abstract (`2741`), Monad (`10143`). Add chain IDs to `allowed_chains` as your agent needs them.
+> **Supported chains for ERC-8004 registration:** Ethereum (`1`), Base (`8453`), Shape (`360`), Polygon (`137`), Arbitrum (`42161`), OP Mainnet (`10`), Avalanche (`43114`), BNB Chain (`56`), Celo (`42220`), Gnosis (`100`), Scroll (`534352`), Linea (`59144`), Mantle (`5000`), Metis (`1088`), Abstract (`2741`), Monad (`143`), Robinhood (`4663`). Add chain IDs to `allowed_chains` as your agent needs them.
 
 ### Step 5: Create an API Key
 
@@ -283,7 +283,7 @@ Once the wallet is linked, the agent can act onchain through the **booa-onchain*
 - `BOOA_OPENSEA_REQUIRE_VERIFIED` — default `1`. `opensea_buy` refuses to buy from a collection that is not OpenSea-verified (scam/impersonation guard). The tool always fetches the listing from OpenSea, encodes the Seaport call itself, and **simulates it before signing** — a bad order, wrong encoding, or unaffordable price is refused, never broadcast. Buying is capped by the same per-tx / daily ETH limits. Get `order_hash` from the OpenSea search tools, then `opensea_buy(chain, order_hash)`.
 - Optional: `ETH_RPC` / `BASE_RPC` (custom RPCs).
 
-> **No warranty.** This is a self-hosted utility template. Trading, swaps, and wallet operations run on the operator's own wallet, keys, and funds, entirely at their own risk. Verify every token, contract, and NFT yourself before confirming. See [DISCLAIMER.md](../../../DISCLAIMER.md) for the full terms; licensed under [MIT](../../../LICENSE).
+> **No warranty.** This is a self-hosted utility template. Trading, swaps, and wallet operations run on the operator's own wallet, keys, and funds, entirely at their own risk. Verify every token, contract, and NFT yourself before confirming. See [DISCLAIMER.md](https://github.com/0xmonas/booa-hermes-template/blob/main/DISCLAIMER.md) for the full terms; licensed under [MIT](../../../LICENSE).
 
 **The rule for every write — preview then confirm:**
 
@@ -321,7 +321,7 @@ Before your agent starts operating, verify:
 - [ ] Wallet has only the minimum required funds
 - [ ] Policy restricts signing to Ethereum + Base only (OWS)
 - [ ] Backup of mnemonic or private key in secure offline storage
-- [ ] 8004 ownership scenario chosen and executed (A, B, or C)
+- [ ] Agent wallet linked to the Awakened BOOA through the BOOA Bridge (setAgentWallet)
 - [ ] USER.md written and given to agent (never uploaded publicly)
 
 ---
