@@ -1,8 +1,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { createPublicClient, http, parseAbiItem } from 'viem';
+import { mainnet, shape } from 'viem/chains';
 import { getRedis } from '@/lib/server/redis';
 import { getAI } from '@/lib/server/gemini';
+import { findAwakening } from '@/lib/server/awakened';
 import { BOOA_V2_ABI, getV2Address } from '@/lib/contracts/booa-v2';
 import { getAdapterAddress, BOOA_ADAPTER_ABI } from '@/lib/contracts/booa-adapter';
 import { CHAIN_CONFIG } from '@/types/agent';
@@ -22,6 +25,20 @@ const SHAPE_RPC = process.env.NEXT_PUBLIC_SHAPE_RPC_URL || 'https://mainnet.shap
 const ZERO = '0x0000000000000000000000000000000000000000';
 
 export const MAX_TOKEN_ID = 3332;
+
+function makeClient(chainId: number) {
+  const eth = chainId === ETH_CHAIN_ID;
+  return createPublicClient({ chain: eth ? mainnet : shape, transport: http((eth ? ETH_RPC : SHAPE_RPC) || undefined) });
+}
+const clients = new Map<number, ReturnType<typeof makeClient>>();
+function clientFor(chainId: number) {
+  let c = clients.get(chainId);
+  if (!c) {
+    c = makeClient(chainId);
+    clients.set(chainId, c);
+  }
+  return c;
+}
 
 interface AgentIdentity {
   id: number;
@@ -89,6 +106,7 @@ interface WikiDoc {
   updatedAt: number;
   factsHash: string | null;
   facts: WikiFacts;
+  chronicled?: WikiFacts;
   entries: WikiEntry[];
 }
 
@@ -150,13 +168,8 @@ async function getIdentity(tokenId: number): Promise<AgentIdentity | null> {
   return index.get(tokenId) ?? null;
 }
 
-async function fetchChainOn(chainId: number, rpc: string, tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
-  const { createPublicClient, http, parseAbiItem } = await import('viem');
-  const { shape, mainnet } = await import('viem/chains');
-  const client = createPublicClient({
-    chain: chainId === ETH_CHAIN_ID ? mainnet : shape,
-    transport: http(rpc || undefined),
-  });
+async function fetchChainOn(chainId: number, tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
+  const client = clientFor(chainId);
   const address = getV2Address(chainId);
   if (!address || address.length <= 2) return { owner: null, transfers: null };
 
@@ -207,55 +220,25 @@ async function fetchChainOn(chainId: number, rpc: string, tokenId: number): Prom
 async function fetchChain(tokenId: number): Promise<{ owner: string | null; transfers: WikiTransfer[] | null }> {
   // Canonical home is Ethereum post-migration. Read there first; fall back to
   // Shape for tokens whose holders have not migrated yet.
-  const eth = await fetchChainOn(ETH_CHAIN_ID, ETH_RPC, tokenId);
+  const eth = await fetchChainOn(ETH_CHAIN_ID, tokenId);
   if (eth.owner) return eth;
-  return fetchChainOn(SHAPE_CHAIN_ID, SHAPE_RPC, tokenId);
+  return fetchChainOn(SHAPE_CHAIN_ID, tokenId);
 }
 
-// Is this BOOA Awakened? Read the Adapter8004 binding straight from chain: scan
-// AgentBound events (filtered by the BOOA contract), confirm the current binding
-// via bindingOf, and take the NFT holder as the controller. No cache dependency.
-async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
+// Is this BOOA Awakened? The awakened index scans AgentBound forward from the
+// adapter's deploy block, so an early awakening never drops out of view. Adapter
+// bindings are immutable once made, so a missing binding here means "unknown",
+// never "released": undefined tells the caller to keep what it already knew.
+async function fetchBinding(tokenId: number): Promise<WikiBinding | null | undefined> {
   const adapter = getAdapterAddress(ETH_CHAIN_ID);
   const booa = getV2Address(ETH_CHAIN_ID);
   if (!adapter || !booa || booa.length <= 2) return null;
   try {
-    const { createPublicClient, http, parseAbiItem } = await import('viem');
-    const { mainnet } = await import('viem/chains');
-    const client = createPublicClient({ chain: mainnet, transport: http(ETH_RPC || undefined) });
-    const event = parseAbiItem(
-      'event AgentBound(uint256 indexed agentId, uint8 indexed standard, address indexed tokenContract, uint256 tokenId, address registeredBy)'
-    );
-    const latest = await client.getBlockNumber();
-    const PAGE = BigInt(9999);
-    const MAX_PAGES = 8;
-    let cursor = latest;
-    let agentId: number | null = null;
-    let awakenedBy: string | null = null;
-    let awakenBlock: bigint | null = null;
-    for (let i = 0; i < MAX_PAGES && agentId === null; i++) {
-      const from = cursor > PAGE ? cursor - PAGE : BigInt(0);
-      const logs = await client.getLogs({
-        address: adapter, event,
-        args: { tokenContract: booa as `0x${string}` },
-        fromBlock: from, toBlock: cursor,
-      });
-      for (let j = logs.length - 1; j >= 0; j--) {
-        if (Number(logs[j].args.tokenId) === tokenId) {
-          agentId = Number(logs[j].args.agentId);
-          awakenedBy = ((logs[j].args.registeredBy as string) || '').toLowerCase() || null;
-          awakenBlock = logs[j].blockNumber ?? null;
-          break;
-        }
-      }
-      if (from === BigInt(0)) break;
-      cursor = from - BigInt(1);
-    }
-    if (agentId === null) return null;
-
-    // Confirm the agent is still bound to this exact token (guards unbind/rebind).
+    const awakening = await findAwakening(ETH_CHAIN_ID, tokenId);
+    if (!awakening) return null;
+    const client = clientFor(ETH_CHAIN_ID);
     const binding = await client.readContract({
-      address: adapter, abi: BOOA_ADAPTER_ABI, functionName: 'bindingOf', args: [BigInt(agentId)],
+      address: adapter, abi: BOOA_ADAPTER_ABI, functionName: 'bindingOf', args: [BigInt(awakening.agentId)],
     }) as { standard: number; tokenContract: `0x${string}`; tokenId: bigint };
     if (Number(binding.tokenId) !== tokenId || binding.tokenContract.toLowerCase() !== booa.toLowerCase()) return null;
 
@@ -266,15 +249,14 @@ async function fetchBinding(tokenId: number): Promise<WikiBinding | null> {
       })) as string;
     } catch { /* holder read failed — leave null */ }
 
-    let awakenedAt: number | null = null;
-    if (awakenBlock !== null) {
-      const blk = await client.getBlock({ blockNumber: awakenBlock }).catch(() => null);
-      if (blk) awakenedAt = Number(blk.timestamp) * 1000;
-    }
-
-    return { agentId, controller, awakenedBy, awakenedAt };
+    return {
+      agentId: awakening.agentId,
+      controller,
+      awakenedBy: awakening.awakenedBy ? awakening.awakenedBy.toLowerCase() : null,
+      awakenedAt: awakening.awakenedAt,
+    };
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -304,13 +286,13 @@ const SKILL_LABELS = OASF_SKILLS.flatMap((c) => c.items.map((i) => i.label));
 const DOMAIN_LABELS = OASF_DOMAINS.flatMap((c) => c.items.map((i) => i.label));
 const pick = (list: string[], idx: readonly number[]) => idx.map((i) => list[i]).filter(Boolean);
 
-async function fetchConfig(tokenId: number): Promise<WikiConfig | null> {
+// undefined = the read failed, so the caller keeps the last known config rather
+// than chronicling a failed RPC call as "holder restored the original".
+async function fetchConfig(tokenId: number): Promise<WikiConfig | null | undefined> {
   const address = getBooaConfigAddress();
   if (!address || !ETH_RPC) return null;
   try {
-    const { createPublicClient, http } = await import('viem');
-    const client = createPublicClient({ transport: http(ETH_RPC) });
-    const [o, active] = await client.readContract({
+    const [o, active] = await clientFor(ETH_CHAIN_ID).readContract({
       address, abi: BOOA_CONFIG_ABI, functionName: 'getConfig', args: [BigInt(tokenId)],
     });
     if (!active) return null;
@@ -327,7 +309,7 @@ async function fetchConfig(tokenId: number): Promise<WikiConfig | null> {
       domains: pick(DOMAIN_LABELS, o.domains),
     };
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -421,8 +403,6 @@ function diffSummary(prev: WikiFacts | null, next: WikiFacts, tokenId: number): 
   }
   if (next.binding && (!prev.binding || prev.binding.agentId !== next.binding.agentId)) {
     changes.push(`Awakened onchain — now bound to agent #${next.binding.agentId} via Adapter8004${next.binding.awakenedBy ? ` by ${shortAddr(next.binding.awakenedBy)}` : ''}${next.binding.awakenedAt ? ` on ${fmtDate(next.binding.awakenedAt)}` : ''}; whoever holds the NFT controls the agent.`);
-  } else if (!next.binding && prev.binding) {
-    changes.push('Binding released — no longer bound to an onchain agent.');
   }
   const pc = prev.config ?? null;
   const nc = next.config ?? null;
@@ -649,12 +629,23 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
 
   const doc = await redis.get<WikiDoc>(key);
   if (doc && now - doc.updatedAt < REFRESH_MS) return build(identity, doc);
+  if (doc && !(await redis.set(`wiki:lock:${tokenId}`, 1, { nx: true, ex: 60 }))) return build(identity, doc);
 
-  const [chain, registrations, binding, config] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId), fetchConfig(tokenId)]);
-  const facts: WikiFacts = { owner: chain.owner, transfers: chain.transfers, registrations, binding, config };
+  const [chain, registrations, bindingRead, configRead] = await Promise.all([fetchChain(tokenId), fetchRegistrations(tokenId), fetchBinding(tokenId), fetchConfig(tokenId)]);
+  const facts: WikiFacts = {
+    owner: chain.owner,
+    transfers: chain.transfers,
+    registrations,
+    binding: bindingRead ?? doc?.facts.binding ?? null,
+    config: configRead === undefined ? (doc?.facts.config ?? null) : configRead,
+  };
 
   if (!facts.owner && doc) return build(identity, doc);
 
+  // `facts` is always the latest read (what the page shows); `chronicled` is what the
+  // last entry described, so a change that could not be written up yet (daily cap,
+  // cooldown, model error) is still diffed and chronicled on a later refresh.
+  const chronicled = doc ? (doc.chronicled ?? doc.facts) : null;
   const hash = hashFacts(facts);
   if (doc && doc.factsHash === hash) {
     const refreshed: WikiDoc = { ...doc, updatedAt: now, facts };
@@ -662,7 +653,7 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
     return build(identity, refreshed);
   }
 
-  const prevFacts = doc && doc.entries.length > 0 ? doc.facts : null;
+  const prevFacts = doc && doc.entries.length > 0 ? chronicled : null;
   const changes = diffSummary(prevFacts, facts, tokenId);
   const prevEntry = doc?.entries.length ? doc.entries[doc.entries.length - 1] : null;
   const entryText = await generateEntry(withConfig(identity, facts.config), changes, prevEntry);
@@ -674,7 +665,8 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
     revision: (doc?.revision ?? 0) + (entryText ? 1 : 0),
     updatedAt: now,
     factsHash: entryText ? hash : (doc?.factsHash ?? null),
-    facts: entryText ? facts : (doc?.facts ?? facts),
+    facts,
+    chronicled: entryText ? facts : (chronicled ?? facts),
     entries: entries.slice(-12),
   };
   await redis.set(key, next);
