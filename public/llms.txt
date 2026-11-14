@@ -380,7 +380,7 @@ Every BOOA can be exported as an autonomous agent:
 - USER.md — owner instructions
 
 Download from: booa.app/studio/my-booas, or GET /api/v1/booas/{tokenId}/openclaw.zip
-Full setup guide: booa.app/blog/your-agent-your-rules
+Full setup guide: booa.app/skills/SKILL.md
 
 ## Wiki API
 

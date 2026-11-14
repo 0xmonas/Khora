@@ -23,6 +23,9 @@ const nextConfig = {
       // Keep this 301 so external links / bookmarks still resolve.
       { source: '/booa/mint', destination: '/booa/gallery', permanent: true },
       { source: '/mint', destination: '/booa/gallery', permanent: true },
+      { source: '/blog/your-agent-your-rules', destination: '/blog', permanent: true },
+      { source: '/blog/activate-your-agent', destination: '/blog', permanent: true },
+      { source: '/blog/booa-api', destination: '/blog', permanent: true },
     ];
   },
   async headers() {

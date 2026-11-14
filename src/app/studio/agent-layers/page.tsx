@@ -268,8 +268,8 @@ export default function AgentLayersPage() {
             <p className="text-xs text-muted-foreground mb-2">Every BOOA starts at Layer 1. How far you take it is up to you.</p>
             <div className="flex flex-wrap justify-center gap-4 text-[10px]">
               <a href="https://opensea.io/collection/booa" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">Get a BOOA</a>
-              <Link href="/blog/your-agent-your-rules" className="text-foreground underline underline-offset-2">Setup Guide</Link>
-              <Link href="/booa" className="text-foreground underline underline-offset-2">Download Agent Files</Link>
+              <Link href="/docs/hermes" className="text-foreground underline underline-offset-2">Setup Guide</Link>
+              <Link href="/studio/my-booas" className="text-foreground underline underline-offset-2">Download Agent Files</Link>
               <Link href="/bridge" className="text-foreground underline underline-offset-2">Register on ERC-8004</Link>
             </div>
           </div>

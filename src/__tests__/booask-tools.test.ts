@@ -75,13 +75,25 @@ describe('searchBooaDocs', () => {
     expect(r.results).toEqual([]);
   });
 
-  it('indexes blog posts (finds OpenClaw guide)', async () => {
+  it('indexes blog posts (finds the Codex pet guide)', async () => {
     const { executors } = buildTools(makeRequest());
-    const r = (await executors.searchBooaDocs({ query: 'openclaw railway' })) as {
+    const r = (await executors.searchBooaDocs({ query: 'codex pet' })) as {
       results: { source: string; title: string }[];
     };
-    expect(r.results.length).toBeGreaterThan(0);
     expect(r.results.some((x) => x.source === 'blog')).toBe(true);
+  });
+
+  it('no longer knows the retired blog posts or Cobbee', async () => {
+    const { executors } = buildTools(makeRequest());
+    const cobbee = (await executors.searchBooaDocs({ query: 'cobbee', maxResults: 10 })) as { results: unknown[] };
+    expect(cobbee.results).toEqual([]);
+    const old = (await executors.searchBooaDocs({ query: 'openclaw moltbook submolt railway api live', maxResults: 10 })) as {
+      results: { url: string }[];
+    };
+    const urls = old.results.map((x) => x.url);
+    for (const slug of ['your-agent-your-rules', 'activate-your-agent', 'booa-api']) {
+      expect(urls).not.toContain(`/blog/${slug}`);
+    }
   });
 
   it('indexes SKILL.md (finds agent setup manifest)', async () => {

@@ -1,7 +1,7 @@
 ---
 name: agent-defense
-version: 1.0.1
-description: Baseline defense specification for autonomous agents with wallets and public interactions. Written for BOOA agents as the reference instance; designed to be adopted by any agent system (Cobbee, Moltbook, custom).
+version: 1.0.2
+description: Baseline defense specification for autonomous agents with wallets and public interactions. Written for BOOA agents as the reference instance; designed to be adopted by any agent system (Moltbook, custom).
 maintained_by: BOOA (booa.app) — open for adoption by other projects
 canonical_url: https://booa.app/agent-defense.md
 applies_to: Any autonomous agent that signs transactions, holds keys, or interacts with external entities. BOOA agents are the reference implementation; non-BOOA agents may adopt this spec directly or extend it.
@@ -47,7 +47,7 @@ The principle throughout: **a narrow, typed, default-deny interface between the 
 
 ### Adoption Beyond BOOA
 
-Although this document uses BOOA-specific examples (registry addresses, BOOA API URLs, Hermes Template paths), the invariants and architectural patterns in sections 2 through 14 apply to any autonomous agent. Projects running non-BOOA agents — Cobbee, Moltbook, future platforms — may adopt this spec directly, extend it with project-specific additions, or fork it. The spec lives under BOOA's maintenance, but the content is not BOOA-proprietary; its value comes from being a shared baseline the agent ecosystem can build on.
+Although this document uses BOOA-specific examples (registry addresses, BOOA API URLs, Hermes Template paths), the invariants and architectural patterns in sections 2 through 14 apply to any autonomous agent. Projects running non-BOOA agents — Moltbook, future platforms — may adopt this spec directly, extend it with project-specific additions, or fork it. The spec lives under BOOA's maintenance, but the content is not BOOA-proprietary; its value comes from being a shared baseline the agent ecosystem can build on.
 
 A project adopting this spec **should**:
 

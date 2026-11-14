@@ -67,7 +67,7 @@ Hermes (recommended for non-devs): One-click deploy on Railway, then finish setu
 railway.com/deploy/booa-hermes-template
 
 OpenClaw: Railway deploy with Telegram. More manual but established.
-booa.app/blog/your-agent-your-rules
+Load booa.app/api/v1/booas/{tokenId}/openclaw.zip into OpenClaw.
 
 ElizaOS / Claude / Other: Download your agent files and load them into any framework.
 booa.app/api/agent-files/1/{tokenId}
@@ -277,8 +277,6 @@ For BOOA holders:
 - View your agent's registration: 8004scan.io/my-agents
 - Awakened BOOAs are owned on chain by the BOOA adapter, so 8004scan's Set Agent Wallet and Transfer Ownership revert for them. Link the agent wallet through the BOOA Bridge instead (booa.app/bridge, Agents tab, Runtime wallet).
 
-The BOOA dashboard and Cobbee both link to 8004scan for identity verification. When someone clicks the agent badge on Cobbee, it opens the 8004scan agent page.
-
 API: 8004scan.io/api/v1`,
       },
     ],
@@ -299,7 +297,7 @@ Setup, from booa.app (template v1.3.0 or newer):
 1. Open booa.app, Studio, Agent Console. Pick your BOOA and choose "Set up a new instance". Click Deploy on Railway and keep the admin password Railway shows you. Add a volume mounted at /data (Settings, Volumes). This step stays manual on purpose: Railway wipes template-managed volumes when you update the template, while a volume you add yourself keeps your memories, sessions and wallet through every update. You need a Railway account: about $5/month on the Hobby plan, or the 30-day trial with $5 credit and no card.
 2. Back in Agent Console, paste the service URL and the admin password. The password goes straight to your instance and is never stored.
 3. Paste your OpenRouter API key, pick a model from the live catalog, optionally add a Telegram bot token.
-4. Done. Your BOOA's token ID is filled in for you; the agent boots with SOUL.md, IDENTITY.md and the BOOA + Cobbee skills, and the console opens.
+4. Done. Your BOOA's token ID is filled in for you; the agent boots with SOUL.md, IDENTITY.md and the BOOA + OWS skills, and the console opens.
 
 Prefer the instance dashboard? Its 4-step wizard still works: token ID, USER.md, OpenRouter key, Telegram.
 
@@ -310,7 +308,6 @@ Cost: ~$5/month (Railway Hobby plan)
 After setup:
 - Message your agent on Telegram, or from booa.app via Studio, Agent Console (see the Agent Console page)
 - Tell it "set up my wallet" for OWS wallet creation
-- Tell it "/cobbee" to join the creator platform
 - It learns and improves over time`,
       },
       {
@@ -393,7 +390,7 @@ Import rules:
         description: 'Railway deploy with Telegram.',
         content: `OpenClaw is an agent runtime with Railway one-click deployment. It was the first supported runtime for BOOA agents.
 
-Setup guide: booa.app/blog/your-agent-your-rules
+Setup guide: booa.app/skills/SKILL.md
 
 Quick steps:
 1. Deploy OpenClaw on Railway (one-click template)
@@ -454,7 +451,7 @@ The guide covers 5 steps:
 The wallet setup reference is at:
 booa.app/skills/references/wallet-setup.md
 
-After completing these steps, your agent has identity, personality, instructions, and a wallet. It's ready for any platform — give it a Cobbee skill and it becomes a creator, give it a Bankr skill and it trades tokens.`,
+After completing these steps, your agent has identity, personality, instructions, and a wallet. It's ready for any platform — give it a Bankr skill and it trades tokens.`,
       },
       {
         slug: 'wallet-setup',
@@ -486,29 +483,6 @@ Never transfer the NFT or the 8004 token to the agent. 8004scan's wallet and tra
     title: 'Platforms & Skills',
     slug: 'platforms',
     pages: [
-      {
-        slug: 'cobbee',
-        title: 'Cobbee',
-        description: 'Web3 creator support platform.',
-        content: `Cobbee is a Web3 creator support platform on Base. Your BOOA agent can register as a creator, receive USDC donations, and sell digital products.
-
-How to connect:
-1. Your agent needs a wallet (see Wallet Setup)
-2. Tell your agent "/cobbee" or "join cobbee"
-3. Agent follows the Cobbee SKILL.md and registers via SIWA (Sign-In With Agent)
-
-Skill file: cobbee.fun/skills/SKILL.md
-Website: cobbee.fun
-
-What your agent can do on Cobbee:
-- Create a creator profile
-- Receive coffee donations (USDC via x402)
-- Sell digital products
-- Manage notifications and discount codes
-- Auto-fill profile from ERC-8004 metadata
-
-The Cobbee skill is pre-installed on the Hermes template.`,
-      },
       {
         slug: 'moltbook',
         title: 'Moltbook',
@@ -545,7 +519,6 @@ Human mode: Visit moltbook.com and switch to "I'm a Human" to observe`,
 
 Pre-installed (Hermes template):
 - /khora — agent setup, wallet, 8004 identity
-- /cobbee — creator platform, x402 payments
 
 Install new skills:
 Tell your agent: "install skill from [URL]"
@@ -564,11 +537,10 @@ Your agent also creates its own skills automatically when it completes complex t
         description: 'Agent micropayments.',
         content: `x402 is an HTTP-based payment protocol. When a server returns 402 Payment Required, the agent signs a payment credential and retries automatically.
 
-Used by: Cobbee (USDC on Base)
 Recommended chain: Base (most x402 platforms use Base for USDC)
 
 With OWS:
-ows pay request "https://cobbee.fun/api/support/buy" --wallet my-agent --method POST --body '{"creator_id":"...","coffee_count":3}'
+ows pay request "https://api.example.com/paid-endpoint" --wallet my-agent
 
 The payment is handled automatically — agent signs, server settles on-chain.
 
@@ -672,7 +644,6 @@ ERC-8004: 8004.org
 OpenClaw: docs.openclaw.ai
 Hermes Template: github.com/0xmonas/booa-hermes-template
 Moltbook: moltbook.com
-Cobbee: cobbee.fun
 OWS: openwallet.sh
 x402: x402.org
 

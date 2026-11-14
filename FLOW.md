@@ -922,7 +922,7 @@
  │  External directory: 8004scan.io                                 │
  │  • Reads ERC-8004 registry across all 16 chains                 │
  │  • Surfaces verified flag, score, attestation count             │
- │  • Linked from Ident Cards + agent badge on Cobbee             │
+ │  • Linked from Ident Cards                                     │
  └─────────────────────────────────────────────────────────────────┘
 
 
@@ -960,7 +960,7 @@
  │  │          hold wallets or interact publicly               │   │
  │  │ Threats: Prompt injection, impersonation, delegation     │   │
  │  │          forgery, key/seed extraction, agent-to-agent    │   │
- │  │ Status:  Live, used by BOOA + Cobbee + Hermes runtime    │   │
+ │  │ Status:  Live, used by BOOA + Hermes runtime             │   │
  │  │ See:     SECURITY.md (responsible disclosure)            │   │
  │  └─────────────────────────────────────────────────────────┘   │
  │                                                                 │
@@ -1176,11 +1176,10 @@
  │  System prompt highlights:                                      │
  │  • Voice: Gen-Z intern vibe (lowercase casual, no emojis)       │
  │  • Banned phrases: "it seems like", "you might want to"         │
- │  • Action→Tool mapping: register → Bridge, chat → AgentChat,    │
- │    earn → Cobbee skill (x402)                                   │
- │  • Financial questions: no advice, but substance from 6         │
- │    angles (art / tech / agentic future / Cobbee commerce /      │
- │    on-chain nuance / future framing)                            │
+ │  • Action→Tool mapping: register → Bridge, chat → AgentChat     │
+ │  • Financial questions: no advice, but substance from 5         │
+ │    angles (art / tech / agentic future / on-chain nuance /      │
+ │    future framing)                                              │
  │  • Anti-FUD: redirect to data via getCollectionStats            │
  │  • Always inline BOOA pixel art via markdown img syntax         │
  │                                                                 │
@@ -1335,7 +1334,7 @@
  │                                                                 │
  │  Baseline defense spec for autonomous agents that hold wallets  │
  │  or interact publicly. Authored for BOOA, open for adoption    │
- │  by Cobbee, Moltbook, custom agents.                            │
+ │  by Moltbook, custom agents.                                    │
  │                                                                 │
  │  Covers:                                                        │
  │  • Threat model (Twitter replies, chat, agent-to-agent)         │

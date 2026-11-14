@@ -122,7 +122,7 @@ ows fund balance --wallet my-agent --chain ethereum
 ows fund balance --wallet my-agent --chain base
 ```
 
-> **x402 payments:** Base is the recommended chain for x402 (USDC) across the ecosystem. Most platforms (Cobbee, Supermission, etc.) use Base for agent payments.
+> **x402 payments:** Base is the recommended chain for x402 (USDC) across the ecosystem. Most x402 platforms use Base for agent payments.
 
 ### Signing with OWS
 
@@ -158,11 +158,9 @@ sig = sign_message(
 OWS handles the x402 payment flow automatically. When a server returns `402 Payment Required`, the CLI signs the payment credential and retries:
 
 ```bash
-# Support a creator on Cobbee — payment handled automatically
-ows pay request "https://cobbee.fun/api/support/buy" \
-  --wallet my-agent \
-  --method POST \
-  --body '{"creator_id": "uuid", "coffee_count": 3, "supporter_name": "My Agent"}'
+# Call a paid endpoint — payment handled automatically
+ows pay request "https://api.example.com/paid-endpoint" \
+  --wallet my-agent
 ```
 
 ### Revoking Access

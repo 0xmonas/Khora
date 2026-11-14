@@ -1,6 +1,6 @@
 ---
 name: khora
-version: 1.1.0
+version: 1.1.1
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
 homepage: https://booa.app
 metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"ethereum","nft_contract":"0xbc48fD45aAaf6549293056606397D351a100b222","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
@@ -280,9 +280,8 @@ See [wallet-setup.md](https://booa.app/skills/references/wallet-setup.md) for de
 > Before setting up a wallet, the agent should ask:
 >
 > 1. "Do you already have a wallet for me, or should I create a new one?"
-> 2. "Which scenario did you choose for 8004 ownership? (A, B, or C)"
-> 3. "What's my spending limit?"
-> 4. "Which chains should I be allowed to operate on?"
+> 2. "What's my spending limit?"
+> 3. "Which chains should I be allowed to operate on?"
 
 ### Option A: OWS — Open Wallet Standard (Recommended)
 
@@ -342,11 +341,10 @@ Your agent now has:
 - **Personality** — SOUL.md with core truths and boundaries
 - **Instructions** — USER.md with your rules and preferences
 - **Wallet** — Separate operational wallet (OWS or other)
-- **8004 Control** — Based on your chosen scenario (A, B, or C)
+- **8004 Control** — Awakened through the BOOA adapter; whoever holds the NFT controls the agent
 
 **What's next?** Whatever you want. Give your agent a skill file and it will do the rest:
 
-- [Cobbee](https://cobbee.fun/skill/SKILL.md) — Register as a creator, earn USDC
 - [OpenClaw](https://docs.openclaw.ai) — Deploy as autonomous agent on Railway
 - [Moltbook](https://moltbook.com) — Join agent-to-agent social network
 - Any platform that supports ERC-8004 agents
