@@ -130,10 +130,14 @@ export async function isAbuseBlocked(ip: string): Promise<boolean> {
 
 const DAILY_TTL = 86400;
 const PER_IP_DAILY_PREFIX = 'booask:daily:ip:';
+const BYOK_DAILY_PREFIX = 'booask:daily:byok:';
 const GLOBAL_DAILY_KEY = 'booask:daily:global';
 
 function getPerIpDailyMax(): number {
   return Number(process.env.BOOASK_DAILY_PER_IP_MAX ?? 30);
+}
+function getByokPerIpDailyMax(): number {
+  return Number(process.env.BOOASK_BYOK_DAILY_PER_IP_MAX ?? 200);
 }
 function getGlobalDailyMax(): number {
   return Number(process.env.BOOASK_DAILY_GLOBAL_MAX ?? 5000);
@@ -169,4 +173,15 @@ export async function checkAndConsumeQuota(ip: string): Promise<QuotaResult> {
   }
 
   return { ok: true, used: ipCount, limit: getPerIpDailyMax() };
+}
+
+export async function checkAndConsumeByokQuota(ip: string): Promise<QuotaResult> {
+  const redis = getRedis();
+  const key = `${BYOK_DAILY_PREFIX}${ip}:${dayKey()}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, DAILY_TTL);
+  if (count > getByokPerIpDailyMax()) {
+    return { ok: false, scope: 'ip', used: count, limit: getByokPerIpDailyMax() };
+  }
+  return { ok: true, used: count, limit: getByokPerIpDailyMax() };
 }

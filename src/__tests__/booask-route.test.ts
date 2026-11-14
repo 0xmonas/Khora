@@ -198,6 +198,30 @@ describe('POST /api/booask — daily quota', () => {
     expect(ok.status).toBe(200);
     delete process.env.BOOASK_DAILY_PER_IP_MAX;
   });
+
+  it('still caps own-key questions per IP, since tools spend our upstreams', async () => {
+    runBooaskMock.mockResolvedValue({ reply: 'ok', toolCalls: [] });
+    process.env.BOOASK_BYOK_DAILY_PER_IP_MAX = '1';
+    const key = { 'x-gemini-key': 'AIzaSyDummyValidLookingKeyForTestPurposesABCDEFG' };
+    expect((await callRoute({ message: 'q1' }, '127.0.0.1', key)).status).toBe(200);
+    expect((await callRoute({ message: 'q2' }, '127.0.0.1', key)).status).toBe(429);
+    expect(runBooaskMock).toHaveBeenCalledTimes(1);
+    delete process.env.BOOASK_BYOK_DAILY_PER_IP_MAX;
+  });
+});
+
+describe('POST /api/booask — origin', () => {
+  it('rejects requests sent from another site', async () => {
+    const res = await callRoute({ message: 'What is BOOA?' }, '127.0.0.1', { origin: 'https://evil.example' });
+    expect(res.status).toBe(403);
+    expect(runBooaskMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts requests from booa.app', async () => {
+    runBooaskMock.mockResolvedValue({ reply: 'ok', toolCalls: [] });
+    const res = await callRoute({ message: 'What is BOOA?' }, '127.0.0.1', { origin: 'https://www.booa.app' });
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('POST /api/booask — abuse cooldown', () => {

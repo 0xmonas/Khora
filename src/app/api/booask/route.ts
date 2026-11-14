@@ -7,7 +7,9 @@ import {
   recordAbuse,
   isAbuseBlocked,
   checkAndConsumeQuota,
+  checkAndConsumeByokQuota,
 } from '@/lib/booask/input-filter';
+import { isAllowedOrigin } from '@/lib/server/origin';
 import { recordBooaskRequest } from '@/lib/booask/metrics';
 import type { ErrorKind } from '@/lib/booask/metrics';
 import { getIP } from '@/lib/ratelimit';
@@ -23,6 +25,10 @@ const COOLDOWN_REPLY =
   "Looks like there have been a lot of blocked messages from your end. BOOASK is taking a short break for you. Try again in an hour with a plain question about BOOA, agents, or the studio.";
 
 export async function POST(request: NextRequest) {
+  if (!isAllowedOrigin(request.headers.get('origin'))) {
+    return NextResponse.json({ error: 'Forbidden origin.' }, { status: 403 });
+  }
+
   const ip = getIP(request);
 
   if (await isAbuseBlocked(ip)) {
@@ -121,6 +127,26 @@ export async function POST(request: NextRequest) {
       );
     }
   } else {
+    const quota = await checkAndConsumeByokQuota(ip);
+    if (!quota.ok) {
+      void recordBooaskRequest({
+        ip,
+        inputTokens: 0,
+        outputTokens: 0,
+        toolCallCount: 0,
+        usingOwnKey: true,
+        errorKind: 'quota_ip',
+      });
+      return NextResponse.json(
+        {
+          reply: `You've reached today's BOOASK limit (${quota.limit} questions/day per IP). Try again in 24h.`,
+          blocked: true,
+          quotaExceeded: true,
+          quotaScope: 'ip',
+        },
+        { status: 429 },
+      );
+    }
     usingOwnKey = true;
   }
 

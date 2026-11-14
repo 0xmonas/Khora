@@ -3,6 +3,7 @@ import type { BooaskMessage, ToolDef, ToolExecutor } from './types';
 
 const MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash-lite';
 const MAX_TOOL_ITERATIONS = 6;
+const MAX_TOOL_CALLS = 8;
 
 let _ai: InstanceType<typeof GoogleGenAI> | null = null;
 function getAI(apiKey?: string): InstanceType<typeof GoogleGenAI> {
@@ -178,6 +179,7 @@ export async function runBooask(opts: {
   const toolCalls: { name: string; args: Record<string, unknown> }[] = [];
   let inputTokens = 0;
   let outputTokens = 0;
+  let executed = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const response = await ai.models.generateContent({
@@ -242,7 +244,10 @@ export async function runBooask(opts: {
       let result: unknown;
       if (!exec) {
         result = { error: `Unknown tool: ${fc.name}` };
+      } else if (executed >= MAX_TOOL_CALLS) {
+        result = { error: 'Tool limit for this question reached. Answer with what you already have.' };
       } else {
+        executed++;
         try {
           result = await exec(args);
         } catch (e) {
