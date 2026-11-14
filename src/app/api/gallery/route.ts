@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rejectUnknownParams } from '@/lib/server/query-params';
+import { isBooaContract } from '@/lib/contracts/booa-v2';
 
 export const maxDuration = 30;
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || '';
+const NETWORKS: Record<string, string> = {
+  ethereum: 'eth-mainnet',
+  shape: 'shape-mainnet',
+  'shape-sepolia': 'shape-sepolia',
+};
+const SUPPLY = BigInt(3333);
 
 /**
  * GET /api/gallery?contract=0x...&chain=shape-sepolia
@@ -19,18 +26,25 @@ export async function GET(request: NextRequest) {
   const contract = request.nextUrl.searchParams.get('contract');
   const chain = request.nextUrl.searchParams.get('chain') || 'ethereum';
   const startToken = request.nextUrl.searchParams.get('startToken') || undefined;
+  const limit = request.nextUrl.searchParams.get('limit') || '100';
+  const network = NETWORKS[chain];
 
-  if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract)) {
+  if (!contract || !/^0x[a-fA-F0-9]{40}$/.test(contract) || !isBooaContract(contract)) {
     return NextResponse.json({ error: 'Invalid contract address' }, { status: 400 });
+  }
+  if (!network) {
+    return NextResponse.json({ error: 'Invalid chain' }, { status: 400 });
+  }
+  if (!/^\d{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 100) {
+    return NextResponse.json({ error: 'Invalid limit' }, { status: 400 });
+  }
+  if (startToken && (!/^(0x[0-9a-fA-F]{1,64}|\d{1,5})$/.test(startToken) || BigInt(startToken) >= SUPPLY)) {
+    return NextResponse.json({ error: 'Invalid startToken' }, { status: 400 });
   }
 
   if (!ALCHEMY_API_KEY) {
     return NextResponse.json({ error: 'Alchemy API key not configured' }, { status: 500 });
   }
-
-  const network = chain === 'ethereum' ? 'eth-mainnet'
-    : chain === 'shape' ? 'shape-mainnet'
-    : 'shape-sepolia';
 
   try {
     const url = new URL(
@@ -39,7 +53,6 @@ export async function GET(request: NextRequest) {
     url.searchParams.set('contractAddress', contract);
     url.searchParams.set('withMetadata', 'true');
     url.searchParams.set('refreshCache', 'true');
-    const limit = request.nextUrl.searchParams.get('limit') || '100';
     url.searchParams.set('limit', limit);
     if (startToken) url.searchParams.set('startToken', startToken);
 
