@@ -225,10 +225,6 @@ async function fetchChain(tokenId: number): Promise<{ owner: string | null; tran
   return fetchChainOn(SHAPE_CHAIN_ID, tokenId);
 }
 
-// Is this BOOA Awakened? The awakened index scans AgentBound forward from the
-// adapter's deploy block, so an early awakening never drops out of view. Adapter
-// bindings are immutable once made, so a missing binding here means "unknown",
-// never "released": undefined tells the caller to keep what it already knew.
 async function fetchBinding(tokenId: number): Promise<WikiBinding | null | undefined> {
   const adapter = getAdapterAddress(ETH_CHAIN_ID);
   const booa = getV2Address(ETH_CHAIN_ID);
@@ -286,8 +282,6 @@ const SKILL_LABELS = OASF_SKILLS.flatMap((c) => c.items.map((i) => i.label));
 const DOMAIN_LABELS = OASF_DOMAINS.flatMap((c) => c.items.map((i) => i.label));
 const pick = (list: string[], idx: readonly number[]) => idx.map((i) => list[i]).filter(Boolean);
 
-// undefined = the read failed, so the caller keeps the last known config rather
-// than chronicling a failed RPC call as "holder restored the original".
 async function fetchConfig(tokenId: number): Promise<WikiConfig | null | undefined> {
   const address = getBooaConfigAddress();
   if (!address || !ETH_RPC) return null;
@@ -642,9 +636,6 @@ export async function getWiki(tokenId: number): Promise<WikiResult | null> {
 
   if (!facts.owner && doc) return build(identity, doc);
 
-  // `facts` is always the latest read (what the page shows); `chronicled` is what the
-  // last entry described, so a change that could not be written up yet (daily cap,
-  // cooldown, model error) is still diffed and chronicled on a later refresh.
   const chronicled = doc ? (doc.chronicled ?? doc.facts) : null;
   const hash = hashFacts(facts);
   if (doc && doc.factsHash === hash) {

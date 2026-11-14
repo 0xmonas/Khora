@@ -118,7 +118,6 @@ export function MigrateProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void refreshHoldings(); }, [refreshHoldings]);
 
   // Recovery: tokens already burned on Shape but not yet claimed on Ethereum.
-  // The server reports complete:false while its burn index is still catching up.
   const pendingRun = useRef(0);
   const refreshPending = useCallback(async () => {
     const run = ++pendingRun.current;

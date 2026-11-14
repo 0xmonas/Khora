@@ -283,12 +283,6 @@ const BURN_SCAN_BUDGET_MS = 40_000;
 interface BurnRecord { tokenId: number; holder: string; block: number }
 interface BurnIndex { cursor: number; burns: BurnRecord[] }
 
-/**
- * Collection-wide burn index, scanned forward from BURN_FLOOR_BLOCK. Each call reads
- * only the blocks past the stored cursor; a failed page stops the scan so that range
- * is retried next time instead of being skipped. Both burn paths are indexed: direct
- * Shape burns (Transfer to zero) and BurnHelper MigrationBurn events.
- */
 async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> {
   const helper = getBurnHelperAddress();
   const shapeBooa = getShapeBooaAddress();
@@ -297,7 +291,7 @@ async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> 
   let index: BurnIndex | null = null;
   try {
     index = await getRedis().get<BurnIndex>(BURN_INDEX_KEY);
-  } catch { /* index unavailable — rebuild from the floor */ }
+  } catch { /* rebuild from the floor */ }
 
   const latest = await client.getBlockNumber();
   const byKey = new Map((index?.burns ?? []).map((b) => [`${b.tokenId}:${b.holder}`, b]));
@@ -307,8 +301,7 @@ async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> 
     byKey.set(`${rec.tokenId}:${rec.holder}`, rec);
   };
 
-  // Query by event topic only and match in JS: filtering by an indexed topic makes
-  // some Shape RPCs reject the request (partial/trailing null topics).
+  // Some Shape RPCs reject partial indexed-topic filters, so match in JS.
   let scannedTo = index ? BigInt(index.cursor) : BURN_FLOOR_BLOCK - BigInt(1);
   let failed = false;
   const started = Date.now();
@@ -343,7 +336,7 @@ async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> 
   if (!index || BigInt(index.cursor) !== scannedTo) {
     try {
       await getRedis().set(BURN_INDEX_KEY, { cursor: Number(scannedTo), burns });
-    } catch { /* best effort — the next call rescans the same range */ }
+    } catch { /* rescanned next call */ }
   }
   return { burns, complete: !failed && scannedTo >= latest };
 }
@@ -353,7 +346,6 @@ async function scanBurns(): Promise<{ burns: BurnRecord[]; complete: boolean }> 
  * claimed on Ethereum. Covers the case where the claim tx failed after the burn
  * succeeded (wallet timeout, page reload) — the burn is permanent, so the holder
  * must be able to claim later without re-burning. Reads purely on-chain.
- * `complete: false` means the index has not reached the chain head yet.
  */
 export async function findBurnedUnclaimed(
   holder: `0x${string}`,
