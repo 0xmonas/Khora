@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHAIN_CONFIG } from '@/types/agent';
-import type { SupportedChain } from '@/types/agent';
-import { getV2Address, getV2RendererAddress, getV2StorageAddress, BOOA_V2_RENDERER_ABI, BOOA_V2_STORAGE_ABI } from '@/lib/contracts/booa-v2';
+import { caipRef, getBooaCurrent, isTokenId, readArt } from '@/lib/server/booa';
 import { traitsToAgent, toSoulMd, toIdentityMd, toERC8004 } from '@/utils/helpers/exportFormats';
 
 export const maxDuration = 15;
@@ -12,88 +10,18 @@ let agentDefenseCache: string | null = null;
 async function getAgentDefense(): Promise<string | null> {
   if (agentDefenseCache !== null) return agentDefenseCache;
   try {
-    const filePath = path.join(process.cwd(), 'public', 'agent-defense.md');
-    agentDefenseCache = await readFile(filePath, 'utf-8');
+    agentDefenseCache = await readFile(path.join(process.cwd(), 'public', 'agent-defense.md'), 'utf-8');
     return agentDefenseCache;
   } catch {
     return null;
   }
 }
 
-const MAINNET_CHAIN_IDS = new Set(
-  Object.values(CHAIN_CONFIG)
-    .filter((_, i) => {
-      const key = Object.keys(CHAIN_CONFIG)[i];
-      return key !== 'base-sepolia' && key !== 'shape-sepolia';
-    })
-    .map(c => c.chainId)
-);
-
+const CHAINS = new Set([1, 360]);
 const VALID_FILES = new Set(['soul.md', 'identity.md', 'avatar.svg', 'agent.json', 'erc8004.json']);
-
-function getChainKey(chainId: number): SupportedChain | null {
-  const entry = Object.entries(CHAIN_CONFIG).find(([, v]) => v.chainId === chainId);
-  return entry ? entry[0] as SupportedChain : null;
-}
-
-interface OnChainData {
-  traits: { trait_type: string; value: string }[];
-  caipRef: string;
-  svgString: string;
-}
-
-async function fetchOnChainData(chainId: number, tokenId: number): Promise<OnChainData> {
-  const { createPublicClient, http, fallback } = await import('viem');
-  const chainKey = getChainKey(chainId);
-  if (!chainKey) throw new Error('Unsupported chain');
-
-  const config = CHAIN_CONFIG[chainKey];
-  const booaAddress = getV2Address(chainId);
-  const rendererAddress = getV2RendererAddress(chainId);
-  const storageAddress = getV2StorageAddress(chainId);
-
-  if (!rendererAddress || rendererAddress.length <= 2) throw new Error("BOOA renderer not configured");
-
-  const client = createPublicClient({
-    transport: fallback(config.rpcUrls.map((url) => http(url))),
-  });
-
-  const [traitsHex, tokenURI] = await Promise.all([
-    client.readContract({
-      address: storageAddress,
-      abi: BOOA_V2_STORAGE_ABI,
-      functionName: 'getTraits',
-      args: [BigInt(tokenId)],
-    }) as Promise<string>,
-    client.readContract({
-      address: rendererAddress,
-      abi: BOOA_V2_RENDERER_ABI,
-      functionName: "tokenURI",
-      args: [BigInt(tokenId)],
-    }) as Promise<string>,
-  ]);
-
-  let traits: { trait_type: string; value: string }[] = [];
-  if (traitsHex && traitsHex !== '0x') {
-    const hex = traitsHex as `0x${string}`;
-    const bytes = new Uint8Array(
-      hex.slice(2).match(/.{1,2}/g)!.map(b => parseInt(b, 16))
-    );
-    traits = JSON.parse(new TextDecoder().decode(bytes));
-  }
-
-  let svgString = '';
-  const caipRef = `eip155:${chainId}/erc721:${booaAddress}/${tokenId}`;
-
-  if (tokenURI.startsWith('data:')) {
-    const json = JSON.parse(Buffer.from(tokenURI.split(',')[1], 'base64').toString('utf-8'));
-    if (json.image?.startsWith('data:image/svg+xml;base64,')) {
-      svgString = Buffer.from(json.image.split(',')[1], 'base64').toString('utf-8');
-    }
-  }
-
-  return { traits, caipRef, svgString };
-}
+const CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' };
+const ART = { 'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400' };
+const MD = 'text/markdown; charset=utf-8';
 
 export async function GET(
   req: NextRequest,
@@ -103,10 +31,10 @@ export async function GET(
   const chainId = Number(chainIdStr);
   const tokenId = Number(tokenIdStr);
 
-  if (!Number.isInteger(chainId) || !MAINNET_CHAIN_IDS.has(chainId)) {
+  if (!CHAINS.has(chainId)) {
     return NextResponse.json({ error: 'Unsupported chain' }, { status: 400 });
   }
-  if (!Number.isInteger(tokenId) || tokenId < 0 || tokenId > 10000) {
+  if (!isTokenId(tokenId)) {
     return NextResponse.json({ error: 'Invalid tokenId' }, { status: 400 });
   }
 
@@ -116,78 +44,49 @@ export async function GET(
   }
 
   try {
-    const { traits, caipRef, svgString } = await fetchOnChainData(chainId, tokenId);
-    if (traits.length === 0) {
-      return NextResponse.json({ error: 'Token not found' }, { status: 404 });
+    if (fileName === 'avatar.svg') {
+      const { svg } = await readArt(tokenId, 'live');
+      return new NextResponse(svg, { headers: { ...ART, 'Content-Type': 'image/svg+xml; charset=utf-8' } });
     }
 
-    const agent = traitsToAgent(traits);
-    const cache = { 'Cache-Control': 'public, max-age=86400, s-maxage=86400' };
+    const current = await getBooaCurrent(tokenId);
+    const agent = traitsToAgent(current.attributes);
+    const ref = caipRef(tokenId);
+    const { image: _, ...agentData } = agent;
+    const agentJson = { ...agentData, attributes: current.attributes, caipRef: ref };
 
     if (fileName === 'soul.md') {
-      return new NextResponse(toSoulMd(agent), {
-        headers: { ...cache, 'Content-Type': 'text/markdown; charset=utf-8' },
-      });
+      return new NextResponse(toSoulMd(agent), { headers: { ...CACHE, 'Content-Type': MD } });
     }
-
     if (fileName === 'identity.md') {
-      return new NextResponse(toIdentityMd(agent, caipRef, traits), {
-        headers: { ...cache, 'Content-Type': 'text/markdown; charset=utf-8' },
-      });
+      return new NextResponse(toIdentityMd(agent, ref, current.attributes), { headers: { ...CACHE, 'Content-Type': MD } });
     }
-
-    if (fileName === 'avatar.svg') {
-      if (!svgString) {
-        return NextResponse.json({ error: 'Avatar not available' }, { status: 404 });
-      }
-      return new NextResponse(svgString, {
-        headers: { ...cache, 'Content-Type': 'image/svg+xml; charset=utf-8' },
-      });
-    }
-
     if (fileName === 'agent.json') {
-      const { image: _, ...data } = agent;
-      return NextResponse.json({ ...data, caipRef }, {
-        headers: cache,
-      });
+      return NextResponse.json(agentJson, { headers: CACHE });
     }
-
     if (fileName === 'erc8004.json') {
-      const registration = toERC8004(agent);
-      return NextResponse.json(registration, {
-        headers: cache,
-      });
+      return NextResponse.json(toERC8004(agent), { headers: CACHE });
     }
 
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
     zip.file('SOUL.md', toSoulMd(agent));
-    zip.file('IDENTITY.md', toIdentityMd(agent, caipRef, traits));
-    if (svgString) zip.file('avatar.svg', svgString);
-    const { image: _, ...agentData } = agent;
-    zip.file('agent.json', JSON.stringify({ ...agentData, caipRef }, null, 2));
+    zip.file('IDENTITY.md', toIdentityMd(agent, ref, current.attributes));
+    zip.file('avatar.svg', (await readArt(tokenId, 'live')).svg);
+    zip.file('agent.json', JSON.stringify(agentJson, null, 2));
     zip.file('erc8004.json', JSON.stringify(toERC8004(agent), null, 2));
-
     const agentDefense = await getAgentDefense();
-    if (agentDefense) {
-      zip.file('agent-defense.md', agentDefense);
-    }
+    if (agentDefense) zip.file('agent-defense.md', agentDefense);
 
-    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     const safeName = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'agent';
-
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(await zip.generateAsync({ type: 'nodebuffer' }), {
       headers: {
-        ...cache,
+        ...CACHE,
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${safeName}-agent-files.zip"`,
       },
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : '';
-    if (msg.includes('revert') || msg.includes('returned no data')) {
-      return NextResponse.json({ error: 'Token not found' }, { status: 404 });
-    }
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch on-chain data' }, { status: 502 });
   }
 }

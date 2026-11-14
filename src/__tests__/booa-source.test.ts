@@ -100,6 +100,22 @@ describe('/api/v1/booas', () => {
     expect(readContract).not.toHaveBeenCalled();
   });
 
+  it('agent-files serves the live identity and lists attributes in agent.json', async () => {
+    const { GET } = await import('@/app/api/agent-files/[chainId]/[tokenId]/[[...file]]/route');
+    const get = (f: string) => GET(new NextRequest(`https://booa.app/api/agent-files/1/1496/${f}`), { params: Promise.resolve({ chainId: '1', tokenId: '1496', file: [f] }) });
+    expect(await (await get('soul.md')).text()).toContain('Dry-witted');
+    const data = await (await get('agent.json')).json();
+    expect(data.attributes).toContainEqual({ trait_type: 'Personality', value: 'Dry-witted' });
+    expect(await (await get('avatar.svg')).text()).toBe('<svg>live</svg>');
+  });
+
+  it('booa-image, the URL inside 8004 records, serves the live look with a short cache', async () => {
+    const { GET } = await import('@/app/api/booa-image/[tokenId]/route');
+    const res = await GET(new NextRequest('https://booa.app/api/booa-image/10'), { params: Promise.resolve({ tokenId: '10' }) });
+    expect(await res.text()).toBe('<svg>live</svg>');
+    expect(res.headers.get('Cache-Control')).not.toContain('immutable');
+  });
+
   it('answers repeat reads from the cache', async () => {
     await json('1496');
     const reads = readContract.mock.calls.length;

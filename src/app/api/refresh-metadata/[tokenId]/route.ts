@@ -3,6 +3,7 @@ import { createPublicClient, http, isAddress, getAddress } from 'viem';
 import { mainnet } from 'viem/chains';
 import { getBooaEthAddress } from '@/lib/contracts/booa-eth';
 import { getRedis } from '@/lib/server/redis';
+import { purgeBooa } from '@/lib/server/booa';
 import { writeLimiter, getIP } from '@/lib/ratelimit';
 
 export const maxDuration = 15;
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'Refreshed recently. Try again in a few minutes.' }, { status: 429 });
   }
 
+  await purgeBooa(id);
   const openseaKey = process.env.OPENSEA_API_KEY;
   const [alchemy, opensea] = await Promise.all([
     fetch(
