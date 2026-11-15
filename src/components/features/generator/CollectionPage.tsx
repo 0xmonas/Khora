@@ -2,15 +2,11 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { Gallery } from './components';
-import { ConnectPrompt } from './components/ConnectPrompt';
 
 const font = { fontFamily: 'var(--font-departure-mono)' };
 
 export function CollectionPage() {
-  const { isConnected } = useAccount();
-
   return (
     <div className="bg-background p-4 md:p-8 lg:p-12">
       <div className="w-full lg:grid lg:grid-cols-12">
@@ -27,13 +23,9 @@ export function CollectionPage() {
             </p>
           </div>
 
-          {isConnected ? (
-            <div className="w-full">
-              <Gallery />
-            </div>
-          ) : (
-            <ConnectPrompt />
-          )}
+          <div className="w-full">
+            <Gallery />
+          </div>
         </div>
         <div className="hidden lg:block lg:col-span-1" />
       </div>

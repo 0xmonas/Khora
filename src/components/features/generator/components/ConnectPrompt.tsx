@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 
-export function ConnectPrompt() {
+export function ConnectPrompt({ message = 'Connect your wallet to continue', className = 'min-h-[60vh]' }: { message?: string; className?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+    <div className={`flex flex-col items-center justify-center gap-6 ${className}`}>
       <p className="font-mono text-sm text-neutral-500 dark:text-neutral-400">
-        Connect your wallet to start generating agents
+        {message}
       </p>
       <WalletConnectButton />
     </div>

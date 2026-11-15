@@ -45,6 +45,14 @@ const TOOLS: ToolCard[] = [
     tag: 'NEW',
   },
   {
+    id: 'bridge',
+    title: 'Bridge',
+    description: 'Turn any NFT into an ERC-8004 registered agent. Pick an NFT, set its identity, bind it onchain, and link its runtime wallet.',
+    href: '/bridge',
+    media: 'bridge.svg',
+    tag: 'LIVE',
+  },
+  {
     id: 'agent-console',
     title: 'Agent Console',
     description: 'Chat with and manage your self-hosted Hermes agent from the browser. Your instance, your key — booa.app stores nothing.',

@@ -107,14 +107,17 @@ function WalletButton() {
   );
 }
 
-const NAV_LINKS: { href: string; label: string; highlight?: boolean; shimmer?: boolean }[] = [
+type NavLink = { href: string; label: string; highlight?: boolean; shimmer?: boolean };
+
+const NAV_LINKS: NavLink[] = [
   { href: '/booa', label: 'BOOA' },
   { href: '/migrate', label: 'Migrate', shimmer: true },
-  { href: '/studio/my-agents', label: 'My Agents' },
-  { href: '/bridge', label: 'Bridge' },
   { href: '/studio', label: 'Studio' },
-  { href: '/blog', label: 'Blog' },
+];
+
+const ACCOUNT_LINKS: NavLink[] = [
   { href: '/studio/my-booas', label: 'My BOOAs' },
+  { href: '/studio/my-agents', label: 'My Agents' },
 ];
 
 export function Header() {
@@ -215,6 +218,16 @@ export function Header() {
                 >
                   {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
+                {ACCOUNT_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="hidden md:inline-flex items-center h-10 sm:h-12 px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+                    style={walletFont}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
                 <WalletButton />
               </div>
             </div>
@@ -252,7 +265,7 @@ export function Header() {
         </div>
 
         <nav className="flex flex-col p-6 gap-6">
-          {NAV_LINKS.map((link) => (
+          {[...NAV_LINKS, ...ACCOUNT_LINKS].map((link) => (
             <Link
               key={link.href}
               href={link.href}

@@ -8,6 +8,7 @@ import { GalleryThumbnail } from './GalleryThumbnail';
 import { TokenDetail } from '@/components/features/booa/TokenDetail';
 import { useGalleryTokens, selectGallery, type GalleryToken } from '@/hooks/useGalleryTokens';
 import { CustomScrollArea } from '@/components/ui/custom-scroll-area';
+import { ConnectPrompt } from '../ConnectPrompt';
 
 const PAGE = 50;
 
@@ -42,8 +43,7 @@ export function Gallery() {
 
   const hasActiveFilter = searchQuery.trim() || filter === 'mine';
   const emptyMessage =
-    filter === 'mine' && !connected ? 'Connect your wallet to see your BOOAs'
-    : filter === 'mine' && ownedError ? "Couldn't load your BOOAs. Try again."
+    filter === 'mine' && ownedError ? "Couldn't load your BOOAs. Try again."
     : filteredTokens.length > 0 ? null
     : filter === 'mine' && !searchQuery.trim() ? 'No BOOAs in this wallet'
     : 'No matching agents';
@@ -106,7 +106,9 @@ export function Gallery() {
           </div>
 
           <CustomScrollArea className="flex-1 min-h-0">
-            {isLoading ? (
+            {filter === 'mine' && !connected ? (
+              <ConnectPrompt message="Connect your wallet to see your BOOAs" className="h-full min-h-[300px]" />
+            ) : isLoading ? (
               <GallerySkeleton />
             ) : emptyMessage ? (
               <div className="flex items-center justify-center h-full min-h-[200px]">

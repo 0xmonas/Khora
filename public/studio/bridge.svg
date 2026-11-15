@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+<rect width="32" height="32" fill="#50459B"/>
+<path fill="#6ABFC6" d="M2 14h2v1h-2zM2 15h3v1h-3z"/>
+<path fill="#5CAB5E" d="M2 16h3v1h-3zM0 21h5v1h-5zM27 21h5v1h-5z"/>
+<path fill="#898989" d="M9 22h2v1h-2zM21 22h2v1h-2zM9 23h2v1h-2zM21 23h2v1h-2zM9 24h2v1h-2zM21 24h2v1h-2zM9 25h2v1h-2zM21 25h2v1h-2zM9 26h2v1h-2zM21 26h2v1h-2zM9 27h2v1h-2zM21 27h2v1h-2z"/>
+<path fill="#000000" d="M0 12h7v1h-7zM26 12h5v1h-5zM0 13h1v1h-1zM6 13h1v1h-1zM25 13h1v1h-1zM31 13h1v1h-1zM0 14h1v1h-1zM6 14h1v1h-1zM25 14h1v1h-1zM31 14h1v1h-1zM0 15h1v1h-1zM6 15h1v1h-1zM25 15h1v1h-1zM31 15h1v1h-1zM0 16h1v1h-1zM6 16h1v1h-1zM25 16h1v1h-1zM28 16h1v1h-1zM31 16h1v1h-1zM0 17h1v1h-1zM6 17h1v1h-1zM26 17h5v1h-5zM0 18h7v1h-7z"/>
+<path fill="#ADADAD" d="M11 22h10v1h-10zM11 23h3v1h-3zM18 23h3v1h-3zM11 24h1v1h-1zM20 24h1v1h-1zM11 25h1v1h-1zM20 25h1v1h-1z"/>
+<path fill="#6D5412" d="M7 16h18v1h-18zM8 17h1v1h-1zM11 17h1v1h-1zM14 17h1v1h-1zM17 17h1v1h-1zM20 17h1v1h-1zM23 17h1v1h-1zM8 18h1v1h-1zM11 18h1v1h-1zM14 18h1v1h-1zM17 18h1v1h-1zM20 18h1v1h-1zM23 18h1v1h-1zM26 18h1v1h-1zM5 21h22v1h-22zM0 22h8v1h-8zM24 22h8v1h-8zM0 23h5v1h-5zM6 23h2v1h-2zM24 23h5v1h-5zM30 23h2v1h-2zM0 24h2v1h-2zM3 24h5v1h-5zM24 24h3v1h-3zM28 24h4v1h-4zM0 25h8v1h-8zM24 25h8v1h-8zM0 26h8v1h-8zM24 26h8v1h-8z"/>
+<path fill="#A1683C" d="M5 19h22v1h-22zM5 20h22v1h-22zM5 23h1v1h-1zM29 23h1v1h-1zM2 24h1v1h-1zM27 24h1v1h-1z"/>
+<path fill="#FFFFFF" d="M3 3h1v1h-1zM27 3h1v1h-1zM16 5h6v1h-6zM15 6h1v1h-1zM22 6h1v1h-1zM15 7h1v1h-1zM22 7h1v1h-1zM5 8h1v1h-1zM16 8h6v1h-6zM29 8h1v1h-1zM13 10h1v1h-1zM22 10h1v1h-1zM1 13h5v1h-5zM1 14h1v1h-1zM5 14h1v1h-1zM27 14h1v1h-1zM29 14h1v1h-1zM1 15h1v1h-1zM5 15h1v1h-1zM1 16h1v1h-1zM5 16h1v1h-1zM1 17h5v1h-5zM3 28h3v1h-3zM19 28h3v1h-3zM12 29h3v1h-3zM8 30h3v1h-3zM26 30h3v1h-3z"/>
+<path fill="#C9D487" d="M10 4h7v1h-7zM9 5h1v1h-1zM9 6h1v1h-1zM16 6h1v1h-1zM10 7h5v1h-5zM4 14h1v1h-1z"/>
+<path fill="#887ECB" d="M0 27h9v1h-9zM11 27h10v1h-10zM23 27h9v1h-9zM0 28h3v1h-3zM6 28h13v1h-13zM22 28h10v1h-10zM0 29h12v1h-12zM15 29h17v1h-17zM0 30h8v1h-8zM11 30h15v1h-15zM29 30h3v1h-3zM0 31h32v1h-32z"/>
+<path fill="#9AE29B" d="M26 13h5v1h-5zM26 14h1v1h-1zM28 14h1v1h-1zM30 14h1v1h-1zM26 15h5v1h-5zM26 16h2v1h-2zM29 16h2v1h-2z"/>
+</svg>

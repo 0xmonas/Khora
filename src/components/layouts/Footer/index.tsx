@@ -88,6 +88,9 @@ export function Footer() {
                 2026 &copy; BOOA.APP
               </p>
               <div className="flex flex-wrap items-center gap-6">
+                <Link href="/blog" className={linkClass} style={footerFont}>
+                  Blog
+                </Link>
                 <Link href="/docs" className={linkClass} style={footerFont}>
                   Docs
                 </Link>
