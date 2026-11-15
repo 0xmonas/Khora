@@ -57,7 +57,7 @@ const TOOLS: ToolCard[] = [
     title: 'BOOASK',
     description: 'Ask anything about a BOOA, an agent, or how any of this works. Read-only oracle, no wallet required.',
     href: '/booask',
-    media: 'booask.png',
+    media: 'booask.svg',
     tag: 'NEW',
   },
   {
@@ -65,7 +65,7 @@ const TOOLS: ToolCard[] = [
     title: 'Ident Cards',
     description: 'Look up any BOOA agent by token ID. View on-chain pixel art, traits, and ERC-8004 identity.',
     href: '/agents',
-    media: 'ident.png',
+    media: 'ident.svg',
     tag: 'LIVE',
   },
   {
@@ -81,7 +81,7 @@ const TOOLS: ToolCard[] = [
     title: 'Writers Room',
     description: '30-day collaborative comic. Holders pitch the next page; the most-liked submission wins. The visual editor is op-managed.',
     href: '/studio/writers-room',
-    media: 'writers-room.png',
+    media: 'writers-room.svg',
     tag: 'NEW',
   },
   {
@@ -89,7 +89,7 @@ const TOOLS: ToolCard[] = [
     title: 'Spriteworks',
     description: 'Animate your BOOA into a game-ready sprite sheet. Pick a motion — idle, walk, run, jump — every frame stays locked to your character.',
     href: '/studio/spriteworks',
-    media: 'spriteworks.png',
+    media: 'spriteworks.svg',
     tag: 'NEW',
   },
   {
@@ -97,7 +97,7 @@ const TOOLS: ToolCard[] = [
     title: 'BOOASCII',
     description: 'Print any BOOA as ASCII. Pick a ramp, scale the resolution, color it like the original or strip it bare.',
     href: '/studio/booascii',
-    media: 'booascii.png',
+    media: 'booascii.svg',
     tag: 'NEW',
   },
   {
@@ -105,7 +105,7 @@ const TOOLS: ToolCard[] = [
     title: 'Img2Booa',
     description: 'Turn any image into BOOA-style pixel art. Same C64 palette + Bayer dithering pipeline as the minter.',
     href: '/studio/img2boa',
-    media: 'img2booa.png',
+    media: 'img2booa.svg',
     tag: 'LIVE',
   },
   {
@@ -113,7 +113,7 @@ const TOOLS: ToolCard[] = [
     title: 'Agent Sound',
     description: 'Each pixel becomes a note. 64 rows, 16 tones — hear your agent as 8-bit chiptune.',
     href: '/studio/agent-sound',
-    media: 'agent-sound.png',
+    media: 'agent-sound.svg',
     tag: 'NEW',
   },
   {
@@ -121,7 +121,7 @@ const TOOLS: ToolCard[] = [
     title: 'Banner Builder',
     description: 'Build a Twitter/X banner from your BOOA agents. Drag to reorder, export as PNG.',
     href: '/studio/banner-builder',
-    media: 'banner-builder.png',
+    media: 'banner-builder.svg',
     tag: 'NEW',
   },
   {
@@ -129,7 +129,7 @@ const TOOLS: ToolCard[] = [
     title: 'Agent Chat',
     description: 'Talk to your BOOA agents. Each agent responds in character based on its personality and expertise.',
     href: '/studio/agent-chat',
-    media: 'agent-chat.png',
+    media: 'agent-chat.svg',
     tag: 'NEW',
   },
   {
@@ -137,7 +137,7 @@ const TOOLS: ToolCard[] = [
     title: 'Agent Lore',
     description: 'Pick any BOOA by token ID. Gemini reads its on-chain traits and writes a short evocative paragraph for it.',
     href: '/studio/agent-lore',
-    media: 'agent-lore.png',
+    media: 'agent-lore.svg',
     tag: 'NEW',
   },
   {
@@ -145,7 +145,7 @@ const TOOLS: ToolCard[] = [
     title: 'Persona Quiz',
     description: 'Answer 7 questions and find your BOOA match among 3,333 agents.',
     href: '/studio/persona-quiz',
-    media: 'persona-quiz.png',
+    media: 'persona-quiz.svg',
     tag: 'NEW',
   },
   {
@@ -153,7 +153,7 @@ const TOOLS: ToolCard[] = [
     title: 'Agent Layers',
     description: 'Explore the 4 layers of a BOOA agent — from on-chain data to autonomous runtime.',
     href: '/studio/agent-layers',
-    media: 'agent-layer.png',
+    media: 'agent-layer.svg',
     tag: 'NEW',
   },
   {
@@ -161,7 +161,7 @@ const TOOLS: ToolCard[] = [
     title: 'Pixel Forge',
     description: 'Import your BOOA, draw over it, generate new assets with AI. Same palette, your creativity.',
     href: '/studio/pixel-forge',
-    media: 'pixel-forge.png',
+    media: 'pixel-forge.svg',
     tag: 'NEW',
   },
   {

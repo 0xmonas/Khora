@@ -1,37 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
-  <rect width="400" height="400" fill="#171030"/>
-  <g fill="#50459B" opacity="0.3">
-    <rect x="32" y="32" width="8" height="8"/><rect x="48" y="32" width="8" height="8"/>
-    <rect x="360" y="360" width="8" height="8"/><rect x="344" y="360" width="8" height="8"/>
-    <rect x="32" y="360" width="8" height="8"/><rect x="360" y="32" width="8" height="8"/>
-  </g>
-  <!-- roster of four little agents: your collection in one place -->
-  <g fill="#887ECB">
-    <!-- top-left -->
-    <rect x="120" y="104" width="8" height="8"/>
-    <rect x="104" y="112" width="40" height="40"/>
-    <rect x="112" y="152" width="24" height="8"/>
-    <!-- top-right -->
-    <rect x="272" y="104" width="8" height="8"/>
-    <rect x="256" y="112" width="40" height="40"/>
-    <rect x="264" y="152" width="24" height="8"/>
-    <!-- bottom-left -->
-    <rect x="120" y="240" width="8" height="8"/>
-    <rect x="104" y="248" width="40" height="40"/>
-    <rect x="112" y="288" width="24" height="8"/>
-    <!-- bottom-right -->
-    <rect x="272" y="240" width="8" height="8"/>
-    <rect x="256" y="248" width="40" height="40"/>
-    <rect x="264" y="288" width="24" height="8"/>
-  </g>
-  <g fill="#d9d4f2">
-    <rect x="112" y="124" width="8" height="8"/><rect x="128" y="124" width="8" height="8"/>
-    <rect x="264" y="124" width="8" height="8"/><rect x="280" y="124" width="8" height="8"/>
-    <rect x="112" y="260" width="8" height="8"/><rect x="128" y="260" width="8" height="8"/>
-    <rect x="264" y="260" width="8" height="8"/><rect x="280" y="260" width="8" height="8"/>
-  </g>
-  <g fill="#887ECB" opacity="0.45">
-    <rect x="196" y="192" width="8" height="8"/><rect x="204" y="192" width="8" height="8"/>
-    <rect x="196" y="200" width="8" height="8"/><rect x="204" y="200" width="8" height="8"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+<rect width="32" height="32" fill="#50459B"/>
+<path fill="#6ABFC6" d="M5 21h8v1h-8zM5 22h1v1h-1zM8 22h2v1h-2zM12 22h1v1h-1zM5 23h1v1h-1zM8 23h2v1h-2zM12 23h1v1h-1zM5 24h8v1h-8zM5 25h1v1h-1zM12 25h1v1h-1zM5 26h8v1h-8zM5 27h8v1h-8z"/>
+<path fill="#5CAB5E" d="M26 26h3v1h-3zM25 27h4v1h-4zM25 28h1v1h-1zM27 28h1v1h-1zM29 28h1v1h-1zM25 29h2v1h-2zM28 29h2v1h-2zM26 30h3v1h-3z"/>
+<path fill="#000000" d="M8 4h2v1h-2zM19 4h2v1h-2zM25 4h2v1h-2zM8 5h2v1h-2zM19 5h1v1h-1zM21 5h1v1h-1zM24 5h1v1h-1zM26 5h1v1h-1zM8 6h2v1h-2zM20 6h1v1h-1zM25 6h1v1h-1zM6 7h6v1h-6zM20 7h6v1h-6zM5 8h1v1h-1zM12 8h1v1h-1zM19 8h1v1h-1zM26 8h1v1h-1zM4 9h1v1h-1zM13 9h1v1h-1zM18 9h1v1h-1zM27 9h1v1h-1zM4 10h1v1h-1zM7 10h1v1h-1zM11 10h1v1h-1zM13 10h1v1h-1zM18 10h1v1h-1zM21 10h1v1h-1zM25 10h1v1h-1zM27 10h1v1h-1zM4 11h1v1h-1zM6 11h2v1h-2zM10 11h2v1h-2zM13 11h1v1h-1zM18 11h1v1h-1zM20 11h2v1h-2zM24 11h2v1h-2zM27 11h1v1h-1zM4 12h1v1h-1zM13 12h1v1h-1zM18 12h1v1h-1zM27 12h1v1h-1zM4 13h1v1h-1zM8 13h2v1h-2zM13 13h1v1h-1zM18 13h1v1h-1zM22 13h2v1h-2zM27 13h1v1h-1zM5 14h1v1h-1zM12 14h1v1h-1zM19 14h1v1h-1zM26 14h1v1h-1zM6 15h6v1h-6zM20 15h6v1h-6zM8 18h2v1h-2zM8 19h2v1h-2zM4 20h10v1h-10zM20 20h6v1h-6zM4 21h1v1h-1zM13 21h1v1h-1zM19 21h1v1h-1zM26 21h1v1h-1zM4 22h1v1h-1zM7 22h1v1h-1zM11 22h1v1h-1zM13 22h1v1h-1zM18 22h1v1h-1zM27 22h1v1h-1zM4 23h1v1h-1zM6 23h2v1h-2zM10 23h2v1h-2zM13 23h1v1h-1zM18 23h1v1h-1zM21 23h1v1h-1zM25 23h1v1h-1zM27 23h1v1h-1zM4 24h1v1h-1zM13 24h1v1h-1zM18 24h1v1h-1zM20 24h2v1h-2zM24 24h2v1h-2zM27 24h1v1h-1zM4 25h1v1h-1zM6 25h6v1h-6zM13 25h1v1h-1zM18 25h1v1h-1zM26 25h3v1h-3zM4 26h1v1h-1zM13 26h1v1h-1zM18 26h1v1h-1zM22 26h2v1h-2zM25 26h1v1h-1zM29 26h1v1h-1zM4 27h1v1h-1zM13 27h1v1h-1zM19 27h1v1h-1zM24 27h1v1h-1zM30 27h1v1h-1zM4 28h10v1h-10zM20 28h5v1h-5zM30 28h1v1h-1zM24 29h1v1h-1zM30 29h1v1h-1zM25 30h1v1h-1zM29 30h1v1h-1zM26 31h3v1h-3z"/>
+<path fill="#ADADAD" d="M3 23h1v1h-1zM14 23h1v1h-1zM3 24h1v1h-1zM14 24h1v1h-1z"/>
+<path fill="#A1683C" d="M20 5h1v1h-1zM25 5h1v1h-1zM20 8h6v1h-6zM19 9h8v1h-8zM19 10h1v1h-1zM22 10h2v1h-2zM26 10h1v1h-1zM19 11h1v1h-1zM22 11h2v1h-2zM26 11h1v1h-1zM19 12h8v1h-8zM19 13h3v1h-3zM24 13h3v1h-3zM20 14h6v1h-6z"/>
+<path fill="#CB7E75" d="M20 21h6v1h-6zM19 22h8v1h-8zM19 23h1v1h-1zM22 23h2v1h-2zM26 23h1v1h-1zM19 24h1v1h-1zM22 24h2v1h-2zM26 24h1v1h-1zM19 25h7v1h-7zM19 26h3v1h-3zM24 26h1v1h-1zM20 27h4v1h-4z"/>
+<path fill="#9F4E44" d="M23 17h1v1h-1zM25 17h1v1h-1zM27 17h1v1h-1zM24 18h3v1h-3zM25 19h1v1h-1z"/>
+<path fill="#FFFFFF" d="M6 10h1v1h-1zM10 10h1v1h-1zM20 10h1v1h-1zM24 10h1v1h-1zM6 22h1v1h-1zM10 22h1v1h-1zM20 23h1v1h-1zM24 23h1v1h-1zM29 27h1v1h-1zM26 28h1v1h-1zM28 28h1v1h-1zM27 29h1v1h-1z"/>
+<path fill="#C9D487" d="M8 3h2v1h-2z"/>
+<path fill="#9AE29B" d="M6 8h6v1h-6zM5 9h8v1h-8zM5 10h1v1h-1zM8 10h2v1h-2zM12 10h1v1h-1zM5 11h1v1h-1zM8 11h2v1h-2zM12 11h1v1h-1zM5 12h8v1h-8zM5 13h3v1h-3zM10 13h3v1h-3zM6 14h6v1h-6z"/>
 </svg>

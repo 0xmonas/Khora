@@ -1,27 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
-  <rect width="400" height="400" fill="#40318d"/>
-  <g fill="#7869c4" opacity="0.25">
-    <rect x="24" y="24" width="8" height="8"/><rect x="368" y="24" width="8" height="8"/>
-    <rect x="24" y="368" width="8" height="8"/><rect x="368" y="368" width="8" height="8"/>
-    <rect x="196" y="24" width="8" height="8"/><rect x="24" y="196" width="8" height="8"/>
-    <rect x="368" y="196" width="8" height="8"/><rect x="196" y="368" width="8" height="8"/>
-  </g>
-  <g transform="translate(108,84)">
-    <rect x="8" y="8" width="184" height="240" fill="#000000" opacity="0.35"/>
-    <rect width="184" height="240" fill="#e8e6f5"/>
-    <rect width="184" height="240" fill="none" stroke="#1a1440" stroke-width="6"/>
-    <path d="M136 0 L184 48 L136 48 Z" fill="#a59ed8"/>
-    <path d="M136 0 L184 48" stroke="#1a1440" stroke-width="6"/>
-    <g fill="#7869c4">
-      <rect x="24" y="72" width="88" height="10"/>
-      <rect x="24" y="94" width="136" height="6" opacity="0.55"/>
-      <rect x="24" y="110" width="120" height="6" opacity="0.55"/>
-      <rect x="24" y="126" width="136" height="6" opacity="0.55"/>
-      <rect x="24" y="158" width="64" height="8"/>
-      <rect x="24" y="178" width="136" height="6" opacity="0.55"/>
-      <rect x="24" y="194" width="104" height="6" opacity="0.55"/>
-    </g>
-    <text x="24" y="52" font-family="monospace" font-size="26" font-weight="bold" fill="#1a1440">[[BOOA]]</text>
-  </g>
-  <text x="200" y="356" font-family="monospace" font-size="20" fill="#a59ed8" text-anchor="middle">wiki</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+<rect width="32" height="32" fill="#6D5412"/>
+<path fill="#626262" d="M15 10h2v1h-2zM15 11h2v1h-2zM15 12h2v1h-2zM15 13h2v1h-2zM15 14h2v1h-2zM15 15h2v1h-2zM15 16h2v1h-2zM15 17h2v1h-2zM15 18h2v1h-2zM15 19h2v1h-2zM15 20h2v1h-2zM15 21h2v1h-2zM15 22h2v1h-2zM15 23h2v1h-2z"/>
+<path fill="#898989" d="M18 11h5v1h-5zM25 11h1v1h-1zM18 13h5v1h-5zM6 14h8v1h-8zM18 15h8v1h-8zM6 16h7v1h-7zM18 17h5v1h-5zM6 18h8v1h-8zM18 19h8v1h-8zM6 20h5v1h-5zM18 21h6v1h-6z"/>
+<path fill="#000000" d="M5 7h9v1h-9zM18 7h5v1h-5zM25 7h2v1h-2zM4 8h1v1h-1zM14 8h4v1h-4zM27 8h1v1h-1zM3 9h1v1h-1zM28 9h1v1h-1zM3 10h1v1h-1zM28 10h1v1h-1zM3 11h1v1h-1zM6 11h6v1h-6zM28 11h1v1h-1zM3 12h1v1h-1zM6 12h6v1h-6zM28 12h1v1h-1zM3 13h1v1h-1zM28 13h1v1h-1zM3 14h1v1h-1zM28 14h1v1h-1zM3 15h1v1h-1zM28 15h1v1h-1zM3 16h1v1h-1zM28 16h1v1h-1zM3 17h1v1h-1zM28 17h1v1h-1zM3 18h1v1h-1zM28 18h1v1h-1zM3 19h1v1h-1zM28 19h1v1h-1zM3 20h1v1h-1zM28 20h1v1h-1zM3 21h1v1h-1zM28 21h1v1h-1zM3 22h1v1h-1zM28 22h1v1h-1zM3 23h1v1h-1zM28 23h1v1h-1zM2 24h1v1h-1zM29 24h1v1h-1zM2 25h1v1h-1zM29 25h1v1h-1zM2 26h1v1h-1zM29 26h1v1h-1zM3 27h26v1h-26z"/>
+<path fill="#ADADAD" d="M15 9h2v1h-2zM5 24h22v1h-22z"/>
+<path fill="#A1683C" d="M3 24h2v1h-2zM27 24h2v1h-2zM3 25h26v1h-26zM3 26h26v1h-26z"/>
+<path fill="#9F4E44" d="M23 5h2v1h-2zM23 6h2v1h-2zM23 7h2v1h-2zM23 8h2v1h-2zM23 9h2v1h-2zM23 10h2v1h-2zM23 11h2v1h-2zM23 12h2v1h-2zM23 13h1v1h-1z"/>
+<path fill="#FFFFFF" d="M5 8h9v1h-9zM18 8h5v1h-5zM25 8h2v1h-2zM4 9h11v1h-11zM17 9h6v1h-6zM25 9h3v1h-3zM4 10h11v1h-11zM17 10h6v1h-6zM25 10h3v1h-3zM4 11h2v1h-2zM12 11h3v1h-3zM17 11h1v1h-1zM26 11h2v1h-2zM4 12h2v1h-2zM12 12h3v1h-3zM17 12h6v1h-6zM25 12h3v1h-3zM4 13h11v1h-11zM17 13h1v1h-1zM25 13h3v1h-3zM4 14h2v1h-2zM14 14h1v1h-1zM17 14h11v1h-11zM4 15h11v1h-11zM17 15h1v1h-1zM26 15h2v1h-2zM4 16h2v1h-2zM13 16h2v1h-2zM17 16h11v1h-11zM4 17h11v1h-11zM17 17h1v1h-1zM23 17h5v1h-5zM4 18h2v1h-2zM14 18h1v1h-1zM17 18h11v1h-11zM4 19h11v1h-11zM17 19h1v1h-1zM26 19h2v1h-2zM4 20h2v1h-2zM11 20h4v1h-4zM17 20h11v1h-11zM4 21h11v1h-11zM17 21h1v1h-1zM24 21h4v1h-4zM4 22h11v1h-11zM17 22h11v1h-11zM4 23h11v1h-11zM17 23h11v1h-11z"/>
+<path fill="#C9D487" d="M4 3h1v1h-1zM27 3h1v1h-1zM28 28h1v1h-1z"/>
 </svg>
