@@ -1,116 +1,68 @@
 # BOOA
 
-On-chain AI agent generator on Shape. Create, mint, and register AI agents with fully on-chain pixel art and identity — powered by ERC-8004.
+3,333 AI agent identities, fully on-chain on Ethereum. Every BOOA carries its own name, personality, skills, boundaries and 64x64 pixel art inside the contract, and can be awakened into an ERC-8004 agent that follows the NFT.
 
 ![BOOA](public/og-banner.png)
 
-## What is BOOA?
+## What you can do
 
-BOOA generates complete AI agent identities — personality, skills, boundaries, domains — and mints them as fully on-chain NFTs on Shape Network. Portraits are AI-generated pixel art stored directly in the smart contract via SSTORE2, with no external dependencies.
+- **Browse** all 3,333 at [booa.app/booa/gallery](https://booa.app/booa/gallery). Live art, no wallet needed.
+- **Migrate** a Shape BOOA to Ethereum at [booa.app/migrate](https://booa.app/migrate): burn on Shape, claim on Ethereum.
+- **Awaken** a BOOA into an ERC-8004 agent through the BOOA adapter. Whoever holds the NFT controls the agent; a sale hands control to the buyer.
+- **Configure** palette, background, paint, vibe and traits on-chain in My BOOAs. The original art and mint traits never change.
+- **Run** the agent with the [Hermes template](https://github.com/0xmonas/booa-hermes-template), OpenClaw, or any framework that reads SOUL.md and IDENTITY.md.
+- **Bridge** any NFT into an ERC-8004 agent on 16 EVM chains.
+- **Studio:** Agent Chat, BOOASK, Wiki, Pixel Forge, Spriteworks, Writers Room and more at [booa.app/studio](https://booa.app/studio).
 
-Agents can optionally be registered on the [ERC-8004 Identity Registry](https://eips.ethereum.org/EIPS/eip-8004), making them discoverable across 16 EVM chains.
+## Contracts (Ethereum mainnet)
 
-## Features
+| Contract | Address |
+|---|---|
+| BOOA (ERC-721) | `0xbc48fD45aAaf6549293056606397D351a100b222` |
+| BOOAStorage (SSTORE2 bitmap + traits) | `0xD6A1ECd2495d1ECf6c200E1D8D6a191BF07Cba96` |
+| Live renderer (holder configuration) | `0xAd38C8C57A870394A00088Ebd81CEca4CBde0DE7` |
+| Original renderer (never changes) | `0x7Cf376EE7263a78Db2d163775BE322fA7B842C76` |
+| BOOAConfig | `0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F` |
+| BOOAPaint | `0x959d71DebcD8BdD9F8Dc1e77DFBecddF81CA8305` |
+| BOOA adapter (ERC-8004 binding) | `0xde152AfB7db5373F34876E1499fbD893A82dD336` |
+| ERC-8004 Identity Registry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 
-- **AI Agent Generation** — AI generates complete agent profiles (creature, vibe, personality, skills, domains, boundaries)
-- **AI Pixel Art Portraits** — AI-generated portraits processed through C64 16-color palette quantization and pixel stretch
-- **Fully On-Chain** — SVG art + JSON traits stored via SSTORE2, no IPFS or external hosting
-- **Signature-Based Minting** — Server-signed mint packets with deadline verification
-- **ERC-8004 Identity Registry** — Register agents on-chain for cross-ecosystem discoverability across 16 chains
-- **Create Mode** — Generate a completely random, unique AI agent from scratch
-- **Import Mode** — Discover your existing agents across 16 chains and reimagine them with new art
-- **Multiple Export Formats** — PNG, SVG, ERC-8004 JSON
-- **Cross-Chain Bridge** — Bridge agent identities across supported EVM chains
+Origin: Shape mainnet `0x7aecA981734d133d3f695937508C48483BA6b654`, live until every token is migrated.
 
-## How It Works
+## API
 
-### Create Mode
-1. **Generate** — AI creates a full agent identity + pixel art portrait
-2. **Mint** — Server signs the mint packet, NFT is minted with on-chain SVG + traits
-3. **Register** *(optional)* — Register on ERC-8004 Identity Registry
+Public, no key needed. Full reference: [booa.app/llms.txt](https://booa.app/llms.txt).
 
-### Import Mode
-1. **Discover** — Scan 16 chains for your existing ERC-8004 agents
-2. **Select** — Pick an agent to reimagine
-3. **Mint** — Generate new pixel art and mint as BOOA V2 NFT
-4. **Update** — Update the existing registry entry with the new identity
+```
+GET /api/v1/booas/{id}            live identity, mint identity, owner, agent link
+GET /api/v1/booas/{id}/{file}     image.svg, soul.md, identity.md, agent.json, erc8004.json, openclaw.zip
+GET /api/booa-image/{id}          live SVG (the image inside ERC-8004 records)
+GET /api/agent-registry/1/{id}    ERC-8004 registration and verification
+GET /api/wiki/{id}                wiki page and chronicle
+```
 
-## Tech Stack
+Agent onboarding: [booa.app/skills/SKILL.md](https://booa.app/skills/SKILL.md). User flows and the full API map: [FLOW.md](FLOW.md).
 
-| Layer | Technology |
-|-------|-----------|
-| Blockchain | Shape Network (mainnet: 360, testnet: 11011) |
-| Smart Contracts | Solidity 0.8.24, SSTORE2, Foundry |
-| Standards | ERC-721, ERC-2981, ERC-8004 |
-| Frontend | Next.js 15, React 19, TypeScript |
-| Web3 | wagmi v2, viem, RainbowKit |
-| AI | Gemini (text), Replicate (image) |
-| UI | Tailwind CSS, Departure Mono |
-| Auth | SIWE + Iron-Session |
-| Rate Limiting | Upstash Redis |
+## Tech stack
 
-## Smart Contracts: BOOA V2
+Next.js 15, React 19, TypeScript, Tailwind CSS, wagmi v2, viem, RainbowKit, SIWE + iron-session, Upstash Redis, Gemini, Replicate, Foundry.
 
-**BOOA V2** is a 4-contract system on Shape Network:
-
-| Contract | Role |
-|----------|------|
-| BOOAv2 | ERC-721 + ERC-2981 NFT core |
-| BOOAStorage | On-chain SVG + traits via SSTORE2 |
-| BOOARenderer | Token URI + metadata generation |
-| BOOAMinter | Signature-verified minting + phases |
-
-Features:
-- On-chain SVG storage via SSTORE2 (max 24KB per token)
-- On-chain JSON traits storage (max 8KB per token)
-- Server-signed mint packets with deadline expiry
-- SVG sanitization (blocks scripts, iframes, event handlers)
-- Configurable mint price, max supply (3,333), and phases
-- Full royalty support (ERC-2981)
-
-## Quick Start
+## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Set up environment
-cp .env.example .env
-# Fill in your API keys
-
-# Run development server
+cp .env.example .env    # fill in your keys
 npm run dev
+npm test
 ```
-
-### Contract Deployment
-
-```bash
-cd contracts
-~/.foundry/bin/forge build
-~/.foundry/bin/forge test
-```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|------------|
-| `GEMINI_API_KEY` | Google Gemini API key |
-| `REPLICATE_API_TOKEN` | Replicate API token |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
-| `NEXT_PUBLIC_BOOA_V2_ADDRESS_TESTNET` | BOOA V2 contract (Shape Sepolia) |
-| `NEXT_PUBLIC_BOOA_V2_MINTER_ADDRESS_TESTNET` | Minter contract (Shape Sepolia) |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
-| `SESSION_SECRET` | Iron-session secret (32+ chars) |
-| `SIGNER_PRIVATE_KEY` | Mint packet signer key |
-| `DEPLOYER_PRIVATE_KEY` | Contract deployer key |
 
 ## Links
 
-- **App**: [booa.app](https://booa.app)
-- **GitHub**: [github.com/0xmonas/Khora](https://github.com/0xmonas/Khora)
-- **ERC-8004**: [eips.ethereum.org/EIPS/eip-8004](https://eips.ethereum.org/EIPS/eip-8004)
+- App: [booa.app](https://booa.app)
+- Docs: [booa.app/docs](https://booa.app/docs)
+- Hermes template: [github.com/0xmonas/booa-hermes-template](https://github.com/0xmonas/booa-hermes-template)
+- ERC-8004: [eips.ethereum.org/EIPS/eip-8004](https://eips.ethereum.org/EIPS/eip-8004)
 
 ## License
 
-Open source. Built by [0xmonas](https://github.com/0xmonas).
+MIT. Copyright (c) 2026 [0xmonas](https://x.com/0xmonas).

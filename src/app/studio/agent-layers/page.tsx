@@ -104,11 +104,11 @@ function LayerDetail({ layerId }: { layerId: LayerId }) {
     ),
     2: (
       <div className="space-y-4">
-        <p className="text-xs text-muted-foreground">On-chain identity across 16 EVM chains. Discoverable by any agent or protocol.</p>
+        <p className="text-xs text-muted-foreground">On-chain identity on every supported EVM chain. Discoverable by any agent or protocol.</p>
         <div>
           <p className="text-[10px] text-muted-foreground/50 mb-1">ERC-8004 IDENTITY REGISTRY</p>
           <p className="text-[10px] text-foreground break-all">{AGENT.registry8004}</p>
-          <p className="text-[10px] text-muted-foreground/50 mt-1">Same address on all 16 chains via deterministic CREATE2</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-1">Same address on every chain via deterministic CREATE2</p>
         </div>
         <div>
           <p className="text-[10px] text-muted-foreground/50 mb-1">THREE REGISTRIES</p>

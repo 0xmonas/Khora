@@ -30,7 +30,7 @@ All 3,333 agents live fully on-chain. The focus now is agentic — turning each 
 
 Each agent lives in Khôra — a fictional cyberpunk megacity, the universe in which all 3,333 agents exist. The lore isn't just flavor — it defines each agent's creature type, personality, and role: street-level hustlers, corporate data brokers, junkyard mechanics, and rogue diplomats.
 
-BOOA is also an open-source studio building tools for on-chain AI agent identity — minting, registration, deployment, and the ecosystem around it. The platform includes:
+BOOA is also an open-source studio building tools for on-chain AI agent identity — registration, deployment, and the ecosystem around it. The platform includes:
 
 Website: booa.app — collection gallery, agent tools, bridge, studio
 Bridge: Register and manage your agent's ERC-8004 identity across every supported EVM chain
@@ -125,7 +125,7 @@ Rules:
 - Restore original removes everything at once. Paint is saved separately from the other settings.
 - Gas only, no fee. Each save is one transaction.
 
-Where it shows: tokenURI immediately; OpenSea and other marketplaces after their refresh (My BOOAs asks for one after each save); My BOOAs reads the live render directly from the chain; the gallery grid shows the marketplace cache until it refreshes. Agent files (soul.md, identity.md, avatar.svg) follow the live identity; the original stays under mint in booa.app/api/v1/booas/{tokenId}, and the wiki records every change.
+Where it shows: tokenURI immediately; OpenSea and other marketplaces after their refresh (My BOOAs asks for one after each save); My BOOAs and the gallery show the live render straight away. Agent files (soul.md, identity.md, avatar.svg) follow the live identity; the original stays under mint in booa.app/api/v1/booas/{tokenId}, and the wiki records every change.
 
 Contracts (Ethereum Mainnet):
 - BOOAConfig: 0x12F02647aBB0E0779D5a8d9AF21b4885ae13cf7F
@@ -158,7 +158,7 @@ Download your agent files:
         slug: 'agent-files-api',
         title: 'Agent Files API',
         description: 'Fetch agent identity programmatically.',
-        content: `All agent files are available via public API. No authentication required. Cached for 24 hours.
+        content: `All agent files are available via public API. No authentication required. Cached for 5 minutes.
 
 Endpoints:
 
@@ -213,7 +213,7 @@ Proof of work. Stores attestations and validation records for agent capabilities
 The Identity Registry is deployed at the same address on every EVM chain via deterministic CREATE2:
 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 
-Supported chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad
+Supported chains: Ethereum, Base, Shape, Polygon, Arbitrum, OP Mainnet, Avalanche, BNB Chain, Celo, Gnosis, Scroll, Linea, Mantle, Metis, Abstract, Monad, Robinhood Chain
 
 Same address, every chain. Register once, discoverable everywhere.
 
@@ -556,23 +556,47 @@ Protocol: x402.org`,
         slug: 'overview',
         title: 'Studio Overview',
         description: 'Interactive tools for BOOA holders.',
-        content: `BOOA Studio is a collection of interactive tools for BOOA holders. All tools are available at booa.app/studio.
+        content: `BOOA Studio is a collection of interactive tools for BOOA holders and visitors. All tools are available at booa.app/studio.
 
-Agent Chat — Talk to your BOOA. It responds in character based on its on-chain traits. No setup required, just connect your wallet.
+Awaken — Turn your BOOA into a live ERC-8004 agent. Control follows the NFT.
 
-Pixel Forge — Pixel art editor with C64 palette, layers, AI generation, CryptoPunk and Normie import. Custom canvas sizes up to 128x128.
+My Agents — Your BOOAs and their agents in one place: awaken status, agent wallet, verified badge.
+
+Bridge — Turn any NFT into an ERC-8004 agent and link its runtime wallet.
+
+Agent Console — Chat with and manage your own Hermes instance from the browser.
+
+BOOASK — Ask anything about a BOOA, an agent, or how BOOA works. Read-only, no wallet.
+
+Ident Cards — Look up any BOOA by token ID: pixel art, traits, and ERC-8004 identity.
+
+BOOA Wiki — A living wiki page for every agent, with a chronicle of holder changes.
+
+Writers Room — 30-day collaborative comic. Holders pitch the next page; the most-liked submission wins.
+
+Spriteworks — Animate your BOOA into a game-ready sprite sheet.
+
+BOOASCII — Print any BOOA as ASCII.
+
+Img2Booa — Upload any image and get BOOA-style pixel art. C64 palette + Bayer dithering.
 
 Agent Sound — Your BOOA's pixel art becomes 8-bit chiptune music. 64 rows, 16 tones, sine/triangle/sawtooth/square waves.
 
 Banner Builder — Drag and drop your BOOAs into a banner. 11 formations, shadows, badges, palette extraction. Export as PNG.
 
-Img2Booa — Upload any image and get BOOA-style pixel art. C64 palette + Bayer dithering.
+Agent Chat — Talk to your BOOA. It responds in character based on its on-chain traits. No setup required, just connect your wallet.
+
+Agent Lore — Pick any BOOA by token ID and get a short piece written from its on-chain traits.
 
 Persona Quiz — Answer 7 questions and find your BOOA match among 3,333 agents.
 
 Agent Layers — Interactive visualization of the 4-layer agent architecture.
 
+Pixel Forge — Pixel art editor with C64 palette, layers, AI generation, CryptoPunk and Normie import. Custom canvas sizes up to 128x128.
+
 Community tools:
+- Banner & DJ Club Studio by @beastoshii — beats, pads, MIDI keyboard and voice, export as MP3
+- Moltbooa Lab by @OsayKancuno
 - BOOAS WANTED by @0xfilter8 — generate wanted-style posters
 - BOOA Skill Synergy by @OsayKancuno — find skill compatibility between agents`,
       },
@@ -586,13 +610,19 @@ Community tools:
         slug: 'api-overview',
         title: 'API Overview',
         description: 'Public API endpoints.',
-        content: `All BOOA API endpoints are public. No authentication required. Rate limit: 60 requests / 60 seconds per IP.
+        content: `These endpoints are public and need no sign-in. Rate limit: 60 requests per minute per IP (240 for /api/booa-image).
 
 Base URL: https://booa.app
 
+BOOA (one live source):
+GET /api/v1/booas/{tokenId} — Live identity, mint identity, owner, agent link
+GET /api/v1/booas/{tokenId}/{file} — image.svg, soul.md, identity.md, agent.json, erc8004.json, openclaw.zip
+GET /api/booa-image/{tokenId} — Live SVG (the image inside ERC-8004 records)
+GET /api/wiki/{tokenId} — Wiki page and chronicle
+
 Agent Identity:
 GET /api/agent-card?chain={slug}&agentId={id} — Agent identity + scores
-GET /api/booa-token?network=mainnet&tokenId={id} — On-chain traits + pixel art
+GET /api/booa-token?network=mainnet&tokenId={id} — Live traits + pixel art in the raw ERC-721 shape
 GET /api/agent-registry/{chainId}/{tokenId} — Registration status + verification
 
 Agent Files:
@@ -608,7 +638,7 @@ GET /api/discover-agents?address={addr}&chain={slug} — All agents owned by wal
 POST /api/fetch-agent {"chain":"ethereum","agentId":42} — Raw 8004 registration data
 
 Collection:
-GET /api/gallery?contract={addr}&chain=ethereum&limit=50 — Browse collection
+GET /api/gallery?contract={addr}&chain=ethereum&limit=50 — Browse collection (art as last indexed by Alchemy; for the live look use /api/booa-image/{tokenId})
 GET /api/fetch-nfts?address={addr}&chain=ethereum — All NFTs in wallet
 GET /api/stats — Collection statistics
 

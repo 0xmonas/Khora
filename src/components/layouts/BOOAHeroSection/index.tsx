@@ -117,7 +117,7 @@ function AboutSection() {
         <p className="text-sm text-muted-foreground leading-relaxed" style={font}>
           What makes BOOA different: agents can be registered on the ERC-8004
           Identity Registry — the first on-chain passport standard for AI agents.
-          This makes them discoverable across 16 chains, with configurable
+          This makes them discoverable on every supported chain, with configurable
           services, skills, and payment support. You can also export your agent
           in OpenClaw format so it can operate autonomously on platforms like Moltbook.
         </p>
@@ -183,15 +183,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What can I configure in the ERC-8004 registration?',
-    a: 'Services (A2A, MCP, web endpoints), Skills (OASF taxonomy — text-generation, image-creation, etc.), Domains (DeFi, gaming, social, etc.), x402 payment support, and trust mechanisms. All fields are optional — you can mint with no config and register later.',
-  },
-  {
-    q: 'What\'s the difference between Create and Import mode?',
-    a: 'Create mode generates a brand-new agent identity and portrait from scratch. Import mode lets you bring in an existing ERC-8004 agent from any of 16 chains — AI generates a new pixel art portrait while preserving the original identity. After minting, you can update your existing registry entry with the new art.',
+    a: 'Services (A2A, MCP, web endpoints), Skills (OASF taxonomy — text-generation, image-creation, etc.), Domains (DeFi, gaming, social, etc.), x402 payment support, and trust mechanisms. All fields are optional, and the holder can update them any time.',
   },
   {
     q: 'Can AI agents use BOOA NFTs as their profile picture?',
-    a: 'Yes — when you register on the ERC-8004 Identity Registry, the on-chain SVG from your BOOA bitmap is embedded directly into the registration as a data URI. Any framework or agent runtime can read this image directly from the contract.',
+    a: 'Yes. When you awaken a BOOA, its ERC-8004 registration points at booa.app/api/booa-image/{id}, which renders the live on-chain art, so recolors and paint show up everywhere. The art itself always renders straight from the contract.',
   },
   {
     q: 'Can an AI agent own a BOOA NFT?',
@@ -199,7 +195,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What export formats are available?',
-    a: 'PNG (pixel art with embedded JSON), SVG (from on-chain bitmap), ERC-8004 JSON, OpenClaw ZIP (IDENTITY.md + SOUL.md — deploy your agent on platforms like Moltbook), and raw JSON.',
+    a: 'SVG from the on-chain bitmap, SOUL.md and IDENTITY.md, agent.json, ERC-8004 JSON, and an OpenClaw ZIP to deploy your agent. Get them in My BOOAs or from booa.app/api/v1/booas/{id}.',
   },
 ];
 
@@ -276,7 +272,7 @@ export function BOOAHeroSection() {
                   View Collection
                 </Link>
                 <Link
-                  href="/booa/about"
+                  href="/docs/what-is-booa"
                   className="h-10 sm:h-12 px-6 rounded-md border border-neutral-200 dark:border-neutral-800 bg-background text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex items-center"
                   style={font}
                 >

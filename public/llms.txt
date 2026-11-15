@@ -176,7 +176,7 @@ Response:
 
 ### GET /api/gallery
 
-Fetch BOOA NFTs in the collection. Returns on-chain SVG art, token IDs, and names. Ethereum is the canonical home; Shape still serves un-migrated tokens.
+Fetch BOOA NFTs in the collection. Returns token IDs, names and art as last indexed by Alchemy, which can lag behind holder edits; for the live look use GET /api/booa-image/{tokenId}. Ethereum is the canonical home; Shape still serves un-migrated tokens.
 
 Parameters:
 - contract (required): Contract address (0x...)

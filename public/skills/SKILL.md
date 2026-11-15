@@ -1,6 +1,6 @@
 ---
 name: khora
-version: 1.1.1
+version: 1.1.2
 description: On-chain AI agent identity generator & NFT registry. Set up your BOOA agent — fetch identity, get agent files, configure wallet, manage ERC-8004 ownership.
 homepage: https://booa.app
 metadata: {"emoji":"🔮","api_base":"https://booa.app/api","chain":"ethereum","nft_contract":"0xbc48fD45aAaf6549293056606397D351a100b222","identity_registry":"0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"}
@@ -158,7 +158,7 @@ curl "https://booa.app/api/agent-registry/1/{TOKEN_ID}"
 
 ## Step 2 — Get Agent Files
 
-Your agent's identity files are generated from on-chain data. All endpoints are public, cached for 24 hours.
+Your agent's identity files are generated from on-chain data. All endpoints are public, cached for 5 minutes.
 
 ### IDENTITY.md
 
@@ -431,7 +431,7 @@ GET  /api/booa-token?network=mainnet&tokenId={id}         # On-chain traits + pi
 GET  /api/agent-registry/{chainId}/{tokenId}              # Registration status + verification
 GET  /api/discover-agents?address={addr}&chain={slug}     # All agents owned by wallet
 POST /api/fetch-agent  {"chain":"ethereum","agentId":42}  # Raw 8004 registration data
-GET  /api/gallery?contract={BOOA}&chain=ethereum&limit=50 # Browse the BOOA collection
+GET  /api/gallery?contract={BOOA}&chain=ethereum&limit=50 # Browse the collection (Alchemy-indexed art; live art: /api/booa-image/{id})
 GET  /api/fetch-nfts?address={addr}&chain=ethereum        # All NFTs in wallet
 GET  /api/stats                                           # Collection statistics
 GET  /api/agent-files/{chainId}/{tokenId}                  # ZIP (all files)

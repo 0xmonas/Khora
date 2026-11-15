@@ -6,10 +6,11 @@ BOOA is an on-chain AI agent identity system. Smart contracts are immutable once
 
 ### In Scope
 
-- **Smart contracts** at `0x7aecA981734d133d3f695937508C48483BA6b654` (BOOA) and related (Minter, Storage, Renderer) on Shape Network
-- **ERC-8004 Identity Registry** integration logic (`verified` field, `nftOrigin` binding, ownership checks)
-- **Web application** at [booa.app](https://booa.app) — all routes including `/api/*`, `/studio`, `/bridge`, `/gallery`
-- **Agent-facing artifacts** — `public/skills/SKILL.md`, `public/agent-defense.md`, `/api/agent-files/*`
+- **Smart contracts on Ethereum mainnet:** BOOA `0xbc48fD45aAaf6549293056606397D351a100b222`, BOOAStorage, the live and original renderers, BOOAConfig, BOOAPaint and the BOOA adapter (addresses in [README.md](README.md))
+- **Shape origin contract** `0x7aecA981734d133d3f695937508C48483BA6b654` and the migration path (burn on Shape, operator-signed claim tickets, claim on Ethereum)
+- **ERC-8004 integration logic** (adapter binding, `verified` field, `nftOrigin`, agent wallet linking, ownership checks)
+- **Web application** at [booa.app](https://booa.app) — all routes including `/api/*`, `/studio`, `/bridge`, `/booa/gallery`, `/migrate`
+- **Agent-facing artifacts** — `public/skills/SKILL.md`, `public/agent-defense.md`, `/api/v1/booas/*`, `/api/agent-files/*`
 - **BOOA Hermes Template** at [github.com/0xmonas/booa-hermes-template](https://github.com/0xmonas/booa-hermes-template)
 - **Client-side wallet interactions** — SIWE flow, signing logic, session management
 
@@ -17,7 +18,7 @@ BOOA is an on-chain AI agent identity system. Smart contracts are immutable once
 
 - Social engineering of the BOOA team
 - Physical security
-- Denial-of-service via rate-limit exhaustion (rate limits are documented at 60 req/60s per IP)
+- Denial-of-service via rate-limit exhaustion (per IP: 60 reads, 30 writes and 240 images per minute)
 - Findings in third-party dependencies unless directly exploitable in BOOA context (file upstream first)
 - Findings that require a compromised user machine or browser
 - Best-practice suggestions without a concrete attack path
@@ -27,7 +28,7 @@ BOOA is an on-chain AI agent identity system. Smart contracts are immutable once
 Issues that can lead to:
 
 - Loss or theft of NFTs, 8004 registrations, or user funds
-- Unauthorized minting, phase manipulation, or contract state corruption
+- Unauthorized or double claims in the migration, or contract state corruption
 - Orphaned 8004 registrations being treated as valid (bypassing the dual-check verification)
 - Identity hijack — an impersonator being served as legitimate
 - Leakage of private keys, mnemonics, API tokens, or user-private files (e.g. USER.md) through any BOOA-controlled surface
